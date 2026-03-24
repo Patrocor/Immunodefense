@@ -1,0 +1,803 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Receta Médica Virtual - Perú</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <style>
+        :root {
+            --color-primary: #20A0B0;
+            --color-primary-hover: #1D9DA8;
+            --color-bg: #f5f5f5;
+            --color-surface: #ffffff;
+            --color-text: #1f2121;
+            --color-text-secondary: #626c71;
+            --color-border: rgba(94, 82, 64, 0.2);
+            --color-error: #C0152F;
+            --color-success: #21808D;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--color-bg);
+            color: var(--color-text);
+            padding: 16px;
+            line-height: 1.5;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: var(--color-surface);
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 16px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+        }
+
+        h1 {
+            font-size: 24px;
+            font-weight: 600;
+            color: var(--color-text);
+            margin-bottom: 8px;
+        }
+
+        .subtitle {
+            color: var(--color-text-secondary);
+            font-size: 14px;
+        }
+
+        .card {
+            background: var(--color-surface);
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 16px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+        }
+
+        .section-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 16px;
+            color: var(--color-text);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+            position: relative;
+        }
+
+        label {
+            display: block;
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--color-text);
+            margin-bottom: 6px;
+        }
+
+        .required {
+            color: var(--color-error);
+        }
+
+        input, select, textarea {
+            width: 100%;
+            padding: 10px 12px;
+            font-size: 14px;
+            border: 1px solid var(--color-border);
+            border-radius: 8px;
+            background: var(--color-surface);
+            color: var(--color-text);
+            transition: border-color 0.2s;
+        }
+
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: var(--color-primary);
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 80px;
+            font-family: inherit;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .form-row-3 {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 12px;
+        }
+
+        @media (max-width: 600px) {
+            .form-row, .form-row-3 {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .btn {
+            padding: 12px 20px;
+            font-size: 14px;
+            font-weight: 500;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: var(--color-primary);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: var(--color-primary-hover);
+        }
+
+        .btn-secondary {
+            background: transparent;
+            color: var(--color-text);
+            border: 1px solid var(--color-border);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(0, 0, 0, 0.03);
+        }
+
+        .btn-small {
+            padding: 8px 14px;
+            font-size: 13px;
+        }
+
+        .btn-block {
+            width: 100%;
+        }
+
+        .medication-item {
+            background: rgba(33, 128, 141, 0.08);
+            border: 1px solid rgba(33, 128, 141, 0.2);
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 12px;
+        }
+
+        .medication-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 12px;
+        }
+
+        .medication-name {
+            font-weight: 600;
+            font-size: 15px;
+            color: var(--color-text);
+        }
+
+        .btn-remove {
+            background: var(--color-error);
+            color: white;
+            padding: 6px 12px;
+            font-size: 12px;
+            border-radius: 6px;
+        }
+
+        .btn-remove:hover {
+            background: #A0112A;
+        }
+
+        .medication-details {
+            font-size: 13px;
+            color: var(--color-text-secondary);
+            line-height: 1.6;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 32px;
+            color: var(--color-text-secondary);
+        }
+
+        .actions {
+            display: flex;
+            gap: 12px;
+            margin-top: 24px;
+        }
+
+        .alert {
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-bottom: 16px;
+            font-size: 14px;
+        }
+
+        .alert-error {
+            background: rgba(192, 21, 47, 0.1);
+            color: var(--color-error);
+            border: 1px solid rgba(192, 21, 47, 0.2);
+        }
+
+        .alert-success {
+            background: rgba(33, 128, 141, 0.1);
+            color: var(--color-success);
+            border: 1px solid rgba(33, 128, 141, 0.2);
+        }
+
+        .suggestions {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: #ffffff;
+            border: 1px solid var(--color-border);
+            border-radius: 8px;
+            max-height: 180px;
+            overflow-y: auto;
+            z-index: 1000;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.08);
+        }
+
+        .suggestion-item {
+            padding: 8px 10px;
+            font-size: 13px;
+            cursor: pointer;
+        }
+
+        .suggestion-item:hover {
+            background: #f0f4f5;
+        }
+
+        .suggestion-item small {
+            color: var(--color-text-secondary);
+            display: block;
+        }
+  </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h1>📋 Receta Médica Virtual</h1>
+        <p class="subtitle">Genera recetas médicas profesionales en formato PDF desde tu celular</p>
+    </div>
+
+    <div id="alertContainer"></div>
+
+    <!-- Datos del Médico -->
+    <div class="card">
+        <h2 class="section-title">👨‍⚕️ Datos del Médico Prescriptor</h2>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Nombres y Apellidos <span class="required">*</span></label>
+                <input type="text" id="medicoNombre">
+            </div>
+            <div class="form-group">
+                <label>CMP <span class="required">*</span></label>
+                <input type="text" id="medicoCMP">
+            </div>
+        </div>
+        <div class="form-group">
+            <label>Especialidad</label>
+            <input type="text" id="medicoEspecialidad">
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Teléfono</label>
+                <input type="tel" id="medicoTelefono">
+            </div>
+            <div class="form-group">
+                <label>Email</label>
+                <input type="email" id="medicoEmail">
+            </div>
+        </div>
+    </div>
+
+    <!-- Datos del Paciente -->
+    <div class="card">
+        <h2 class="section-title">👤 Datos del Paciente</h2>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Nombres y Apellidos <span class="required">*</span></label>
+                <input type="text" id="pacienteNombre" placeholder="Nombre completo">
+            </div>
+            <div class="form-group">
+                <label>DNI</label>
+                <input type="text" id="pacienteDNI" placeholder="12345678">
+            </div>
+        </div>
+        <div class="form-row-3">
+            <div class="form-group">
+                <label>Edad <span class="required">*</span></label>
+                <input type="number" id="pacienteEdad" placeholder="35">
+            </div>
+            <div class="form-group">
+                <label>Sexo</label>
+                <select id="pacienteSexo">
+                    <option value="">Seleccionar</option>
+                    <option value="M">Masculino</option>
+                    <option value="F">Femenino</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Fecha de Atención <span class="required">*</span></label>
+                <input type="date" id="fechaAtencion">
+            </div>
+        </div>
+        <div class="form-group">
+            <label>Diagnóstico (CIE-10)</label>
+            <input type="text" id="diagnostico" placeholder="Escribe código o diagnóstico...">
+            <div id="cie10Suggestions" class="suggestions" style="display:none;"></div>
+        </div>
+    </div>
+
+    <!-- Formulario de Medicamento -->
+    <div class="card">
+        <h2 class="section-title">💊 Agregar Medicamento</h2>
+
+        <div class="form-group">
+            <label>Buscar medicamento (DCI o marca)</label>
+            <input type="text" id="buscadorMedicamento" placeholder="Ej.: Paracetamol, Panadol, Omeprazol...">
+            <div id="medicamentoSuggestions" class="suggestions" style="display:none;"></div>
+        </div>
+
+        <div class="form-group">
+            <label>Nombre del Medicamento (DCI) <span class="required">*</span></label>
+            <input type="text" id="medicamentoNombre" placeholder="Paracetamol">
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Presentación/Concentración <span class="required">*</span></label>
+                <input type="text" id="medicamentoPresentacion" placeholder="500 mg tabletas">
+            </div>
+            <div class="form-group">
+                <label>Cantidad <span class="required">*</span></label>
+                <input type="text" id="medicamentoCantidad" placeholder="20 tabletas">
+            </div>
+        </div>
+        <div class="form-row-3">
+            <div class="form-group">
+                <label>Dosis <span class="required">*</span></label>
+                <input type="text" id="medicamentoDosis" placeholder="500 mg">
+            </div>
+            <div class="form-group">
+                <label>Frecuencia <span class="required">*</span></label>
+                <select id="medicamentoFrecuencia">
+                    <option value="">Seleccionar</option>
+                    <option value="Cada 4 horas">Cada 4 horas</option>
+                    <option value="Cada 6 horas">Cada 6 horas</option>
+                    <option value="Cada 8 horas">Cada 8 horas</option>
+                    <option value="Cada 12 horas">Cada 12 horas</option>
+                    <option value="Cada 24 horas">Cada 24 horas (1 vez al día)</option>
+                    <option value="2 veces al día">2 veces al día</option>
+                    <option value="3 veces al día">3 veces al día</option>
+                    <option value="Antes de cada comida">Antes de cada comida</option>
+                    <option value="Después de cada comida">Después de cada comida</option>
+                    <option value="En ayunas">En ayunas</option>
+                    <option value="Antes de dormir">Antes de dormir</option>
+                    <option value="Según necesidad">Según necesidad (PRN)</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Duración <span class="required">*</span></label>
+                <input type="text" id="medicamentoDuracion" placeholder="7 días">
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Vía de Administración <span class="required">*</span></label>
+                <select id="medicamentoVia">
+                    <option value="">Seleccionar</option>
+                    <option value="Vía oral">Vía oral (VO)</option>
+                    <option value="Vía sublingual">Vía sublingual (SL)</option>
+                    <option value="Vía intramuscular">Vía intramuscular (IM)</option>
+                    <option value="Vía intravenosa">Vía intravenosa (IV)</option>
+                    <option value="Vía subcutánea">Vía subcutánea (SC)</option>
+                    <option value="Vía tópica">Vía tópica</option>
+                    <option value="Vía oftálmica">Vía oftálmica</option>
+                    <option value="Vía ótica">Vía ótica</option>
+                    <option value="Vía nasal">Vía nasal</option>
+                    <option value="Vía rectal">Vía rectal</option>
+                    <option value="Vía vaginal">Vía vaginal</option>
+                    <option value="Inhalatoria">Inhalatoria</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Indicaciones Especiales</label>
+                <input type="text" id="medicamentoIndicaciones" placeholder="Tomar con alimentos">
+            </div>
+        </div>
+        <button class="btn btn-primary btn-block" onclick="agregarMedicamento()">
+            ➕ Agregar Medicamento
+        </button>
+    </div>
+
+    <!-- Lista de Medicamentos -->
+    <div class="card">
+        <h2 class="section-title">📝 Medicamentos en la Receta</h2>
+        <div id="listaMedicamentos">
+            <div class="empty-state">
+                No hay medicamentos agregados. Agrega al menos uno para generar la receta.
+            </div>
+        </div>
+    </div>
+
+    <!-- Indicaciones Generales -->
+    <div class="card">
+        <h2 class="section-title">📌 Indicaciones Generales</h2>
+        <div class="form-group">
+            <label>Recomendaciones adicionales al paciente</label>
+            <textarea id="indicacionesGenerales" placeholder="Reposo relativo, abundantes líquidos, control en 7 días..."></textarea>
+        </div>
+    </div>
+
+    <!-- Acciones -->
+    <div class="card">
+        <div class="actions">
+            <button class="btn btn-primary btn-block" onclick="generarPDF()">
+                📄 Generar Receta PDF
+            </button>
+        </div>
+    </div>
+</div>
+<script>
+const { jsPDF } = window.jspdf;
+let medicamentos = [];
+
+/* Marca de agua (logo) */
+const watermarkImage = "data:image/jpeg;base64,/9j/4QDKRXhpZgAATU0AKgAAAAgABgESAAMAAAABAAEAAAEaAAUAAAABAAAAVgEbAAUAAAABAAAAXgEoAAMAAAABAAIAAAITAAMAAAABAAEAAIdpAAQAAAABAAAAZgAAAAAAAABIAAAAAQAAAEgAAAABAAeQAAAHAAAABDAyMjGRAQAHAAAABAECAwCgAAAHAAAABDAxMDCgAQADAAAAAQABAACgAgAEAAAAAQAACJSgAwAEAAAAAQAABPakBgADAAAAAQAAAAAAAAAAAAD/4gIoSUNDX1BST0ZJTEUAAQEAAAIYYXBwbAQAAABtbnRyUkdCIFhZWiAH5gABAAEAAAAAAABhY3NwQVBQTAAAAABBUFBMAAAAA..."; 
+
+/* Firma del médico */
+const firmaImage = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAASABIAAD/4QCMRXhpZgAATU0AKgAAAAgABQESAAMAAAABAAEAAAEaAAUAAAABAAAASgEbAAUAAAABAAAAUgEoAAMAAAABAAIAAIdpAAQAAAABAAAAWgAAAAAAAABIAAAAAQAAAEgAAAABAAOgAQADAAAAAQABAACgAgAEAAAAAQAABwigAwAEAAAAAQAACWAAAAAA/+0AOFBob3Rvc2hvcCAzLjAAOEJJTQQEAAAAAAAAOEJJTQQlAAAAAAAQ1B2M2Y8AsgTpgAmY7PhCfv/AABEICWAHCAMBIgACEQEDEQH/xAAfAAABBQEBAQEBAQAAAAAAAAAAAQIDBAUGBwgJCgv/xAC1EAACAQMDAgQDBQUEBAAAAX0BAgMABBEFEiExQQYTUWEHInEUMoGRoQgjQrHBFVLR8CQzYnKCCQoWFxgZGiUmJygpKjQ1Njc4OTpDREVGR0hJSlNUVVZXWFlaY2RlZmdoaWpzdHV2d3h5eoOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4eLj5OXm5+jp6vHy8/T19vf4+fr/...";
+
+/* CIE-10 */
+const cie10Data = [
+  { codigo: "J00", descripcion: "Rinitis aguda (resfriado común)", grupo: "Respiratorio" },
+  { codigo: "J01.9", descripcion: "Sinusitis aguda, no especificada", grupo: "Respiratorio" },
+  { codigo: "J02.9", descripcion: "Faringitis aguda, no especificada", grupo: "Respiratorio" },
+  { codigo: "J03.9", descripcion: "Amigdalitis aguda, no especificada", grupo: "Respiratorio" },
+  { codigo: "J06.9", descripcion: "Infección aguda de vías respiratorias superiores, no especificada", grupo: "Respiratorio" },
+  { codigo: "J20.9", descripcion: "Bronquitis aguda, no especificada", grupo: "Respiratorio" },
+  { codigo: "J45.9", descripcion: "Asma, no especificada", grupo: "Respiratorio" },
+  { codigo: "I10",   descripcion: "Hipertensión esencial (primaria)", grupo: "Cardiovascular" },
+  { codigo: "E11.9", descripcion: "Diabetes mellitus tipo 2 sin complicaciones", grupo: "Endocrino" },
+  { codigo: "K21.9", descripcion: "ERGE sin esofagitis", grupo: "Digestivo" },
+  { codigo: "N39.0", descripcion: "Infección del tracto urinario, sitio no especificado", grupo: "Urinario" },
+  { codigo: "L20.9", descripcion: "Dermatitis atópica, no especificada", grupo: "Dermatología" },
+  { codigo: "M54.5", descripcion: "Lumbago", grupo: "Músculo-esquelético" },
+  { codigo: "R50.9", descripcion: "Fiebre, no especificada", grupo: "Síntomas generales" },
+  { codigo: "R51",   descripcion: "Cefalea", grupo: "Síntomas generales" },
+  { codigo: "R53",   descripcion: "Malestar y fatiga", grupo: "Síntomas generales" }
+];
+
+/* Medicamentos */
+const medicamentosData = [
+  { dci: "Paracetamol", presentacion: "500 mg tabletas", grupo: "Analgesia / Antipirético", marcas: ["Panadol","Tylenol","Genérico"] },
+  { dci: "Ibuprofeno", presentacion: "400 mg tabletas", grupo: "AINE", marcas: ["Motrin","Advil","Genérico"] },
+  { dci: "Amoxicilina", presentacion: "500 mg cápsulas", grupo: "Antibiótico betalactámico", marcas: ["Amoxil","Genérico"] },
+  { dci: "Amoxicilina + Ácido clavulánico", presentacion: "875/125 mg tabletas", grupo: "Antibiótico", marcas: ["Augmentin","Clavulin","Genérico"] },
+  { dci: "Azitromicina", presentacion: "500 mg tabletas", grupo: "Macrólido", marcas: ["Zitromax","Genérico"] },
+  { dci: "Omeprazol", presentacion: "20 mg cápsulas", grupo: "Gastritis / ERGE", marcas: ["Losec","Genérico"] },
+  { dci: "Losartán", presentacion: "50 mg tabletas", grupo: "Antihipertensivo", marcas: ["Cozaar","Genérico"] },
+  { dci: "Metformina", presentacion: "850 mg tabletas", grupo: "Antidiabético oral", marcas: ["Glucophage","Genérico"] },
+  { dci: "Salbutamol", presentacion: "Inhalador 100 mcg/dosis", grupo: "Broncodilatador", marcas: ["Ventolin","Aerolin","Genérico"] },
+  { dci: "Loratadina", presentacion: "10 mg tabletas", grupo: "Antihistamínico", marcas: ["Claritin","Genérico"] },
+  { dci: "Prednisona", presentacion: "20 mg tabletas", grupo: "Corticoide sistémico", marcas: ["Genérico"] },
+  { dci: "Sueros orales", presentacion: "Sales de rehidratación oral", grupo: "Hidratación oral", marcas: ["Vida Suero Oral","Genérico"] }
+];
+
+/* Precarga de datos */
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('fechaAtencion').valueAsDate = new Date();
+  document.getElementById('medicoNombre').value = 'Dr. Lester Rodríguez Lázaro';
+  document.getElementById('medicoCMP').value = '63834';
+  document.getElementById('medicoEspecialidad').value = 'Médico Cirujano';
+  document.getElementById('medicoTelefono').value = '969758908';
+  document.getElementById('medicoEmail').value = 'patricio0214@gmail.com';
+});
+
+/* Alertas */
+function mostrarAlerta(mensaje, tipo='error'){
+  const c=document.getElementById('alertContainer');
+  const a=document.createElement('div');
+  a.className=`alert alert-${tipo}`;
+  a.textContent=mensaje;
+  c.appendChild(a);
+  setTimeout(()=>a.remove(),5000);
+}
+
+/* Buscador CIE-10 */
+const diagnosticoInput=document.getElementById('diagnostico');
+const cie10Suggestions=document.getElementById('cie10Suggestions');
+
+diagnosticoInput.addEventListener('input',()=>{
+  const term=diagnosticoInput.value.trim().toLowerCase();
+  if(term.length<2){cie10Suggestions.style.display='none';cie10Suggestions.innerHTML='';return;}
+  const matches=cie10Data.filter(dx=>dx.codigo.toLowerCase().includes(term)||dx.descripcion.toLowerCase().includes(term)).slice(0,20);
+  if(!matches.length){cie10Suggestions.style.display='none';cie10Suggestions.innerHTML='';return;}
+  cie10Suggestions.innerHTML=matches.map(dx=>`
+    <div class="suggestion-item" data-codigo="${dx.codigo}" data-descripcion="${dx.descripcion}">
+      <strong>${dx.codigo}</strong> - ${dx.descripcion}
+      <small>${dx.grupo}</small>
+    </div>`).join('');
+  cie10Suggestions.style.display='block';
+});
+cie10Suggestions.addEventListener('click',e=>{
+  const item=e.target.closest('.suggestion-item'); if(!item)return;
+  diagnosticoInput.value=`${item.dataset.codigo} - ${item.dataset.descripcion}`;
+  cie10Suggestions.style.display='none';
+  cie10Suggestions.innerHTML='';
+});
+document.addEventListener('click',e=>{
+  if(!cie10Suggestions.contains(e.target)&&e.target!==diagnosticoInput){
+    cie10Suggestions.style.display='none';
+  }
+});
+
+/* Buscador medicamentos */
+const buscadorMedicamento=document.getElementById('buscadorMedicamento');
+const medicamentoSuggestions=document.getElementById('medicamentoSuggestions');
+
+buscadorMedicamento.addEventListener('input',()=>{
+  const term=buscadorMedicamento.value.trim().toLowerCase();
+  if(term.length<2){medicamentoSuggestions.style.display='none';medicamentoSuggestions.innerHTML='';return;}
+  const matches=medicamentosData.filter(m=>{
+    const enMarcas=m.marcas.some(x=>x.toLowerCase().includes(term));
+    return m.dci.toLowerCase().includes(term)||m.presentacion.toLowerCase().includes(term)||enMarcas;
+  }).slice(0,20);
+  if(!matches.length){medicamentoSuggestions.style.display='none';medicamentoSuggestions.innerHTML='';return;}
+  medicamentoSuggestions.innerHTML=matches.map(m=>`
+    <div class="suggestion-item" data-dci="${m.dci}" data-presentacion="${m.presentacion}" data-marcas="${m.marcas.join(', ')}">
+      <strong>${m.dci}</strong> - ${m.presentacion}
+      <small>${m.grupo} | Marcas: ${m.marcas.join(', ')}</small>
+    </div>`).join('');
+  medicamentoSuggestions.style.display='block';
+});
+medicamentoSuggestions.addEventListener('click',e=>{
+  const item=e.target.closest('.suggestion-item'); if(!item)return;
+  const dci=item.dataset.dci;
+  const presentacion=item.dataset.presentacion;
+  const marcas=item.dataset.marcas;
+  document.getElementById('medicamentoNombre').value=dci;
+  document.getElementById('medicamentoPresentacion').value=presentacion;
+  if(!document.getElementById('medicamentoIndicaciones').value){
+    document.getElementById('medicamentoIndicaciones').placeholder=`Marcas sugeridas: ${marcas}`;
+  }
+  buscadorMedicamento.value=`${dci} (${presentacion})`;
+  medicamentoSuggestions.style.display='none';
+  medicamentoSuggestions.innerHTML='';
+});
+document.addEventListener('click',e=>{
+  if(!medicamentoSuggestions.contains(e.target)&&e.target!==buscadorMedicamento){
+    medicamentoSuggestions.style.display='none';
+  }
+});
+
+/* Gestión de medicamentos */
+function agregarMedicamento(){
+  const nombre=document.getElementById('medicamentoNombre').value.trim();
+  const presentacion=document.getElementById('medicamentoPresentacion').value.trim();
+  const cantidad=document.getElementById('medicamentoCantidad').value.trim();
+  const dosis=document.getElementById('medicamentoDosis').value.trim();
+  const frecuencia=document.getElementById('medicamentoFrecuencia').value;
+  const duracion=document.getElementById('medicamentoDuracion').value.trim();
+  const via=document.getElementById('medicamentoVia').value;
+  const indicaciones=document.getElementById('medicamentoIndicaciones').value.trim();
+
+  if(!nombre||!presentacion||!cantidad||!dosis||!frecuencia||!duracion||!via){
+    mostrarAlerta('Por favor, completa todos los campos obligatorios del medicamento.');
+    return;
+  }
+  medicamentos.push({id:Date.now(),nombre,presentacion,cantidad,dosis,frecuencia,duracion,via,indicaciones});
+  actualizarListaMedicamentos();
+  limpiarFormularioMedicamento();
+  mostrarAlerta('Medicamento agregado correctamente','success');
+}
+function eliminarMedicamento(id){
+  medicamentos=medicamentos.filter(m=>m.id!==id);
+  actualizarListaMedicamentos();
+}
+function actualizarListaMedicamentos(){
+  const lista=document.getElementById('listaMedicamentos');
+  if(!medicamentos.length){
+    lista.innerHTML='<div class="empty-state">No hay medicamentos agregados. Agrega al menos uno para generar la receta.</div>';
+    return;
+  }
+  lista.innerHTML=medicamentos.map(m=>`
+    <div class="medication-item">
+      <div class="medication-header">
+        <div class="medication-name">${m.nombre}</div>
+        <button class="btn btn-remove btn-small" onclick="eliminarMedicamento(${m.id})">Eliminar</button>
+      </div>
+      <div class="medication-details">
+        <strong>Presentación:</strong> ${m.presentacion} | <strong>Cantidad:</strong> ${m.cantidad}<br>
+        <strong>Posología:</strong> ${m.dosis}, ${m.frecuencia}, ${m.duracion}, ${m.via}
+        ${m.indicaciones?`<br><strong>Indicaciones:</strong> ${m.indicaciones}`:''}
+      </div>
+    </div>`).join('');
+}
+function limpiarFormularioMedicamento(){
+  buscadorMedicamento.value='';
+  document.getElementById('medicamentoNombre').value='';
+  document.getElementById('medicamentoPresentacion').value='';
+  document.getElementById('medicamentoCantidad').value='';
+  document.getElementById('medicamentoDosis').value='';
+  document.getElementById('medicamentoFrecuencia').value='';
+  document.getElementById('medicamentoDuracion').value='';
+  document.getElementById('medicamentoVia').value='';
+  document.getElementById('medicamentoIndicaciones').value='';
+  document.getElementById('medicamentoIndicaciones').placeholder='Tomar con alimentos';
+}
+
+/* Validación */
+function validarFormulario(){
+  const medicoNombre=document.getElementById('medicoNombre').value.trim();
+  const medicoCMP=document.getElementById('medicoCMP').value.trim();
+  const pacienteNombre=document.getElementById('pacienteNombre').value.trim();
+  const pacienteEdad=document.getElementById('pacienteEdad').value.trim();
+  const fechaAtencion=document.getElementById('fechaAtencion').value;
+
+  if(!medicoNombre||!medicoCMP){mostrarAlerta('Completa los datos del médico (Nombre y CMP).');return false;}
+  if(!pacienteNombre||!pacienteEdad||!fechaAtencion){mostrarAlerta('Completa los datos del paciente (Nombre, Edad y Fecha).');return false;}
+  if(!medicamentos.length){mostrarAlerta('Debes agregar al menos un medicamento.');return false;}
+  return true;
+}
+
+/* Marca de agua */
+function agregarWatermark(doc){
+  const pageCount=doc.internal.getNumberOfPages();
+  const pageWidth=doc.internal.pageSize.getWidth();
+  const pageHeight=doc.internal.pageSize.getHeight();
+  for(let i=1;i<=pageCount;i++){
+    doc.setPage(i);
+    const w=60, h=120;
+    const x=(pageWidth-w)/2;
+    const y=(pageHeight-h)/2;
+    doc.addImage(watermarkImage,'JPEG',x,y,w,h);
+  }
+}
+
+/* Generar PDF */
+function generarPDF(){
+  if(!validarFormulario())return;
+
+  const doc=new jsPDF();
+  const pageWidth=doc.internal.pageSize.getWidth();
+  const pageHeight=doc.internal.pageSize.getHeight();
+  const margin=15;
+  let yPos=20;
+
+  doc.setFontSize(16);
+  doc.setFont(undefined,'bold');
+  doc.text('RECETA MÉDICA',pageWidth/2,yPos,{align:'center'});
+  yPos+=10;
+
+  doc.setFontSize(10);
+  const contacto=[];
+  const telefono=document.getElementById('medicoTelefono').value.trim();
+  const email=document.getElementById('medicoEmail').value.trim();
+  if(telefono)contacto.push(`Tel: ${telefono}`);
+  if(email)contacto.push(`Email: ${email}`);
+  if(contacto.length){doc.setFont(undefined,'normal');doc.text(contacto.join(' | '),margin,yPos);yPos+=8;}else{yPos+=3;}
+
+  doc.setDrawColor(0,0,0);
+  doc.line(margin,yPos,pageWidth-margin,yPos);
+  yPos+=8;
+
+  doc.setFont(undefined,'bold');
+  doc.text('MÉDICO PRESCRIPTOR:',margin,yPos); yPos+=6;
+  doc.setFont(undefined,'normal');
+  const medicoNombre=document.getElementById('medicoNombre').value;
+  const cmp=document.getElementById('medicoCMP').value.trim();
+  const especialidad=document.getElementById('medicoEspecialidad').value.trim();
+  doc.text(medicoNombre,margin,yPos); yPos+=5;
+  let cred=`CMP: ${cmp}`; if(especialidad)cred+=` | ${especialidad}`;
+  doc.text(cred,margin,yPos); yPos+=10;
+
+  doc.setFont(undefined,'bold');
+  doc.text('DATOS DEL PACIENTE:',margin,yPos); yPos+=6;
+  doc.setFont(undefined,'normal');
+  const pacienteNombre=document.getElementById('pacienteNombre').value;
+  const pacienteEdad=document.getElementById('pacienteEdad').value;
+  const pacienteDNI=document.getElementById('pacienteDNI').value.trim();
+  const pacienteSexo=document.getElementById('pacienteSexo').value;
+  doc.text(`Paciente: ${pacienteNombre}`,margin,yPos); yPos+=5;
+  let datos=`Edad: ${pacienteEdad} años`;
+  if(pacienteSexo)datos+=` | Sexo: ${pacienteSexo}`;
+  if(pacienteDNI)datos+=` | DNI: ${pacienteDNI}`;
+  doc.text(datos,margin,yPos); yPos+=5;
+  const fechaAtencion=document.getElementById('fechaAtencion').value;
+  const fechaFormateada=new Date(fechaAtencion+'T00:00:00').toLocaleDateString('es-PE',{year:'numeric',month:'long',day:'numeric'});
+  doc.text(`Fecha de atención: ${fechaFormateada}`,margin,yPos); yPos+=5;
+  const diagnostico=document.getElementById('diagnostico').value.trim();
+  if(diagnostico){
+    const dxLines=doc.splitTextToSize(`Diagnóstico: ${diagnostico}`,pageWidth-2*margin);
+    doc.text(dxLines,margin,yPos);
+    yPos+=dxLines.length*5;
+  }
+  yPos+=5;
+
+  doc.setFont(undefined,'bold');
+  doc.setFontSize(12);
+  doc.text('Rp/',margin,yPos); yPos+=8;
+
+  doc.setFontSize(10);
+  const colWidth=(pageWidth-2*margin)/2;
+  medicamentos.forEach((m,index)=>{
+    if(yPos>pageHeight-60){doc.addPage();yPos=20;}
+    doc.setFont(undefined,'bold');
+    doc.text(`${index+1}. ${m.nombre}`,margin,yPos); yPos+=5;
+    doc.setFont(undefined,'normal');
+    const izquierda=`Presentación: ${m.presentacion} | Cantidad: ${m.cantidad}`;
+    const derecha=[`Dosis: ${m.dosis}`,`Frecuencia: ${m.frecuencia}`,`Duración: ${m.duracion}`,`Vía: ${m.via}`,m.indicaciones?`Indicaciones: ${m.indicaciones}`:''].filter(Boolean).join(' | ');
+    const leftLines=doc.splitTextToSize(izquierda,colWidth-2);
+    const rightLines=doc.splitTextToSize(derecha,colWidth-2);
+    const linesCount=Math.max(leftLines.length,rightLines.length);
+    for(let i=0;i<linesCount;i++){
+      doc.text(leftLines[i]||'',margin+2,yPos);
+      doc.text(rightLines[i]||'',margin+colWidth+2,yPos);
+      yPos+=4;
+    }
+    yPos+=4;
+  });
+
+  const indicacionesGenerales=document.getElementById('indicacionesGenerales').value.trim();
+  if(indicacionesGenerales){
+    if(yPos>pageHeight-40){doc.addPage();yPos=20;}
+    yPos+=5;
+    doc.setFont(undefined,'bold');
+    doc.text('INDICACIONES GENERALES:',margin,yPos); yPos+=6;
+    doc.setFont(undefined,'normal');
+    const lines=doc.splitTextToSize(indicacionesGenerales,pageWidth-2*margin);
+    doc.text(lines,margin,yPos);
+    yPos+=lines.length*5;
+  }
+
+  // Firma manuscrita
+  const firmaWidth=40;
+  const firmaHeight=15;
+  const firmaX=(pageWidth-firmaWidth)/2;
+  const firmaY=pageHeight-45;
+  try{
+    doc.addImage(firmaImage,'JPEG',firmaX,firmaY,firmaWidth,firmaHeight);
+  }catch(e){}
+
+  yPos=pageHeight-25;
+  doc.line(pageWidth/2-30,yPos,pageWidth/2+30,yPos);
+  yPos+=5;
+  doc.setFont(undefined,'bold');
+  doc.text('Firma del Médico',pageWidth/2,yPos,{align:'center'});
+  yPos+=4;
+  doc.setFont(undefined,'normal');
+  doc.setFontSize(9);
+  doc.text(medicoNombre,pageWidth/2,yPos,{align:'center'});
+  yPos+=4;
+  doc.text(`CMP: ${cmp}`,pageWidth/2,yPos,{align:'center'});
+
+  agregarWatermark(doc);
+  const nombreArchivo=`Receta_${pacienteNombre.replace(/\s+/g,'_')}_${fechaAtencion}.pdf`;
+  doc.save(nombreArchivo);
+  mostrarAlerta('¡Receta generada exitosamente!','success');
+}
+</script>
+</body>
+</html>

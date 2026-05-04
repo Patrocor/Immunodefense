@@ -1,803 +1,1120 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Receta Médica Virtual - Perú</title>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-  <style>
-        :root {
-            --color-primary: #20A0B0;
-            --color-primary-hover: #1D9DA8;
-            --color-bg: #f5f5f5;
-            --color-surface: #ffffff;
-            --color-text: #1f2121;
-            --color-text-secondary: #626c71;
-            --color-border: rgba(94, 82, 64, 0.2);
-            --color-error: #C0152F;
-            --color-success: #21808D;
-        }
-
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
-
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: var(--color-bg);
-            color: var(--color-text);
-            padding: 16px;
-            line-height: 1.5;
-        }
-
-        .container {
-            max-width: 800px;
-            margin: 0 auto;
-        }
-
-        .header {
-            background: var(--color-surface);
-            border-radius: 12px;
-            padding: 24px;
-            margin-bottom: 16px;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-        }
-
-        h1 {
-            font-size: 24px;
-            font-weight: 600;
-            color: var(--color-text);
-            margin-bottom: 8px;
-        }
-
-        .subtitle {
-            color: var(--color-text-secondary);
-            font-size: 14px;
-        }
-
-        .card {
-            background: var(--color-surface);
-            border-radius: 12px;
-            padding: 24px;
-            margin-bottom: 16px;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-        }
-
-        .section-title {
-            font-size: 18px;
-            font-weight: 600;
-            margin-bottom: 16px;
-            color: var(--color-text);
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .form-group {
-            margin-bottom: 16px;
-            position: relative;
-        }
-
-        label {
-            display: block;
-            font-size: 13px;
-            font-weight: 500;
-            color: var(--color-text);
-            margin-bottom: 6px;
-        }
-
-        .required {
-            color: var(--color-error);
-        }
-
-        input, select, textarea {
-            width: 100%;
-            padding: 10px 12px;
-            font-size: 14px;
-            border: 1px solid var(--color-border);
-            border-radius: 8px;
-            background: var(--color-surface);
-            color: var(--color-text);
-            transition: border-color 0.2s;
-        }
-
-        input:focus, select:focus, textarea:focus {
-            outline: none;
-            border-color: var(--color-primary);
-        }
-
-        textarea {
-            resize: vertical;
-            min-height: 80px;
-            font-family: inherit;
-        }
-
-        .form-row {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 12px;
-        }
-
-        .form-row-3 {
-            display: grid;
-            grid-template-columns: 1fr 1fr 1fr;
-            gap: 12px;
-        }
-
-        @media (max-width: 600px) {
-            .form-row, .form-row-3 {
-                grid-template-columns: 1fr;
-            }
-        }
-
-        .btn {
-            padding: 12px 20px;
-            font-size: 14px;
-            font-weight: 500;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            transition: all 0.2s;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-        }
-
-        .btn-primary {
-            background: var(--color-primary);
-            color: white;
-        }
-
-        .btn-primary:hover {
-            background: var(--color-primary-hover);
-        }
-
-        .btn-secondary {
-            background: transparent;
-            color: var(--color-text);
-            border: 1px solid var(--color-border);
-        }
-
-        .btn-secondary:hover {
-            background: rgba(0, 0, 0, 0.03);
-        }
-
-        .btn-small {
-            padding: 8px 14px;
-            font-size: 13px;
-        }
-
-        .btn-block {
-            width: 100%;
-        }
-
-        .medication-item {
-            background: rgba(33, 128, 141, 0.08);
-            border: 1px solid rgba(33, 128, 141, 0.2);
-            border-radius: 8px;
-            padding: 16px;
-            margin-bottom: 12px;
-        }
-
-        .medication-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            margin-bottom: 12px;
-        }
-
-        .medication-name {
-            font-weight: 600;
-            font-size: 15px;
-            color: var(--color-text);
-        }
-
-        .btn-remove {
-            background: var(--color-error);
-            color: white;
-            padding: 6px 12px;
-            font-size: 12px;
-            border-radius: 6px;
-        }
-
-        .btn-remove:hover {
-            background: #A0112A;
-        }
-
-        .medication-details {
-            font-size: 13px;
-            color: var(--color-text-secondary);
-            line-height: 1.6;
-        }
-
-        .empty-state {
-            text-align: center;
-            padding: 32px;
-            color: var(--color-text-secondary);
-        }
-
-        .actions {
-            display: flex;
-            gap: 12px;
-            margin-top: 24px;
-        }
-
-        .alert {
-            padding: 12px 16px;
-            border-radius: 8px;
-            margin-bottom: 16px;
-            font-size: 14px;
-        }
-
-        .alert-error {
-            background: rgba(192, 21, 47, 0.1);
-            color: var(--color-error);
-            border: 1px solid rgba(192, 21, 47, 0.2);
-        }
-
-        .alert-success {
-            background: rgba(33, 128, 141, 0.1);
-            color: var(--color-success);
-            border: 1px solid rgba(33, 128, 141, 0.2);
-        }
-
-        .suggestions {
-            position: absolute;
-            top: 100%;
-            left: 0;
-            right: 0;
-            background: #ffffff;
-            border: 1px solid var(--color-border);
-            border-radius: 8px;
-            max-height: 180px;
-            overflow-y: auto;
-            z-index: 1000;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.08);
-        }
-
-        .suggestion-item {
-            padding: 8px 10px;
-            font-size: 13px;
-            cursor: pointer;
-        }
-
-        .suggestion-item:hover {
-            background: #f0f4f5;
-        }
-
-        .suggestion-item small {
-            color: var(--color-text-secondary);
-            display: block;
-        }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#1a0e12">
+<title>ImmunoDefense</title>
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; padding: 0;
+    width: 100%; height: 100%;
+    overflow: hidden;
+    background: #1a0e12;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, sans-serif;
+    color: #fff;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: none;
+    overscroll-behavior: none;
+  }
+  body {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  #canvas {
+    display: block;
+    background: #f8e8e0;
+    border-radius: 6px;
+    box-shadow: 0 6px 28px rgba(0,0,0,0.5);
+    touch-action: none;
+  }
+</style>
 </head>
 <body>
-<div class="container">
-    <div class="header">
-        <h1>📋 Receta Médica Virtual</h1>
-        <p class="subtitle">Genera recetas médicas profesionales en formato PDF desde tu celular</p>
-    </div>
-
-    <div id="alertContainer"></div>
-
-    <!-- Datos del Médico -->
-    <div class="card">
-        <h2 class="section-title">👨‍⚕️ Datos del Médico Prescriptor</h2>
-        <div class="form-row">
-            <div class="form-group">
-                <label>Nombres y Apellidos <span class="required">*</span></label>
-                <input type="text" id="medicoNombre">
-            </div>
-            <div class="form-group">
-                <label>CMP <span class="required">*</span></label>
-                <input type="text" id="medicoCMP">
-            </div>
-        </div>
-        <div class="form-group">
-            <label>Especialidad</label>
-            <input type="text" id="medicoEspecialidad">
-        </div>
-        <div class="form-row">
-            <div class="form-group">
-                <label>Teléfono</label>
-                <input type="tel" id="medicoTelefono">
-            </div>
-            <div class="form-group">
-                <label>Email</label>
-                <input type="email" id="medicoEmail">
-            </div>
-        </div>
-    </div>
-
-    <!-- Datos del Paciente -->
-    <div class="card">
-        <h2 class="section-title">👤 Datos del Paciente</h2>
-        <div class="form-row">
-            <div class="form-group">
-                <label>Nombres y Apellidos <span class="required">*</span></label>
-                <input type="text" id="pacienteNombre" placeholder="Nombre completo">
-            </div>
-            <div class="form-group">
-                <label>DNI</label>
-                <input type="text" id="pacienteDNI" placeholder="12345678">
-            </div>
-        </div>
-        <div class="form-row-3">
-            <div class="form-group">
-                <label>Edad <span class="required">*</span></label>
-                <input type="number" id="pacienteEdad" placeholder="35">
-            </div>
-            <div class="form-group">
-                <label>Sexo</label>
-                <select id="pacienteSexo">
-                    <option value="">Seleccionar</option>
-                    <option value="M">Masculino</option>
-                    <option value="F">Femenino</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label>Fecha de Atención <span class="required">*</span></label>
-                <input type="date" id="fechaAtencion">
-            </div>
-        </div>
-        <div class="form-group">
-            <label>Diagnóstico (CIE-10)</label>
-            <input type="text" id="diagnostico" placeholder="Escribe código o diagnóstico...">
-            <div id="cie10Suggestions" class="suggestions" style="display:none;"></div>
-        </div>
-    </div>
-
-    <!-- Formulario de Medicamento -->
-    <div class="card">
-        <h2 class="section-title">💊 Agregar Medicamento</h2>
-
-        <div class="form-group">
-            <label>Buscar medicamento (DCI o marca)</label>
-            <input type="text" id="buscadorMedicamento" placeholder="Ej.: Paracetamol, Panadol, Omeprazol...">
-            <div id="medicamentoSuggestions" class="suggestions" style="display:none;"></div>
-        </div>
-
-        <div class="form-group">
-            <label>Nombre del Medicamento (DCI) <span class="required">*</span></label>
-            <input type="text" id="medicamentoNombre" placeholder="Paracetamol">
-        </div>
-        <div class="form-row">
-            <div class="form-group">
-                <label>Presentación/Concentración <span class="required">*</span></label>
-                <input type="text" id="medicamentoPresentacion" placeholder="500 mg tabletas">
-            </div>
-            <div class="form-group">
-                <label>Cantidad <span class="required">*</span></label>
-                <input type="text" id="medicamentoCantidad" placeholder="20 tabletas">
-            </div>
-        </div>
-        <div class="form-row-3">
-            <div class="form-group">
-                <label>Dosis <span class="required">*</span></label>
-                <input type="text" id="medicamentoDosis" placeholder="500 mg">
-            </div>
-            <div class="form-group">
-                <label>Frecuencia <span class="required">*</span></label>
-                <select id="medicamentoFrecuencia">
-                    <option value="">Seleccionar</option>
-                    <option value="Cada 4 horas">Cada 4 horas</option>
-                    <option value="Cada 6 horas">Cada 6 horas</option>
-                    <option value="Cada 8 horas">Cada 8 horas</option>
-                    <option value="Cada 12 horas">Cada 12 horas</option>
-                    <option value="Cada 24 horas">Cada 24 horas (1 vez al día)</option>
-                    <option value="2 veces al día">2 veces al día</option>
-                    <option value="3 veces al día">3 veces al día</option>
-                    <option value="Antes de cada comida">Antes de cada comida</option>
-                    <option value="Después de cada comida">Después de cada comida</option>
-                    <option value="En ayunas">En ayunas</option>
-                    <option value="Antes de dormir">Antes de dormir</option>
-                    <option value="Según necesidad">Según necesidad (PRN)</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label>Duración <span class="required">*</span></label>
-                <input type="text" id="medicamentoDuracion" placeholder="7 días">
-            </div>
-        </div>
-        <div class="form-row">
-            <div class="form-group">
-                <label>Vía de Administración <span class="required">*</span></label>
-                <select id="medicamentoVia">
-                    <option value="">Seleccionar</option>
-                    <option value="Vía oral">Vía oral (VO)</option>
-                    <option value="Vía sublingual">Vía sublingual (SL)</option>
-                    <option value="Vía intramuscular">Vía intramuscular (IM)</option>
-                    <option value="Vía intravenosa">Vía intravenosa (IV)</option>
-                    <option value="Vía subcutánea">Vía subcutánea (SC)</option>
-                    <option value="Vía tópica">Vía tópica</option>
-                    <option value="Vía oftálmica">Vía oftálmica</option>
-                    <option value="Vía ótica">Vía ótica</option>
-                    <option value="Vía nasal">Vía nasal</option>
-                    <option value="Vía rectal">Vía rectal</option>
-                    <option value="Vía vaginal">Vía vaginal</option>
-                    <option value="Inhalatoria">Inhalatoria</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label>Indicaciones Especiales</label>
-                <input type="text" id="medicamentoIndicaciones" placeholder="Tomar con alimentos">
-            </div>
-        </div>
-        <button class="btn btn-primary btn-block" onclick="agregarMedicamento()">
-            ➕ Agregar Medicamento
-        </button>
-    </div>
-
-    <!-- Lista de Medicamentos -->
-    <div class="card">
-        <h2 class="section-title">📝 Medicamentos en la Receta</h2>
-        <div id="listaMedicamentos">
-            <div class="empty-state">
-                No hay medicamentos agregados. Agrega al menos uno para generar la receta.
-            </div>
-        </div>
-    </div>
-
-    <!-- Indicaciones Generales -->
-    <div class="card">
-        <h2 class="section-title">📌 Indicaciones Generales</h2>
-        <div class="form-group">
-            <label>Recomendaciones adicionales al paciente</label>
-            <textarea id="indicacionesGenerales" placeholder="Reposo relativo, abundantes líquidos, control en 7 días..."></textarea>
-        </div>
-    </div>
-
-    <!-- Acciones -->
-    <div class="card">
-        <div class="actions">
-            <button class="btn btn-primary btn-block" onclick="generarPDF()">
-                📄 Generar Receta PDF
-            </button>
-        </div>
-    </div>
-</div>
+<canvas id="canvas" width="800" height="600"></canvas>
 <script>
-const { jsPDF } = window.jspdf;
-let medicamentos = [];
+(function () {
+  "use strict";
 
-/* Marca de agua (logo) */
-const watermarkImage = "data:image/jpeg;base64,/9j/4QDKRXhpZgAATU0AKgAAAAgABgESAAMAAAABAAEAAAEaAAUAAAABAAAAVgEbAAUAAAABAAAAXgEoAAMAAAABAAIAAAITAAMAAAABAAEAAIdpAAQAAAABAAAAZgAAAAAAAABIAAAAAQAAAEgAAAABAAeQAAAHAAAABDAyMjGRAQAHAAAABAECAwCgAAAHAAAABDAxMDCgAQADAAAAAQABAACgAgAEAAAAAQAACJSgAwAEAAAAAQAABPakBgADAAAAAQAAAAAAAAAAAAD/4gIoSUNDX1BST0ZJTEUAAQEAAAIYYXBwbAQAAABtbnRyUkdCIFhZWiAH5gABAAEAAAAAAABhY3NwQVBQTAAAAABBUFBMAAAAA..."; 
+  var canvas = document.getElementById("canvas");
+  var ctx = canvas.getContext("2d");
+  var W = 800, H = 600;
+  var FIELD_TOP = 56;
+  var FIELD_BOTTOM = 480;
+  var PANEL_TOP = 484;
 
-/* Firma del médico */
-const firmaImage = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAASABIAAD/4QCMRXhpZgAATU0AKgAAAAgABQESAAMAAAABAAEAAAEaAAUAAAABAAAASgEbAAUAAAABAAAAUgEoAAMAAAABAAIAAIdpAAQAAAABAAAAWgAAAAAAAABIAAAAAQAAAEgAAAABAAOgAQADAAAAAQABAACgAgAEAAAAAQAABwigAwAEAAAAAQAACWAAAAAA/+0AOFBob3Rvc2hvcCAzLjAAOEJJTQQEAAAAAAAAOEJJTQQlAAAAAAAQ1B2M2Y8AsgTpgAmY7PhCfv/AABEICWAHCAMBIgACEQEDEQH/xAAfAAABBQEBAQEBAQAAAAAAAAAAAQIDBAUGBwgJCgv/xAC1EAACAQMDAgQDBQUEBAAAAX0BAgMABBEFEiExQQYTUWEHInEUMoGRoQgjQrHBFVLR8CQzYnKCCQoWFxgZGiUmJygpKjQ1Njc4OTpDREVGR0hJSlNUVVZXWFlaY2RlZmdoaWpzdHV2d3h5eoOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4eLj5OXm5+jp6vHy8/T19vf4+fr/...";
+  // -------- PATH ----------------------------------------------------------
+  var PATH_POINTS = [
+    { x: -20, y: 140 },
+    { x: 180, y: 140 },
+    { x: 180, y: 290 },
+    { x: 480, y: 290 },
+    { x: 480, y: 410 },
+    { x: 820, y: 410 }
+  ];
 
-/* CIE-10 */
-const cie10Data = [
-  { codigo: "J00", descripcion: "Rinitis aguda (resfriado común)", grupo: "Respiratorio" },
-  { codigo: "J01.9", descripcion: "Sinusitis aguda, no especificada", grupo: "Respiratorio" },
-  { codigo: "J02.9", descripcion: "Faringitis aguda, no especificada", grupo: "Respiratorio" },
-  { codigo: "J03.9", descripcion: "Amigdalitis aguda, no especificada", grupo: "Respiratorio" },
-  { codigo: "J06.9", descripcion: "Infección aguda de vías respiratorias superiores, no especificada", grupo: "Respiratorio" },
-  { codigo: "J20.9", descripcion: "Bronquitis aguda, no especificada", grupo: "Respiratorio" },
-  { codigo: "J45.9", descripcion: "Asma, no especificada", grupo: "Respiratorio" },
-  { codigo: "I10",   descripcion: "Hipertensión esencial (primaria)", grupo: "Cardiovascular" },
-  { codigo: "E11.9", descripcion: "Diabetes mellitus tipo 2 sin complicaciones", grupo: "Endocrino" },
-  { codigo: "K21.9", descripcion: "ERGE sin esofagitis", grupo: "Digestivo" },
-  { codigo: "N39.0", descripcion: "Infección del tracto urinario, sitio no especificado", grupo: "Urinario" },
-  { codigo: "L20.9", descripcion: "Dermatitis atópica, no especificada", grupo: "Dermatología" },
-  { codigo: "M54.5", descripcion: "Lumbago", grupo: "Músculo-esquelético" },
-  { codigo: "R50.9", descripcion: "Fiebre, no especificada", grupo: "Síntomas generales" },
-  { codigo: "R51",   descripcion: "Cefalea", grupo: "Síntomas generales" },
-  { codigo: "R53",   descripcion: "Malestar y fatiga", grupo: "Síntomas generales" }
-];
-
-/* Medicamentos */
-const medicamentosData = [
-  { dci: "Paracetamol", presentacion: "500 mg tabletas", grupo: "Analgesia / Antipirético", marcas: ["Panadol","Tylenol","Genérico"] },
-  { dci: "Ibuprofeno", presentacion: "400 mg tabletas", grupo: "AINE", marcas: ["Motrin","Advil","Genérico"] },
-  { dci: "Amoxicilina", presentacion: "500 mg cápsulas", grupo: "Antibiótico betalactámico", marcas: ["Amoxil","Genérico"] },
-  { dci: "Amoxicilina + Ácido clavulánico", presentacion: "875/125 mg tabletas", grupo: "Antibiótico", marcas: ["Augmentin","Clavulin","Genérico"] },
-  { dci: "Azitromicina", presentacion: "500 mg tabletas", grupo: "Macrólido", marcas: ["Zitromax","Genérico"] },
-  { dci: "Omeprazol", presentacion: "20 mg cápsulas", grupo: "Gastritis / ERGE", marcas: ["Losec","Genérico"] },
-  { dci: "Losartán", presentacion: "50 mg tabletas", grupo: "Antihipertensivo", marcas: ["Cozaar","Genérico"] },
-  { dci: "Metformina", presentacion: "850 mg tabletas", grupo: "Antidiabético oral", marcas: ["Glucophage","Genérico"] },
-  { dci: "Salbutamol", presentacion: "Inhalador 100 mcg/dosis", grupo: "Broncodilatador", marcas: ["Ventolin","Aerolin","Genérico"] },
-  { dci: "Loratadina", presentacion: "10 mg tabletas", grupo: "Antihistamínico", marcas: ["Claritin","Genérico"] },
-  { dci: "Prednisona", presentacion: "20 mg tabletas", grupo: "Corticoide sistémico", marcas: ["Genérico"] },
-  { dci: "Sueros orales", presentacion: "Sales de rehidratación oral", grupo: "Hidratación oral", marcas: ["Vida Suero Oral","Genérico"] }
-];
-
-/* Precarga de datos */
-document.addEventListener('DOMContentLoaded', () => {
-  document.getElementById('fechaAtencion').valueAsDate = new Date();
-  document.getElementById('medicoNombre').value = 'Dr. Lester Rodríguez Lázaro';
-  document.getElementById('medicoCMP').value = '63834';
-  document.getElementById('medicoEspecialidad').value = 'Médico Cirujano';
-  document.getElementById('medicoTelefono').value = '969758908';
-  document.getElementById('medicoEmail').value = 'patricio0214@gmail.com';
-});
-
-/* Alertas */
-function mostrarAlerta(mensaje, tipo='error'){
-  const c=document.getElementById('alertContainer');
-  const a=document.createElement('div');
-  a.className=`alert alert-${tipo}`;
-  a.textContent=mensaje;
-  c.appendChild(a);
-  setTimeout(()=>a.remove(),5000);
-}
-
-/* Buscador CIE-10 */
-const diagnosticoInput=document.getElementById('diagnostico');
-const cie10Suggestions=document.getElementById('cie10Suggestions');
-
-diagnosticoInput.addEventListener('input',()=>{
-  const term=diagnosticoInput.value.trim().toLowerCase();
-  if(term.length<2){cie10Suggestions.style.display='none';cie10Suggestions.innerHTML='';return;}
-  const matches=cie10Data.filter(dx=>dx.codigo.toLowerCase().includes(term)||dx.descripcion.toLowerCase().includes(term)).slice(0,20);
-  if(!matches.length){cie10Suggestions.style.display='none';cie10Suggestions.innerHTML='';return;}
-  cie10Suggestions.innerHTML=matches.map(dx=>`
-    <div class="suggestion-item" data-codigo="${dx.codigo}" data-descripcion="${dx.descripcion}">
-      <strong>${dx.codigo}</strong> - ${dx.descripcion}
-      <small>${dx.grupo}</small>
-    </div>`).join('');
-  cie10Suggestions.style.display='block';
-});
-cie10Suggestions.addEventListener('click',e=>{
-  const item=e.target.closest('.suggestion-item'); if(!item)return;
-  diagnosticoInput.value=`${item.dataset.codigo} - ${item.dataset.descripcion}`;
-  cie10Suggestions.style.display='none';
-  cie10Suggestions.innerHTML='';
-});
-document.addEventListener('click',e=>{
-  if(!cie10Suggestions.contains(e.target)&&e.target!==diagnosticoInput){
-    cie10Suggestions.style.display='none';
-  }
-});
-
-/* Buscador medicamentos */
-const buscadorMedicamento=document.getElementById('buscadorMedicamento');
-const medicamentoSuggestions=document.getElementById('medicamentoSuggestions');
-
-buscadorMedicamento.addEventListener('input',()=>{
-  const term=buscadorMedicamento.value.trim().toLowerCase();
-  if(term.length<2){medicamentoSuggestions.style.display='none';medicamentoSuggestions.innerHTML='';return;}
-  const matches=medicamentosData.filter(m=>{
-    const enMarcas=m.marcas.some(x=>x.toLowerCase().includes(term));
-    return m.dci.toLowerCase().includes(term)||m.presentacion.toLowerCase().includes(term)||enMarcas;
-  }).slice(0,20);
-  if(!matches.length){medicamentoSuggestions.style.display='none';medicamentoSuggestions.innerHTML='';return;}
-  medicamentoSuggestions.innerHTML=matches.map(m=>`
-    <div class="suggestion-item" data-dci="${m.dci}" data-presentacion="${m.presentacion}" data-marcas="${m.marcas.join(', ')}">
-      <strong>${m.dci}</strong> - ${m.presentacion}
-      <small>${m.grupo} | Marcas: ${m.marcas.join(', ')}</small>
-    </div>`).join('');
-  medicamentoSuggestions.style.display='block';
-});
-medicamentoSuggestions.addEventListener('click',e=>{
-  const item=e.target.closest('.suggestion-item'); if(!item)return;
-  const dci=item.dataset.dci;
-  const presentacion=item.dataset.presentacion;
-  const marcas=item.dataset.marcas;
-  document.getElementById('medicamentoNombre').value=dci;
-  document.getElementById('medicamentoPresentacion').value=presentacion;
-  if(!document.getElementById('medicamentoIndicaciones').value){
-    document.getElementById('medicamentoIndicaciones').placeholder=`Marcas sugeridas: ${marcas}`;
-  }
-  buscadorMedicamento.value=`${dci} (${presentacion})`;
-  medicamentoSuggestions.style.display='none';
-  medicamentoSuggestions.innerHTML='';
-});
-document.addEventListener('click',e=>{
-  if(!medicamentoSuggestions.contains(e.target)&&e.target!==buscadorMedicamento){
-    medicamentoSuggestions.style.display='none';
-  }
-});
-
-/* Gestión de medicamentos */
-function agregarMedicamento(){
-  const nombre=document.getElementById('medicamentoNombre').value.trim();
-  const presentacion=document.getElementById('medicamentoPresentacion').value.trim();
-  const cantidad=document.getElementById('medicamentoCantidad').value.trim();
-  const dosis=document.getElementById('medicamentoDosis').value.trim();
-  const frecuencia=document.getElementById('medicamentoFrecuencia').value;
-  const duracion=document.getElementById('medicamentoDuracion').value.trim();
-  const via=document.getElementById('medicamentoVia').value;
-  const indicaciones=document.getElementById('medicamentoIndicaciones').value.trim();
-
-  if(!nombre||!presentacion||!cantidad||!dosis||!frecuencia||!duracion||!via){
-    mostrarAlerta('Por favor, completa todos los campos obligatorios del medicamento.');
-    return;
-  }
-  medicamentos.push({id:Date.now(),nombre,presentacion,cantidad,dosis,frecuencia,duracion,via,indicaciones});
-  actualizarListaMedicamentos();
-  limpiarFormularioMedicamento();
-  mostrarAlerta('Medicamento agregado correctamente','success');
-}
-function eliminarMedicamento(id){
-  medicamentos=medicamentos.filter(m=>m.id!==id);
-  actualizarListaMedicamentos();
-}
-function actualizarListaMedicamentos(){
-  const lista=document.getElementById('listaMedicamentos');
-  if(!medicamentos.length){
-    lista.innerHTML='<div class="empty-state">No hay medicamentos agregados. Agrega al menos uno para generar la receta.</div>';
-    return;
-  }
-  lista.innerHTML=medicamentos.map(m=>`
-    <div class="medication-item">
-      <div class="medication-header">
-        <div class="medication-name">${m.nombre}</div>
-        <button class="btn btn-remove btn-small" onclick="eliminarMedicamento(${m.id})">Eliminar</button>
-      </div>
-      <div class="medication-details">
-        <strong>Presentación:</strong> ${m.presentacion} | <strong>Cantidad:</strong> ${m.cantidad}<br>
-        <strong>Posología:</strong> ${m.dosis}, ${m.frecuencia}, ${m.duracion}, ${m.via}
-        ${m.indicaciones?`<br><strong>Indicaciones:</strong> ${m.indicaciones}`:''}
-      </div>
-    </div>`).join('');
-}
-function limpiarFormularioMedicamento(){
-  buscadorMedicamento.value='';
-  document.getElementById('medicamentoNombre').value='';
-  document.getElementById('medicamentoPresentacion').value='';
-  document.getElementById('medicamentoCantidad').value='';
-  document.getElementById('medicamentoDosis').value='';
-  document.getElementById('medicamentoFrecuencia').value='';
-  document.getElementById('medicamentoDuracion').value='';
-  document.getElementById('medicamentoVia').value='';
-  document.getElementById('medicamentoIndicaciones').value='';
-  document.getElementById('medicamentoIndicaciones').placeholder='Tomar con alimentos';
-}
-
-/* Validación */
-function validarFormulario(){
-  const medicoNombre=document.getElementById('medicoNombre').value.trim();
-  const medicoCMP=document.getElementById('medicoCMP').value.trim();
-  const pacienteNombre=document.getElementById('pacienteNombre').value.trim();
-  const pacienteEdad=document.getElementById('pacienteEdad').value.trim();
-  const fechaAtencion=document.getElementById('fechaAtencion').value;
-
-  if(!medicoNombre||!medicoCMP){mostrarAlerta('Completa los datos del médico (Nombre y CMP).');return false;}
-  if(!pacienteNombre||!pacienteEdad||!fechaAtencion){mostrarAlerta('Completa los datos del paciente (Nombre, Edad y Fecha).');return false;}
-  if(!medicamentos.length){mostrarAlerta('Debes agregar al menos un medicamento.');return false;}
-  return true;
-}
-
-/* Marca de agua */
-function agregarWatermark(doc){
-  const pageCount=doc.internal.getNumberOfPages();
-  const pageWidth=doc.internal.pageSize.getWidth();
-  const pageHeight=doc.internal.pageSize.getHeight();
-  for(let i=1;i<=pageCount;i++){
-    doc.setPage(i);
-    const w=60, h=120;
-    const x=(pageWidth-w)/2;
-    const y=(pageHeight-h)/2;
-    doc.addImage(watermarkImage,'JPEG',x,y,w,h);
-  }
-}
-
-/* Generar PDF */
-function generarPDF(){
-  if(!validarFormulario())return;
-
-  const doc=new jsPDF();
-  const pageWidth=doc.internal.pageSize.getWidth();
-  const pageHeight=doc.internal.pageSize.getHeight();
-  const margin=15;
-  let yPos=20;
-
-  doc.setFontSize(16);
-  doc.setFont(undefined,'bold');
-  doc.text('RECETA MÉDICA',pageWidth/2,yPos,{align:'center'});
-  yPos+=10;
-
-  doc.setFontSize(10);
-  const contacto=[];
-  const telefono=document.getElementById('medicoTelefono').value.trim();
-  const email=document.getElementById('medicoEmail').value.trim();
-  if(telefono)contacto.push(`Tel: ${telefono}`);
-  if(email)contacto.push(`Email: ${email}`);
-  if(contacto.length){doc.setFont(undefined,'normal');doc.text(contacto.join(' | '),margin,yPos);yPos+=8;}else{yPos+=3;}
-
-  doc.setDrawColor(0,0,0);
-  doc.line(margin,yPos,pageWidth-margin,yPos);
-  yPos+=8;
-
-  doc.setFont(undefined,'bold');
-  doc.text('MÉDICO PRESCRIPTOR:',margin,yPos); yPos+=6;
-  doc.setFont(undefined,'normal');
-  const medicoNombre=document.getElementById('medicoNombre').value;
-  const cmp=document.getElementById('medicoCMP').value.trim();
-  const especialidad=document.getElementById('medicoEspecialidad').value.trim();
-  doc.text(medicoNombre,margin,yPos); yPos+=5;
-  let cred=`CMP: ${cmp}`; if(especialidad)cred+=` | ${especialidad}`;
-  doc.text(cred,margin,yPos); yPos+=10;
-
-  doc.setFont(undefined,'bold');
-  doc.text('DATOS DEL PACIENTE:',margin,yPos); yPos+=6;
-  doc.setFont(undefined,'normal');
-  const pacienteNombre=document.getElementById('pacienteNombre').value;
-  const pacienteEdad=document.getElementById('pacienteEdad').value;
-  const pacienteDNI=document.getElementById('pacienteDNI').value.trim();
-  const pacienteSexo=document.getElementById('pacienteSexo').value;
-  doc.text(`Paciente: ${pacienteNombre}`,margin,yPos); yPos+=5;
-  let datos=`Edad: ${pacienteEdad} años`;
-  if(pacienteSexo)datos+=` | Sexo: ${pacienteSexo}`;
-  if(pacienteDNI)datos+=` | DNI: ${pacienteDNI}`;
-  doc.text(datos,margin,yPos); yPos+=5;
-  const fechaAtencion=document.getElementById('fechaAtencion').value;
-  const fechaFormateada=new Date(fechaAtencion+'T00:00:00').toLocaleDateString('es-PE',{year:'numeric',month:'long',day:'numeric'});
-  doc.text(`Fecha de atención: ${fechaFormateada}`,margin,yPos); yPos+=5;
-  const diagnostico=document.getElementById('diagnostico').value.trim();
-  if(diagnostico){
-    const dxLines=doc.splitTextToSize(`Diagnóstico: ${diagnostico}`,pageWidth-2*margin);
-    doc.text(dxLines,margin,yPos);
-    yPos+=dxLines.length*5;
-  }
-  yPos+=5;
-
-  doc.setFont(undefined,'bold');
-  doc.setFontSize(12);
-  doc.text('Rp/',margin,yPos); yPos+=8;
-
-  doc.setFontSize(10);
-  const colWidth=(pageWidth-2*margin)/2;
-  medicamentos.forEach((m,index)=>{
-    if(yPos>pageHeight-60){doc.addPage();yPos=20;}
-    doc.setFont(undefined,'bold');
-    doc.text(`${index+1}. ${m.nombre}`,margin,yPos); yPos+=5;
-    doc.setFont(undefined,'normal');
-    const izquierda=`Presentación: ${m.presentacion} | Cantidad: ${m.cantidad}`;
-    const derecha=[`Dosis: ${m.dosis}`,`Frecuencia: ${m.frecuencia}`,`Duración: ${m.duracion}`,`Vía: ${m.via}`,m.indicaciones?`Indicaciones: ${m.indicaciones}`:''].filter(Boolean).join(' | ');
-    const leftLines=doc.splitTextToSize(izquierda,colWidth-2);
-    const rightLines=doc.splitTextToSize(derecha,colWidth-2);
-    const linesCount=Math.max(leftLines.length,rightLines.length);
-    for(let i=0;i<linesCount;i++){
-      doc.text(leftLines[i]||'',margin+2,yPos);
-      doc.text(rightLines[i]||'',margin+colWidth+2,yPos);
-      yPos+=4;
+  function buildPath(points) {
+    var segs = [];
+    var total = 0;
+    for (var i = 0; i < points.length - 1; i++) {
+      var a = points[i], b = points[i + 1];
+      var len = Math.hypot(b.x - a.x, b.y - a.y);
+      segs.push({ a: a, b: b, len: len, start: total });
+      total += len;
     }
-    yPos+=4;
+    return { points: points, segs: segs, total: total };
+  }
+  var PATH = buildPath(PATH_POINTS);
+
+  function pathPos(progress) {
+    if (progress <= 0) return { x: PATH_POINTS[0].x, y: PATH_POINTS[0].y };
+    if (progress >= PATH.total) {
+      var last = PATH_POINTS[PATH_POINTS.length - 1];
+      return { x: last.x, y: last.y };
+    }
+    for (var i = 0; i < PATH.segs.length; i++) {
+      var s = PATH.segs[i];
+      if (progress < s.start + s.len) {
+        var t = (progress - s.start) / s.len;
+        return { x: s.a.x + (s.b.x - s.a.x) * t, y: s.a.y + (s.b.y - s.a.y) * t };
+      }
+    }
+    var l = PATH_POINTS[PATH_POINTS.length - 1];
+    return { x: l.x, y: l.y };
+  }
+
+  function distPointToSegment(px, py, ax, ay, bx, by) {
+    var dx = bx - ax, dy = by - ay;
+    var len2 = dx * dx + dy * dy;
+    if (len2 === 0) return Math.hypot(px - ax, py - ay);
+    var t = ((px - ax) * dx + (py - ay) * dy) / len2;
+    if (t < 0) t = 0; else if (t > 1) t = 1;
+    return Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
+  }
+
+  function distPointToPath(x, y) {
+    var best = Infinity;
+    for (var i = 0; i < PATH.segs.length; i++) {
+      var s = PATH.segs[i];
+      var d = distPointToSegment(x, y, s.a.x, s.a.y, s.b.x, s.b.y);
+      if (d < best) best = d;
+    }
+    return best;
+  }
+
+  // -------- DEFINITIONS ---------------------------------------------------
+  var TOWER_DEFS = {
+    macrofago: {
+      id: "macrofago",
+      name: "Macrofago",
+      shortName: "Macro",
+      color: "#2c7be5",
+      colorDark: "#1a4f99",
+      cost: 50,
+      desc: "Cuerpo a cuerpo",
+      levels: [
+        { range: 80,  damage: 18, fireRate: 1.2, projectileSpeed: 0,   splash: 0 },
+        { range: 90,  damage: 32, fireRate: 1.4, projectileSpeed: 0,   splash: 0 },
+        { range: 100, damage: 55, fireRate: 1.6, projectileSpeed: 0,   splash: 0 }
+      ],
+      upgradeCost: [60, 110]
+    },
+    linfocitoB: {
+      id: "linfocitoB",
+      name: "Linfocito B",
+      shortName: "Linf-B",
+      color: "#11a07f",
+      colorDark: "#0a6655",
+      cost: 75,
+      desc: "Anticuerpos a distancia",
+      levels: [
+        { range: 180, damage: 10, fireRate: 1.8, projectileSpeed: 360, splash: 0 },
+        { range: 210, damage: 17, fireRate: 2.2, projectileSpeed: 410, splash: 0 },
+        { range: 240, damage: 28, fireRate: 2.6, projectileSpeed: 460, splash: 0 }
+      ],
+      upgradeCost: [85, 140]
+    },
+    linfocitoT: {
+      id: "linfocitoT",
+      name: "Linfocito T",
+      shortName: "Linf-T",
+      color: "#7c3fcc",
+      colorDark: "#4d2080",
+      cost: 110,
+      desc: "Citotoxico (area)",
+      levels: [
+        { range: 120, damage: 22, fireRate: 0.8, projectileSpeed: 300, splash: 50 },
+        { range: 140, damage: 38, fireRate: 0.95, projectileSpeed: 340, splash: 65 },
+        { range: 160, damage: 62, fireRate: 1.1, projectileSpeed: 380, splash: 80 }
+      ],
+      upgradeCost: [120, 200]
+    }
+  };
+
+  var TOWER_LIST = ["macrofago", "linfocitoB", "linfocitoT"];
+
+  var ENEMY_DEFS = {
+    bacteria: { id: "bacteria", name: "Bacteria", color: "#c54040", colorDark: "#7a1f1f", radius: 14, speed: 30, hp: 60, reward: 10 },
+    virus:    { id: "virus",    name: "Virus",    color: "#7d2bb3", colorDark: "#4a1670", radius: 9,  speed: 70, hp: 18, reward: 7  },
+    hongo:    { id: "hongo",    name: "Hongo",    color: "#a02b6e", colorDark: "#5e1a40", radius: 12, speed: 44, hp: 38, reward: 12 }
+  };
+
+  // Wave list (8 waves, increasing difficulty)
+  var WAVES = [
+    { groups: [{ type: "bacteria", count: 6, interval: 0.9 }], hpMult: 1.0, speedMult: 1.0 },
+    { groups: [{ type: "bacteria", count: 4, interval: 0.8 }, { type: "virus", count: 4, interval: 0.45 }], hpMult: 1.0, speedMult: 1.0 },
+    { groups: [{ type: "virus", count: 10, interval: 0.4 }], hpMult: 1.05, speedMult: 1.05 },
+    { groups: [{ type: "bacteria", count: 6, interval: 0.7 }, { type: "hongo", count: 4, interval: 0.7 }], hpMult: 1.1, speedMult: 1.05 },
+    { groups: [{ type: "hongo", count: 8, interval: 0.55 }, { type: "virus", count: 6, interval: 0.4 }], hpMult: 1.15, speedMult: 1.1 },
+    { groups: [{ type: "bacteria", count: 8, interval: 0.6 }, { type: "virus", count: 8, interval: 0.35 }], hpMult: 1.2, speedMult: 1.1 },
+    { groups: [{ type: "hongo", count: 10, interval: 0.5 }, { type: "bacteria", count: 6, interval: 0.7 }], hpMult: 1.3, speedMult: 1.15 },
+    { groups: [{ type: "virus", count: 12, interval: 0.32 }, { type: "hongo", count: 8, interval: 0.55 }, { type: "bacteria", count: 6, interval: 0.8 }], hpMult: 1.45, speedMult: 1.2 }
+  ];
+
+  // -------- STATE ---------------------------------------------------------
+  var state;
+
+  function newState() {
+    return {
+      atp: 150,
+      lives: 10,
+      waveIdx: 0,         // number of started waves
+      waveActive: false,
+      pendingSpawns: [],
+      spawnElapsed: 0,
+      towers: [],
+      enemies: [],
+      projectiles: [],
+      effects: [],         // hits, explosions, melee flashes
+      selectedToBuild: null,
+      selectedTower: null,
+      pointer: { x: 0, y: 0, inField: false, isOver: false },
+      lastPlaceFailedAt: 0,
+      msg: "",
+      msgTimer: 0,
+      gameOver: false,
+      victory: false,
+      time: 0
+    };
+  }
+
+  state = newState();
+
+  // -------- SPAWNING / WAVES ----------------------------------------------
+  function startNextWave() {
+    if (state.waveActive || state.gameOver || state.victory) return;
+    if (state.waveIdx >= WAVES.length) return;
+    var wave = WAVES[state.waveIdx];
+    state.waveIdx += 1;
+    state.waveActive = true;
+    state.spawnElapsed = 0;
+    state.pendingSpawns = [];
+    var t = 0;
+    for (var i = 0; i < wave.groups.length; i++) {
+      var g = wave.groups[i];
+      for (var k = 0; k < g.count; k++) {
+        state.pendingSpawns.push({ type: g.type, time: t, hpMult: wave.hpMult, speedMult: wave.speedMult });
+        t += g.interval;
+      }
+      t += 0.6;
+    }
+    showMsg("Oleada " + state.waveIdx + " iniciada");
+  }
+
+  function spawnEnemy(typeId, hpMult, speedMult) {
+    var def = ENEMY_DEFS[typeId];
+    state.enemies.push({
+      def: def,
+      hp: def.hp * hpMult,
+      maxHp: def.hp * hpMult,
+      speed: def.speed * speedMult,
+      progress: 0,
+      x: PATH_POINTS[0].x,
+      y: PATH_POINTS[0].y,
+      wobble: Math.random() * Math.PI * 2,
+      dead: false
+    });
+  }
+
+  function updateWave(dt) {
+    if (!state.waveActive) return;
+    state.spawnElapsed += dt;
+    while (state.pendingSpawns.length && state.pendingSpawns[0].time <= state.spawnElapsed) {
+      var s = state.pendingSpawns.shift();
+      spawnEnemy(s.type, s.hpMult, s.speedMult);
+    }
+    if (!state.pendingSpawns.length && !state.enemies.length) {
+      state.waveActive = false;
+      state.atp += 25 + state.waveIdx * 5;
+      if (state.waveIdx >= WAVES.length) {
+        state.victory = true;
+        showMsg("VICTORIA");
+      } else {
+        showMsg("Oleada superada (+" + (25 + state.waveIdx * 5) + " ATP)");
+      }
+    }
+  }
+
+  // -------- ENEMY UPDATE --------------------------------------------------
+  function updateEnemies(dt) {
+    for (var i = 0; i < state.enemies.length; i++) {
+      var e = state.enemies[i];
+      if (e.dead) continue;
+      e.progress += e.speed * dt;
+      e.wobble += dt * 6;
+      if (e.progress >= PATH.total) {
+        e.dead = true;
+        state.lives -= 1;
+        spawnEffect("escape", e.x, e.y);
+        if (state.lives <= 0) {
+          state.lives = 0;
+          state.gameOver = true;
+          showMsg("DERROTA");
+        }
+      } else {
+        var p = pathPos(e.progress);
+        e.x = p.x;
+        e.y = p.y;
+      }
+    }
+    state.enemies = state.enemies.filter(function (e) { return !e.dead; });
+  }
+
+  // -------- TOWER UPDATE --------------------------------------------------
+  function placeTower(x, y, typeId) {
+    var def = TOWER_DEFS[typeId];
+    state.towers.push({
+      x: x, y: y,
+      def: def,
+      level: 0,
+      cooldown: 0,
+      muzzleFlash: 0
+    });
+  }
+
+  function towerStats(t) { return t.def.levels[t.level]; }
+
+  function updateTowers(dt) {
+    for (var i = 0; i < state.towers.length; i++) {
+      var t = state.towers[i];
+      if (t.cooldown > 0) t.cooldown -= dt;
+      if (t.muzzleFlash > 0) t.muzzleFlash -= dt;
+      if (t.cooldown > 0) continue;
+      var stats = towerStats(t);
+      var target = null, bestProgress = -1;
+      for (var j = 0; j < state.enemies.length; j++) {
+        var e = state.enemies[j];
+        if (e.dead) continue;
+        var d = Math.hypot(e.x - t.x, e.y - t.y);
+        if (d <= stats.range && e.progress > bestProgress) {
+          bestProgress = e.progress;
+          target = e;
+        }
+      }
+      if (target) {
+        fireTower(t, target);
+        t.cooldown = 1 / stats.fireRate;
+        t.muzzleFlash = 0.08;
+      }
+    }
+  }
+
+  function fireTower(t, target) {
+    var stats = towerStats(t);
+    if (stats.projectileSpeed === 0) {
+      // Melee instant hit (Macrofago)
+      damageEnemy(target, stats.damage);
+      state.effects.push({ kind: "melee", x1: t.x, y1: t.y, x2: target.x, y2: target.y, life: 0.18, max: 0.18, color: t.def.color });
+    } else {
+      state.projectiles.push({
+        x: t.x, y: t.y,
+        target: target,
+        damage: stats.damage,
+        speed: stats.projectileSpeed,
+        splash: stats.splash,
+        color: t.def.color,
+        dead: false
+      });
+    }
+  }
+
+  function damageEnemy(e, amount) {
+    if (e.dead) return;
+    e.hp -= amount;
+    if (e.hp <= 0) {
+      e.dead = true;
+      state.atp += e.def.reward;
+      spawnEffect("death", e.x, e.y, e.def.color);
+    }
+  }
+
+  // -------- PROJECTILES ---------------------------------------------------
+  function updateProjectiles(dt) {
+    for (var i = 0; i < state.projectiles.length; i++) {
+      var p = state.projectiles[i];
+      if (p.dead) continue;
+      if (!p.target || p.target.dead) {
+        p.dead = true;
+        continue;
+      }
+      var dx = p.target.x - p.x, dy = p.target.y - p.y;
+      var d = Math.hypot(dx, dy);
+      var step = p.speed * dt;
+      if (d <= step + 4) {
+        if (p.splash > 0) {
+          for (var j = 0; j < state.enemies.length; j++) {
+            var e = state.enemies[j];
+            if (e.dead) continue;
+            if (Math.hypot(e.x - p.target.x, e.y - p.target.y) <= p.splash) {
+              damageEnemy(e, p.damage);
+            }
+          }
+          state.effects.push({ kind: "explosion", x: p.target.x, y: p.target.y, r: 0, max: p.splash, life: 0.4, color: p.color });
+        } else {
+          damageEnemy(p.target, p.damage);
+          state.effects.push({ kind: "hit", x: p.target.x, y: p.target.y, life: 0.2, max: 0.2, color: p.color });
+        }
+        p.dead = true;
+      } else {
+        p.x += (dx / d) * step;
+        p.y += (dy / d) * step;
+      }
+    }
+    state.projectiles = state.projectiles.filter(function (p) { return !p.dead; });
+  }
+
+  // -------- EFFECTS -------------------------------------------------------
+  function spawnEffect(kind, x, y, color) {
+    if (kind === "death") {
+      for (var i = 0; i < 6; i++) {
+        var ang = Math.random() * Math.PI * 2;
+        var spd = 40 + Math.random() * 60;
+        state.effects.push({
+          kind: "particle",
+          x: x, y: y,
+          vx: Math.cos(ang) * spd,
+          vy: Math.sin(ang) * spd,
+          life: 0.4 + Math.random() * 0.2,
+          max: 0.6,
+          color: color || "#fff"
+        });
+      }
+    } else if (kind === "escape") {
+      state.effects.push({ kind: "escape", x: x, y: y, life: 0.6, max: 0.6 });
+    }
+  }
+
+  function updateEffects(dt) {
+    for (var i = 0; i < state.effects.length; i++) {
+      var ef = state.effects[i];
+      ef.life -= dt;
+      if (ef.kind === "particle") {
+        ef.x += ef.vx * dt;
+        ef.y += ef.vy * dt;
+        ef.vx *= 0.92;
+        ef.vy *= 0.92;
+      } else if (ef.kind === "explosion") {
+        ef.r = ef.max * (1 - ef.life / 0.4);
+      }
+    }
+    state.effects = state.effects.filter(function (e) { return e.life > 0; });
+  }
+
+  // -------- INPUT ---------------------------------------------------------
+  function canvasPosFromEvent(evt) {
+    var rect = canvas.getBoundingClientRect();
+    var clientX = evt.clientX, clientY = evt.clientY;
+    if (clientX === undefined && evt.touches && evt.touches[0]) {
+      clientX = evt.touches[0].clientX;
+      clientY = evt.touches[0].clientY;
+    }
+    var x = (clientX - rect.left) * (canvas.width / rect.width);
+    var y = (clientY - rect.top) * (canvas.height / rect.height);
+    return { x: x, y: y };
+  }
+
+  function inRect(x, y, r) {
+    return x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
+  }
+
+  // UI rectangles (recomputed each frame so we don't drift)
+  var UI = {
+    nextWaveBtn: { x: 605, y: 10, w: 180, h: 36 },
+    cards: [
+      { x: 10,  y: 492, w: 100, h: 100 },
+      { x: 120, y: 492, w: 100, h: 100 },
+      { x: 230, y: 492, w: 100, h: 100 }
+    ],
+    upgradeBtn: { x: 600, y: 538, w: 180, h: 50 },
+    sellBtn:    { x: 600, y: 492, w: 180, h: 38 },
+    deselectBtn:{ x: 350, y: 492, w: 100, h: 28 },
+    restartBtn: { x: 320, y: 360, w: 160, h: 50 }
+  };
+
+  function handleClick(x, y) {
+    if (state.gameOver || state.victory) {
+      if (inRect(x, y, UI.restartBtn)) {
+        state = newState();
+      }
+      return;
+    }
+
+    // Top HUD button
+    if (inRect(x, y, UI.nextWaveBtn) && !state.waveActive && state.waveIdx < WAVES.length) {
+      startNextWave();
+      return;
+    }
+
+    // Bottom panel
+    if (y >= PANEL_TOP) {
+      // Tower cards
+      for (var i = 0; i < UI.cards.length; i++) {
+        if (inRect(x, y, UI.cards[i])) {
+          var typeId = TOWER_LIST[i];
+          if (state.atp >= TOWER_DEFS[typeId].cost) {
+            state.selectedToBuild = state.selectedToBuild === typeId ? null : typeId;
+            state.selectedTower = null;
+          } else {
+            flashFail();
+          }
+          return;
+        }
+      }
+      // Selected tower controls
+      if (state.selectedTower) {
+        if (inRect(x, y, UI.deselectBtn)) {
+          state.selectedTower = null;
+          return;
+        }
+        if (inRect(x, y, UI.sellBtn)) {
+          sellTower(state.selectedTower);
+          return;
+        }
+        if (state.selectedTower.level < 2 && inRect(x, y, UI.upgradeBtn)) {
+          tryUpgrade(state.selectedTower);
+          return;
+        }
+      }
+      return;
+    }
+
+    // Field click
+    if (y < FIELD_TOP) return;
+
+    if (state.selectedToBuild) {
+      if (canPlaceTowerAt(x, y)) {
+        var def = TOWER_DEFS[state.selectedToBuild];
+        if (state.atp >= def.cost) {
+          state.atp -= def.cost;
+          placeTower(x, y, state.selectedToBuild);
+          if (state.atp < def.cost) state.selectedToBuild = null;
+        }
+      } else {
+        flashFail();
+      }
+      return;
+    }
+
+    // No build selected: try select an existing tower
+    var picked = null;
+    for (var t = 0; t < state.towers.length; t++) {
+      var tw = state.towers[t];
+      if (Math.hypot(tw.x - x, tw.y - y) <= 22) { picked = tw; break; }
+    }
+    state.selectedTower = picked;
+  }
+
+  function canPlaceTowerAt(x, y) {
+    if (y < FIELD_TOP + 24 || y > FIELD_BOTTOM - 24) return false;
+    if (x < 24 || x > W - 24) return false;
+    if (distPointToPath(x, y) < 28) return false;
+    for (var i = 0; i < state.towers.length; i++) {
+      if (Math.hypot(state.towers[i].x - x, state.towers[i].y - y) < 38) return false;
+    }
+    return true;
+  }
+
+  function tryUpgrade(t) {
+    if (t.level >= 2) return;
+    var cost = t.def.upgradeCost[t.level];
+    if (state.atp < cost) { flashFail(); return; }
+    state.atp -= cost;
+    t.level += 1;
+    showMsg(t.def.name + " mejorado a nivel " + (t.level + 1));
+  }
+
+  function sellTower(t) {
+    var refund = Math.floor(t.def.cost * 0.6);
+    for (var i = 0; i <= t.level - 1; i++) refund += Math.floor(t.def.upgradeCost[i] * 0.5);
+    state.atp += refund;
+    state.towers = state.towers.filter(function (x) { return x !== t; });
+    state.selectedTower = null;
+    showMsg("Vendido (+" + refund + " ATP)");
+  }
+
+  function flashFail() {
+    state.lastPlaceFailedAt = state.time;
+  }
+
+  function showMsg(text) {
+    state.msg = text;
+    state.msgTimer = 1.6;
+  }
+
+  function onPointerDown(evt) {
+    evt.preventDefault();
+    var p = canvasPosFromEvent(evt);
+    state.pointer.x = p.x;
+    state.pointer.y = p.y;
+    state.pointer.isOver = true;
+    state.pointer.inField = p.y >= FIELD_TOP && p.y < PANEL_TOP;
+    handleClick(p.x, p.y);
+  }
+  function onPointerMove(evt) {
+    var p = canvasPosFromEvent(evt);
+    state.pointer.x = p.x;
+    state.pointer.y = p.y;
+    state.pointer.isOver = true;
+    state.pointer.inField = p.y >= FIELD_TOP && p.y < PANEL_TOP;
+  }
+  function onPointerLeave() {
+    state.pointer.isOver = false;
+  }
+
+  canvas.addEventListener("pointerdown", onPointerDown);
+  canvas.addEventListener("pointermove", onPointerMove);
+  canvas.addEventListener("pointerleave", onPointerLeave);
+  canvas.addEventListener("contextmenu", function (e) { e.preventDefault(); });
+  document.addEventListener("keydown", function (e) {
+    if (e.key === " " || e.code === "Space") {
+      e.preventDefault();
+      if (!state.waveActive && !state.gameOver && !state.victory) startNextWave();
+    } else if (e.key === "Escape") {
+      state.selectedToBuild = null;
+      state.selectedTower = null;
+    } else if (e.key === "1") {
+      state.selectedToBuild = "macrofago"; state.selectedTower = null;
+    } else if (e.key === "2") {
+      state.selectedToBuild = "linfocitoB"; state.selectedTower = null;
+    } else if (e.key === "3") {
+      state.selectedToBuild = "linfocitoT"; state.selectedTower = null;
+    }
   });
 
-  const indicacionesGenerales=document.getElementById('indicacionesGenerales').value.trim();
-  if(indicacionesGenerales){
-    if(yPos>pageHeight-40){doc.addPage();yPos=20;}
-    yPos+=5;
-    doc.setFont(undefined,'bold');
-    doc.text('INDICACIONES GENERALES:',margin,yPos); yPos+=6;
-    doc.setFont(undefined,'normal');
-    const lines=doc.splitTextToSize(indicacionesGenerales,pageWidth-2*margin);
-    doc.text(lines,margin,yPos);
-    yPos+=lines.length*5;
+  // -------- RENDER --------------------------------------------------------
+  function clearCanvas() {
+    ctx.fillStyle = "#f8e8e0";
+    ctx.fillRect(0, 0, W, H);
+
+    // Subtle tissue speckles
+    ctx.fillStyle = "rgba(200, 140, 130, 0.18)";
+    var seed = 13;
+    for (var i = 0; i < 80; i++) {
+      seed = (seed * 9301 + 49297) % 233280;
+      var x = (seed / 233280) * W;
+      seed = (seed * 9301 + 49297) % 233280;
+      var y = FIELD_TOP + (seed / 233280) * (FIELD_BOTTOM - FIELD_TOP);
+      seed = (seed * 9301 + 49297) % 233280;
+      var r = 1 + (seed / 233280) * 3;
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
   }
 
-  // Firma manuscrita
-  const firmaWidth=40;
-  const firmaHeight=15;
-  const firmaX=(pageWidth-firmaWidth)/2;
-  const firmaY=pageHeight-45;
-  try{
-    doc.addImage(firmaImage,'JPEG',firmaX,firmaY,firmaWidth,firmaHeight);
-  }catch(e){}
+  function drawPath() {
+    // Outer glow
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.strokeStyle = "#e8b8b0";
+    ctx.lineWidth = 38;
+    strokePath();
+    ctx.strokeStyle = "#d8978b";
+    ctx.lineWidth = 30;
+    strokePath();
+    ctx.strokeStyle = "#c47a6e";
+    ctx.lineWidth = 22;
+    strokePath();
+    // Center stripe
+    ctx.strokeStyle = "rgba(255,255,255,0.18)";
+    ctx.lineWidth = 4;
+    ctx.setLineDash([10, 14]);
+    strokePath();
+    ctx.setLineDash([]);
 
-  yPos=pageHeight-25;
-  doc.line(pageWidth/2-30,yPos,pageWidth/2+30,yPos);
-  yPos+=5;
-  doc.setFont(undefined,'bold');
-  doc.text('Firma del Médico',pageWidth/2,yPos,{align:'center'});
-  yPos+=4;
-  doc.setFont(undefined,'normal');
-  doc.setFontSize(9);
-  doc.text(medicoNombre,pageWidth/2,yPos,{align:'center'});
-  yPos+=4;
-  doc.text(`CMP: ${cmp}`,pageWidth/2,yPos,{align:'center'});
+    // Entry / exit markers
+    var entry = PATH_POINTS[1];
+    var exitP = PATH_POINTS[PATH_POINTS.length - 2];
+    drawLabelMarker(20, 140, "Herida", "#7a1f1f");
+    drawLabelMarker(W - 20, 410, "Vaso", "#3b1d6b");
+  }
 
-  agregarWatermark(doc);
-  const nombreArchivo=`Receta_${pacienteNombre.replace(/\s+/g,'_')}_${fechaAtencion}.pdf`;
-  doc.save(nombreArchivo);
-  mostrarAlerta('¡Receta generada exitosamente!','success');
-}
+  function strokePath() {
+    ctx.beginPath();
+    ctx.moveTo(PATH_POINTS[0].x, PATH_POINTS[0].y);
+    for (var i = 1; i < PATH_POINTS.length; i++) {
+      ctx.lineTo(PATH_POINTS[i].x, PATH_POINTS[i].y);
+    }
+    ctx.stroke();
+  }
+
+  function drawLabelMarker(x, y, text, color) {
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(x, y, 9, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "rgba(0,0,0,0.7)";
+    ctx.font = "11px sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "top";
+    ctx.fillText(text, x, y + 14);
+  }
+
+  function drawHexagon(cx, cy, r, fill, stroke, strokeW) {
+    ctx.beginPath();
+    for (var i = 0; i < 6; i++) {
+      var a = Math.PI / 3 * i - Math.PI / 2;
+      var x = cx + Math.cos(a) * r;
+      var y = cy + Math.sin(a) * r;
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+    if (fill) { ctx.fillStyle = fill; ctx.fill(); }
+    if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = strokeW || 2; ctx.stroke(); }
+  }
+
+  function drawTower(t) {
+    var stats = towerStats(t);
+    if (state.selectedTower === t) {
+      ctx.fillStyle = "rgba(50, 60, 90, 0.10)";
+      ctx.strokeStyle = "rgba(60, 80, 130, 0.45)";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(t.x, t.y, stats.range, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    }
+    if (t.muzzleFlash > 0) {
+      ctx.fillStyle = "rgba(255, 240, 180, 0.55)";
+      ctx.beginPath();
+      ctx.arc(t.x, t.y, 26, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    drawHexagon(t.x, t.y, 20, t.def.color, t.def.colorDark, 2);
+    drawHexagon(t.x, t.y, 11, "#ffffff", null);
+    // Level pips
+    ctx.fillStyle = t.def.colorDark;
+    for (var i = 0; i <= t.level; i++) {
+      ctx.beginPath();
+      ctx.arc(t.x - 6 + i * 6, t.y - 1, 2.2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  function drawEnemy(e) {
+    var def = e.def;
+    var wob = Math.sin(e.wobble) * 1.5;
+    ctx.save();
+    ctx.translate(e.x, e.y);
+    ctx.fillStyle = def.colorDark;
+    ctx.beginPath();
+    ctx.arc(2, 2, def.radius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = def.color;
+    ctx.beginPath();
+    ctx.arc(0, 0 + wob * 0.2, def.radius, 0, Math.PI * 2);
+    ctx.fill();
+    if (def.id === "virus") {
+      ctx.strokeStyle = def.colorDark;
+      ctx.lineWidth = 2;
+      for (var i = 0; i < 6; i++) {
+        var a = i * Math.PI / 3 + e.wobble * 0.3;
+        ctx.beginPath();
+        ctx.moveTo(Math.cos(a) * def.radius, Math.sin(a) * def.radius);
+        ctx.lineTo(Math.cos(a) * (def.radius + 4), Math.sin(a) * (def.radius + 4));
+        ctx.stroke();
+      }
+    } else if (def.id === "hongo") {
+      ctx.fillStyle = "rgba(255,255,255,0.4)";
+      ctx.beginPath();
+      ctx.arc(-3, -3, 3, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(4, 1, 2, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (def.id === "bacteria") {
+      ctx.fillStyle = def.colorDark;
+      ctx.beginPath();
+      ctx.arc(-3, -2, 2.5, 0, Math.PI * 2);
+      ctx.arc(3, 2, 2.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+
+    // HP bar
+    var hpRatio = Math.max(0, e.hp / e.maxHp);
+    var bw = Math.max(20, def.radius * 2);
+    var bh = 4;
+    ctx.fillStyle = "rgba(0,0,0,0.55)";
+    ctx.fillRect(e.x - bw / 2, e.y - def.radius - 9, bw, bh);
+    ctx.fillStyle = hpRatio > 0.5 ? "#5cb85c" : hpRatio > 0.25 ? "#f0ad4e" : "#d9534f";
+    ctx.fillRect(e.x - bw / 2, e.y - def.radius - 9, bw * hpRatio, bh);
+  }
+
+  function drawProjectile(p) {
+    ctx.fillStyle = p.color;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.splash > 0 ? 6 : 4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "rgba(0,0,0,0.35)";
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+
+  function drawEffect(ef) {
+    var alpha = Math.max(0, ef.life / ef.max);
+    if (ef.kind === "particle") {
+      ctx.fillStyle = ef.color;
+      ctx.globalAlpha = alpha;
+      ctx.beginPath();
+      ctx.arc(ef.x, ef.y, 3, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    } else if (ef.kind === "hit") {
+      ctx.strokeStyle = ef.color;
+      ctx.globalAlpha = alpha;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(ef.x, ef.y, 8 + (1 - alpha) * 10, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    } else if (ef.kind === "explosion") {
+      ctx.fillStyle = ef.color;
+      ctx.globalAlpha = alpha * 0.4;
+      ctx.beginPath();
+      ctx.arc(ef.x, ef.y, ef.r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = ef.color;
+      ctx.globalAlpha = alpha;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    } else if (ef.kind === "melee") {
+      ctx.strokeStyle = ef.color;
+      ctx.globalAlpha = alpha;
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(ef.x1, ef.y1);
+      ctx.lineTo(ef.x2, ef.y2);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    } else if (ef.kind === "escape") {
+      ctx.strokeStyle = "#d9534f";
+      ctx.globalAlpha = alpha;
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(ef.x, ef.y, 12 + (1 - alpha) * 18, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  function drawHUD() {
+    ctx.fillStyle = "#3a2530";
+    ctx.fillRect(0, 0, W, FIELD_TOP);
+    ctx.fillStyle = "rgba(255,255,255,0.06)";
+    ctx.fillRect(0, FIELD_TOP - 2, W, 2);
+
+    ctx.font = "bold 18px sans-serif";
+    ctx.textAlign = "left";
+    ctx.textBaseline = "middle";
+
+    drawHudStat("⚡ ATP", state.atp, 16, "#f5d76e");
+    drawHudStat("♥ Vida", state.lives, 180, state.lives <= 3 ? "#ff7878" : "#9adfb1");
+    drawHudStat("⌖ Oleada", state.waveIdx + " / " + WAVES.length, 360, "#e0e0e0");
+
+    // Next wave button
+    if (!state.waveActive && state.waveIdx < WAVES.length) {
+      drawButton(UI.nextWaveBtn, "▶ Iniciar Oleada", "#1f8a4c", "#16632f", true);
+    } else if (state.waveActive) {
+      drawButton(UI.nextWaveBtn, "Oleada en curso...", "#5a4250", "#3a2530", false);
+    } else {
+      drawButton(UI.nextWaveBtn, "Sin mas oleadas", "#5a4250", "#3a2530", false);
+    }
+  }
+
+  function drawHudStat(label, value, x, color) {
+    ctx.fillStyle = "rgba(255,255,255,0.55)";
+    ctx.font = "11px sans-serif";
+    ctx.fillText(label, x, 14);
+    ctx.fillStyle = color;
+    ctx.font = "bold 18px sans-serif";
+    ctx.fillText(value, x, 34);
+  }
+
+  function drawButton(r, text, fill, stroke, enabled) {
+    ctx.fillStyle = fill;
+    roundRect(r.x, r.y, r.w, r.h, 8);
+    ctx.fill();
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = 1.5;
+    roundRect(r.x, r.y, r.w, r.h, 8);
+    ctx.stroke();
+    ctx.fillStyle = enabled ? "#fff" : "rgba(255,255,255,0.55)";
+    ctx.font = "bold 14px sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(text, r.x + r.w / 2, r.y + r.h / 2);
+  }
+
+  function roundRect(x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    ctx.lineTo(x + r, y + h - r);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
+  }
+
+  function drawPanel() {
+    ctx.fillStyle = "#2a1a22";
+    ctx.fillRect(0, PANEL_TOP, W, H - PANEL_TOP);
+
+    // Tower cards
+    for (var i = 0; i < TOWER_LIST.length; i++) {
+      var typeId = TOWER_LIST[i];
+      var def = TOWER_DEFS[typeId];
+      var card = UI.cards[i];
+      var canAfford = state.atp >= def.cost;
+      var isSelected = state.selectedToBuild === typeId;
+
+      ctx.fillStyle = isSelected ? "#3a2538" : "#1f1219";
+      roundRect(card.x, card.y, card.w, card.h, 8);
+      ctx.fill();
+      ctx.strokeStyle = isSelected ? def.color : "rgba(255,255,255,0.08)";
+      ctx.lineWidth = isSelected ? 3 : 1.5;
+      roundRect(card.x, card.y, card.w, card.h, 8);
+      ctx.stroke();
+
+      // Icon
+      drawHexagon(card.x + card.w / 2, card.y + 28, 16, canAfford ? def.color : "#555", def.colorDark, 2);
+      drawHexagon(card.x + card.w / 2, card.y + 28, 8, "#fff", null);
+
+      // Name + cost
+      ctx.fillStyle = canAfford ? "#fff" : "rgba(255,255,255,0.45)";
+      ctx.font = "bold 12px sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "top";
+      ctx.fillText(def.name, card.x + card.w / 2, card.y + 52);
+
+      ctx.font = "10px sans-serif";
+      ctx.fillStyle = "rgba(255,255,255,0.55)";
+      ctx.fillText(def.desc, card.x + card.w / 2, card.y + 68);
+
+      ctx.font = "bold 12px sans-serif";
+      ctx.fillStyle = canAfford ? "#f5d76e" : "#d9534f";
+      ctx.fillText("⚡ " + def.cost, card.x + card.w / 2, card.y + 82);
+    }
+
+    // Selected tower info
+    var infoX = 350, infoY = PANEL_TOP + 8;
+    ctx.textAlign = "left";
+    ctx.textBaseline = "top";
+    if (state.selectedTower) {
+      var t = state.selectedTower;
+      var stats = towerStats(t);
+      ctx.fillStyle = t.def.color;
+      ctx.font = "bold 16px sans-serif";
+      ctx.fillText(t.def.name + "  Nv " + (t.level + 1) + "/3", infoX, infoY);
+
+      ctx.font = "12px sans-serif";
+      ctx.fillStyle = "rgba(255,255,255,0.85)";
+      ctx.fillText("Daño: " + stats.damage + (stats.splash > 0 ? "  AOE: " + stats.splash : ""), infoX, infoY + 22);
+      ctx.fillText("Rango: " + stats.range + "    Cadencia: " + stats.fireRate.toFixed(2) + "/s", infoX, infoY + 38);
+
+      // Deselect (X) small button at top-right of info zone
+      ctx.fillStyle = "rgba(255,255,255,0.1)";
+      roundRect(UI.deselectBtn.x, UI.deselectBtn.y, UI.deselectBtn.w, UI.deselectBtn.h, 6);
+      ctx.fill();
+      ctx.fillStyle = "rgba(255,255,255,0.7)";
+      ctx.font = "bold 12px sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText("Deseleccionar", UI.deselectBtn.x + UI.deselectBtn.w / 2, UI.deselectBtn.y + 8);
+      ctx.textAlign = "left";
+
+      // Sell button
+      var sellRefund = Math.floor(t.def.cost * 0.6);
+      for (var li = 0; li < t.level; li++) sellRefund += Math.floor(t.def.upgradeCost[li] * 0.5);
+      drawButton(UI.sellBtn, "Vender (+" + sellRefund + " ATP)", "#7a3a3a", "#552020", true);
+
+      // Upgrade button
+      if (t.level < 2) {
+        var ucost = t.def.upgradeCost[t.level];
+        var canUp = state.atp >= ucost;
+        drawButton(UI.upgradeBtn,
+          "Mejorar a Nv " + (t.level + 2) + "  (⚡ " + ucost + ")",
+          canUp ? "#1f8a4c" : "#3a2530",
+          canUp ? "#16632f" : "#22141c",
+          canUp);
+      } else {
+        drawButton(UI.upgradeBtn, "Nivel maximo", "#5a4250", "#3a2530", false);
+      }
+    } else if (state.selectedToBuild) {
+      var def2 = TOWER_DEFS[state.selectedToBuild];
+      ctx.fillStyle = def2.color;
+      ctx.font = "bold 16px sans-serif";
+      ctx.fillText("Construyendo: " + def2.name, infoX, infoY);
+      ctx.font = "12px sans-serif";
+      ctx.fillStyle = "rgba(255,255,255,0.7)";
+      ctx.fillText("Click en el campo para colocar (⚡ " + def2.cost + ")", infoX, infoY + 24);
+      ctx.fillText("ESC para cancelar  •  ATP restante: " + state.atp, infoX, infoY + 40);
+    } else {
+      ctx.fillStyle = "rgba(255,255,255,0.5)";
+      ctx.font = "13px sans-serif";
+      ctx.fillText("Selecciona una celula inmune o toca una torre existente.", infoX, infoY + 6);
+      ctx.font = "11px sans-serif";
+      ctx.fillStyle = "rgba(255,255,255,0.35)";
+      ctx.fillText("Atajos: 1/2/3 elegir torre  •  ESC cancelar  •  SPACE iniciar oleada", infoX, infoY + 28);
+      ctx.fillText("Patogenos: bacteria (rojo, lento+fuerte) • virus (purpura, rapido) • hongo (rosa, medio)", infoX, infoY + 46);
+    }
+  }
+
+  function drawGhost() {
+    if (!state.selectedToBuild) return;
+    if (!state.pointer.isOver) return;
+    var x = state.pointer.x, y = state.pointer.y;
+    if (y < FIELD_TOP || y >= PANEL_TOP) return;
+    var def = TOWER_DEFS[state.selectedToBuild];
+    var stats = def.levels[0];
+    var ok = canPlaceTowerAt(x, y) && state.atp >= def.cost;
+    ctx.fillStyle = ok ? "rgba(50, 200, 120, 0.15)" : "rgba(220, 70, 70, 0.18)";
+    ctx.strokeStyle = ok ? "rgba(50, 200, 120, 0.65)" : "rgba(220, 70, 70, 0.7)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(x, y, stats.range, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.globalAlpha = ok ? 0.85 : 0.5;
+    drawHexagon(x, y, 20, def.color, def.colorDark, 2);
+    ctx.globalAlpha = 1;
+  }
+
+  function drawMessage() {
+    if (state.msgTimer > 0 && state.msg) {
+      var alpha = Math.min(1, state.msgTimer / 0.4);
+      ctx.fillStyle = "rgba(0,0,0,0.55)";
+      ctx.globalAlpha = alpha * 0.6;
+      var w = ctx.measureText(state.msg).width + 32;
+      var x = W / 2 - w / 2;
+      roundRect(x, FIELD_TOP + 12, w, 36, 8);
+      ctx.fill();
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = "#fff";
+      ctx.font = "bold 16px sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(state.msg, W / 2, FIELD_TOP + 30);
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  function drawEndOverlay() {
+    if (!state.gameOver && !state.victory) return;
+    ctx.fillStyle = "rgba(0,0,0,0.55)";
+    ctx.fillRect(0, 0, W, H);
+
+    ctx.fillStyle = state.victory ? "#5cb85c" : "#d9534f";
+    ctx.font = "bold 56px sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(state.victory ? "VICTORIA" : "DERROTA", W / 2, H / 2 - 40);
+
+    ctx.fillStyle = "#fff";
+    ctx.font = "16px sans-serif";
+    ctx.fillText(
+      state.victory ? "Has detenido la infeccion. ¡Sistema inmune al maximo!" : "Los patogenos invadieron el organismo.",
+      W / 2, H / 2 + 8
+    );
+
+    drawButton(UI.restartBtn, "Reiniciar", "#1f8a4c", "#16632f", true);
+  }
+
+  function render() {
+    clearCanvas();
+    drawPath();
+
+    // Towers below enemies for clarity? Towers above is more readable
+    for (var i = 0; i < state.towers.length; i++) drawTower(state.towers[i]);
+    for (var j = 0; j < state.enemies.length; j++) drawEnemy(state.enemies[j]);
+    for (var k = 0; k < state.projectiles.length; k++) drawProjectile(state.projectiles[k]);
+    for (var m = 0; m < state.effects.length; m++) drawEffect(state.effects[m]);
+
+    drawGhost();
+    drawHUD();
+    drawPanel();
+    drawMessage();
+
+    // Place-fail flash
+    if (state.time - state.lastPlaceFailedAt < 0.25) {
+      var a = 1 - (state.time - state.lastPlaceFailedAt) / 0.25;
+      ctx.strokeStyle = "rgba(220, 70, 70, " + a + ")";
+      ctx.lineWidth = 4;
+      ctx.strokeRect(2, FIELD_TOP + 2, W - 4, FIELD_BOTTOM - FIELD_TOP - 4);
+    }
+
+    drawEndOverlay();
+  }
+
+  // -------- LOOP ----------------------------------------------------------
+  var lastT = performance.now();
+  function loop(now) {
+    var dt = Math.min(0.05, (now - lastT) / 1000);
+    lastT = now;
+    state.time += dt;
+    if (!state.gameOver && !state.victory) {
+      updateWave(dt);
+      updateEnemies(dt);
+      updateTowers(dt);
+      updateProjectiles(dt);
+    }
+    updateEffects(dt);
+    if (state.msgTimer > 0) state.msgTimer -= dt;
+    render();
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+
+  // -------- RESPONSIVE SIZING --------------------------------------------
+  function resize() {
+    var ratio = W / H;
+    var ww = window.innerWidth;
+    var wh = window.innerHeight;
+    var w, h;
+    if (ww / wh > ratio) {
+      h = wh;
+      w = h * ratio;
+    } else {
+      w = ww;
+      h = w / ratio;
+    }
+    canvas.style.width = Math.floor(w) + "px";
+    canvas.style.height = Math.floor(h) + "px";
+  }
+  window.addEventListener("resize", resize);
+  window.addEventListener("orientationchange", resize);
+  resize();
+
+})();
 </script>
 </body>
 </html>

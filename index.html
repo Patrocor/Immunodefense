@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#1a0e12">
@@ -22,59 +22,121 @@
     overscroll-behavior: none;
   }
   body {
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    position: fixed;
+    top: 0; left: 0;
+    width: 100vw;
+    height: 100vh;
   }
   #canvas {
     display: block;
+    width: 100vw;
+    height: 100vh;
     background: #f8e8e0;
-    border-radius: 6px;
-    box-shadow: 0 6px 28px rgba(0,0,0,0.5);
     touch-action: none;
+  }
+  #__safe_probe {
+    position: fixed;
+    top: 0; left: 0;
+    width: 0; height: 0;
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+    visibility: hidden;
+    pointer-events: none;
   }
 </style>
 </head>
 <body>
-<canvas id="canvas" width="800" height="600"></canvas>
+<canvas id="canvas"></canvas>
+<div id="__safe_probe"></div>
 <script>
 (function () {
   "use strict";
 
   var canvas = document.getElementById("canvas");
   var ctx = canvas.getContext("2d");
-  var W = 800, H = 600;
-  var FIELD_TOP = 56;
-  var FIELD_BOTTOM = 480;
-  var PANEL_TOP = 484;
 
-  // -------- PATH ----------------------------------------------------------
-  var PATH_POINTS = [
-    { x: -20, y: 140 },
-    { x: 180, y: 140 },
-    { x: 180, y: 290 },
-    { x: 480, y: 290 },
-    { x: 480, y: 410 },
-    { x: 820, y: 410 }
-  ];
+  // -------- LAYOUT (recomputed on resize) --------------------------------
+  var VW = 0, VH = 0, dpr = 1;
+  var safeTop = 0, safeBottom = 0, safeLeft = 0, safeRight = 0;
+  var HUD_H = 64, PANEL_H = 150;
+  var FIELD_TOP = 0, FIELD_BOTTOM = 0, FIELD_LEFT = 0, FIELD_RIGHT = 0;
+  var FIELD_W = 0, FIELD_H = 0;
+  var U = 1; // pixel scale unit (smaller of field width/height vs design 500)
 
-  function buildPath(points) {
-    var segs = [];
-    var total = 0;
-    for (var i = 0; i < points.length - 1; i++) {
-      var a = points[i], b = points[i + 1];
-      var len = Math.hypot(b.x - a.x, b.y - a.y);
-      segs.push({ a: a, b: b, len: len, start: total });
-      total += len;
-    }
-    return { points: points, segs: segs, total: total };
+  function readSafeAreas() {
+    var probe = document.getElementById("__safe_probe");
+    if (!probe) return;
+    var cs = getComputedStyle(probe);
+    safeTop = parseFloat(cs.paddingTop) || 0;
+    safeBottom = parseFloat(cs.paddingBottom) || 0;
+    safeLeft = parseFloat(cs.paddingLeft) || 0;
+    safeRight = parseFloat(cs.paddingRight) || 0;
   }
-  var PATH = buildPath(PATH_POINTS);
+
+  function resize() {
+    dpr = Math.max(1, window.devicePixelRatio || 1);
+    VW = window.innerWidth;
+    VH = window.innerHeight;
+    canvas.width = Math.max(1, Math.floor(VW * dpr));
+    canvas.height = Math.max(1, Math.floor(VH * dpr));
+    canvas.style.width = VW + "px";
+    canvas.style.height = VH + "px";
+    readSafeAreas();
+    layout();
+    rebuildPath();
+  }
+
+  function layout() {
+    var hudBase = Math.max(48, Math.min(72, VH * 0.085));
+    var panelBase = Math.max(120, Math.min(180, VH * 0.22));
+    HUD_H = Math.round(hudBase + safeTop);
+    PANEL_H = Math.round(panelBase + safeBottom);
+    FIELD_TOP = HUD_H;
+    FIELD_BOTTOM = VH - PANEL_H;
+    FIELD_LEFT = safeLeft;
+    FIELD_RIGHT = VW - safeRight;
+    FIELD_W = FIELD_RIGHT - FIELD_LEFT;
+    FIELD_H = FIELD_BOTTOM - FIELD_TOP;
+    U = Math.max(0.4, Math.min(FIELD_W, FIELD_H) / 500);
+    layoutUI();
+  }
+
+  // -------- PATH (normalized inside field) -------------------------------
+  var PATH_NORM = [
+    { x: -0.05, y: 0.18 },
+    { x:  0.22, y: 0.18 },
+    { x:  0.22, y: 0.55 },
+    { x:  0.58, y: 0.55 },
+    { x:  0.58, y: 0.85 },
+    { x:  1.05, y: 0.85 }
+  ];
+  var PATH = { points: [], segs: [], total: 0 };
+
+  function rebuildPath() {
+    var pts = [];
+    for (var i = 0; i < PATH_NORM.length; i++) {
+      pts.push({
+        x: FIELD_LEFT + PATH_NORM[i].x * FIELD_W,
+        y: FIELD_TOP + PATH_NORM[i].y * FIELD_H
+      });
+    }
+    PATH.points = pts;
+    PATH.segs = [];
+    PATH.total = 0;
+    for (var j = 0; j < pts.length - 1; j++) {
+      var a = pts[j], b = pts[j + 1];
+      var len = Math.hypot(b.x - a.x, b.y - a.y);
+      PATH.segs.push({ a: a, b: b, len: len, start: PATH.total });
+      PATH.total += len;
+    }
+  }
 
   function pathPos(progress) {
-    if (progress <= 0) return { x: PATH_POINTS[0].x, y: PATH_POINTS[0].y };
+    if (progress <= 0) return { x: PATH.points[0].x, y: PATH.points[0].y };
     if (progress >= PATH.total) {
-      var last = PATH_POINTS[PATH_POINTS.length - 1];
+      var last = PATH.points[PATH.points.length - 1];
       return { x: last.x, y: last.y };
     }
     for (var i = 0; i < PATH.segs.length; i++) {
@@ -84,130 +146,213 @@
         return { x: s.a.x + (s.b.x - s.a.x) * t, y: s.a.y + (s.b.y - s.a.y) * t };
       }
     }
-    var l = PATH_POINTS[PATH_POINTS.length - 1];
+    var l = PATH.points[PATH.points.length - 1];
     return { x: l.x, y: l.y };
-  }
-
-  function distPointToSegment(px, py, ax, ay, bx, by) {
-    var dx = bx - ax, dy = by - ay;
-    var len2 = dx * dx + dy * dy;
-    if (len2 === 0) return Math.hypot(px - ax, py - ay);
-    var t = ((px - ax) * dx + (py - ay) * dy) / len2;
-    if (t < 0) t = 0; else if (t > 1) t = 1;
-    return Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
   }
 
   function distPointToPath(x, y) {
     var best = Infinity;
     for (var i = 0; i < PATH.segs.length; i++) {
       var s = PATH.segs[i];
-      var d = distPointToSegment(x, y, s.a.x, s.a.y, s.b.x, s.b.y);
+      var dx = s.b.x - s.a.x, dy = s.b.y - s.a.y;
+      var len2 = dx * dx + dy * dy;
+      var d;
+      if (len2 === 0) {
+        d = Math.hypot(x - s.a.x, y - s.a.y);
+      } else {
+        var t = ((x - s.a.x) * dx + (y - s.a.y) * dy) / len2;
+        if (t < 0) t = 0; else if (t > 1) t = 1;
+        d = Math.hypot(x - (s.a.x + t * dx), y - (s.a.y + t * dy));
+      }
       if (d < best) best = d;
     }
     return best;
   }
 
   // -------- DEFINITIONS ---------------------------------------------------
+  // Distances/speeds in design pixels; multiplied by U at use.
   var TOWER_DEFS = {
     macrofago: {
       id: "macrofago",
       name: "Macrofago",
-      shortName: "Macro",
       color: "#2c7be5",
       colorDark: "#1a4f99",
       cost: 50,
       desc: "Cuerpo a cuerpo",
       levels: [
-        { range: 80,  damage: 18, fireRate: 1.2, projectileSpeed: 0,   splash: 0 },
-        { range: 90,  damage: 32, fireRate: 1.4, projectileSpeed: 0,   splash: 0 },
-        { range: 100, damage: 55, fireRate: 1.6, projectileSpeed: 0,   splash: 0 }
+        { range:  90, damage: 25, fireRate: 1.0, projectileSpeed:   0, splash:  0 },
+        { range: 100, damage: 45, fireRate: 1.2, projectileSpeed:   0, splash:  0 },
+        { range: 110, damage: 75, fireRate: 1.4, projectileSpeed:   0, splash:  0 }
       ],
       upgradeCost: [60, 110]
     },
     linfocitoB: {
       id: "linfocitoB",
       name: "Linfocito B",
-      shortName: "Linf-B",
       color: "#11a07f",
       colorDark: "#0a6655",
       cost: 75,
       desc: "Anticuerpos a distancia",
       levels: [
-        { range: 180, damage: 10, fireRate: 1.8, projectileSpeed: 360, splash: 0 },
-        { range: 210, damage: 17, fireRate: 2.2, projectileSpeed: 410, splash: 0 },
-        { range: 240, damage: 28, fireRate: 2.6, projectileSpeed: 460, splash: 0 }
+        { range: 180, damage: 15, fireRate: 1.5, projectileSpeed: 380, splash: 0 },
+        { range: 210, damage: 24, fireRate: 1.8, projectileSpeed: 430, splash: 0 },
+        { range: 240, damage: 38, fireRate: 2.2, projectileSpeed: 480, splash: 0 }
       ],
       upgradeCost: [85, 140]
     },
     linfocitoT: {
       id: "linfocitoT",
       name: "Linfocito T",
-      shortName: "Linf-T",
       color: "#7c3fcc",
       colorDark: "#4d2080",
       cost: 110,
       desc: "Citotoxico (area)",
       levels: [
-        { range: 120, damage: 22, fireRate: 0.8, projectileSpeed: 300, splash: 50 },
-        { range: 140, damage: 38, fireRate: 0.95, projectileSpeed: 340, splash: 65 },
-        { range: 160, damage: 62, fireRate: 1.1, projectileSpeed: 380, splash: 80 }
+        { range: 110, damage:  40, fireRate: 0.7, projectileSpeed: 320, splash: 55 },
+        { range: 125, damage:  65, fireRate: 0.85, projectileSpeed: 360, splash: 65 },
+        { range: 140, damage: 100, fireRate: 1.0, projectileSpeed: 400, splash: 75 }
       ],
       upgradeCost: [120, 200]
     }
   };
-
   var TOWER_LIST = ["macrofago", "linfocitoB", "linfocitoT"];
 
+  // BASE_SPEED in design px/s; multiplied by U each frame for actual movement.
+  var BASE_SPEED = 60;
   var ENEMY_DEFS = {
-    bacteria: { id: "bacteria", name: "Bacteria", color: "#c54040", colorDark: "#7a1f1f", radius: 14, speed: 30, hp: 60, reward: 10 },
-    virus:    { id: "virus",    name: "Virus",    color: "#7d2bb3", colorDark: "#4a1670", radius: 9,  speed: 70, hp: 18, reward: 7  },
-    hongo:    { id: "hongo",    name: "Hongo",    color: "#a02b6e", colorDark: "#5e1a40", radius: 12, speed: 44, hp: 38, reward: 12 }
+    bacteria: { id: "bacteria", name: "Bacteria", color: "#c54040", colorDark: "#7a1f1f", radius: 14, speedMult: 0.6, hp:  200, reward:  10, isBoss: false },
+    virus:    { id: "virus",    name: "Virus",    color: "#7d2bb3", colorDark: "#4a1670", radius:  9, speedMult: 1.5, hp:   80, reward:   5, isBoss: false },
+    hongo:    { id: "hongo",    name: "Hongo",    color: "#a02b6e", colorDark: "#5e1a40", radius: 12, speedMult: 1.0, hp:  140, reward:  15, isBoss: false },
+    boss:     { id: "boss",     name: "Boss",     color: "#3a2030", colorDark: "#000000", radius: 42, speedMult: 0.4, hp: 2000, reward: 100, isBoss: true  }
   };
 
-  // Wave list (8 waves, increasing difficulty)
+  // Wave 1: only bacteria. Wave 2: bacteria + virus. Wave 3+: all 3 types.
+  // Wave 8: BOSS + escorts.
   var WAVES = [
-    { groups: [{ type: "bacteria", count: 6, interval: 0.9 }], hpMult: 1.0, speedMult: 1.0 },
-    { groups: [{ type: "bacteria", count: 4, interval: 0.8 }, { type: "virus", count: 4, interval: 0.45 }], hpMult: 1.0, speedMult: 1.0 },
-    { groups: [{ type: "virus", count: 10, interval: 0.4 }], hpMult: 1.05, speedMult: 1.05 },
-    { groups: [{ type: "bacteria", count: 6, interval: 0.7 }, { type: "hongo", count: 4, interval: 0.7 }], hpMult: 1.1, speedMult: 1.05 },
-    { groups: [{ type: "hongo", count: 8, interval: 0.55 }, { type: "virus", count: 6, interval: 0.4 }], hpMult: 1.15, speedMult: 1.1 },
-    { groups: [{ type: "bacteria", count: 8, interval: 0.6 }, { type: "virus", count: 8, interval: 0.35 }], hpMult: 1.2, speedMult: 1.1 },
-    { groups: [{ type: "hongo", count: 10, interval: 0.5 }, { type: "bacteria", count: 6, interval: 0.7 }], hpMult: 1.3, speedMult: 1.15 },
-    { groups: [{ type: "virus", count: 12, interval: 0.32 }, { type: "hongo", count: 8, interval: 0.55 }, { type: "bacteria", count: 6, interval: 0.8 }], hpMult: 1.45, speedMult: 1.2 }
+    { groups: [
+      { type: "bacteria", count: 8, interval: 1.4 }
+    ], hpMult: 1.0 },
+    { groups: [
+      { type: "bacteria", count: 6, interval: 1.3 },
+      { type: "virus",    count: 6, interval: 0.7 }
+    ], hpMult: 1.0 },
+    { groups: [
+      { type: "bacteria", count: 5, interval: 1.3 },
+      { type: "virus",    count: 6, interval: 0.6 },
+      { type: "hongo",    count: 4, interval: 1.0 }
+    ], hpMult: 1.05 },
+    { groups: [
+      { type: "virus",    count: 10, interval: 0.55 },
+      { type: "hongo",    count:  6, interval: 0.9  },
+      { type: "bacteria", count:  4, interval: 1.3  }
+    ], hpMult: 1.10 },
+    { groups: [
+      { type: "hongo",    count: 10, interval: 0.85 },
+      { type: "bacteria", count:  6, interval: 1.20 },
+      { type: "virus",    count:  8, interval: 0.50 }
+    ], hpMult: 1.15 },
+    { groups: [
+      { type: "bacteria", count:  8, interval: 1.10 },
+      { type: "virus",    count: 12, interval: 0.45 },
+      { type: "hongo",    count:  8, interval: 0.85 }
+    ], hpMult: 1.25 },
+    { groups: [
+      { type: "hongo",    count: 14, interval: 0.7 },
+      { type: "virus",    count: 14, interval: 0.4 },
+      { type: "bacteria", count:  8, interval: 1.0 }
+    ], hpMult: 1.35 },
+    { groups: [
+      { type: "bacteria", count:  6, interval: 1.0 },
+      { type: "virus",    count: 10, interval: 0.5 },
+      { type: "boss",     count:  1, interval: 0.0 },
+      { type: "hongo",    count:  6, interval: 0.9 }
+    ], hpMult: 1.5 }
   ];
 
   // -------- STATE ---------------------------------------------------------
   var state;
-
   function newState() {
     return {
-      atp: 150,
-      lives: 10,
-      waveIdx: 0,         // number of started waves
+      atp: 100,
+      lives: 20,
+      waveIdx: 0,
       waveActive: false,
       pendingSpawns: [],
       spawnElapsed: 0,
       towers: [],
       enemies: [],
       projectiles: [],
-      effects: [],         // hits, explosions, melee flashes
+      effects: [],
       selectedToBuild: null,
       selectedTower: null,
-      pointer: { x: 0, y: 0, inField: false, isOver: false },
-      lastPlaceFailedAt: 0,
+      pointer: { x: 0, y: 0, isOver: false },
+      lastPlaceFailedAt: -10,
       msg: "",
       msgTimer: 0,
       gameOver: false,
       victory: false,
-      time: 0
+      time: 0,
+      confirmRestart: false
     };
   }
-
   state = newState();
 
-  // -------- SPAWNING / WAVES ----------------------------------------------
+  // -------- UI RECTS (recomputed in layoutUI) ----------------------------
+  var UI = {};
+  function layoutUI() {
+    var topY = safeTop + 8;
+    var hudH = HUD_H - safeTop - 16;
+    var btnH = Math.min(40, Math.max(32, hudH));
+    var rightX = VW - safeRight - 8;
+
+    UI.restartBtn = { x: rightX - btnH, y: topY, w: btnH, h: btnH };
+    var nwW = Math.min(220, Math.max(140, VW * 0.4));
+    UI.nextWaveBtn = { x: UI.restartBtn.x - nwW - 8, y: topY, w: nwW, h: btnH };
+
+    var panelTop = VH - PANEL_H + 8;
+    var panelInner = PANEL_H - 16 - safeBottom;
+    var panelLeft = safeLeft + 8;
+    var panelRight = VW - safeRight - 8;
+    var panelW = panelRight - panelLeft;
+
+    var cardCount = 3;
+    var cardGap = 6;
+    var cardW = Math.max(70, Math.min(108, (panelW * 0.5 - cardGap * (cardCount - 1)) / cardCount));
+    var cardH = Math.max(96, Math.min(panelInner, 116));
+    UI.cards = [];
+    for (var i = 0; i < cardCount; i++) {
+      UI.cards.push({
+        x: panelLeft + i * (cardW + cardGap),
+        y: panelTop,
+        w: cardW,
+        h: cardH
+      });
+    }
+    var infoX = panelLeft + cardCount * (cardW + cardGap) + 8;
+    var infoW = Math.max(140, panelRight - infoX);
+    UI.infoX = infoX;
+    UI.infoW = infoW;
+    UI.infoY = panelTop;
+    UI.infoH = cardH;
+    var deselectW = Math.min(108, infoW * 0.45);
+    UI.deselectBtn = { x: infoX + infoW - deselectW, y: panelTop, w: deselectW, h: 26 };
+    var sellW = Math.min(150, Math.max(80, infoW * 0.42));
+    UI.sellBtn = { x: infoX, y: panelTop + cardH - 36, w: sellW, h: 36 };
+    UI.upgradeBtn = { x: infoX + sellW + 8, y: panelTop + cardH - 36, w: infoW - sellW - 8, h: 36 };
+
+    var modalW = Math.min(340, VW - 32);
+    var modalH = 180;
+    UI.modal = { x: (VW - modalW) / 2, y: (VH - modalH) / 2, w: modalW, h: modalH };
+    var btnsW = (modalW - 48) / 2;
+    UI.modalYes = { x: UI.modal.x + 16, y: UI.modal.y + modalH - 56, w: btnsW, h: 40 };
+    UI.modalNo  = { x: UI.modalYes.x + btnsW + 16, y: UI.modalYes.y, w: btnsW, h: 40 };
+
+    UI.endRestartBtn = { x: VW / 2 - 90, y: VH / 2 + 30, w: 180, h: 50 };
+  }
+
+  // -------- WAVES / SPAWN -------------------------------------------------
   function startNextWave() {
-    if (state.waveActive || state.gameOver || state.victory) return;
+    if (state.waveActive || state.gameOver || state.victory || state.confirmRestart) return;
     if (state.waveIdx >= WAVES.length) return;
     var wave = WAVES[state.waveIdx];
     state.waveIdx += 1;
@@ -218,7 +363,7 @@
     for (var i = 0; i < wave.groups.length; i++) {
       var g = wave.groups[i];
       for (var k = 0; k < g.count; k++) {
-        state.pendingSpawns.push({ type: g.type, time: t, hpMult: wave.hpMult, speedMult: wave.speedMult });
+        state.pendingSpawns.push({ type: g.type, time: t, hpMult: wave.hpMult });
         t += g.interval;
       }
       t += 0.6;
@@ -226,16 +371,15 @@
     showMsg("Oleada " + state.waveIdx + " iniciada");
   }
 
-  function spawnEnemy(typeId, hpMult, speedMult) {
+  function spawnEnemy(typeId, hpMult) {
     var def = ENEMY_DEFS[typeId];
     state.enemies.push({
       def: def,
       hp: def.hp * hpMult,
       maxHp: def.hp * hpMult,
-      speed: def.speed * speedMult,
       progress: 0,
-      x: PATH_POINTS[0].x,
-      y: PATH_POINTS[0].y,
+      x: PATH.points[0].x,
+      y: PATH.points[0].y,
       wobble: Math.random() * Math.PI * 2,
       dead: false
     });
@@ -245,31 +389,43 @@
     if (!state.waveActive) return;
     state.spawnElapsed += dt;
     while (state.pendingSpawns.length && state.pendingSpawns[0].time <= state.spawnElapsed) {
-      var s = state.pendingSpawns.shift();
-      spawnEnemy(s.type, s.hpMult, s.speedMult);
+      var s = state.pendingSpawns[0];
+      // Single-file enforcement: if any live enemy is still very close to entry, hold.
+      var def = ENEMY_DEFS[s.type];
+      var minSep = (def.radius + 10) * 2 * U;
+      var minProgress = Infinity;
+      for (var i = 0; i < state.enemies.length; i++) {
+        if (state.enemies[i].progress < minProgress) minProgress = state.enemies[i].progress;
+      }
+      if (state.enemies.length > 0 && minProgress < minSep) break;
+      state.pendingSpawns.shift();
+      spawnEnemy(s.type, s.hpMult);
     }
     if (!state.pendingSpawns.length && !state.enemies.length) {
       state.waveActive = false;
-      state.atp += 25 + state.waveIdx * 5;
+      var bonus = 25 + state.waveIdx * 5;
+      state.atp += bonus;
       if (state.waveIdx >= WAVES.length) {
         state.victory = true;
         showMsg("VICTORIA");
       } else {
-        showMsg("Oleada superada (+" + (25 + state.waveIdx * 5) + " ATP)");
+        showMsg("Oleada superada (+" + bonus + " ATP)");
       }
     }
   }
 
-  // -------- ENEMY UPDATE --------------------------------------------------
+  // -------- ENEMIES -------------------------------------------------------
   function updateEnemies(dt) {
     for (var i = 0; i < state.enemies.length; i++) {
       var e = state.enemies[i];
       if (e.dead) continue;
-      e.progress += e.speed * dt;
+      var pxSpeed = e.def.speedMult * BASE_SPEED * U;
+      e.progress += pxSpeed * dt;
       e.wobble += dt * 6;
       if (e.progress >= PATH.total) {
         e.dead = true;
-        state.lives -= 1;
+        var damageToPlayer = e.def.isBoss ? 5 : 1;
+        state.lives -= damageToPlayer;
         spawnEffect("escape", e.x, e.y);
         if (state.lives <= 0) {
           state.lives = 0;
@@ -285,7 +441,7 @@
     state.enemies = state.enemies.filter(function (e) { return !e.dead; });
   }
 
-  // -------- TOWER UPDATE --------------------------------------------------
+  // -------- TOWERS --------------------------------------------------------
   function placeTower(x, y, typeId) {
     var def = TOWER_DEFS[typeId];
     state.towers.push({
@@ -293,8 +449,10 @@
       def: def,
       level: 0,
       cooldown: 0,
-      muzzleFlash: 0
+      muzzleFlash: 0,
+      placedAt: state.time
     });
+    state.effects.push({ kind: "place", x: x, y: y, life: 0.6, max: 0.6, color: def.color });
   }
 
   function towerStats(t) { return t.def.levels[t.level]; }
@@ -306,12 +464,13 @@
       if (t.muzzleFlash > 0) t.muzzleFlash -= dt;
       if (t.cooldown > 0) continue;
       var stats = towerStats(t);
+      var rangePx = stats.range * U;
       var target = null, bestProgress = -1;
       for (var j = 0; j < state.enemies.length; j++) {
         var e = state.enemies[j];
         if (e.dead) continue;
         var d = Math.hypot(e.x - t.x, e.y - t.y);
-        if (d <= stats.range && e.progress > bestProgress) {
+        if (d <= rangePx && e.progress > bestProgress) {
           bestProgress = e.progress;
           target = e;
         }
@@ -327,7 +486,6 @@
   function fireTower(t, target) {
     var stats = towerStats(t);
     if (stats.projectileSpeed === 0) {
-      // Melee instant hit (Macrofago)
       damageEnemy(target, stats.damage);
       state.effects.push({ kind: "melee", x1: t.x, y1: t.y, x2: target.x, y2: target.y, life: 0.18, max: 0.18, color: t.def.color });
     } else {
@@ -335,8 +493,8 @@
         x: t.x, y: t.y,
         target: target,
         damage: stats.damage,
-        speed: stats.projectileSpeed,
-        splash: stats.splash,
+        speedDesign: stats.projectileSpeed,
+        splashDesign: stats.splash,
         color: t.def.color,
         dead: false
       });
@@ -358,23 +516,21 @@
     for (var i = 0; i < state.projectiles.length; i++) {
       var p = state.projectiles[i];
       if (p.dead) continue;
-      if (!p.target || p.target.dead) {
-        p.dead = true;
-        continue;
-      }
+      if (!p.target || p.target.dead) { p.dead = true; continue; }
       var dx = p.target.x - p.x, dy = p.target.y - p.y;
       var d = Math.hypot(dx, dy);
-      var step = p.speed * dt;
+      var step = p.speedDesign * U * dt;
       if (d <= step + 4) {
-        if (p.splash > 0) {
+        var splashPx = p.splashDesign * U;
+        if (splashPx > 0) {
           for (var j = 0; j < state.enemies.length; j++) {
             var e = state.enemies[j];
             if (e.dead) continue;
-            if (Math.hypot(e.x - p.target.x, e.y - p.target.y) <= p.splash) {
+            if (Math.hypot(e.x - p.target.x, e.y - p.target.y) <= splashPx) {
               damageEnemy(e, p.damage);
             }
           }
-          state.effects.push({ kind: "explosion", x: p.target.x, y: p.target.y, r: 0, max: p.splash, life: 0.4, color: p.color });
+          state.effects.push({ kind: "explosion", x: p.target.x, y: p.target.y, r: 0, max: splashPx, life: 0.4, color: p.color });
         } else {
           damageEnemy(p.target, p.damage);
           state.effects.push({ kind: "hit", x: p.target.x, y: p.target.y, life: 0.2, max: 0.2, color: p.color });
@@ -393,7 +549,7 @@
     if (kind === "death") {
       for (var i = 0; i < 6; i++) {
         var ang = Math.random() * Math.PI * 2;
-        var spd = 40 + Math.random() * 60;
+        var spd = (40 + Math.random() * 60) * U;
         state.effects.push({
           kind: "particle",
           x: x, y: y,
@@ -433,46 +589,42 @@
       clientX = evt.touches[0].clientX;
       clientY = evt.touches[0].clientY;
     }
-    var x = (clientX - rect.left) * (canvas.width / rect.width);
-    var y = (clientY - rect.top) * (canvas.height / rect.height);
-    return { x: x, y: y };
+    return { x: clientX - rect.left, y: clientY - rect.top };
   }
 
   function inRect(x, y, r) {
-    return x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
+    return r && x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
   }
 
-  // UI rectangles (recomputed each frame so we don't drift)
-  var UI = {
-    nextWaveBtn: { x: 605, y: 10, w: 180, h: 36 },
-    cards: [
-      { x: 10,  y: 492, w: 100, h: 100 },
-      { x: 120, y: 492, w: 100, h: 100 },
-      { x: 230, y: 492, w: 100, h: 100 }
-    ],
-    upgradeBtn: { x: 600, y: 538, w: 180, h: 50 },
-    sellBtn:    { x: 600, y: 492, w: 180, h: 38 },
-    deselectBtn:{ x: 350, y: 492, w: 100, h: 28 },
-    restartBtn: { x: 320, y: 360, w: 160, h: 50 }
-  };
-
   function handleClick(x, y) {
-    if (state.gameOver || state.victory) {
-      if (inRect(x, y, UI.restartBtn)) {
+    // Confirmation modal: only modal buttons respond.
+    if (state.confirmRestart) {
+      if (inRect(x, y, UI.modalYes)) {
         state = newState();
+      } else if (inRect(x, y, UI.modalNo)) {
+        state.confirmRestart = false;
       }
       return;
     }
-
-    // Top HUD button
-    if (inRect(x, y, UI.nextWaveBtn) && !state.waveActive && state.waveIdx < WAVES.length) {
-      startNextWave();
+    // End overlay
+    if (state.gameOver || state.victory) {
+      if (inRect(x, y, UI.endRestartBtn)) state = newState();
       return;
     }
-
-    // Bottom panel
-    if (y >= PANEL_TOP) {
-      // Tower cards
+    // HUD
+    if (y < FIELD_TOP) {
+      if (inRect(x, y, UI.restartBtn)) {
+        state.confirmRestart = true;
+        return;
+      }
+      if (inRect(x, y, UI.nextWaveBtn) && !state.waveActive && state.waveIdx < WAVES.length) {
+        startNextWave();
+        return;
+      }
+      return;
+    }
+    // Panel
+    if (y >= FIELD_BOTTOM) {
       for (var i = 0; i < UI.cards.length; i++) {
         if (inRect(x, y, UI.cards[i])) {
           var typeId = TOWER_LIST[i];
@@ -485,27 +637,16 @@
           return;
         }
       }
-      // Selected tower controls
       if (state.selectedTower) {
-        if (inRect(x, y, UI.deselectBtn)) {
-          state.selectedTower = null;
-          return;
-        }
-        if (inRect(x, y, UI.sellBtn)) {
-          sellTower(state.selectedTower);
-          return;
-        }
+        if (inRect(x, y, UI.deselectBtn)) { state.selectedTower = null; return; }
+        if (inRect(x, y, UI.sellBtn)) { sellTower(state.selectedTower); return; }
         if (state.selectedTower.level < 2 && inRect(x, y, UI.upgradeBtn)) {
-          tryUpgrade(state.selectedTower);
-          return;
+          tryUpgrade(state.selectedTower); return;
         }
       }
       return;
     }
-
-    // Field click
-    if (y < FIELD_TOP) return;
-
+    // Field
     if (state.selectedToBuild) {
       if (canPlaceTowerAt(x, y)) {
         var def = TOWER_DEFS[state.selectedToBuild];
@@ -519,22 +660,22 @@
       }
       return;
     }
-
-    // No build selected: try select an existing tower
+    // Try to select an existing tower (range indicator shows on selection).
     var picked = null;
     for (var t = 0; t < state.towers.length; t++) {
       var tw = state.towers[t];
-      if (Math.hypot(tw.x - x, tw.y - y) <= 22) { picked = tw; break; }
+      if (Math.hypot(tw.x - x, tw.y - y) <= 24 * U) { picked = tw; break; }
     }
     state.selectedTower = picked;
   }
 
   function canPlaceTowerAt(x, y) {
-    if (y < FIELD_TOP + 24 || y > FIELD_BOTTOM - 24) return false;
-    if (x < 24 || x > W - 24) return false;
-    if (distPointToPath(x, y) < 28) return false;
+    var pad = 24 * U;
+    if (y < FIELD_TOP + pad || y > FIELD_BOTTOM - pad) return false;
+    if (x < FIELD_LEFT + pad || x > FIELD_RIGHT - pad) return false;
+    if (distPointToPath(x, y) < 28 * U) return false;
     for (var i = 0; i < state.towers.length; i++) {
-      if (Math.hypot(state.towers[i].x - x, state.towers[i].y - y) < 38) return false;
+      if (Math.hypot(state.towers[i].x - x, state.towers[i].y - y) < 38 * U) return false;
     }
     return true;
   }
@@ -545,46 +686,32 @@
     if (state.atp < cost) { flashFail(); return; }
     state.atp -= cost;
     t.level += 1;
-    showMsg(t.def.name + " mejorado a nivel " + (t.level + 1));
+    showMsg(t.def.name + " mejorado a Nv " + (t.level + 1));
   }
 
   function sellTower(t) {
     var refund = Math.floor(t.def.cost * 0.6);
-    for (var i = 0; i <= t.level - 1; i++) refund += Math.floor(t.def.upgradeCost[i] * 0.5);
+    for (var i = 0; i < t.level; i++) refund += Math.floor(t.def.upgradeCost[i] * 0.5);
     state.atp += refund;
     state.towers = state.towers.filter(function (x) { return x !== t; });
     state.selectedTower = null;
     showMsg("Vendido (+" + refund + " ATP)");
   }
 
-  function flashFail() {
-    state.lastPlaceFailedAt = state.time;
-  }
-
-  function showMsg(text) {
-    state.msg = text;
-    state.msgTimer = 1.6;
-  }
+  function flashFail() { state.lastPlaceFailedAt = state.time; }
+  function showMsg(text) { state.msg = text; state.msgTimer = 1.6; }
 
   function onPointerDown(evt) {
     evt.preventDefault();
     var p = canvasPosFromEvent(evt);
-    state.pointer.x = p.x;
-    state.pointer.y = p.y;
-    state.pointer.isOver = true;
-    state.pointer.inField = p.y >= FIELD_TOP && p.y < PANEL_TOP;
+    state.pointer.x = p.x; state.pointer.y = p.y; state.pointer.isOver = true;
     handleClick(p.x, p.y);
   }
   function onPointerMove(evt) {
     var p = canvasPosFromEvent(evt);
-    state.pointer.x = p.x;
-    state.pointer.y = p.y;
-    state.pointer.isOver = true;
-    state.pointer.inField = p.y >= FIELD_TOP && p.y < PANEL_TOP;
+    state.pointer.x = p.x; state.pointer.y = p.y; state.pointer.isOver = true;
   }
-  function onPointerLeave() {
-    state.pointer.isOver = false;
-  }
+  function onPointerLeave() { state.pointer.isOver = false; }
 
   canvas.addEventListener("pointerdown", onPointerDown);
   canvas.addEventListener("pointermove", onPointerMove);
@@ -593,86 +720,75 @@
   document.addEventListener("keydown", function (e) {
     if (e.key === " " || e.code === "Space") {
       e.preventDefault();
+      if (state.confirmRestart) { state.confirmRestart = false; return; }
       if (!state.waveActive && !state.gameOver && !state.victory) startNextWave();
     } else if (e.key === "Escape") {
-      state.selectedToBuild = null;
-      state.selectedTower = null;
-    } else if (e.key === "1") {
-      state.selectedToBuild = "macrofago"; state.selectedTower = null;
-    } else if (e.key === "2") {
-      state.selectedToBuild = "linfocitoB"; state.selectedTower = null;
-    } else if (e.key === "3") {
-      state.selectedToBuild = "linfocitoT"; state.selectedTower = null;
+      if (state.confirmRestart) state.confirmRestart = false;
+      else { state.selectedToBuild = null; state.selectedTower = null; }
+    } else if (e.key === "1") { state.selectedToBuild = "macrofago"; state.selectedTower = null;
+    } else if (e.key === "2") { state.selectedToBuild = "linfocitoB"; state.selectedTower = null;
+    } else if (e.key === "3") { state.selectedToBuild = "linfocitoT"; state.selectedTower = null;
+    } else if (e.key === "r" || e.key === "R") {
+      state.confirmRestart = true;
     }
   });
 
   // -------- RENDER --------------------------------------------------------
   function clearCanvas() {
     ctx.fillStyle = "#f8e8e0";
-    ctx.fillRect(0, 0, W, H);
-
-    // Subtle tissue speckles
+    ctx.fillRect(0, 0, VW, VH);
+    // Tissue speckles only over field area.
     ctx.fillStyle = "rgba(200, 140, 130, 0.18)";
     var seed = 13;
-    for (var i = 0; i < 80; i++) {
+    var n = Math.max(40, Math.round(FIELD_W * FIELD_H / 7000));
+    for (var i = 0; i < n; i++) {
       seed = (seed * 9301 + 49297) % 233280;
-      var x = (seed / 233280) * W;
+      var x = FIELD_LEFT + (seed / 233280) * FIELD_W;
       seed = (seed * 9301 + 49297) % 233280;
-      var y = FIELD_TOP + (seed / 233280) * (FIELD_BOTTOM - FIELD_TOP);
+      var y = FIELD_TOP + (seed / 233280) * FIELD_H;
       seed = (seed * 9301 + 49297) % 233280;
-      var r = 1 + (seed / 233280) * 3;
+      var r = (1 + (seed / 233280) * 3) * U;
       ctx.beginPath();
       ctx.arc(x, y, r, 0, Math.PI * 2);
       ctx.fill();
     }
   }
 
-  function drawPath() {
-    // Outer glow
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-    ctx.strokeStyle = "#e8b8b0";
-    ctx.lineWidth = 38;
-    strokePath();
-    ctx.strokeStyle = "#d8978b";
-    ctx.lineWidth = 30;
-    strokePath();
-    ctx.strokeStyle = "#c47a6e";
-    ctx.lineWidth = 22;
-    strokePath();
-    // Center stripe
-    ctx.strokeStyle = "rgba(255,255,255,0.18)";
-    ctx.lineWidth = 4;
-    ctx.setLineDash([10, 14]);
-    strokePath();
-    ctx.setLineDash([]);
-
-    // Entry / exit markers
-    var entry = PATH_POINTS[1];
-    var exitP = PATH_POINTS[PATH_POINTS.length - 2];
-    drawLabelMarker(20, 140, "Herida", "#7a1f1f");
-    drawLabelMarker(W - 20, 410, "Vaso", "#3b1d6b");
-  }
-
-  function strokePath() {
+  function strokePathLine() {
     ctx.beginPath();
-    ctx.moveTo(PATH_POINTS[0].x, PATH_POINTS[0].y);
-    for (var i = 1; i < PATH_POINTS.length; i++) {
-      ctx.lineTo(PATH_POINTS[i].x, PATH_POINTS[i].y);
+    ctx.moveTo(PATH.points[0].x, PATH.points[0].y);
+    for (var i = 1; i < PATH.points.length; i++) {
+      ctx.lineTo(PATH.points[i].x, PATH.points[i].y);
     }
     ctx.stroke();
+  }
+
+  function drawPath() {
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.strokeStyle = "#e8b8b0"; ctx.lineWidth = 38 * U; strokePathLine();
+    ctx.strokeStyle = "#d8978b"; ctx.lineWidth = 30 * U; strokePathLine();
+    ctx.strokeStyle = "#c47a6e"; ctx.lineWidth = 22 * U; strokePathLine();
+    ctx.strokeStyle = "rgba(255,255,255,0.18)";
+    ctx.lineWidth = 4 * U;
+    ctx.setLineDash([10 * U, 14 * U]);
+    strokePathLine();
+    ctx.setLineDash([]);
+    drawLabelMarker(PATH.points[0].x + 18 * U, PATH.points[0].y, "Herida", "#7a1f1f");
+    var last = PATH.points[PATH.points.length - 1];
+    drawLabelMarker(last.x - 18 * U, last.y, "Vaso", "#3b1d6b");
   }
 
   function drawLabelMarker(x, y, text, color) {
     ctx.fillStyle = color;
     ctx.beginPath();
-    ctx.arc(x, y, 9, 0, Math.PI * 2);
+    ctx.arc(x, y, 9 * U, 0, Math.PI * 2);
     ctx.fill();
     ctx.fillStyle = "rgba(0,0,0,0.7)";
-    ctx.font = "11px sans-serif";
+    ctx.font = (11 * Math.max(0.85, U)).toFixed(0) + "px sans-serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "top";
-    ctx.fillText(text, x, y + 14);
+    ctx.fillText(text, x, y + 14 * U);
   }
 
   function drawHexagon(cx, cy, r, fill, stroke, strokeW) {
@@ -688,46 +804,50 @@
     if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = strokeW || 2; ctx.stroke(); }
   }
 
+  function drawRangeIndicator(x, y, rangePx, color) {
+    ctx.fillStyle = "rgba(50, 60, 90, 0.10)";
+    ctx.strokeStyle = color || "rgba(60, 80, 130, 0.55)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(x, y, rangePx, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+  }
+
   function drawTower(t) {
     var stats = towerStats(t);
     if (state.selectedTower === t) {
-      ctx.fillStyle = "rgba(50, 60, 90, 0.10)";
-      ctx.strokeStyle = "rgba(60, 80, 130, 0.45)";
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.arc(t.x, t.y, stats.range, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
+      drawRangeIndicator(t.x, t.y, stats.range * U, "rgba(60, 80, 130, 0.55)");
     }
     if (t.muzzleFlash > 0) {
       ctx.fillStyle = "rgba(255, 240, 180, 0.55)";
       ctx.beginPath();
-      ctx.arc(t.x, t.y, 26, 0, Math.PI * 2);
+      ctx.arc(t.x, t.y, 26 * U, 0, Math.PI * 2);
       ctx.fill();
     }
-    drawHexagon(t.x, t.y, 20, t.def.color, t.def.colorDark, 2);
-    drawHexagon(t.x, t.y, 11, "#ffffff", null);
-    // Level pips
+    drawHexagon(t.x, t.y, 20 * U, t.def.color, t.def.colorDark, 2);
+    drawHexagon(t.x, t.y, 11 * U, "#ffffff", null);
     ctx.fillStyle = t.def.colorDark;
     for (var i = 0; i <= t.level; i++) {
       ctx.beginPath();
-      ctx.arc(t.x - 6 + i * 6, t.y - 1, 2.2, 0, Math.PI * 2);
+      ctx.arc(t.x - 6 * U + i * 6 * U, t.y - 1 * U, 2.2 * U, 0, Math.PI * 2);
       ctx.fill();
     }
   }
 
   function drawEnemy(e) {
     var def = e.def;
-    var wob = Math.sin(e.wobble) * 1.5;
+    var rad = def.radius * U;
+    var wob = Math.sin(e.wobble) * 1.5 * U;
     ctx.save();
     ctx.translate(e.x, e.y);
     ctx.fillStyle = def.colorDark;
     ctx.beginPath();
-    ctx.arc(2, 2, def.radius, 0, Math.PI * 2);
+    ctx.arc(2 * U, 2 * U, rad, 0, Math.PI * 2);
     ctx.fill();
     ctx.fillStyle = def.color;
     ctx.beginPath();
-    ctx.arc(0, 0 + wob * 0.2, def.radius, 0, Math.PI * 2);
+    ctx.arc(0, wob * 0.2, rad, 0, Math.PI * 2);
     ctx.fill();
     if (def.id === "virus") {
       ctx.strokeStyle = def.colorDark;
@@ -735,41 +855,47 @@
       for (var i = 0; i < 6; i++) {
         var a = i * Math.PI / 3 + e.wobble * 0.3;
         ctx.beginPath();
-        ctx.moveTo(Math.cos(a) * def.radius, Math.sin(a) * def.radius);
-        ctx.lineTo(Math.cos(a) * (def.radius + 4), Math.sin(a) * (def.radius + 4));
+        ctx.moveTo(Math.cos(a) * rad, Math.sin(a) * rad);
+        ctx.lineTo(Math.cos(a) * (rad + 4 * U), Math.sin(a) * (rad + 4 * U));
         ctx.stroke();
       }
     } else if (def.id === "hongo") {
       ctx.fillStyle = "rgba(255,255,255,0.4)";
-      ctx.beginPath();
-      ctx.arc(-3, -3, 3, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.beginPath();
-      ctx.arc(4, 1, 2, 0, Math.PI * 2);
-      ctx.fill();
+      ctx.beginPath(); ctx.arc(-3 * U, -3 * U, 3 * U, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc( 4 * U,  1 * U, 2 * U, 0, Math.PI * 2); ctx.fill();
     } else if (def.id === "bacteria") {
       ctx.fillStyle = def.colorDark;
       ctx.beginPath();
-      ctx.arc(-3, -2, 2.5, 0, Math.PI * 2);
-      ctx.arc(3, 2, 2.5, 0, Math.PI * 2);
+      ctx.arc(-3 * U, -2 * U, 2.5 * U, 0, Math.PI * 2);
+      ctx.arc( 3 * U,  2 * U, 2.5 * U, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (def.id === "boss") {
+      ctx.strokeStyle = "#fff";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(0, 0, rad * 0.55, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.fillStyle = "#fff";
+      ctx.beginPath();
+      ctx.arc(-rad * 0.3, -rad * 0.2, rad * 0.12, 0, Math.PI * 2);
+      ctx.arc( rad * 0.3, -rad * 0.2, rad * 0.12, 0, Math.PI * 2);
       ctx.fill();
     }
     ctx.restore();
 
-    // HP bar
     var hpRatio = Math.max(0, e.hp / e.maxHp);
-    var bw = Math.max(20, def.radius * 2);
-    var bh = 4;
+    var bw = Math.max(20 * U, rad * 2);
+    var bh = 4 * Math.max(1, U * 0.9);
     ctx.fillStyle = "rgba(0,0,0,0.55)";
-    ctx.fillRect(e.x - bw / 2, e.y - def.radius - 9, bw, bh);
+    ctx.fillRect(e.x - bw / 2, e.y - rad - 9 * U, bw, bh);
     ctx.fillStyle = hpRatio > 0.5 ? "#5cb85c" : hpRatio > 0.25 ? "#f0ad4e" : "#d9534f";
-    ctx.fillRect(e.x - bw / 2, e.y - def.radius - 9, bw * hpRatio, bh);
+    ctx.fillRect(e.x - bw / 2, e.y - rad - 9 * U, bw * hpRatio, bh);
   }
 
   function drawProjectile(p) {
     ctx.fillStyle = p.color;
     ctx.beginPath();
-    ctx.arc(p.x, p.y, p.splash > 0 ? 6 : 4, 0, Math.PI * 2);
+    ctx.arc(p.x, p.y, (p.splashDesign > 0 ? 6 : 4) * U, 0, Math.PI * 2);
     ctx.fill();
     ctx.strokeStyle = "rgba(0,0,0,0.35)";
     ctx.lineWidth = 1;
@@ -782,7 +908,7 @@
       ctx.fillStyle = ef.color;
       ctx.globalAlpha = alpha;
       ctx.beginPath();
-      ctx.arc(ef.x, ef.y, 3, 0, Math.PI * 2);
+      ctx.arc(ef.x, ef.y, 3 * U, 0, Math.PI * 2);
       ctx.fill();
       ctx.globalAlpha = 1;
     } else if (ef.kind === "hit") {
@@ -790,7 +916,7 @@
       ctx.globalAlpha = alpha;
       ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.arc(ef.x, ef.y, 8 + (1 - alpha) * 10, 0, Math.PI * 2);
+      ctx.arc(ef.x, ef.y, (8 + (1 - alpha) * 10) * U, 0, Math.PI * 2);
       ctx.stroke();
       ctx.globalAlpha = 1;
     } else if (ef.kind === "explosion") {
@@ -807,7 +933,7 @@
     } else if (ef.kind === "melee") {
       ctx.strokeStyle = ef.color;
       ctx.globalAlpha = alpha;
-      ctx.lineWidth = 4;
+      ctx.lineWidth = 4 * Math.max(1, U * 0.9);
       ctx.beginPath();
       ctx.moveTo(ef.x1, ef.y1);
       ctx.lineTo(ef.x2, ef.y2);
@@ -818,27 +944,43 @@
       ctx.globalAlpha = alpha;
       ctx.lineWidth = 3;
       ctx.beginPath();
-      ctx.arc(ef.x, ef.y, 12 + (1 - alpha) * 18, 0, Math.PI * 2);
+      ctx.arc(ef.x, ef.y, (12 + (1 - alpha) * 18) * U, 0, Math.PI * 2);
       ctx.stroke();
+      ctx.globalAlpha = 1;
+    } else if (ef.kind === "place") {
+      var t = 1 - ef.life / ef.max;
+      ctx.strokeStyle = ef.color;
+      ctx.globalAlpha = (1 - t) * 0.85;
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(ef.x, ef.y, (18 + t * 36) * U, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.fillStyle = ef.color;
+      ctx.globalAlpha = (1 - t) * 0.35;
+      ctx.beginPath();
+      ctx.arc(ef.x, ef.y, (18 + t * 18) * U, 0, Math.PI * 2);
+      ctx.fill();
       ctx.globalAlpha = 1;
     }
   }
 
   function drawHUD() {
     ctx.fillStyle = "#3a2530";
-    ctx.fillRect(0, 0, W, FIELD_TOP);
+    ctx.fillRect(0, 0, VW, FIELD_TOP);
     ctx.fillStyle = "rgba(255,255,255,0.06)";
-    ctx.fillRect(0, FIELD_TOP - 2, W, 2);
+    ctx.fillRect(0, FIELD_TOP - 2, VW, 2);
 
-    ctx.font = "bold 18px sans-serif";
-    ctx.textAlign = "left";
-    ctx.textBaseline = "middle";
+    var statsY = safeTop + 8;
+    var leftX = safeLeft + 12;
+    var fontStat = Math.max(14, Math.min(20, VW * 0.018));
+    var fontLabel = Math.max(10, Math.min(13, VW * 0.012));
 
-    drawHudStat("⚡ ATP", state.atp, 16, "#f5d76e");
-    drawHudStat("♥ Vida", state.lives, 180, state.lives <= 3 ? "#ff7878" : "#9adfb1");
-    drawHudStat("⌖ Oleada", state.waveIdx + " / " + WAVES.length, 360, "#e0e0e0");
+    drawHudStat("⚡ ATP", state.atp, leftX, statsY, "#f5d76e", fontStat, fontLabel);
+    drawHudStat("♥ Vida", state.lives, leftX + Math.min(160, VW * 0.22), statsY,
+      state.lives <= 5 ? "#ff7878" : "#9adfb1", fontStat, fontLabel);
+    drawHudStat("⌖ Oleada", state.waveIdx + " / " + WAVES.length,
+      leftX + Math.min(320, VW * 0.44), statsY, "#e0e0e0", fontStat, fontLabel);
 
-    // Next wave button
     if (!state.waveActive && state.waveIdx < WAVES.length) {
       drawButton(UI.nextWaveBtn, "▶ Iniciar Oleada", "#1f8a4c", "#16632f", true);
     } else if (state.waveActive) {
@@ -846,15 +988,48 @@
     } else {
       drawButton(UI.nextWaveBtn, "Sin mas oleadas", "#5a4250", "#3a2530", false);
     }
+
+    // Restart button: circular ↻
+    var rb = UI.restartBtn;
+    ctx.fillStyle = "#5a3540";
+    roundRect(rb.x, rb.y, rb.w, rb.h, 8);
+    ctx.fill();
+    ctx.strokeStyle = "#3a2530";
+    ctx.lineWidth = 1.5;
+    roundRect(rb.x, rb.y, rb.w, rb.h, 8);
+    ctx.stroke();
+    drawRestartIcon(rb.x + rb.w / 2, rb.y + rb.h / 2, rb.h * 0.32, "#fff");
   }
 
-  function drawHudStat(label, value, x, color) {
-    ctx.fillStyle = "rgba(255,255,255,0.55)";
-    ctx.font = "11px sans-serif";
-    ctx.fillText(label, x, 14);
+  function drawRestartIcon(cx, cy, r, color) {
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2.2;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, Math.PI * 0.25, Math.PI * 1.85);
+    ctx.stroke();
+    // arrow tip
+    var ang = Math.PI * 1.85;
+    var ax = cx + Math.cos(ang) * r;
+    var ay = cy + Math.sin(ang) * r;
     ctx.fillStyle = color;
-    ctx.font = "bold 18px sans-serif";
-    ctx.fillText(value, x, 34);
+    ctx.beginPath();
+    ctx.moveTo(ax, ay);
+    ctx.lineTo(ax - r * 0.55, ay - r * 0.05);
+    ctx.lineTo(ax - r * 0.05, ay - r * 0.55);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  function drawHudStat(label, value, x, y, color, fontStat, fontLabel) {
+    ctx.fillStyle = "rgba(255,255,255,0.55)";
+    ctx.font = fontLabel + "px sans-serif";
+    ctx.textAlign = "left";
+    ctx.textBaseline = "top";
+    ctx.fillText(label, x, y);
+    ctx.fillStyle = color;
+    ctx.font = "bold " + fontStat + "px sans-serif";
+    ctx.fillText(value, x, y + fontLabel + 4);
   }
 
   function drawButton(r, text, fill, stroke, enabled) {
@@ -866,13 +1041,15 @@
     roundRect(r.x, r.y, r.w, r.h, 8);
     ctx.stroke();
     ctx.fillStyle = enabled ? "#fff" : "rgba(255,255,255,0.55)";
-    ctx.font = "bold 14px sans-serif";
+    var fs = Math.max(11, Math.min(14, r.h * 0.36));
+    ctx.font = "bold " + fs + "px sans-serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillText(text, r.x + r.w / 2, r.y + r.h / 2);
   }
 
   function roundRect(x, y, w, h, r) {
+    r = Math.min(r, w / 2, h / 2);
     ctx.beginPath();
     ctx.moveTo(x + r, y);
     ctx.lineTo(x + w - r, y);
@@ -888,9 +1065,8 @@
 
   function drawPanel() {
     ctx.fillStyle = "#2a1a22";
-    ctx.fillRect(0, PANEL_TOP, W, H - PANEL_TOP);
+    ctx.fillRect(0, FIELD_BOTTOM, VW, VH - FIELD_BOTTOM);
 
-    // Tower cards
     for (var i = 0; i < TOWER_LIST.length; i++) {
       var typeId = TOWER_LIST[i];
       var def = TOWER_DEFS[typeId];
@@ -906,28 +1082,27 @@
       roundRect(card.x, card.y, card.w, card.h, 8);
       ctx.stroke();
 
-      // Icon
-      drawHexagon(card.x + card.w / 2, card.y + 28, 16, canAfford ? def.color : "#555", def.colorDark, 2);
-      drawHexagon(card.x + card.w / 2, card.y + 28, 8, "#fff", null);
+      var cx = card.x + card.w / 2;
+      drawHexagon(cx, card.y + card.h * 0.28, Math.min(18, card.w * 0.16), canAfford ? def.color : "#555", def.colorDark, 2);
+      drawHexagon(cx, card.y + card.h * 0.28, Math.min(9, card.w * 0.08), "#fff", null);
 
-      // Name + cost
       ctx.fillStyle = canAfford ? "#fff" : "rgba(255,255,255,0.45)";
-      ctx.font = "bold 12px sans-serif";
+      var fs1 = Math.max(10, Math.min(13, card.w * 0.13));
+      ctx.font = "bold " + fs1 + "px sans-serif";
       ctx.textAlign = "center";
       ctx.textBaseline = "top";
-      ctx.fillText(def.name, card.x + card.w / 2, card.y + 52);
+      ctx.fillText(def.name, cx, card.y + card.h * 0.50);
 
-      ctx.font = "10px sans-serif";
+      ctx.font = Math.max(9, Math.min(11, card.w * 0.10)) + "px sans-serif";
       ctx.fillStyle = "rgba(255,255,255,0.55)";
-      ctx.fillText(def.desc, card.x + card.w / 2, card.y + 68);
+      ctx.fillText(def.desc, cx, card.y + card.h * 0.65);
 
-      ctx.font = "bold 12px sans-serif";
+      ctx.font = "bold " + Math.max(11, Math.min(13, card.w * 0.12)) + "px sans-serif";
       ctx.fillStyle = canAfford ? "#f5d76e" : "#d9534f";
-      ctx.fillText("⚡ " + def.cost, card.x + card.w / 2, card.y + 82);
+      ctx.fillText("⚡ " + def.cost, cx, card.y + card.h * 0.80);
     }
 
-    // Selected tower info
-    var infoX = 350, infoY = PANEL_TOP + 8;
+    var infoX = UI.infoX, infoY = UI.infoY;
     ctx.textAlign = "left";
     ctx.textBaseline = "top";
     if (state.selectedTower) {
@@ -935,34 +1110,31 @@
       var stats = towerStats(t);
       ctx.fillStyle = t.def.color;
       ctx.font = "bold 16px sans-serif";
-      ctx.fillText(t.def.name + "  Nv " + (t.level + 1) + "/3", infoX, infoY);
+      ctx.fillText(t.def.name + "  Nv " + (t.level + 1) + "/3", infoX, infoY + 4);
 
       ctx.font = "12px sans-serif";
       ctx.fillStyle = "rgba(255,255,255,0.85)";
-      ctx.fillText("Daño: " + stats.damage + (stats.splash > 0 ? "  AOE: " + stats.splash : ""), infoX, infoY + 22);
-      ctx.fillText("Rango: " + stats.range + "    Cadencia: " + stats.fireRate.toFixed(2) + "/s", infoX, infoY + 38);
+      ctx.fillText("Daño: " + stats.damage + (stats.splash > 0 ? "  AOE: " + stats.splash : ""), infoX, infoY + 24);
+      ctx.fillText("Rango: " + stats.range + "    Cadencia: " + stats.fireRate.toFixed(2) + "/s", infoX, infoY + 40);
 
-      // Deselect (X) small button at top-right of info zone
       ctx.fillStyle = "rgba(255,255,255,0.1)";
       roundRect(UI.deselectBtn.x, UI.deselectBtn.y, UI.deselectBtn.w, UI.deselectBtn.h, 6);
       ctx.fill();
       ctx.fillStyle = "rgba(255,255,255,0.7)";
-      ctx.font = "bold 12px sans-serif";
+      ctx.font = "bold 11px sans-serif";
       ctx.textAlign = "center";
-      ctx.fillText("Deseleccionar", UI.deselectBtn.x + UI.deselectBtn.w / 2, UI.deselectBtn.y + 8);
+      ctx.fillText("Deseleccionar", UI.deselectBtn.x + UI.deselectBtn.w / 2, UI.deselectBtn.y + UI.deselectBtn.h / 2 + 4);
       ctx.textAlign = "left";
 
-      // Sell button
       var sellRefund = Math.floor(t.def.cost * 0.6);
       for (var li = 0; li < t.level; li++) sellRefund += Math.floor(t.def.upgradeCost[li] * 0.5);
-      drawButton(UI.sellBtn, "Vender (+" + sellRefund + " ATP)", "#7a3a3a", "#552020", true);
+      drawButton(UI.sellBtn, "Vender +" + sellRefund, "#7a3a3a", "#552020", true);
 
-      // Upgrade button
       if (t.level < 2) {
         var ucost = t.def.upgradeCost[t.level];
         var canUp = state.atp >= ucost;
         drawButton(UI.upgradeBtn,
-          "Mejorar a Nv " + (t.level + 2) + "  (⚡ " + ucost + ")",
+          "Mejorar Nv " + (t.level + 2) + "  ⚡" + ucost,
           canUp ? "#1f8a4c" : "#3a2530",
           canUp ? "#16632f" : "#22141c",
           canUp);
@@ -973,27 +1145,26 @@
       var def2 = TOWER_DEFS[state.selectedToBuild];
       ctx.fillStyle = def2.color;
       ctx.font = "bold 16px sans-serif";
-      ctx.fillText("Construyendo: " + def2.name, infoX, infoY);
+      ctx.fillText("Construyendo: " + def2.name, infoX, infoY + 4);
       ctx.font = "12px sans-serif";
       ctx.fillStyle = "rgba(255,255,255,0.7)";
-      ctx.fillText("Click en el campo para colocar (⚡ " + def2.cost + ")", infoX, infoY + 24);
-      ctx.fillText("ESC para cancelar  •  ATP restante: " + state.atp, infoX, infoY + 40);
+      ctx.fillText("Toca el campo para colocar (⚡ " + def2.cost + ")", infoX, infoY + 26);
+      ctx.fillText("ESC cancela • ATP: " + state.atp, infoX, infoY + 44);
     } else {
-      ctx.fillStyle = "rgba(255,255,255,0.5)";
+      ctx.fillStyle = "rgba(255,255,255,0.55)";
       ctx.font = "13px sans-serif";
-      ctx.fillText("Selecciona una celula inmune o toca una torre existente.", infoX, infoY + 6);
+      ctx.fillText("Elige una celula inmune o toca una torre.", infoX, infoY + 8);
       ctx.font = "11px sans-serif";
       ctx.fillStyle = "rgba(255,255,255,0.35)";
-      ctx.fillText("Atajos: 1/2/3 elegir torre  •  ESC cancelar  •  SPACE iniciar oleada", infoX, infoY + 28);
-      ctx.fillText("Patogenos: bacteria (rojo, lento+fuerte) • virus (purpura, rapido) • hongo (rosa, medio)", infoX, infoY + 46);
+      ctx.fillText("1/2/3 elegir • ESC cancelar • SPACE oleada • R reiniciar", infoX, infoY + 30);
+      ctx.fillText("Patogenos: bacteria lenta+fuerte • virus rapido • hongo medio", infoX, infoY + 48);
     }
   }
 
   function drawGhost() {
-    if (!state.selectedToBuild) return;
-    if (!state.pointer.isOver) return;
+    if (!state.selectedToBuild || !state.pointer.isOver) return;
     var x = state.pointer.x, y = state.pointer.y;
-    if (y < FIELD_TOP || y >= PANEL_TOP) return;
+    if (y < FIELD_TOP || y >= FIELD_BOTTOM) return;
     var def = TOWER_DEFS[state.selectedToBuild];
     var stats = def.levels[0];
     var ok = canPlaceTowerAt(x, y) && state.atp >= def.cost;
@@ -1001,78 +1172,95 @@
     ctx.strokeStyle = ok ? "rgba(50, 200, 120, 0.65)" : "rgba(220, 70, 70, 0.7)";
     ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.arc(x, y, stats.range, 0, Math.PI * 2);
+    ctx.arc(x, y, stats.range * U, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
     ctx.globalAlpha = ok ? 0.85 : 0.5;
-    drawHexagon(x, y, 20, def.color, def.colorDark, 2);
+    drawHexagon(x, y, 20 * U, def.color, def.colorDark, 2);
     ctx.globalAlpha = 1;
   }
 
   function drawMessage() {
     if (state.msgTimer > 0 && state.msg) {
       var alpha = Math.min(1, state.msgTimer / 0.4);
+      ctx.font = "bold 16px sans-serif";
+      var w = ctx.measureText(state.msg).width + 32;
+      var x = VW / 2 - w / 2;
       ctx.fillStyle = "rgba(0,0,0,0.55)";
       ctx.globalAlpha = alpha * 0.6;
-      var w = ctx.measureText(state.msg).width + 32;
-      var x = W / 2 - w / 2;
       roundRect(x, FIELD_TOP + 12, w, 36, 8);
       ctx.fill();
       ctx.globalAlpha = alpha;
       ctx.fillStyle = "#fff";
-      ctx.font = "bold 16px sans-serif";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.fillText(state.msg, W / 2, FIELD_TOP + 30);
+      ctx.fillText(state.msg, VW / 2, FIELD_TOP + 30);
       ctx.globalAlpha = 1;
     }
+  }
+
+  function drawConfirmModal() {
+    if (!state.confirmRestart) return;
+    ctx.fillStyle = "rgba(0,0,0,0.55)";
+    ctx.fillRect(0, 0, VW, VH);
+    ctx.fillStyle = "#2a1a22";
+    roundRect(UI.modal.x, UI.modal.y, UI.modal.w, UI.modal.h, 12);
+    ctx.fill();
+    ctx.strokeStyle = "#5a3540";
+    ctx.lineWidth = 2;
+    roundRect(UI.modal.x, UI.modal.y, UI.modal.w, UI.modal.h, 12);
+    ctx.stroke();
+    ctx.fillStyle = "#fff";
+    ctx.font = "bold 18px sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("¿Reiniciar partida?", UI.modal.x + UI.modal.w / 2, UI.modal.y + 44);
+    ctx.font = "13px sans-serif";
+    ctx.fillStyle = "rgba(255,255,255,0.7)";
+    ctx.fillText("Perderas el progreso actual.", UI.modal.x + UI.modal.w / 2, UI.modal.y + 80);
+    drawButton(UI.modalYes, "Si, reiniciar", "#7a3a3a", "#552020", true);
+    drawButton(UI.modalNo, "Cancelar", "#1f8a4c", "#16632f", true);
   }
 
   function drawEndOverlay() {
     if (!state.gameOver && !state.victory) return;
     ctx.fillStyle = "rgba(0,0,0,0.55)";
-    ctx.fillRect(0, 0, W, H);
-
+    ctx.fillRect(0, 0, VW, VH);
     ctx.fillStyle = state.victory ? "#5cb85c" : "#d9534f";
     ctx.font = "bold 56px sans-serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText(state.victory ? "VICTORIA" : "DERROTA", W / 2, H / 2 - 40);
-
+    ctx.fillText(state.victory ? "VICTORIA" : "DERROTA", VW / 2, VH / 2 - 40);
     ctx.fillStyle = "#fff";
     ctx.font = "16px sans-serif";
     ctx.fillText(
       state.victory ? "Has detenido la infeccion. ¡Sistema inmune al maximo!" : "Los patogenos invadieron el organismo.",
-      W / 2, H / 2 + 8
+      VW / 2, VH / 2 + 8
     );
-
-    drawButton(UI.restartBtn, "Reiniciar", "#1f8a4c", "#16632f", true);
+    drawButton(UI.endRestartBtn, "Reiniciar", "#1f8a4c", "#16632f", true);
   }
 
   function render() {
+    // Map all draw coords into CSS-pixel space, accounting for DPR.
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     clearCanvas();
     drawPath();
-
-    // Towers below enemies for clarity? Towers above is more readable
     for (var i = 0; i < state.towers.length; i++) drawTower(state.towers[i]);
     for (var j = 0; j < state.enemies.length; j++) drawEnemy(state.enemies[j]);
     for (var k = 0; k < state.projectiles.length; k++) drawProjectile(state.projectiles[k]);
     for (var m = 0; m < state.effects.length; m++) drawEffect(state.effects[m]);
-
     drawGhost();
     drawHUD();
     drawPanel();
     drawMessage();
-
-    // Place-fail flash
     if (state.time - state.lastPlaceFailedAt < 0.25) {
       var a = 1 - (state.time - state.lastPlaceFailedAt) / 0.25;
       ctx.strokeStyle = "rgba(220, 70, 70, " + a + ")";
       ctx.lineWidth = 4;
-      ctx.strokeRect(2, FIELD_TOP + 2, W - 4, FIELD_BOTTOM - FIELD_TOP - 4);
+      ctx.strokeRect(2, FIELD_TOP + 2, VW - 4, FIELD_H - 4);
     }
-
     drawEndOverlay();
+    drawConfirmModal();
   }
 
   // -------- LOOP ----------------------------------------------------------
@@ -1081,7 +1269,7 @@
     var dt = Math.min(0.05, (now - lastT) / 1000);
     lastT = now;
     state.time += dt;
-    if (!state.gameOver && !state.victory) {
+    if (!state.gameOver && !state.victory && !state.confirmRestart) {
       updateWave(dt);
       updateEnemies(dt);
       updateTowers(dt);
@@ -1092,28 +1280,11 @@
     render();
     requestAnimationFrame(loop);
   }
-  requestAnimationFrame(loop);
 
-  // -------- RESPONSIVE SIZING --------------------------------------------
-  function resize() {
-    var ratio = W / H;
-    var ww = window.innerWidth;
-    var wh = window.innerHeight;
-    var w, h;
-    if (ww / wh > ratio) {
-      h = wh;
-      w = h * ratio;
-    } else {
-      w = ww;
-      h = w / ratio;
-    }
-    canvas.style.width = Math.floor(w) + "px";
-    canvas.style.height = Math.floor(h) + "px";
-  }
   window.addEventListener("resize", resize);
   window.addEventListener("orientationchange", resize);
   resize();
-
+  requestAnimationFrame(loop);
 })();
 </script>
 </body>

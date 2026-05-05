@@ -218,8 +218,8 @@
     macrofago: {
       id: "macrofago",
       name: "Macrofago",
-      color: "#2c7be5",
-      colorDark: "#1a4f99",
+      color: "#4A90E2",
+      colorDark: "#2767a8",
       cost: 50,
       desc: "Cuerpo a cuerpo",
       levels: [
@@ -232,8 +232,8 @@
     linfocitoB: {
       id: "linfocitoB",
       name: "Linfocito B",
-      color: "#11a07f",
-      colorDark: "#0a6655",
+      color: "#50C878",
+      colorDark: "#2c8049",
       cost: 75,
       desc: "Anticuerpos a distancia",
       levels: [
@@ -246,8 +246,8 @@
     linfocitoT: {
       id: "linfocitoT",
       name: "Linfocito T",
-      color: "#7c3fcc",
-      colorDark: "#4d2080",
+      color: "#9370DB",
+      colorDark: "#5d44a0",
       cost: 110,
       desc: "Citotoxico (area)",
       levels: [
@@ -263,10 +263,10 @@
   // BASE_SPEED in design px/s; multiplied by U each frame for actual movement.
   var BASE_SPEED = 60;
   var ENEMY_DEFS = {
-    bacteria: { id: "bacteria", name: "Bacteria", color: "#c54040", colorDark: "#7a1f1f", radius: 14, speedMult: 0.6, hp:  200, reward:  10, isBoss: false },
-    virus:    { id: "virus",    name: "Virus",    color: "#7d2bb3", colorDark: "#4a1670", radius:  9, speedMult: 1.5, hp:   80, reward:   5, isBoss: false },
-    hongo:    { id: "hongo",    name: "Hongo",    color: "#a02b6e", colorDark: "#5e1a40", radius: 12, speedMult: 1.0, hp:  140, reward:  15, isBoss: false },
-    boss:     { id: "boss",     name: "Boss",     color: "#3a2030", colorDark: "#000000", radius: 42, speedMult: 0.4, hp: 2000, reward: 100, isBoss: true  }
+    bacteria: { id: "bacteria", name: "Bacteria", color: "#E74C3C", colorDark: "#922a1f", radius: 14, speedMult: 0.6, hp:  200, reward:  10, isBoss: false },
+    virus:    { id: "virus",    name: "Virus",    color: "#8E44AD", colorDark: "#5a2c70", radius:  9, speedMult: 1.5, hp:   80, reward:   5, isBoss: false },
+    hongo:    { id: "hongo",    name: "Hongo",    color: "#E91E63", colorDark: "#8c1240", radius: 12, speedMult: 1.0, hp:  140, reward:  15, isBoss: false },
+    boss:     { id: "boss",     name: "Boss",     color: "#E74C3C", colorDark: "#5a1010", radius: 42, speedMult: 0.4, hp: 2000, reward: 100, isBoss: true  }
   };
 
   // Wave 1: only bacteria. Wave 2: bacteria + virus. Wave 3+: all 3 types.
@@ -326,6 +326,7 @@
       enemies: [],
       projectiles: [],
       effects: [],
+      ambient: [],
       selectedToBuild: null,
       selectedTower: null,
       pointer: { x: 0, y: 0, isOver: false },
@@ -335,10 +336,21 @@
       gameOver: false,
       victory: false,
       time: 0,
-      confirmRestart: false
+      confirmRestart: false,
+      shakeTimer: 0,
+      shakeMag: 0,
+      waveBannerTimer: 0,
+      waveBannerText: "",
+      confettiSpawned: false
     };
   }
   state = newState();
+
+  var MAX_EFFECTS = 80;
+  function pushEffect(ef) {
+    if (state.effects.length >= MAX_EFFECTS) state.effects.shift();
+    state.effects.push(ef);
+  }
 
   // -------- UI RECTS (recomputed in layoutUI) ----------------------------
   var UI = {};
@@ -445,6 +457,8 @@
       }
       t += 0.6;
     }
+    state.waveBannerText = "OLEADA " + state.waveIdx;
+    state.waveBannerTimer = 1.4;
     showMsg("Oleada " + state.waveIdx + " iniciada");
   }
 
@@ -458,6 +472,8 @@
       x: PATH.points[0].x,
       y: PATH.points[0].y,
       wobble: Math.random() * Math.PI * 2,
+      hitFlash: 0,
+      sporeTimer: Math.random() * 1.5,
       dead: false
     });
   }
@@ -499,10 +515,27 @@
       var pxSpeed = e.def.speedMult * BASE_SPEED * U;
       e.progress += pxSpeed * dt;
       e.wobble += dt * 6;
+      if (e.hitFlash > 0) e.hitFlash -= dt;
+      if (e.sporeTimer !== undefined) {
+        e.sporeTimer -= dt;
+        if (e.def.id === "hongo" && e.sporeTimer <= 0) {
+          e.sporeTimer = 0.6 + Math.random() * 0.6;
+          var sang = Math.random() * Math.PI * 2;
+          pushEffect({
+            kind: "particle",
+            x: e.x, y: e.y,
+            vx: Math.cos(sang) * 12 * U,
+            vy: Math.sin(sang) * 12 * U - 6 * U,
+            life: 0.6, max: 0.8,
+            color: "rgba(233, 30, 99, 0.55)"
+          });
+        }
+      }
       if (e.progress >= PATH.total) {
         e.dead = true;
         var damageToPlayer = e.def.isBoss ? 5 : 1;
         state.lives -= damageToPlayer;
+        triggerShake(0.4, damageToPlayer >= 5 ? 8 : 5);
         spawnEffect("escape", e.x, e.y);
         if (state.lives <= 0) {
           state.lives = 0;
@@ -511,8 +544,25 @@
         }
       } else {
         var p = pathPos(e.progress);
-        e.x = p.x;
-        e.y = p.y;
+        // Virus zigzag: small perpendicular wobble.
+        if (e.def.id === "virus") {
+          var idx = 0, prog = e.progress;
+          for (var si = 0; si < PATH.segs.length; si++) {
+            var s = PATH.segs[si];
+            if (prog < s.start + s.len) { idx = si; break; }
+            idx = si;
+          }
+          var seg = PATH.segs[idx];
+          var sx = seg.b.x - seg.a.x, sy = seg.b.y - seg.a.y;
+          var sl = Math.hypot(sx, sy) || 1;
+          var nx = -sy / sl, ny = sx / sl;
+          var off = Math.sin(e.wobble * 1.4) * 4 * U;
+          e.x = p.x + nx * off;
+          e.y = p.y + ny * off;
+        } else {
+          e.x = p.x;
+          e.y = p.y;
+        }
       }
     }
     state.enemies = state.enemies.filter(function (e) { return !e.dead; });
@@ -529,9 +579,12 @@
       level: 0,
       cooldown: 0,
       muzzleFlash: 0,
+      attackAnim: 0,
+      idlePhase: Math.random() * Math.PI * 2,
       placedAt: state.time
     });
-    state.effects.push({ kind: "place", x: x, y: y, life: 0.6, max: 0.6, color: def.color });
+    pushEffect({ kind: "place", x: x, y: y, life: 0.6, max: 0.6, color: def.color });
+    pushEffect({ kind: "placeFlash", x: x, y: y, life: 0.25, max: 0.25 });
   }
 
   function towerStats(t) { return t.def.levels[t.level]; }
@@ -558,6 +611,7 @@
         fireTower(t, target);
         t.cooldown = 1 / stats.fireRate;
         t.muzzleFlash = 0.08;
+        t.attackAnim = 0.3;
       }
     }
   }
@@ -566,7 +620,7 @@
     var stats = towerStats(t);
     if (stats.projectileSpeed === 0) {
       damageEnemy(target, stats.damage);
-      state.effects.push({ kind: "melee", x1: t.x, y1: t.y, x2: target.x, y2: target.y, life: 0.18, max: 0.18, color: t.def.color });
+      pushEffect({ kind: "melee", x1: t.x, y1: t.y, x2: target.x, y2: target.y, life: 0.18, max: 0.18, color: t.def.color });
     } else {
       state.projectiles.push({
         x: t.x, y: t.y,
@@ -575,6 +629,8 @@
         speedDesign: stats.projectileSpeed,
         splashDesign: stats.splash,
         color: t.def.color,
+        towerId: t.def.id,
+        rot: 0,
         dead: false
       });
     }
@@ -583,9 +639,27 @@
   function damageEnemy(e, amount) {
     if (e.dead) return;
     e.hp -= amount;
+    e.hitFlash = 0.18;
+    pushEffect({
+      kind: "dmgText",
+      x: e.x + (Math.random() * 12 - 6) * U,
+      y: e.y - e.def.radius * U,
+      vy: -32 * U,
+      text: "-" + amount,
+      life: 0.55, max: 0.55,
+      color: "#fff8b0"
+    });
     if (e.hp <= 0) {
       e.dead = true;
       state.atp += e.def.reward;
+      pushEffect({
+        kind: "atpText",
+        x: e.x, y: e.y - e.def.radius * U - 4,
+        vy: -36 * U,
+        text: "+" + e.def.reward + " ATP",
+        life: 0.85, max: 0.85,
+        color: "#f5d76e"
+      });
       spawnEffect("death", e.x, e.y, e.def.color);
     }
   }
@@ -609,10 +683,10 @@
               damageEnemy(e, p.damage);
             }
           }
-          state.effects.push({ kind: "explosion", x: p.target.x, y: p.target.y, r: 0, max: splashPx, life: 0.4, color: p.color });
+          pushEffect({ kind: "explosion", x: p.target.x, y: p.target.y, r: 0, max: splashPx, life: 0.4, color: p.color });
         } else {
           damageEnemy(p.target, p.damage);
-          state.effects.push({ kind: "hit", x: p.target.x, y: p.target.y, life: 0.2, max: 0.2, color: p.color });
+          pushEffect({ kind: "hit", x: p.target.x, y: p.target.y, life: 0.2, max: 0.2, color: p.color });
         }
         p.dead = true;
       } else {
@@ -629,7 +703,7 @@
       for (var i = 0; i < 6; i++) {
         var ang = Math.random() * Math.PI * 2;
         var spd = (40 + Math.random() * 60) * U;
-        state.effects.push({
+        pushEffect({
           kind: "particle",
           x: x, y: y,
           vx: Math.cos(ang) * spd,
@@ -640,8 +714,34 @@
         });
       }
     } else if (kind === "escape") {
-      state.effects.push({ kind: "escape", x: x, y: y, life: 0.6, max: 0.6 });
+      pushEffect({ kind: "escape", x: x, y: y, life: 0.6, max: 0.6 });
     }
+  }
+
+  function spawnConfetti() {
+    var colors = ["#f5d76e", "#5cb85c", "#4a90e2", "#e74c3c", "#9370db", "#fff"];
+    for (var i = 0; i < 60; i++) {
+      var ang = -Math.PI / 2 + (Math.random() - 0.5) * Math.PI;
+      var spd = (180 + Math.random() * 220) * U;
+      pushEffect({
+        kind: "confetti",
+        x: VW / 2 + (Math.random() - 0.5) * VW * 0.6,
+        y: VH / 2 + 40,
+        vx: Math.cos(ang) * spd * (Math.random() - 0.5) * 2,
+        vy: Math.sin(ang) * spd,
+        rot: Math.random() * Math.PI * 2,
+        rotSpd: (Math.random() - 0.5) * 8,
+        size: (3 + Math.random() * 4) * U,
+        life: 1.6 + Math.random() * 0.8,
+        max: 2.4,
+        color: colors[(Math.random() * colors.length) | 0]
+      });
+    }
+  }
+
+  function triggerShake(time, mag) {
+    if (time > state.shakeTimer) state.shakeTimer = time;
+    if (mag > state.shakeMag) state.shakeMag = mag;
   }
 
   function updateEffects(dt) {
@@ -655,9 +755,53 @@
         ef.vy *= 0.92;
       } else if (ef.kind === "explosion") {
         ef.r = ef.max * (1 - ef.life / 0.4);
+      } else if (ef.kind === "dmgText" || ef.kind === "atpText") {
+        ef.y += ef.vy * dt;
+        ef.vy *= 0.94;
+      } else if (ef.kind === "confetti") {
+        ef.x += ef.vx * dt;
+        ef.y += ef.vy * dt;
+        ef.vy += 380 * U * dt;
+        ef.vx *= 0.99;
+        ef.rot += ef.rotSpd * dt;
       }
     }
     state.effects = state.effects.filter(function (e) { return e.life > 0; });
+    if (state.shakeTimer > 0) state.shakeTimer -= dt;
+    if (state.waveBannerTimer > 0) state.waveBannerTimer -= dt;
+    updateAmbient(dt);
+  }
+
+  // -------- AMBIENT BLOOD CELLS -----------------------------------------
+  function ensureAmbient() {
+    var target = Math.max(8, Math.min(20, Math.round(FIELD_W * FIELD_H / 22000)));
+    while (state.ambient.length < target) {
+      state.ambient.push({
+        x: FIELD_LEFT + Math.random() * FIELD_W,
+        y: FIELD_TOP + Math.random() * FIELD_H,
+        r: (3 + Math.random() * 5) * U,
+        vx: (Math.random() - 0.5) * 6 * U,
+        vy: (Math.random() - 0.5) * 6 * U,
+        phase: Math.random() * Math.PI * 2,
+        alpha: 0.10 + Math.random() * 0.10
+      });
+    }
+    while (state.ambient.length > target) state.ambient.pop();
+  }
+
+  function updateAmbient(dt) {
+    if (FIELD_W <= 0 || FIELD_H <= 0) return;
+    ensureAmbient();
+    for (var i = 0; i < state.ambient.length; i++) {
+      var a = state.ambient[i];
+      a.phase += dt * 0.6;
+      a.x += a.vx * dt + Math.cos(a.phase) * 0.3;
+      a.y += a.vy * dt + Math.sin(a.phase * 0.8) * 0.3;
+      if (a.x < FIELD_LEFT - 10) a.x = FIELD_RIGHT + 10;
+      else if (a.x > FIELD_RIGHT + 10) a.x = FIELD_LEFT - 10;
+      if (a.y < FIELD_TOP - 10) a.y = FIELD_BOTTOM + 10;
+      else if (a.y > FIELD_BOTTOM + 10) a.y = FIELD_TOP - 10;
+    }
   }
 
   // -------- INPUT ---------------------------------------------------------
@@ -848,11 +992,13 @@
     ctx.strokeStyle = "#e8b8b0"; ctx.lineWidth = 38 * U; strokePathLine();
     ctx.strokeStyle = "#d8978b"; ctx.lineWidth = 30 * U; strokePathLine();
     ctx.strokeStyle = "#c47a6e"; ctx.lineWidth = 22 * U; strokePathLine();
-    ctx.strokeStyle = "rgba(255,255,255,0.18)";
-    ctx.lineWidth = 4 * U;
-    ctx.setLineDash([10 * U, 14 * U]);
+    ctx.strokeStyle = "rgba(255,255,255,0.28)";
+    ctx.lineWidth = 2.4 * U;
+    ctx.setLineDash([4 * U, 10 * U]);
+    ctx.lineCap = "round";
     strokePathLine();
     ctx.setLineDash([]);
+    ctx.lineCap = "butt";
     drawLabelMarker(PATH.points[0].x + 18 * U, PATH.points[0].y, "Herida", "#7a1f1f");
     var last = PATH.points[PATH.points.length - 1];
     drawLabelMarker(last.x - 18 * U, last.y, "Vaso", "#3b1d6b");
@@ -883,102 +1029,554 @@
     if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = strokeW || 2; ctx.stroke(); }
   }
 
-  function drawRangeIndicator(x, y, rangePx, color) {
-    ctx.fillStyle = "rgba(50, 60, 90, 0.10)";
-    ctx.strokeStyle = color || "rgba(60, 80, 130, 0.55)";
-    ctx.lineWidth = 2;
+  function drawRangeIndicator(x, y, rangePx) {
+    ctx.save();
+    ctx.fillStyle = "rgba(255, 255, 255, 0.15)";
     ctx.beginPath();
     ctx.arc(x, y, rangePx, 0, Math.PI * 2);
     ctx.fill();
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.85)";
+    ctx.lineWidth = 2.4;
+    ctx.setLineDash([7 * U, 6 * U]);
+    ctx.beginPath();
+    ctx.arc(x, y, rangePx, 0, Math.PI * 2);
     ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.strokeStyle = "rgba(40, 40, 60, 0.45)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(x, y, rangePx, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawShadow(x, y, rx, ry) {
+    ctx.fillStyle = "rgba(60, 30, 20, 0.22)";
+    ctx.beginPath();
+    ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  function drawAnimeEyes(cx, cy, eyeR, gapX, pupilOffsetX, pupilOffsetY, browAngle, browLift, mood) {
+    // mood: "happy", "neutral", "fierce", "smug", "sleepy", "angry", "evil"
+    var lx = cx - gapX, rx = cx + gapX;
+    // White of eyes
+    ctx.fillStyle = "#ffffff";
+    ctx.beginPath();
+    ctx.ellipse(lx, cy, eyeR, eyeR * 1.05, 0, 0, Math.PI * 2);
+    ctx.ellipse(rx, cy, eyeR, eyeR * 1.05, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "rgba(0,0,0,0.55)";
+    ctx.lineWidth = Math.max(0.8, 1 * U);
+    ctx.beginPath();
+    ctx.ellipse(lx, cy, eyeR, eyeR * 1.05, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.ellipse(rx, cy, eyeR, eyeR * 1.05, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    // Pupils
+    var pr = eyeR * 0.55;
+    ctx.fillStyle = "#1a1a22";
+    ctx.beginPath();
+    ctx.arc(lx + pupilOffsetX, cy + pupilOffsetY, pr, 0, Math.PI * 2);
+    ctx.arc(rx + pupilOffsetX, cy + pupilOffsetY, pr, 0, Math.PI * 2);
+    ctx.fill();
+    // Highlights
+    ctx.fillStyle = "#ffffff";
+    var hr = eyeR * 0.22;
+    ctx.beginPath();
+    ctx.arc(lx + pupilOffsetX - pr * 0.4, cy + pupilOffsetY - pr * 0.4, hr, 0, Math.PI * 2);
+    ctx.arc(rx + pupilOffsetX - pr * 0.4, cy + pupilOffsetY - pr * 0.4, hr, 0, Math.PI * 2);
+    ctx.fill();
+    // Brows
+    if (mood === "fierce" || mood === "angry" || mood === "evil") {
+      ctx.strokeStyle = "#1a1a22";
+      ctx.lineWidth = Math.max(1.4, 1.6 * U);
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.moveTo(lx - eyeR * 0.9, cy - eyeR - browLift + (browAngle));
+      ctx.lineTo(lx + eyeR * 0.6, cy - eyeR - browLift - (browAngle));
+      ctx.moveTo(rx - eyeR * 0.6, cy - eyeR - browLift - (browAngle));
+      ctx.lineTo(rx + eyeR * 0.9, cy - eyeR - browLift + (browAngle));
+      ctx.stroke();
+    }
+  }
+
+  function drawAnimeMouth(cx, cy, w, h, kind) {
+    ctx.strokeStyle = "#1a1a22";
+    ctx.fillStyle = "#1a1a22";
+    ctx.lineWidth = Math.max(1.2, 1.4 * U);
+    ctx.lineCap = "round";
+    if (kind === "smile") {
+      ctx.beginPath();
+      ctx.arc(cx, cy - h * 0.3, w * 0.5, 0.15 * Math.PI, 0.85 * Math.PI);
+      ctx.stroke();
+    } else if (kind === "neutral") {
+      ctx.beginPath();
+      ctx.moveTo(cx - w * 0.35, cy);
+      ctx.lineTo(cx + w * 0.35, cy);
+      ctx.stroke();
+    } else if (kind === "serious") {
+      ctx.beginPath();
+      ctx.moveTo(cx - w * 0.3, cy + h * 0.2);
+      ctx.quadraticCurveTo(cx, cy - h * 0.2, cx + w * 0.3, cy + h * 0.2);
+      ctx.stroke();
+    } else if (kind === "open") {
+      // Engulfing macrofago
+      ctx.fillStyle = "#3a1818";
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, w * 0.5, h * 0.7, 0, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (kind === "fanged") {
+      ctx.beginPath();
+      ctx.arc(cx, cy, w * 0.5, 0, Math.PI);
+      ctx.fillStyle = "#3a1818";
+      ctx.fill();
+      ctx.fillStyle = "#ffffff";
+      var th = h * 0.45;
+      for (var ti = 0; ti < 3; ti++) {
+        var tx = cx - w * 0.32 + ti * w * 0.32;
+        ctx.beginPath();
+        ctx.moveTo(tx - w * 0.07, cy);
+        ctx.lineTo(tx, cy + th);
+        ctx.lineTo(tx + w * 0.07, cy);
+        ctx.closePath();
+        ctx.fill();
+      }
+    } else if (kind === "smirk") {
+      ctx.beginPath();
+      ctx.moveTo(cx - w * 0.4, cy);
+      ctx.quadraticCurveTo(cx + w * 0.1, cy + h * 0.5, cx + w * 0.45, cy - h * 0.2);
+      ctx.stroke();
+    } else if (kind === "wicked") {
+      ctx.beginPath();
+      ctx.moveTo(cx - w * 0.45, cy - h * 0.1);
+      ctx.quadraticCurveTo(cx, cy + h * 0.6, cx + w * 0.45, cy - h * 0.1);
+      ctx.stroke();
+    } else if (kind === "tiny") {
+      ctx.beginPath();
+      ctx.arc(cx, cy, w * 0.18, 0, Math.PI);
+      ctx.stroke();
+    }
   }
 
   function drawTower(t) {
     var stats = towerStats(t);
     if (state.selectedTower === t) {
-      drawRangeIndicator(t.x, t.y, stats.range * U, "rgba(60, 80, 130, 0.55)");
+      drawRangeIndicator(t.x, t.y, stats.range * U);
     }
+    var idle = Math.sin(state.time * Math.PI + (t.idlePhase || 0));
+    var pulse = 1 + idle * 0.025;
+    var attacking = (t.attackAnim || 0) > 0;
+    drawShadow(t.x, t.y + 18 * U, 18 * U, 5 * U);
     if (t.muzzleFlash > 0) {
-      ctx.fillStyle = "rgba(255, 240, 180, 0.55)";
+      ctx.fillStyle = "rgba(255, 245, 200, 0.45)";
       ctx.beginPath();
-      ctx.arc(t.x, t.y, 26 * U, 0, Math.PI * 2);
+      ctx.arc(t.x, t.y, 28 * U, 0, Math.PI * 2);
       ctx.fill();
     }
-    drawHexagon(t.x, t.y, 20 * U, t.def.color, t.def.colorDark, 2);
-    drawHexagon(t.x, t.y, 11 * U, "#ffffff", null);
+    if (t.def.id === "macrofago") drawMacrofago(t, pulse, attacking);
+    else if (t.def.id === "linfocitoB") drawLinfocitoB(t, pulse, attacking);
+    else drawLinfocitoT(t, pulse, attacking);
+    // Level pips above sprite
     ctx.fillStyle = t.def.colorDark;
+    var pipsY = t.y - 22 * U;
     for (var i = 0; i <= t.level; i++) {
       ctx.beginPath();
-      ctx.arc(t.x - 6 * U + i * 6 * U, t.y - 1 * U, 2.2 * U, 0, Math.PI * 2);
+      ctx.arc(t.x - 6 * U + i * 6 * U, pipsY, 2.2 * U, 0, Math.PI * 2);
       ctx.fill();
     }
+  }
+
+  function drawMacrofago(t, pulse, attacking) {
+    var x = t.x, y = t.y;
+    var R = 20 * U * pulse;
+    ctx.save();
+    ctx.translate(x, y);
+    // Pseudópodos: 6 small bumps
+    ctx.fillStyle = t.def.color;
+    var bumps = 6;
+    for (var i = 0; i < bumps; i++) {
+      var a = i * Math.PI * 2 / bumps + state.time * 0.5;
+      var bx = Math.cos(a) * R * 0.95;
+      var by = Math.sin(a) * R * 0.95;
+      var br = R * (0.32 + Math.sin(state.time * 2 + i) * 0.05);
+      ctx.beginPath();
+      ctx.arc(bx, by, br, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // Body gradient
+    var grad = ctx.createRadialGradient(-R * 0.3, -R * 0.3, R * 0.2, 0, 0, R);
+    grad.addColorStop(0, "#a7d0f6");
+    grad.addColorStop(0.6, t.def.color);
+    grad.addColorStop(1, t.def.colorDark);
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(0, 0, R, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = t.def.colorDark;
+    ctx.lineWidth = Math.max(1.2, 1.5 * U);
+    ctx.stroke();
+    // Face
+    var eyeR = R * 0.20;
+    drawAnimeEyes(0, -R * 0.10, eyeR, R * 0.30, 0, 0, R * 0.10, R * 0.10, "fierce");
+    if (attacking) drawAnimeMouth(0, R * 0.30, R * 0.55, R * 0.55, "open");
+    else drawAnimeMouth(0, R * 0.32, R * 0.40, R * 0.20, "serious");
+    ctx.restore();
+  }
+
+  function drawLinfocitoB(t, pulse, attacking) {
+    var x = t.x, y = t.y;
+    var R = 18 * U * pulse;
+    ctx.save();
+    ctx.translate(x, y);
+    // Antibodies "Y" rotating around
+    var ab = 5;
+    for (var i = 0; i < ab; i++) {
+      var a = i * Math.PI * 2 / ab + state.time * 0.8;
+      var ax = Math.cos(a) * (R + 8 * U);
+      var ay = Math.sin(a) * (R + 8 * U);
+      drawYShape(ax, ay, 5.5 * U, a + Math.PI / 2, "#fff7c4", t.def.colorDark);
+    }
+    // Body
+    var grad = ctx.createRadialGradient(-R * 0.3, -R * 0.3, R * 0.2, 0, 0, R);
+    grad.addColorStop(0, "#c5ecd1");
+    grad.addColorStop(0.6, t.def.color);
+    grad.addColorStop(1, t.def.colorDark);
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(0, 0, R, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = t.def.colorDark;
+    ctx.lineWidth = Math.max(1.2, 1.5 * U);
+    ctx.stroke();
+    // Face
+    var eyeR = R * 0.22;
+    drawAnimeEyes(0, -R * 0.10, eyeR, R * 0.32, 0, 0, 0, 0, "happy");
+    drawAnimeMouth(0, R * 0.32, R * 0.55, R * 0.30, "smile");
+    ctx.restore();
+  }
+
+  function drawYShape(cx, cy, size, rot, fill, stroke) {
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(rot);
+    ctx.strokeStyle = stroke;
+    ctx.fillStyle = fill;
+    ctx.lineWidth = Math.max(1.6, 2 * U);
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(0, size);
+    ctx.lineTo(0, -size * 0.2);
+    ctx.moveTo(0, -size * 0.2);
+    ctx.lineTo(-size * 0.7, -size);
+    ctx.moveTo(0, -size * 0.2);
+    ctx.lineTo(size * 0.7, -size);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(-size * 0.7, -size, size * 0.32, 0, Math.PI * 2);
+    ctx.arc(size * 0.7, -size, size * 0.32, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawLinfocitoT(t, pulse, attacking) {
+    var x = t.x, y = t.y;
+    var R = 19 * U * pulse;
+    ctx.save();
+    ctx.translate(x, y);
+    // Body with internal granules
+    var grad = ctx.createRadialGradient(-R * 0.3, -R * 0.3, R * 0.2, 0, 0, R);
+    grad.addColorStop(0, "#d6c0f5");
+    grad.addColorStop(0.6, t.def.color);
+    grad.addColorStop(1, t.def.colorDark);
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(0, 0, R, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = t.def.colorDark;
+    ctx.lineWidth = Math.max(1.2, 1.5 * U);
+    ctx.stroke();
+    // Granules pulsing
+    var grans = 5;
+    for (var i = 0; i < grans; i++) {
+      var ga = (i * 1.7 + state.time * 0.4) % (Math.PI * 2);
+      var gd = R * 0.55;
+      var gx = Math.cos(ga) * gd;
+      var gy = Math.sin(ga) * gd;
+      var gp = 0.5 + 0.5 * Math.sin(state.time * 3 + i);
+      ctx.fillStyle = "rgba(255, 240, 180, " + (0.4 + gp * 0.5) + ")";
+      ctx.beginPath();
+      ctx.arc(gx, gy, R * 0.10 * (0.7 + gp * 0.3), 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // Face — sharper, colder
+    var eyeR = R * 0.20;
+    drawAnimeEyes(0, -R * 0.08, eyeR, R * 0.30, 0, 0, R * 0.14, R * 0.05, "fierce");
+    drawAnimeMouth(0, R * 0.32, R * 0.40, R * 0.20, "neutral");
+    ctx.restore();
   }
 
   function drawEnemy(e) {
     var def = e.def;
     var rad = def.radius * U;
-    var wob = Math.sin(e.wobble) * 1.5 * U;
-    ctx.save();
-    ctx.translate(e.x, e.y);
-    ctx.fillStyle = def.colorDark;
-    ctx.beginPath();
-    ctx.arc(2 * U, 2 * U, rad, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = def.color;
-    ctx.beginPath();
-    ctx.arc(0, wob * 0.2, rad, 0, Math.PI * 2);
-    ctx.fill();
-    if (def.id === "virus") {
-      ctx.strokeStyle = def.colorDark;
-      ctx.lineWidth = 2;
-      for (var i = 0; i < 6; i++) {
-        var a = i * Math.PI / 3 + e.wobble * 0.3;
-        ctx.beginPath();
-        ctx.moveTo(Math.cos(a) * rad, Math.sin(a) * rad);
-        ctx.lineTo(Math.cos(a) * (rad + 4 * U), Math.sin(a) * (rad + 4 * U));
-        ctx.stroke();
-      }
-    } else if (def.id === "hongo") {
-      ctx.fillStyle = "rgba(255,255,255,0.4)";
-      ctx.beginPath(); ctx.arc(-3 * U, -3 * U, 3 * U, 0, Math.PI * 2); ctx.fill();
-      ctx.beginPath(); ctx.arc( 4 * U,  1 * U, 2 * U, 0, Math.PI * 2); ctx.fill();
-    } else if (def.id === "bacteria") {
-      ctx.fillStyle = def.colorDark;
-      ctx.beginPath();
-      ctx.arc(-3 * U, -2 * U, 2.5 * U, 0, Math.PI * 2);
-      ctx.arc( 3 * U,  2 * U, 2.5 * U, 0, Math.PI * 2);
-      ctx.fill();
-    } else if (def.id === "boss") {
-      ctx.strokeStyle = "#fff";
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      ctx.arc(0, 0, rad * 0.55, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.fillStyle = "#fff";
-      ctx.beginPath();
-      ctx.arc(-rad * 0.3, -rad * 0.2, rad * 0.12, 0, Math.PI * 2);
-      ctx.arc( rad * 0.3, -rad * 0.2, rad * 0.12, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    ctx.restore();
-
+    drawShadow(e.x, e.y + rad * 0.85, rad * 0.85, rad * 0.22);
+    if (def.id === "bacteria") drawBacteria(e, rad);
+    else if (def.id === "virus") drawVirus(e, rad);
+    else if (def.id === "hongo") drawHongo(e, rad);
+    else if (def.id === "boss") drawBoss(e, rad);
+    // HP bar
     var hpRatio = Math.max(0, e.hp / e.maxHp);
     var bw = Math.max(20 * U, rad * 2);
     var bh = 4 * Math.max(1, U * 0.9);
+    var by = e.y - rad - 11 * U;
     ctx.fillStyle = "rgba(0,0,0,0.55)";
-    ctx.fillRect(e.x - bw / 2, e.y - rad - 9 * U, bw, bh);
+    ctx.fillRect(e.x - bw / 2, by, bw, bh);
     ctx.fillStyle = hpRatio > 0.5 ? "#5cb85c" : hpRatio > 0.25 ? "#f0ad4e" : "#d9534f";
-    ctx.fillRect(e.x - bw / 2, e.y - rad - 9 * U, bw * hpRatio, bh);
+    ctx.fillRect(e.x - bw / 2, by, bw * hpRatio, bh);
+  }
+
+  function drawBacteria(e, rad) {
+    var hit = e.hitFlash > 0;
+    var stretch = 1 + Math.sin(e.wobble * 1.6) * 0.10;
+    var squeeze = 1 - Math.sin(e.wobble * 1.6) * 0.06;
+    ctx.save();
+    ctx.translate(e.x, e.y);
+    // Bacilus shape (capsule)
+    var rx = rad * 1.5 * stretch;
+    var ry = rad * 0.85 * squeeze;
+    // flagella
+    ctx.strokeStyle = e.def.colorDark;
+    ctx.lineWidth = Math.max(1.1, 1.3 * U);
+    ctx.lineCap = "round";
+    for (var f = 0; f < 3; f++) {
+      var fa = (f - 1) * 0.4 + Math.sin(e.wobble * 2 + f) * 0.3;
+      ctx.beginPath();
+      ctx.moveTo(-rx, fa * ry * 0.6);
+      ctx.quadraticCurveTo(-rx - 6 * U, fa * ry * 0.6 + Math.sin(e.wobble * 4 + f) * 3 * U,
+                            -rx - 12 * U, fa * ry * 0.5 + Math.cos(e.wobble * 4 + f) * 4 * U);
+      ctx.stroke();
+    }
+    // Body
+    var grad = ctx.createRadialGradient(-rx * 0.3, -ry * 0.3, ry * 0.2, 0, 0, rx);
+    grad.addColorStop(0, "#f7b5af");
+    grad.addColorStop(0.6, e.def.color);
+    grad.addColorStop(1, e.def.colorDark);
+    ctx.fillStyle = hit ? "#ffffff" : grad;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = e.def.colorDark;
+    ctx.lineWidth = Math.max(1.0, 1.2 * U);
+    ctx.stroke();
+    // Face
+    var eyeR = ry * 0.30;
+    drawAnimeEyes(rx * 0.10, -ry * 0.15, eyeR, rx * 0.28, 0, 0, ry * 0.18, ry * 0.10, "angry");
+    drawAnimeMouth(rx * 0.10, ry * 0.30, rx * 0.45, ry * 0.40, "fanged");
+    ctx.restore();
+  }
+
+  function drawVirus(e, rad) {
+    var hit = e.hitFlash > 0;
+    ctx.save();
+    ctx.translate(e.x, e.y);
+    var spinPhase = state.time * 1.5;
+    // Spikes (8)
+    ctx.strokeStyle = e.def.colorDark;
+    ctx.fillStyle = e.def.colorDark;
+    ctx.lineWidth = Math.max(1.2, 1.4 * U);
+    var spikes = 8;
+    for (var i = 0; i < spikes; i++) {
+      var a = i * Math.PI * 2 / spikes + spinPhase * 0.3;
+      var len = rad + (3 + Math.sin(spinPhase * 2 + i) * 1.2) * U;
+      var sx = Math.cos(a) * len;
+      var sy = Math.sin(a) * len;
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(a) * rad * 0.85, Math.sin(a) * rad * 0.85);
+      ctx.lineTo(sx, sy);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(sx, sy, 1.6 * U, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // Capsid (hex-ish)
+    var capR = rad * 1.05;
+    ctx.beginPath();
+    for (var k = 0; k < 6; k++) {
+      var ka = k * Math.PI / 3 - Math.PI / 2;
+      var kx = Math.cos(ka) * capR;
+      var ky = Math.sin(ka) * capR;
+      if (k === 0) ctx.moveTo(kx, ky); else ctx.lineTo(kx, ky);
+    }
+    ctx.closePath();
+    var grad = ctx.createRadialGradient(-capR * 0.3, -capR * 0.3, capR * 0.2, 0, 0, capR);
+    grad.addColorStop(0, "#c08bd9");
+    grad.addColorStop(0.6, e.def.color);
+    grad.addColorStop(1, e.def.colorDark);
+    ctx.fillStyle = hit ? "#ffffff" : grad;
+    ctx.fill();
+    ctx.strokeStyle = e.def.colorDark;
+    ctx.lineWidth = Math.max(1.0, 1.2 * U);
+    ctx.stroke();
+    // Face — wide eyes, smirk
+    var eyeR = capR * 0.32;
+    drawAnimeEyes(0, -capR * 0.15, eyeR, capR * 0.30, 0, 0, capR * 0.10, capR * 0.05, "evil");
+    drawAnimeMouth(0, capR * 0.30, capR * 0.55, capR * 0.30, "smirk");
+    ctx.restore();
+  }
+
+  function drawHongo(e, rad) {
+    var hit = e.hitFlash > 0;
+    ctx.save();
+    ctx.translate(e.x, e.y);
+    // Hyphae roots dangling below
+    ctx.strokeStyle = e.def.colorDark;
+    ctx.lineWidth = Math.max(1.0, 1.2 * U);
+    ctx.lineCap = "round";
+    var phase = state.time * 1.6;
+    for (var h = -2; h <= 2; h++) {
+      var hx = h * rad * 0.35;
+      ctx.beginPath();
+      ctx.moveTo(hx, rad * 0.7);
+      ctx.quadraticCurveTo(hx + Math.sin(phase + h) * 3 * U, rad + 5 * U,
+                           hx + Math.sin(phase * 1.4 + h * 1.7) * 4 * U, rad + 12 * U);
+      ctx.stroke();
+    }
+    // Capsule body (taller than wide)
+    var bw = rad * 1.0, bh = rad * 1.25;
+    var grad = ctx.createRadialGradient(-bw * 0.3, -bh * 0.3, bh * 0.2, 0, 0, bh);
+    grad.addColorStop(0, "#f5a2c0");
+    grad.addColorStop(0.6, e.def.color);
+    grad.addColorStop(1, e.def.colorDark);
+    ctx.fillStyle = hit ? "#ffffff" : grad;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, bw, bh, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = e.def.colorDark;
+    ctx.lineWidth = Math.max(1.0, 1.2 * U);
+    ctx.stroke();
+    // Face — sleepy evil
+    var eyeR = bw * 0.28;
+    // Sleepy eyes: half-closed lids
+    ctx.fillStyle = "#ffffff";
+    ctx.beginPath();
+    ctx.ellipse(-bw * 0.30, -bh * 0.10, eyeR, eyeR * 0.55, 0, 0, Math.PI * 2);
+    ctx.ellipse( bw * 0.30, -bh * 0.10, eyeR, eyeR * 0.55, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "rgba(0,0,0,0.55)";
+    ctx.lineWidth = Math.max(0.8, 1 * U);
+    ctx.beginPath();
+    ctx.ellipse(-bw * 0.30, -bh * 0.10, eyeR, eyeR * 0.55, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.ellipse( bw * 0.30, -bh * 0.10, eyeR, eyeR * 0.55, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.fillStyle = "#1a1a22";
+    ctx.beginPath();
+    ctx.arc(-bw * 0.30, -bh * 0.10 + eyeR * 0.10, eyeR * 0.40, 0, Math.PI * 2);
+    ctx.arc( bw * 0.30, -bh * 0.10 + eyeR * 0.10, eyeR * 0.40, 0, Math.PI * 2);
+    ctx.fill();
+    drawAnimeMouth(0, bh * 0.30, bw * 0.65, bh * 0.30, "wicked");
+    ctx.restore();
+  }
+
+  function drawBoss(e, rad) {
+    var hit = e.hitFlash > 0;
+    ctx.save();
+    ctx.translate(e.x, e.y);
+    // Pulsing red halo
+    var halo = 0.5 + 0.5 * Math.sin(state.time * 4);
+    ctx.fillStyle = "rgba(231, 76, 60, " + (0.18 + halo * 0.12) + ")";
+    ctx.beginPath();
+    ctx.arc(0, 0, rad * (1.55 + halo * 0.10), 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "rgba(231, 76, 60, " + (0.5 + halo * 0.3) + ")";
+    ctx.lineWidth = Math.max(2, 2.5 * U);
+    ctx.beginPath();
+    ctx.arc(0, 0, rad * 1.50, 0, Math.PI * 2);
+    ctx.stroke();
+    // Many flagella
+    ctx.strokeStyle = e.def.colorDark;
+    ctx.lineWidth = Math.max(1.8, 2 * U);
+    ctx.lineCap = "round";
+    for (var f = -3; f <= 3; f++) {
+      var fa = f * 0.18 + Math.sin(e.wobble * 2 + f) * 0.2;
+      ctx.beginPath();
+      ctx.moveTo(-rad * 1.0, fa * rad * 0.5);
+      ctx.quadraticCurveTo(-rad * 1.4, fa * rad * 0.5 + Math.sin(e.wobble * 4 + f) * 5 * U,
+                            -rad * 1.8, fa * rad * 0.4 + Math.cos(e.wobble * 4 + f) * 7 * U);
+      ctx.stroke();
+    }
+    // Body bacilus
+    var rx = rad * 1.35, ry = rad * 0.95;
+    var grad = ctx.createRadialGradient(-rx * 0.3, -ry * 0.3, ry * 0.2, 0, 0, rx);
+    grad.addColorStop(0, "#f08080");
+    grad.addColorStop(0.5, e.def.color);
+    grad.addColorStop(1, e.def.colorDark);
+    ctx.fillStyle = hit ? "#ffffff" : grad;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "#3a0a0a";
+    ctx.lineWidth = Math.max(1.5, 2 * U);
+    ctx.stroke();
+    // Glowing red eyes
+    var eyeR = ry * 0.32;
+    ctx.fillStyle = "rgba(255, 80, 80, 0.5)";
+    ctx.beginPath();
+    ctx.arc(-rx * 0.30, -ry * 0.18, eyeR * 1.6, 0, Math.PI * 2);
+    ctx.arc( rx * 0.30, -ry * 0.18, eyeR * 1.6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#ffffff";
+    ctx.beginPath();
+    ctx.ellipse(-rx * 0.30, -ry * 0.18, eyeR, eyeR * 1.05, 0, 0, Math.PI * 2);
+    ctx.ellipse( rx * 0.30, -ry * 0.18, eyeR, eyeR * 1.05, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#e74c3c";
+    ctx.beginPath();
+    ctx.arc(-rx * 0.30, -ry * 0.18, eyeR * 0.6, 0, Math.PI * 2);
+    ctx.arc( rx * 0.30, -ry * 0.18, eyeR * 0.6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#1a0a0a";
+    ctx.beginPath();
+    ctx.arc(-rx * 0.30, -ry * 0.18, eyeR * 0.32, 0, Math.PI * 2);
+    ctx.arc( rx * 0.30, -ry * 0.18, eyeR * 0.32, 0, Math.PI * 2);
+    ctx.fill();
+    // Brows
+    ctx.strokeStyle = "#1a0a0a";
+    ctx.lineWidth = Math.max(2, 2.5 * U);
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(-rx * 0.50, -ry * 0.50);
+    ctx.lineTo(-rx * 0.10, -ry * 0.32);
+    ctx.moveTo( rx * 0.50, -ry * 0.50);
+    ctx.lineTo( rx * 0.10, -ry * 0.32);
+    ctx.stroke();
+    drawAnimeMouth(0, ry * 0.32, rx * 0.55, ry * 0.45, "fanged");
+    ctx.restore();
   }
 
   function drawProjectile(p) {
-    ctx.fillStyle = p.color;
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, (p.splashDesign > 0 ? 6 : 4) * U, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = "rgba(0,0,0,0.35)";
-    ctx.lineWidth = 1;
-    ctx.stroke();
+    if (p.towerId === "linfocitoB") {
+      // Antibody Y projectile with yellow trail
+      ctx.fillStyle = "rgba(255, 247, 196, 0.55)";
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 7 * U, 0, Math.PI * 2);
+      ctx.fill();
+      var ang = p.target ? Math.atan2(p.target.y - p.y, p.target.x - p.x) : 0;
+      drawYShape(p.x, p.y, 5 * U, ang + Math.PI / 2, "#fff7c4", "#2c8049");
+    } else {
+      ctx.fillStyle = p.color;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, (p.splashDesign > 0 ? 6 : 4) * U, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "rgba(0,0,0,0.35)";
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
   }
 
   function drawEffect(ef) {
@@ -999,14 +1597,20 @@
       ctx.stroke();
       ctx.globalAlpha = 1;
     } else if (ef.kind === "explosion") {
-      ctx.fillStyle = ef.color;
-      ctx.globalAlpha = alpha * 0.4;
+      // Cytotoxic wave: violet gradient ring
+      ctx.globalAlpha = alpha;
+      var rg = ctx.createRadialGradient(ef.x, ef.y, ef.r * 0.4, ef.x, ef.y, ef.r);
+      rg.addColorStop(0, "rgba(147, 112, 219, 0.55)");
+      rg.addColorStop(0.7, "rgba(93, 68, 160, 0.30)");
+      rg.addColorStop(1, "rgba(93, 68, 160, 0)");
+      ctx.fillStyle = rg;
       ctx.beginPath();
       ctx.arc(ef.x, ef.y, ef.r, 0, Math.PI * 2);
       ctx.fill();
-      ctx.strokeStyle = ef.color;
-      ctx.globalAlpha = alpha;
-      ctx.lineWidth = 2;
+      ctx.strokeStyle = "rgba(147, 112, 219, " + alpha + ")";
+      ctx.lineWidth = 2.4;
+      ctx.beginPath();
+      ctx.arc(ef.x, ef.y, ef.r, 0, Math.PI * 2);
       ctx.stroke();
       ctx.globalAlpha = 1;
     } else if (ef.kind === "melee") {
@@ -1027,19 +1631,148 @@
       ctx.stroke();
       ctx.globalAlpha = 1;
     } else if (ef.kind === "place") {
-      var t = 1 - ef.life / ef.max;
+      var pt = 1 - ef.life / ef.max;
       ctx.strokeStyle = ef.color;
-      ctx.globalAlpha = (1 - t) * 0.85;
+      ctx.globalAlpha = (1 - pt) * 0.85;
       ctx.lineWidth = 3;
       ctx.beginPath();
-      ctx.arc(ef.x, ef.y, (18 + t * 36) * U, 0, Math.PI * 2);
+      ctx.arc(ef.x, ef.y, (18 + pt * 36) * U, 0, Math.PI * 2);
       ctx.stroke();
       ctx.fillStyle = ef.color;
-      ctx.globalAlpha = (1 - t) * 0.35;
+      ctx.globalAlpha = (1 - pt) * 0.30;
       ctx.beginPath();
-      ctx.arc(ef.x, ef.y, (18 + t * 18) * U, 0, Math.PI * 2);
+      ctx.arc(ef.x, ef.y, (18 + pt * 18) * U, 0, Math.PI * 2);
       ctx.fill();
       ctx.globalAlpha = 1;
+    } else if (ef.kind === "placeFlash") {
+      var fa = ef.life / ef.max;
+      ctx.fillStyle = "rgba(255, 255, 255, " + fa + ")";
+      ctx.beginPath();
+      ctx.arc(ef.x, ef.y, (10 + (1 - fa) * 28) * U, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (ef.kind === "dmgText") {
+      ctx.globalAlpha = alpha;
+      var fs = Math.max(11, 13 * U);
+      ctx.font = "bold " + fs + "px sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = "rgba(0,0,0,0.55)";
+      ctx.strokeText(ef.text, ef.x, ef.y);
+      ctx.fillStyle = ef.color;
+      ctx.fillText(ef.text, ef.x, ef.y);
+      ctx.globalAlpha = 1;
+    } else if (ef.kind === "atpText") {
+      ctx.globalAlpha = alpha;
+      var fs2 = Math.max(12, 14 * U);
+      ctx.font = "bold " + fs2 + "px sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = "rgba(60, 30, 0, 0.7)";
+      ctx.strokeText(ef.text, ef.x, ef.y);
+      ctx.fillStyle = ef.color;
+      ctx.fillText(ef.text, ef.x, ef.y);
+      ctx.globalAlpha = 1;
+    } else if (ef.kind === "confetti") {
+      ctx.save();
+      ctx.translate(ef.x, ef.y);
+      ctx.rotate(ef.rot);
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = ef.color;
+      ctx.fillRect(-ef.size, -ef.size * 0.4, ef.size * 2, ef.size * 0.8);
+      ctx.globalAlpha = 1;
+      ctx.restore();
+    }
+  }
+
+  function drawCardIcon(typeId, cx, cy, R, enabled) {
+    var def = TOWER_DEFS[typeId];
+    ctx.save();
+    ctx.translate(cx, cy);
+    var grad = ctx.createRadialGradient(-R * 0.3, -R * 0.3, R * 0.2, 0, 0, R);
+    var hot = enabled ? def.color : "#666";
+    grad.addColorStop(0, "#ffffff");
+    grad.addColorStop(0.4, hot);
+    grad.addColorStop(1, def.colorDark);
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(0, 0, R, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = def.colorDark;
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
+    if (typeId === "linfocitoB") {
+      // 3 mini Y antibodies
+      for (var i = 0; i < 3; i++) {
+        var a = i * Math.PI * 2 / 3 - Math.PI / 2;
+        drawMiniY(Math.cos(a) * R * 1.2, Math.sin(a) * R * 1.2, R * 0.3, a + Math.PI / 2);
+      }
+    } else if (typeId === "linfocitoT") {
+      // Granules
+      for (var g = 0; g < 4; g++) {
+        var ga = g * Math.PI * 0.5 + 0.4;
+        ctx.fillStyle = "rgba(255, 240, 180, 0.85)";
+        ctx.beginPath();
+        ctx.arc(Math.cos(ga) * R * 0.5, Math.sin(ga) * R * 0.5, R * 0.13, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    } else {
+      // Macrofago: small bumps
+      for (var b = 0; b < 5; b++) {
+        var ba = b * Math.PI * 2 / 5;
+        ctx.fillStyle = hot;
+        ctx.beginPath();
+        ctx.arc(Math.cos(ba) * R * 0.95, Math.sin(ba) * R * 0.95, R * 0.30, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = def.colorDark;
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      }
+    }
+    // tiny eyes
+    var eyeR = R * 0.16;
+    ctx.fillStyle = "#fff";
+    ctx.beginPath();
+    ctx.arc(-R * 0.25, -R * 0.05, eyeR, 0, Math.PI * 2);
+    ctx.arc( R * 0.25, -R * 0.05, eyeR, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#1a1a22";
+    ctx.beginPath();
+    ctx.arc(-R * 0.25, -R * 0.05, eyeR * 0.55, 0, Math.PI * 2);
+    ctx.arc( R * 0.25, -R * 0.05, eyeR * 0.55, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawMiniY(cx, cy, size, rot) {
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(rot);
+    ctx.strokeStyle = "#2c8049";
+    ctx.fillStyle = "#fff7c4";
+    ctx.lineWidth = 1.4;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(0, size);
+    ctx.lineTo(0, -size * 0.2);
+    ctx.moveTo(0, -size * 0.2);
+    ctx.lineTo(-size * 0.7, -size);
+    ctx.moveTo(0, -size * 0.2);
+    ctx.lineTo(size * 0.7, -size);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawAmbient() {
+    if (!state.ambient || !state.ambient.length) return;
+    for (var i = 0; i < state.ambient.length; i++) {
+      var a = state.ambient[i];
+      var pulse = 0.7 + 0.3 * Math.sin(a.phase);
+      ctx.fillStyle = "rgba(231, 100, 110, " + (a.alpha * pulse) + ")";
+      ctx.beginPath();
+      ctx.arc(a.x, a.y, a.r, 0, Math.PI * 2);
+      ctx.fill();
     }
   }
 
@@ -1075,7 +1808,12 @@
 
     var nwLabel = isPortrait ? "▶ Oleada" : "▶ Iniciar Oleada";
     if (!state.waveActive && state.waveIdx < WAVES.length) {
+      var pulse = 0.5 + 0.5 * Math.sin(state.time * 3.5);
+      ctx.save();
+      ctx.shadowColor = "rgba(31, 138, 76, " + (0.5 + pulse * 0.45) + ")";
+      ctx.shadowBlur = 8 + pulse * 14;
       drawButton(UI.nextWaveBtn, nwLabel, "#1f8a4c", "#16632f", true);
+      ctx.restore();
     } else if (state.waveActive) {
       drawButton(UI.nextWaveBtn, isPortrait ? "En curso..." : "Oleada en curso...", "#5a4250", "#3a2530", false);
     } else {
@@ -1165,36 +1903,49 @@
       var card = UI.cards[i];
       var canAfford = state.atp >= def.cost;
       var isSelected = state.selectedToBuild === typeId;
+      var lift = isSelected ? 4 : 0;
+      var scale = isSelected ? 1.05 : 1.0;
+      var cw = card.w * scale, ch = card.h * scale;
+      var cardX = card.x - (cw - card.w) / 2;
+      var cardY = card.y - lift - (ch - card.h) / 2;
 
+      if (isSelected) {
+        ctx.shadowColor = "rgba(0, 0, 0, 0.45)";
+        ctx.shadowBlur = 8;
+        ctx.shadowOffsetY = 4;
+      }
       ctx.fillStyle = isSelected ? "#3a2538" : "#1f1219";
-      roundRect(card.x, card.y, card.w, card.h, 8);
+      roundRect(cardX, cardY, cw, ch, 8);
       ctx.fill();
+      ctx.shadowColor = "transparent";
+      ctx.shadowBlur = 0;
+      ctx.shadowOffsetY = 0;
       ctx.strokeStyle = isSelected ? def.color : "rgba(255,255,255,0.08)";
       ctx.lineWidth = isSelected ? 3 : 1.5;
-      roundRect(card.x, card.y, card.w, card.h, 8);
+      roundRect(cardX, cardY, cw, ch, 8);
       ctx.stroke();
 
-      var cx = card.x + card.w / 2;
+      var cx = cardX + cw / 2;
+      var iconY = cardY + ch * 0.30;
       var showDesc = card.w >= 120;
-      drawHexagon(cx, card.y + card.h * 0.28, Math.min(18, card.w * 0.18), canAfford ? def.color : "#555", def.colorDark, 2);
-      drawHexagon(cx, card.y + card.h * 0.28, Math.min(9, card.w * 0.09), "#fff", null);
+      drawCardIcon(typeId, cx, iconY, Math.min(20, cw * 0.20) * (canAfford ? 1 : 0.6), canAfford);
 
       ctx.fillStyle = canAfford ? "#fff" : "rgba(255,255,255,0.45)";
-      var fs1 = Math.max(10, Math.min(13, card.w * 0.14));
+      var fs1 = Math.max(10, Math.min(13, cw * 0.14));
       ctx.font = "bold " + fs1 + "px sans-serif";
       ctx.textAlign = "center";
       ctx.textBaseline = "top";
-      ctx.fillText(def.name, cx, card.y + card.h * (showDesc ? 0.50 : 0.54));
+      ctx.fillText(def.name, cx, cardY + ch * (showDesc ? 0.55 : 0.58));
 
       if (showDesc) {
-        ctx.font = Math.max(9, Math.min(11, card.w * 0.10)) + "px sans-serif";
+        ctx.font = Math.max(9, Math.min(11, cw * 0.10)) + "px sans-serif";
         ctx.fillStyle = "rgba(255,255,255,0.55)";
-        ctx.fillText(def.desc, cx, card.y + card.h * 0.66);
+        ctx.fillText(def.desc, cx, cardY + ch * 0.70);
       }
 
-      ctx.font = "bold " + Math.max(11, Math.min(13, card.w * 0.13)) + "px sans-serif";
+      ctx.font = "bold " + Math.max(11, Math.min(13, cw * 0.13)) + "px sans-serif";
       ctx.fillStyle = canAfford ? "#f5d76e" : "#d9534f";
-      ctx.fillText("⚡ " + def.cost, cx, card.y + card.h * (showDesc ? 0.82 : 0.78));
+      ctx.fillText("⚡ " + def.cost, cx, cardY + ch * (showDesc ? 0.84 : 0.80));
     }
 
     var infoX = UI.infoX, infoY = UI.infoY;
@@ -1282,16 +2033,54 @@
     var def = TOWER_DEFS[state.selectedToBuild];
     var stats = def.levels[0];
     var ok = canPlaceTowerAt(x, y) && state.atp >= def.cost;
-    ctx.fillStyle = ok ? "rgba(50, 200, 120, 0.15)" : "rgba(220, 70, 70, 0.18)";
-    ctx.strokeStyle = ok ? "rgba(50, 200, 120, 0.65)" : "rgba(220, 70, 70, 0.7)";
-    ctx.lineWidth = 2;
+    // Range circle (white dotted on tinted disc)
+    ctx.save();
+    ctx.fillStyle = ok ? "rgba(255, 255, 255, 0.18)" : "rgba(220, 70, 70, 0.20)";
     ctx.beginPath();
     ctx.arc(x, y, stats.range * U, 0, Math.PI * 2);
     ctx.fill();
+    ctx.strokeStyle = ok ? "rgba(255, 255, 255, 0.85)" : "rgba(220, 70, 70, 0.85)";
+    ctx.lineWidth = 2.4;
+    ctx.setLineDash([7 * U, 6 * U]);
+    ctx.beginPath();
+    ctx.arc(x, y, stats.range * U, 0, Math.PI * 2);
     ctx.stroke();
-    ctx.globalAlpha = ok ? 0.85 : 0.5;
-    drawHexagon(x, y, 20 * U, def.color, def.colorDark, 2);
+    ctx.setLineDash([]);
+    ctx.restore();
+    // Ghost sprite
+    ctx.save();
+    ctx.globalAlpha = ok ? 0.85 : 0.55;
+    var fakeTower = { x: x, y: y, def: def, level: 0, idlePhase: 0, attackAnim: 0, muzzleFlash: 0 };
+    if (def.id === "macrofago") drawMacrofago(fakeTower, 1, false);
+    else if (def.id === "linfocitoB") drawLinfocitoB(fakeTower, 1, false);
+    else drawLinfocitoT(fakeTower, 1, false);
     ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+
+  function drawWaveBanner() {
+    if (state.waveBannerTimer <= 0 || !state.waveBannerText) return;
+    var t = state.waveBannerTimer / 1.4;
+    var alpha;
+    if (t > 0.7) alpha = (1 - t) / 0.3;
+    else if (t < 0.25) alpha = t / 0.25;
+    else alpha = 1;
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, Math.min(1, alpha));
+    var fs = Math.min(VW * 0.13, VH * 0.10, 64);
+    ctx.font = "900 " + fs + "px sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    var by = VH / 2 - fs * 0.2;
+    ctx.lineWidth = 6;
+    ctx.strokeStyle = "rgba(0, 0, 0, 0.7)";
+    ctx.strokeText(state.waveBannerText, VW / 2, by);
+    ctx.fillStyle = "#fff8b0";
+    ctx.fillText(state.waveBannerText, VW / 2, by);
+    ctx.font = "bold " + (fs * 0.32) + "px sans-serif";
+    ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
+    ctx.fillText("¡Defiende el organismo!", VW / 2, by + fs * 0.7);
+    ctx.restore();
   }
 
   function drawMessage() {
@@ -1338,26 +2127,57 @@
 
   function drawEndOverlay() {
     if (!state.gameOver && !state.victory) return;
-    ctx.fillStyle = "rgba(0,0,0,0.55)";
+    if (state.victory && !state.confettiSpawned) {
+      spawnConfetti();
+      state.confettiSpawned = true;
+    }
+    ctx.fillStyle = state.victory ? "rgba(20, 50, 30, 0.55)" : "rgba(40, 0, 0, 0.65)";
     ctx.fillRect(0, 0, VW, VH);
-    ctx.fillStyle = state.victory ? "#5cb85c" : "#d9534f";
-    ctx.font = "bold 56px sans-serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText(state.victory ? "VICTORIA" : "DERROTA", VW / 2, VH / 2 - 40);
+    var titleFs = Math.min(VW * 0.13, VH * 0.10, 64);
+    ctx.font = "900 " + titleFs + "px sans-serif";
+    ctx.lineWidth = 6;
+    ctx.strokeStyle = "rgba(0, 0, 0, 0.7)";
+    var title = state.victory ? "¡VICTORIA!" : "INFECCION CRITICA";
+    ctx.strokeText(title, VW / 2, VH / 2 - titleFs * 0.6);
+    ctx.fillStyle = state.victory ? "#9adfb1" : "#ff6363";
+    ctx.fillText(title, VW / 2, VH / 2 - titleFs * 0.6);
+
+    ctx.font = "bold 16px sans-serif";
     ctx.fillStyle = "#fff";
-    ctx.font = "16px sans-serif";
     ctx.fillText(
-      state.victory ? "Has detenido la infeccion. ¡Sistema inmune al maximo!" : "Los patogenos invadieron el organismo.",
-      VW / 2, VH / 2 + 8
+      state.victory
+        ? "Has detenido la infeccion. ¡Sistema inmune al maximo!"
+        : "Los patogenos invadieron el organismo.",
+      VW / 2, VH / 2 - 4
     );
+    if (state.victory) {
+      ctx.font = "13px sans-serif";
+      ctx.fillStyle = "rgba(255, 255, 255, 0.85)";
+      ctx.fillText("Torres: " + state.towers.length + " • ATP final: " + state.atp + " • Vidas: " + state.lives,
+        VW / 2, VH / 2 + 18);
+    }
     drawButton(UI.endRestartBtn, "Reiniciar", "#1f8a4c", "#16632f", true);
   }
 
   function render() {
-    // Map all draw coords into CSS-pixel space, accounting for DPR.
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    // Shake offset (also applied if defeat is showing).
+    var shakeOff = { x: 0, y: 0 };
+    if (state.shakeTimer > 0 || state.gameOver) {
+      var sm = state.gameOver ? 4 : (state.shakeMag || 5);
+      var sintensity = state.gameOver
+        ? (0.5 + 0.5 * Math.sin(state.time * 30))
+        : Math.min(1, state.shakeTimer / 0.3);
+      shakeOff.x = (Math.random() - 0.5) * sm * sintensity;
+      shakeOff.y = (Math.random() - 0.5) * sm * sintensity;
+    }
+    ctx.setTransform(dpr, 0, 0, dpr, shakeOff.x * dpr, shakeOff.y * dpr);
+
     clearCanvas();
+    drawAmbient();
     drawPath();
     for (var i = 0; i < state.towers.length; i++) drawTower(state.towers[i]);
     for (var j = 0; j < state.enemies.length; j++) drawEnemy(state.enemies[j]);
@@ -1367,6 +2187,7 @@
     drawHUD();
     drawPanel();
     drawMessage();
+    drawWaveBanner();
     if (state.time - state.lastPlaceFailedAt < 0.25) {
       var a = 1 - (state.time - state.lastPlaceFailedAt) / 0.25;
       ctx.strokeStyle = "rgba(220, 70, 70, " + a + ")";

@@ -464,6 +464,12 @@
     // Visible entry/exit (just inside field). Use anchor[1] / anchor[N-2].
     PATH.entry = anchors[1] || anchors[0];
     PATH.exit = anchors[n - 2] || anchors[n - 1];
+    // Cumulative distance at the vessel position (== start of last segment).
+    // When an enemy reaches this progress they begin the absorb animation
+    // instead of continuing past the torrent sprite.
+    PATH.absorbStart = PATH.beziers.length > 1
+      ? PATH.beziers[PATH.beziers.length - 1].startD
+      : PATH.total * 0.92;
     if (state) generateTissue();
   }
 
@@ -821,8 +827,12 @@
       levelTransition: false,
       finalScreen: false,
       transitionTimer: 0,
-      tissue: null,  // pre-generated connective tissue elements (cached per path)
-      lymph: { node: null, drop: null, nextDropAt: 6 }
+      tissue: null,
+      mitosis: null,         // active mitosis cell or null
+      nextMitosisAt: 12,     // first mitosis ~12s into the level
+      patrol: [],            // patrol macrophages (decorative)
+      inflammation: null,    // active inflammation pulse
+      nextInflammationAt: 8  // first inflammation pulse
     };
   }
   state = newState(1);
@@ -954,7 +964,8 @@
       var g = wave.groups[i];
       for (var k = 0; k < g.count; k++) {
         state.pendingSpawns.push({ type: g.type, time: t, hpMult: wave.hpMult });
-        t += g.interval;
+        // Jittered spawn cadence: 0.5-1.3s per spec, keeps oleadas chaotic.
+        t += 0.5 + Math.random() * 0.8;
       }
       t += 0.6;
     }
@@ -1116,16 +1127,15 @@
         }
         continue;
       }
-      // ABSORBING: explicit start->target lerp with easeInQuad.
+      // ABSORBING: explicit linear lerp from snapshot start -> vessel center.
       if (e.absorbing) {
         var elapsed = state.time - e.absorbStartTime;
-        var t01 = Math.min(1, elapsed / 0.40);
-        var et = t01 * t01;  // easeInQuad
-        e.x = e.absorbStartX + (e.absorbTargetX - e.absorbStartX) * et;
-        e.y = e.absorbStartY + (e.absorbTargetY - e.absorbStartY) * et;
+        var t01 = Math.min(1, elapsed / 0.35);
+        e.x = e.absorbStartX + (e.absorbTargetX - e.absorbStartX) * t01;
+        e.y = e.absorbStartY + (e.absorbTargetY - e.absorbStartY) * t01;
         e.absorbScale = Math.max(0, 1 - t01);
         e.absorbAlpha = Math.max(0, 1 - t01);
-        e.absorbedRot += dt * 8;
+        e.absorbedRot += dt * 12;  // fast spin during suction
         if (t01 >= 1) {
           e.dead = true;
           state.vesselFlashTimer = Math.max(state.vesselFlashTimer, 0.20);
@@ -1155,8 +1165,11 @@
           });
         }
       }
-      if (e.progress >= PATH.total * 0.98 && !e.absorbing) {
-        // Lock onto vessel center for explicit absorb animation.
+      // Trigger absorbing as soon as the enemy reaches the vessel position
+      // (start of the last bezier segment), so it never visually sails past
+      // the torrent sprite into the circulatory zone below.
+      var absorbThreshold = (PATH.absorbStart != null) ? PATH.absorbStart : (PATH.total * 0.92);
+      if (e.progress >= absorbThreshold && !e.absorbing) {
         e.absorbing = true;
         e.absorbStartTime = state.time;
         e.absorbStartX = e.x;
@@ -1172,7 +1185,7 @@
         META.totalPathogensInfiltrated += 1;
         triggerShake(0.25, e.def.isBoss ? 7 : 4);
         state.vesselFlashTimer = 0.30;
-        state.vesselSwallow = 0.20;  // visible "swallow" pulse
+        state.vesselSwallow = 0.20;
         spawnEffect("escape", PATH.exit ? PATH.exit.x : e.x, PATH.exit ? PATH.exit.y : e.y);
         sfx("playerHurt");
         spawnCirculatoryTracer(e.def);
@@ -1862,6 +1875,239 @@
       else if (a.x > FIELD_RIGHT + 10) a.x = FIELD_LEFT - 10;
       if (a.y < FIELD_TOP - 10) a.y = FIELD_BOTTOM + 10;
       else if (a.y > FIELD_BOTTOM + 10) a.y = FIELD_TOP - 10;
+    }
+    updateInflammation(dt);
+    updateMitosis(dt);
+    updatePatrol(dt);
+  }
+
+  // -------- INFLAMMATION PULSE -----------------------------------------
+  function updateInflammation(dt) {
+    if (state.inflammation) {
+      state.inflammation.t += dt;
+      if (state.inflammation.t >= state.inflammation.max) state.inflammation = null;
+    } else {
+      state.nextInflammationAt -= dt;
+      if (state.nextInflammationAt <= 0) {
+        state.nextInflammationAt = 8 + Math.random() * 2;
+        // Center at middle of path roughly.
+        var mid = pathPos(PATH.total * 0.5);
+        state.inflammation = { x: mid.x, y: mid.y, t: 0, max: 2.5 };
+      }
+    }
+  }
+  function drawInflammation() {
+    var inf = state.inflammation;
+    if (!inf) return;
+    var t = inf.t / inf.max;
+    var maxR = Math.min(FIELD_W, FIELD_H) * 0.55;
+    var r = maxR * t;
+    var alpha = (1 - t) * 0.18;
+    ctx.save();
+    ctx.strokeStyle = "rgba(220, 100, 100, " + alpha + ")";
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    ctx.arc(inf.x, inf.y, r, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.fillStyle = "rgba(220, 100, 100, " + (alpha * 0.3) + ")";
+    ctx.beginPath();
+    ctx.arc(inf.x, inf.y, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // -------- MITOSIS (cell division ambience) ---------------------------
+  function spawnMitosisAt() {
+    // Random spot far from path, lymph node, wound, vessel.
+    for (var attempt = 0; attempt < 30; attempt++) {
+      var x = FIELD_LEFT + 30 + Math.random() * (FIELD_W - 60);
+      var y = FIELD_TOP + FIELD_H * 0.20 + Math.random() * FIELD_H * 0.55;
+      if (distPointToPath(x, y) < 70 * U) continue;
+      if (Math.hypot(x - DRIP.x, y - DRIP.y) < DRIP.w + 30 * U) continue;
+      if (PATH.entry && Math.hypot(x - PATH.entry.x, y - PATH.entry.y) < 80 * U) continue;
+      if (PATH.exit && Math.hypot(x - PATH.exit.x, y - PATH.exit.y) < 80 * U) continue;
+      return { x: x, y: y, t: 0, max: 7.0 };  // 4s divide + 3s linger
+    }
+    return null;
+  }
+  function updateMitosis(dt) {
+    if (state.mitosis) {
+      state.mitosis.t += dt;
+      if (state.mitosis.t >= state.mitosis.max) state.mitosis = null;
+    } else {
+      state.nextMitosisAt -= dt;
+      if (state.nextMitosisAt <= 0) {
+        state.nextMitosisAt = 15 + Math.random() * 5;
+        state.mitosis = spawnMitosisAt();
+      }
+    }
+  }
+  function drawMitosis() {
+    var m = state.mitosis;
+    if (!m) return;
+    var phase = m.t / m.max;          // 0..1 over 7s
+    var divPhase = Math.min(1, m.t / 4.0);  // first 4s = mitosis itself
+    var afterPhase = Math.max(0, (m.t - 4.0) / 3.0);  // 0..1 in last 3s
+    var r = 9 * U;
+    ctx.save();
+    if (m.t < 4.0) {
+      // Round -> elongate -> figure-eight -> divide
+      var sep = divPhase * r * 1.6;  // separation between centers
+      var elongate = 1 + divPhase * 0.3;
+      ctx.fillStyle = "rgba(245, 220, 192, 0.85)";
+      ctx.strokeStyle = "rgba(180, 140, 110, 0.7)";
+      ctx.lineWidth = 1.2;
+      // Two overlapping circles becoming separate.
+      ctx.beginPath();
+      ctx.arc(m.x - sep / 2, m.y, r * elongate, 0, Math.PI * 2);
+      ctx.arc(m.x + sep / 2, m.y, r * elongate, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      // Nucleus pair
+      ctx.fillStyle = "rgba(180, 140, 110, 0.5)";
+      ctx.beginPath();
+      ctx.arc(m.x - sep / 2, m.y, r * 0.4, 0, Math.PI * 2);
+      ctx.arc(m.x + sep / 2, m.y, r * 0.4, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      // Two daughter cells lingering and fading.
+      var alpha = Math.max(0, 1 - afterPhase);
+      ctx.globalAlpha = alpha;
+      var sep = r * 1.6;
+      ctx.fillStyle = "rgba(245, 220, 192, 0.85)";
+      ctx.strokeStyle = "rgba(180, 140, 110, 0.7)";
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.arc(m.x - sep / 2, m.y, r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(m.x + sep / 2, m.y, r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = "rgba(180, 140, 110, 0.5)";
+      ctx.beginPath();
+      ctx.arc(m.x - sep / 2, m.y, r * 0.4, 0, Math.PI * 2);
+      ctx.arc(m.x + sep / 2, m.y, r * 0.4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  // -------- PATROL MACROPHAGES (decorative) ---------------------------
+  function ensurePatrol() {
+    if (state.patrol.length >= 2) return;
+    while (state.patrol.length < 2) {
+      var x, y, ok = false;
+      for (var attempt = 0; attempt < 20 && !ok; attempt++) {
+        x = FIELD_LEFT + 40 + Math.random() * (FIELD_W - 80);
+        y = FIELD_TOP + FIELD_H * 0.22 + Math.random() * FIELD_H * 0.50;
+        if (distPointToPath(x, y) > 70 * U) ok = true;
+      }
+      if (!ok) return;
+      state.patrol.push({
+        x: x, y: y,
+        vx: (Math.random() - 0.5) * 30 * U,
+        vy: (Math.random() - 0.5) * 30 * U,
+        nextTurnAt: state.time + 2 + Math.random() * 3,
+        scaredTimer: 0,
+        idlePhase: Math.random() * Math.PI * 2
+      });
+    }
+  }
+  function updatePatrol(dt) {
+    ensurePatrol();
+    for (var i = 0; i < state.patrol.length; i++) {
+      var m = state.patrol[i];
+      // Check enemy proximity -> get scared and run away.
+      var nearestEn = null, nearestD = Infinity;
+      for (var ej = 0; ej < state.enemies.length; ej++) {
+        var en = state.enemies[ej];
+        if (en.dead || en.absorbing || en.state === "falling" || en.state === "entering") continue;
+        var d = Math.hypot(en.x - m.x, en.y - m.y);
+        if (d < nearestD) { nearestD = d; nearestEn = en; }
+      }
+      if (nearestEn && nearestD < 80 * U) {
+        m.scaredTimer = 2.0;
+        // Push away from enemy.
+        var dx = m.x - nearestEn.x, dy = m.y - nearestEn.y;
+        var dn = Math.hypot(dx, dy) || 1;
+        m.vx = (dx / dn) * 50 * U;
+        m.vy = (dy / dn) * 50 * U;
+      } else if (m.scaredTimer > 0) {
+        m.scaredTimer -= dt;
+      } else if (state.time >= m.nextTurnAt) {
+        m.nextTurnAt = state.time + 3 + Math.random() * 2;
+        var ang = Math.random() * Math.PI * 2;
+        var sp = (15 + Math.random() * 20) * U;
+        m.vx = Math.cos(ang) * sp;
+        m.vy = Math.sin(ang) * sp;
+      }
+      m.x += m.vx * dt;
+      m.y += m.vy * dt;
+      // Avoid path
+      var dpath = distPointToPath(m.x, m.y);
+      if (dpath < 50 * U) {
+        // bounce away from path direction
+        m.vx = -m.vx;
+        m.vy = -m.vy;
+        m.x += m.vx * dt * 2;
+        m.y += m.vy * dt * 2;
+      }
+      // Soft bounds
+      var minY = FIELD_TOP + FIELD_H * 0.20;
+      var maxY = FIELD_BOTTOM - FIELD_H * 0.16;
+      if (m.x < FIELD_LEFT + 20) { m.x = FIELD_LEFT + 20; m.vx = Math.abs(m.vx); }
+      if (m.x > FIELD_RIGHT - 20) { m.x = FIELD_RIGHT - 20; m.vx = -Math.abs(m.vx); }
+      if (m.y < minY) { m.y = minY; m.vy = Math.abs(m.vy); }
+      if (m.y > maxY) { m.y = maxY; m.vy = -Math.abs(m.vy); }
+      m.idlePhase += dt * 1.2;
+    }
+  }
+  function drawPatrol() {
+    if (!state.patrol) return;
+    for (var i = 0; i < state.patrol.length; i++) {
+      var m = state.patrol[i];
+      var R = 14 * U;
+      var pulse = 1 + Math.sin(m.idlePhase) * 0.04;
+      drawShadow(m.x, m.y + R * 0.85, R * 0.85, R * 0.22);
+      ctx.save();
+      ctx.globalAlpha = 0.85;
+      ctx.translate(m.x, m.y);
+      // Pseudópodos
+      ctx.fillStyle = "#4A90E2";
+      for (var b = 0; b < 5; b++) {
+        var ang = b * Math.PI * 2 / 5 + state.time * 0.4;
+        ctx.beginPath();
+        ctx.arc(Math.cos(ang) * R * 0.9, Math.sin(ang) * R * 0.9, R * 0.30, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      // Body
+      var grad = ctx.createRadialGradient(-R * 0.3, -R * 0.3, R * 0.2, 0, 0, R * pulse);
+      grad.addColorStop(0, "#a7d0f6");
+      grad.addColorStop(0.6, "#4A90E2");
+      grad.addColorStop(1, "#2767a8");
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(0, 0, R * pulse, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "#2767a8";
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
+      // Tiny eyes — scared if scared
+      var eyeR = R * 0.16;
+      ctx.fillStyle = "#fff";
+      ctx.beginPath();
+      ctx.arc(-R * 0.25, -R * 0.05, eyeR, 0, Math.PI * 2);
+      ctx.arc( R * 0.25, -R * 0.05, eyeR, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#1a1a22";
+      var pupilOff = m.scaredTimer > 0 ? -eyeR * 0.3 : 0;
+      ctx.beginPath();
+      ctx.arc(-R * 0.25, -R * 0.05 + pupilOff, eyeR * 0.5, 0, Math.PI * 2);
+      ctx.arc( R * 0.25, -R * 0.05 + pupilOff, eyeR * 0.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
     }
   }
 
@@ -4055,13 +4301,18 @@
     drawSkinZone();
     drawCirculatoryZone();
     drawAmbient();
+    drawMitosis();
+    drawPatrol();
     drawTissue();
+    drawInflammation();
     drawPath();
     drawWound();
     drawLymphNode();
     drawRangeHint();
     for (var i = 0; i < state.towers.length; i++) drawTower(state.towers[i]);
     for (var j = 0; j < state.enemies.length; j++) drawEnemy(state.enemies[j]);
+    // Vessel drawn AFTER enemies so absorbing pathogens are visually
+    // covered by the torrent sprite (the failsafe for the long-standing bug).
     drawVessel();
     drawLymphDrop();
     for (var k = 0; k < state.projectiles.length; k++) drawProjectile(state.projectiles[k]);

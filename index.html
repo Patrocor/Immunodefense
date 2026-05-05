@@ -57,6 +57,219 @@
   var canvas = document.getElementById("canvas");
   var ctx = canvas.getContext("2d");
 
+  // -------- AUDIO (Web Audio API, all synthesized) -----------------------
+  var audio = {
+    ctx: null,
+    master: null,
+    musicBus: null,
+    musicNodes: null,
+    musicChordIdx: 0,
+    musicTimer: null,
+    musicMode: "idle",
+    muted: false,
+    initialized: false
+  };
+  try {
+    audio.muted = (typeof localStorage !== "undefined" &&
+      localStorage.getItem("immunodefense_muted") === "1");
+  } catch (e) {}
+
+  function initAudio() {
+    if (audio.initialized) return;
+    audio.initialized = true;
+    var AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) { audio.ctx = null; return; }
+    try {
+      audio.ctx = new AC();
+      audio.master = audio.ctx.createGain();
+      audio.master.gain.value = audio.muted ? 0 : 0.5;
+      audio.master.connect(audio.ctx.destination);
+      startMusic("ambient");
+    } catch (e) {
+      audio.ctx = null;
+    }
+  }
+  function ensureAudio() {
+    if (!audio.initialized) initAudio();
+    if (audio.ctx && audio.ctx.state === "suspended") {
+      try { audio.ctx.resume(); } catch (e) {}
+    }
+  }
+  function setMuted(m) {
+    audio.muted = m;
+    try { localStorage.setItem("immunodefense_muted", m ? "1" : "0"); } catch (e) {}
+    if (audio.master && audio.ctx) {
+      var t = audio.ctx.currentTime;
+      audio.master.gain.cancelScheduledValues(t);
+      audio.master.gain.linearRampToValueAtTime(m ? 0 : 0.5, t + 0.1);
+    }
+  }
+
+  function makeOsc(type, freq, t0, attack, hold, release, gain, dest) {
+    var ctxA = audio.ctx;
+    var o = ctxA.createOscillator();
+    var g = ctxA.createGain();
+    o.type = type;
+    o.frequency.setValueAtTime(freq, t0);
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(gain, t0 + attack);
+    g.gain.setValueAtTime(gain, t0 + attack + hold);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + attack + hold + release);
+    o.connect(g);
+    g.connect(dest || audio.master);
+    o.start(t0);
+    o.stop(t0 + attack + hold + release + 0.05);
+    return { o: o, g: g };
+  }
+
+  function makeNoise(t0, duration, gain, dest) {
+    var ctxA = audio.ctx;
+    var len = Math.max(1, Math.floor(ctxA.sampleRate * duration));
+    var buf = ctxA.createBuffer(1, len, ctxA.sampleRate);
+    var data = buf.getChannelData(0);
+    for (var i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / len);
+    var src = ctxA.createBufferSource();
+    src.buffer = buf;
+    var g = ctxA.createGain();
+    g.gain.value = gain;
+    src.connect(g);
+    g.connect(dest || audio.master);
+    src.start(t0);
+    return src;
+  }
+
+  function sfx(name) {
+    if (!audio.ctx || audio.muted) return;
+    var ctxA = audio.ctx;
+    var t = ctxA.currentTime;
+    if (name === "macroAttack") {
+      // Heavy thump
+      var n1 = makeOsc("sine", 90, t, 0.005, 0.02, 0.08, 0.55);
+      n1.o.frequency.exponentialRampToValueAtTime(45, t + 0.1);
+      makeNoise(t, 0.04, 0.10);
+    } else if (name === "linfBAttack") {
+      // Pew sweep
+      var p = makeOsc("square", 880, t, 0.005, 0.01, 0.07, 0.18);
+      p.o.frequency.exponentialRampToValueAtTime(440, t + 0.08);
+    } else if (name === "linfTAttack") {
+      // Sawtooth zap with vibrato
+      var z = makeOsc("sawtooth", 200, t, 0.01, 0.05, 0.15, 0.20);
+      var lfo = ctxA.createOscillator();
+      var lfoG = ctxA.createGain();
+      lfo.frequency.value = 22;
+      lfoG.gain.value = 30;
+      lfo.connect(lfoG);
+      lfoG.connect(z.o.frequency);
+      lfo.start(t);
+      lfo.stop(t + 0.25);
+    } else if (name === "enemyDie") {
+      var d = makeOsc("sine", 600, t, 0.003, 0.02, 0.13, 0.30);
+      d.o.frequency.exponentialRampToValueAtTime(180, t + 0.15);
+      makeNoise(t, 0.05, 0.18);
+    } else if (name === "playerHurt") {
+      makeOsc("sine", 220, t, 0.005, 0.05, 0.08, 0.4);
+      makeOsc("sine", 220, t + 0.13, 0.005, 0.05, 0.08, 0.35);
+    } else if (name === "place") {
+      makeOsc("sine", 523.25, t, 0.005, 0.04, 0.08, 0.30);
+      makeOsc("sine", 659.25, t + 0.10, 0.005, 0.05, 0.10, 0.30);
+    } else if (name === "sell") {
+      var s = makeOsc("triangle", 700, t, 0.005, 0.02, 0.12, 0.25);
+      s.o.frequency.exponentialRampToValueAtTime(280, t + 0.13);
+    } else if (name === "upgrade") {
+      makeOsc("sine", 523.25, t, 0.005, 0.03, 0.06, 0.30);
+      makeOsc("sine", 659.25, t + 0.07, 0.005, 0.03, 0.06, 0.30);
+      makeOsc("sine", 783.99, t + 0.14, 0.005, 0.04, 0.10, 0.32);
+    } else if (name === "tick") {
+      makeOsc("sine", 1000, t, 0.001, 0.005, 0.025, 0.18);
+    } else if (name === "wave") {
+      makeOsc("sine", 440, t, 0.01, 0.05, 0.40, 0.30);
+      makeOsc("sine", 660, t + 0.04, 0.01, 0.05, 0.36, 0.18);
+    } else if (name === "victory") {
+      var notes = [523.25, 659.25, 783.99, 1046.5];
+      for (var i = 0; i < notes.length; i++) {
+        makeOsc("sine", notes[i], t + i * 0.1, 0.005, 0.05, 0.20, 0.30);
+      }
+    } else if (name === "defeat") {
+      var dd = makeOsc("sine", 440, t, 0.02, 0.10, 0.90, 0.35);
+      dd.o.frequency.exponentialRampToValueAtTime(220, t + 1.0);
+      var dh = makeOsc("sine", 220, t + 0.05, 0.02, 0.10, 0.90, 0.20);
+      dh.o.frequency.exponentialRampToValueAtTime(110, t + 1.0);
+    }
+  }
+
+  function startMusic(mode) {
+    if (!audio.ctx) return;
+    stopMusic();
+    audio.musicMode = mode;
+    var ctxA = audio.ctx;
+    var bus = ctxA.createGain();
+    bus.gain.value = mode === "victory" ? 0.10 : 0.08;
+    bus.connect(audio.master);
+    audio.musicBus = bus;
+    var filter = ctxA.createBiquadFilter();
+    filter.type = "lowpass";
+    filter.frequency.value = 600;
+    filter.Q.value = 0.7;
+    filter.connect(bus);
+
+    function voice(freq, type, gain, detune) {
+      var o = ctxA.createOscillator();
+      o.type = type;
+      o.frequency.value = freq;
+      if (detune) o.detune.value = detune;
+      var g = ctxA.createGain();
+      g.gain.value = gain;
+      o.connect(g);
+      g.connect(filter);
+      o.start();
+      return { o: o, g: g };
+    }
+    // Drone roots (Hz). Ambient minor for game, warm major for victory.
+    var roots = mode === "victory"
+      ? [130.81, 164.81, 196.00, 246.94] // C-E-G-B
+      : [110.00, 82.41, 87.31, 130.81];   // A-E-F-C (minor feel)
+    audio.musicNodes = {
+      bass: voice(roots[0], "sine", 0.65, 0),
+      harm: voice(roots[0] * 3, "sine", 0.22, 6),
+      pad:  voice(roots[0] * 2, "triangle", 0.10, -4),
+      filter: filter
+    };
+    audio.musicChordIdx = 0;
+    var len = mode === "victory" ? 6 : 5;
+    audio.musicTimer = setInterval(function () {
+      if (!audio.ctx || audio.muted) return;
+      audio.musicChordIdx = (audio.musicChordIdx + 1) % roots.length;
+      var tt = audio.ctx.currentTime;
+      var r = roots[audio.musicChordIdx];
+      var n = audio.musicNodes;
+      n.bass.o.frequency.linearRampToValueAtTime(r, tt + 0.5);
+      n.harm.o.frequency.linearRampToValueAtTime(r * 3, tt + 0.5);
+      n.pad.o.frequency.linearRampToValueAtTime(r * 2, tt + 0.6);
+      n.filter.frequency.cancelScheduledValues(tt);
+      n.filter.frequency.setValueAtTime(n.filter.frequency.value, tt);
+      n.filter.frequency.linearRampToValueAtTime(380 + Math.random() * 700, tt + len * 0.6);
+    }, len * 1000);
+  }
+  function stopMusic() {
+    if (audio.musicTimer) { clearInterval(audio.musicTimer); audio.musicTimer = null; }
+    if (audio.musicNodes && audio.ctx) {
+      var t = audio.ctx.currentTime;
+      var keys = ["bass", "harm", "pad"];
+      for (var i = 0; i < keys.length; i++) {
+        var n = audio.musicNodes[keys[i]];
+        if (n) {
+          try {
+            n.g.gain.cancelScheduledValues(t);
+            n.g.gain.linearRampToValueAtTime(0.0001, t + 0.4);
+            n.o.stop(t + 0.6);
+          } catch (e) {}
+        }
+      }
+    }
+    audio.musicNodes = null;
+    audio.musicBus = null;
+  }
+
   // -------- LAYOUT (recomputed on resize) --------------------------------
   var VW = 0, VH = 0, dpr = 1;
   var safeTop = 0, safeBottom = 0, safeLeft = 0, safeRight = 0;
@@ -326,6 +539,8 @@
       enemies: [],
       projectiles: [],
       effects: [],
+      damageNumbers: [],
+      goldParticles: [],
       ambient: [],
       selectedToBuild: null,
       selectedTower: null,
@@ -341,16 +556,38 @@
       shakeMag: 0,
       waveBannerTimer: 0,
       waveBannerText: "",
-      confettiSpawned: false
+      rangeHint: null,
+      kills: 0,
+      endRevealTimer: 0,
+      endMusicSwitched: false
     };
   }
   state = newState();
 
   var MAX_EFFECTS = 80;
+  var MAX_DAMAGE_NUMBERS = 20;
   function pushEffect(ef) {
     if (state.effects.length >= MAX_EFFECTS) state.effects.shift();
     state.effects.push(ef);
   }
+  function pushDamageNumber(x, y, text, color) {
+    if (state.damageNumbers.length >= MAX_DAMAGE_NUMBERS) state.damageNumbers.shift();
+    state.damageNumbers.push({
+      x: x, y: y, startY: y,
+      text: text,
+      color: color || "#FFD93D",
+      life: 0.6, max: 0.6
+    });
+  }
+  function setRangeHint(x, y, range, color, source) {
+    state.rangeHint = {
+      x: x, y: y, range: range,
+      color: color || "rgba(255,255,255,1)",
+      source: source || "build",
+      time: state.time
+    };
+  }
+  function clearRangeHint() { state.rangeHint = null; }
 
   // -------- UI RECTS (recomputed in layoutUI) ----------------------------
   var UI = {};
@@ -361,12 +598,13 @@
     var rightX = VW - safeRight - 8;
 
     UI.restartBtn = { x: rightX - btnH, y: topY, w: btnH, h: btnH };
+    UI.muteBtn = { x: UI.restartBtn.x - btnH - 4, y: topY, w: btnH, h: btnH };
     // Next-wave button width: portrait keeps it tight so stats fit beside it.
     var nwMaxByStats = isPortrait
-      ? VW - safeLeft - safeRight - btnH - 24 - 165 // reserve ~165px for compact stats
+      ? VW - safeLeft - safeRight - btnH * 2 - 28 - 165
       : VW * 0.4;
     var nwW = Math.min(220, Math.max(110, nwMaxByStats));
-    UI.nextWaveBtn = { x: UI.restartBtn.x - nwW - 8, y: topY, w: nwW, h: btnH };
+    UI.nextWaveBtn = { x: UI.muteBtn.x - nwW - 8, y: topY, w: nwW, h: btnH };
 
     var panelTop = VH - PANEL_H + 8;
     var panelInner = PANEL_H - 16 - safeBottom;
@@ -457,8 +695,9 @@
       }
       t += 0.6;
     }
-    state.waveBannerText = "OLEADA " + state.waveIdx;
-    state.waveBannerTimer = 1.4;
+    state.waveBannerText = "Oleada " + state.waveIdx;
+    state.waveBannerTimer = 1.2;
+    sfx("wave");
     showMsg("Oleada " + state.waveIdx + " iniciada");
   }
 
@@ -473,7 +712,13 @@
       y: PATH.points[0].y,
       wobble: Math.random() * Math.PI * 2,
       hitFlash: 0,
+      hurtTimer: 0,
+      dyingTimer: 0,
+      dying: false,
+      enraged: false,
       sporeTimer: Math.random() * 1.5,
+      blinkTimer: 0,
+      nextBlink: state.time + 2 + Math.random() * 3,
       dead: false
     });
   }
@@ -500,6 +745,7 @@
       state.atp += bonus;
       if (state.waveIdx >= WAVES.length) {
         state.victory = true;
+        sfx("victory");
         showMsg("VICTORIA");
       } else {
         showMsg("Oleada superada (+" + bonus + " ATP)");
@@ -512,10 +758,31 @@
     for (var i = 0; i < state.enemies.length; i++) {
       var e = state.enemies[i];
       if (e.dead) continue;
+      // Blink ticks for everyone, even dying.
+      if (e.blinkTimer > 0) e.blinkTimer -= dt;
+      else if (state.time >= e.nextBlink) {
+        e.blinkTimer = 0.10;
+        e.nextBlink = state.time + 2.5 + Math.random() * 3;
+      }
+      if (e.hurtTimer > 0) e.hurtTimer -= dt;
+      if (e.hitFlash > 0) e.hitFlash -= dt;
+      if (e.dying) {
+        e.dyingTimer -= dt;
+        if (e.dyingTimer <= 0) {
+          e.dead = true;
+          spawnEffect("death", e.x, e.y, e.def.color);
+          sfx("enemyDie");
+          state.kills += 1;
+        }
+        continue;
+      }
+      // Boss enraged check
+      if (e.def.isBoss && !e.enraged && e.hp / e.maxHp < 0.5) {
+        e.enraged = true;
+      }
       var pxSpeed = e.def.speedMult * BASE_SPEED * U;
       e.progress += pxSpeed * dt;
       e.wobble += dt * 6;
-      if (e.hitFlash > 0) e.hitFlash -= dt;
       if (e.sporeTimer !== undefined) {
         e.sporeTimer -= dt;
         if (e.def.id === "hongo" && e.sporeTimer <= 0) {
@@ -537,10 +804,12 @@
         state.lives -= damageToPlayer;
         triggerShake(0.4, damageToPlayer >= 5 ? 8 : 5);
         spawnEffect("escape", e.x, e.y);
+        sfx("playerHurt");
         if (state.lives <= 0) {
           state.lives = 0;
           state.gameOver = true;
           showMsg("DERROTA");
+          if (audio.ctx) sfx("defeat");
         }
       } else {
         var p = pathPos(e.progress);
@@ -580,11 +849,15 @@
       cooldown: 0,
       muzzleFlash: 0,
       attackAnim: 0,
+      levelupAnim: 0,
       idlePhase: Math.random() * Math.PI * 2,
+      blinkTimer: 0,
+      nextBlink: state.time + 2 + Math.random() * 3,
       placedAt: state.time
     });
     pushEffect({ kind: "place", x: x, y: y, life: 0.6, max: 0.6, color: def.color });
     pushEffect({ kind: "placeFlash", x: x, y: y, life: 0.25, max: 0.25 });
+    sfx("place");
   }
 
   function towerStats(t) { return t.def.levels[t.level]; }
@@ -592,6 +865,14 @@
   function updateTowers(dt) {
     for (var i = 0; i < state.towers.length; i++) {
       var t = state.towers[i];
+      // Blink ticks
+      if (t.blinkTimer > 0) t.blinkTimer -= dt;
+      else if (state.time >= t.nextBlink) {
+        t.blinkTimer = 0.10;
+        t.nextBlink = state.time + 2.5 + Math.random() * 3;
+      }
+      if (t.attackAnim > 0) t.attackAnim -= dt;
+      if (t.levelupAnim > 0) t.levelupAnim -= dt;
       if (t.cooldown > 0) t.cooldown -= dt;
       if (t.muzzleFlash > 0) t.muzzleFlash -= dt;
       if (t.cooldown > 0) continue;
@@ -600,7 +881,7 @@
       var target = null, bestProgress = -1;
       for (var j = 0; j < state.enemies.length; j++) {
         var e = state.enemies[j];
-        if (e.dead) continue;
+        if (e.dead || e.dying) continue;
         var d = Math.hypot(e.x - t.x, e.y - t.y);
         if (d <= rangePx && e.progress > bestProgress) {
           bestProgress = e.progress;
@@ -611,7 +892,10 @@
         fireTower(t, target);
         t.cooldown = 1 / stats.fireRate;
         t.muzzleFlash = 0.08;
-        t.attackAnim = 0.3;
+        t.attackAnim = 0.20;
+        if (t.def.id === "macrofago") sfx("macroAttack");
+        else if (t.def.id === "linfocitoB") sfx("linfBAttack");
+        else sfx("linfTAttack");
       }
     }
   }
@@ -637,20 +921,20 @@
   }
 
   function damageEnemy(e, amount) {
-    if (e.dead) return;
+    if (e.dead || e.dying) return;
     e.hp -= amount;
     e.hitFlash = 0.18;
-    pushEffect({
-      kind: "dmgText",
-      x: e.x + (Math.random() * 12 - 6) * U,
-      y: e.y - e.def.radius * U,
-      vy: -32 * U,
-      text: "-" + amount,
-      life: 0.55, max: 0.55,
-      color: "#fff8b0"
-    });
+    e.hurtTimer = 0.15;
+    pushDamageNumber(
+      e.x + (Math.random() * 12 - 6) * U,
+      e.y - e.def.radius * U - 2 * U,
+      "-" + amount,
+      "#FFD93D"
+    );
     if (e.hp <= 0) {
-      e.dead = true;
+      e.hp = 0;
+      e.dying = true;
+      e.dyingTimer = 0.30;
       state.atp += e.def.reward;
       pushEffect({
         kind: "atpText",
@@ -660,7 +944,6 @@
         life: 0.85, max: 0.85,
         color: "#f5d76e"
       });
-      spawnEffect("death", e.x, e.y, e.def.color);
     }
   }
 
@@ -669,7 +952,7 @@
     for (var i = 0; i < state.projectiles.length; i++) {
       var p = state.projectiles[i];
       if (p.dead) continue;
-      if (!p.target || p.target.dead) { p.dead = true; continue; }
+      if (!p.target || p.target.dead || p.target.dying) { p.dead = true; continue; }
       var dx = p.target.x - p.x, dy = p.target.y - p.y;
       var d = Math.hypot(dx, dy);
       var step = p.speedDesign * U * dt;
@@ -678,7 +961,7 @@
         if (splashPx > 0) {
           for (var j = 0; j < state.enemies.length; j++) {
             var e = state.enemies[j];
-            if (e.dead) continue;
+            if (e.dead || e.dying) continue;
             if (Math.hypot(e.x - p.target.x, e.y - p.target.y) <= splashPx) {
               damageEnemy(e, p.damage);
             }
@@ -767,8 +1050,45 @@
       }
     }
     state.effects = state.effects.filter(function (e) { return e.life > 0; });
+    // Damage numbers (separate cap=20)
+    for (var dn = 0; dn < state.damageNumbers.length; dn++) {
+      var d = state.damageNumbers[dn];
+      d.life -= dt;
+      d.y = d.startY - 30 * (1 - d.life / d.max) * U;
+    }
+    state.damageNumbers = state.damageNumbers.filter(function (d) { return d.life > 0; });
+    // Gold particles (victory ambience)
+    for (var gp = 0; gp < state.goldParticles.length; gp++) {
+      var p = state.goldParticles[gp];
+      p.life -= dt;
+      p.y -= p.vy * dt;
+      p.x += Math.sin(state.time * 1.5 + p.phase) * 12 * dt;
+    }
+    state.goldParticles = state.goldParticles.filter(function (p) { return p.life > 0; });
+    if (state.victory) {
+      while (state.goldParticles.length < 14) {
+        state.goldParticles.push({
+          x: Math.random() * VW,
+          y: VH * 0.6 + Math.random() * VH * 0.4,
+          vy: 18 + Math.random() * 22,
+          life: 4 + Math.random() * 3,
+          max: 6,
+          size: (2 + Math.random() * 3) * U,
+          phase: Math.random() * Math.PI * 2,
+          alpha: 0.4 + Math.random() * 0.4
+        });
+      }
+    }
     if (state.shakeTimer > 0) state.shakeTimer -= dt;
     if (state.waveBannerTimer > 0) state.waveBannerTimer -= dt;
+    if (state.endRevealTimer < 0.5 && (state.victory || state.gameOver)) {
+      state.endRevealTimer += dt;
+    }
+    // Switch music to victory mode once
+    if (state.victory && !state.endMusicSwitched) {
+      state.endMusicSwitched = true;
+      if (audio.ctx) startMusic("victory");
+    }
     updateAmbient(dt);
   }
 
@@ -838,6 +1158,12 @@
     if (y < FIELD_TOP) {
       if (inRect(x, y, UI.restartBtn)) {
         state.confirmRestart = true;
+        sfx("tick");
+        return;
+      }
+      if (inRect(x, y, UI.muteBtn)) {
+        setMuted(!audio.muted);
+        sfx("tick");
         return;
       }
       if (inRect(x, y, UI.nextWaveBtn) && !state.waveActive && state.waveIdx < WAVES.length) {
@@ -852,8 +1178,23 @@
         if (inRect(x, y, UI.cards[i])) {
           var typeId = TOWER_LIST[i];
           if (state.atp >= TOWER_DEFS[typeId].cost) {
+            var prev = state.selectedToBuild;
             state.selectedToBuild = state.selectedToBuild === typeId ? null : typeId;
             state.selectedTower = null;
+            sfx("tick");
+            // Show range hint at center of field as initial preview.
+            if (state.selectedToBuild) {
+              var def = TOWER_DEFS[state.selectedToBuild];
+              setRangeHint(
+                FIELD_LEFT + FIELD_W * 0.5,
+                FIELD_TOP + FIELD_H * 0.5,
+                def.levels[0].range * U,
+                def.color,
+                "build"
+              );
+            } else {
+              clearRangeHint();
+            }
           } else {
             flashFail();
           }
@@ -861,10 +1202,19 @@
         }
       }
       if (state.selectedTower) {
-        if (inRect(x, y, UI.deselectBtn)) { state.selectedTower = null; return; }
-        if (inRect(x, y, UI.sellBtn)) { sellTower(state.selectedTower); return; }
+        if (inRect(x, y, UI.deselectBtn)) {
+          state.selectedTower = null;
+          clearRangeHint();
+          sfx("tick");
+          return;
+        }
+        if (inRect(x, y, UI.sellBtn)) { sellTower(state.selectedTower); clearRangeHint(); return; }
         if (state.selectedTower.level < 2 && inRect(x, y, UI.upgradeBtn)) {
-          tryUpgrade(state.selectedTower); return;
+          tryUpgrade(state.selectedTower);
+          // refresh hint to show new range
+          var stt = towerStats(state.selectedTower);
+          setRangeHint(state.selectedTower.x, state.selectedTower.y, stt.range * U, state.selectedTower.def.color, "tower");
+          return;
         }
       }
       return;
@@ -876,20 +1226,35 @@
         if (state.atp >= def.cost) {
           state.atp -= def.cost;
           placeTower(x, y, state.selectedToBuild);
-          if (state.atp < def.cost) state.selectedToBuild = null;
+          if (state.atp < def.cost) {
+            state.selectedToBuild = null;
+            clearRangeHint();
+          } else {
+            // Keep build mode; update hint to last placed location
+            setRangeHint(x, y, def.levels[0].range * U, def.color, "build");
+          }
         }
       } else {
+        // Update hint to current spot (red) and shake field border.
+        setRangeHint(x, y, TOWER_DEFS[state.selectedToBuild].levels[0].range * U, "rgba(220,80,80,1)", "build");
         flashFail();
       }
       return;
     }
-    // Try to select an existing tower (range indicator shows on selection).
+    // Try to select an existing tower.
     var picked = null;
     for (var t = 0; t < state.towers.length; t++) {
       var tw = state.towers[t];
-      if (Math.hypot(tw.x - x, tw.y - y) <= 24 * U) { picked = tw; break; }
+      if (Math.hypot(tw.x - x, tw.y - y) <= 32 * U) { picked = tw; break; }
     }
     state.selectedTower = picked;
+    if (picked) {
+      var ps = towerStats(picked);
+      setRangeHint(picked.x, picked.y, ps.range * U, picked.def.color, "tower");
+      sfx("tick");
+    } else {
+      clearRangeHint();
+    }
   }
 
   function canPlaceTowerAt(x, y) {
@@ -909,6 +1274,8 @@
     if (state.atp < cost) { flashFail(); return; }
     state.atp -= cost;
     t.level += 1;
+    t.levelupAnim = 0.5;
+    sfx("upgrade");
     showMsg(t.def.name + " mejorado a Nv " + (t.level + 1));
   }
 
@@ -918,6 +1285,7 @@
     state.atp += refund;
     state.towers = state.towers.filter(function (x) { return x !== t; });
     state.selectedTower = null;
+    sfx("sell");
     showMsg("Vendido (+" + refund + " ATP)");
   }
 
@@ -926,6 +1294,7 @@
 
   function onPointerDown(evt) {
     evt.preventDefault();
+    ensureAudio();
     var p = canvasPosFromEvent(evt);
     state.pointer.x = p.x; state.pointer.y = p.y; state.pointer.isOver = true;
     handleClick(p.x, p.y);
@@ -933,6 +1302,11 @@
   function onPointerMove(evt) {
     var p = canvasPosFromEvent(evt);
     state.pointer.x = p.x; state.pointer.y = p.y; state.pointer.isOver = true;
+    // While building, follow finger/cursor with the range hint inside the field.
+    if (state.selectedToBuild && p.y >= FIELD_TOP && p.y < FIELD_BOTTOM) {
+      var def = TOWER_DEFS[state.selectedToBuild];
+      setRangeHint(p.x, p.y, def.levels[0].range * U, def.color, "build");
+    }
   }
   function onPointerLeave() { state.pointer.isOver = false; }
 
@@ -940,17 +1314,32 @@
   canvas.addEventListener("pointermove", onPointerMove);
   canvas.addEventListener("pointerleave", onPointerLeave);
   canvas.addEventListener("contextmenu", function (e) { e.preventDefault(); });
+  function selectBuildType(typeId) {
+    state.selectedToBuild = typeId;
+    state.selectedTower = null;
+    var def = TOWER_DEFS[typeId];
+    setRangeHint(
+      FIELD_LEFT + FIELD_W * 0.5,
+      FIELD_TOP + FIELD_H * 0.5,
+      def.levels[0].range * U,
+      def.color,
+      "build"
+    );
+  }
   document.addEventListener("keydown", function (e) {
     if (e.key === " " || e.code === "Space") {
       e.preventDefault();
+      ensureAudio();
       if (state.confirmRestart) { state.confirmRestart = false; return; }
       if (!state.waveActive && !state.gameOver && !state.victory) startNextWave();
     } else if (e.key === "Escape") {
       if (state.confirmRestart) state.confirmRestart = false;
-      else { state.selectedToBuild = null; state.selectedTower = null; }
-    } else if (e.key === "1") { state.selectedToBuild = "macrofago"; state.selectedTower = null;
-    } else if (e.key === "2") { state.selectedToBuild = "linfocitoB"; state.selectedTower = null;
-    } else if (e.key === "3") { state.selectedToBuild = "linfocitoT"; state.selectedTower = null;
+      else { state.selectedToBuild = null; state.selectedTower = null; clearRangeHint(); }
+    } else if (e.key === "1") { selectBuildType("macrofago");
+    } else if (e.key === "2") { selectBuildType("linfocitoB");
+    } else if (e.key === "3") { selectBuildType("linfocitoT");
+    } else if (e.key === "m" || e.key === "M") {
+      setMuted(!audio.muted);
     } else if (e.key === "r" || e.key === "R") {
       state.confirmRestart = true;
     }
@@ -1055,6 +1444,115 @@
     ctx.beginPath();
     ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2);
     ctx.fill();
+  }
+
+  function drawClosedEyes(cx, cy, eyeR, gapX) {
+    ctx.strokeStyle = "#1a1a22";
+    ctx.lineWidth = Math.max(1.4, 1.6 * U);
+    ctx.lineCap = "round";
+    var lx = cx - gapX, rx = cx + gapX;
+    ctx.beginPath();
+    ctx.moveTo(lx - eyeR, cy);
+    ctx.quadraticCurveTo(lx, cy + eyeR * 0.45, lx + eyeR, cy);
+    ctx.moveTo(rx - eyeR, cy);
+    ctx.quadraticCurveTo(rx, cy + eyeR * 0.45, rx + eyeR, cy);
+    ctx.stroke();
+  }
+
+  function drawXEyes(cx, cy, eyeR, gapX, color) {
+    ctx.strokeStyle = color || "#1a1a22";
+    ctx.lineWidth = Math.max(1.6, 1.9 * U);
+    ctx.lineCap = "round";
+    var lx = cx - gapX, rx = cx + gapX;
+    ctx.beginPath();
+    ctx.moveTo(lx - eyeR * 0.85, cy - eyeR * 0.85);
+    ctx.lineTo(lx + eyeR * 0.85, cy + eyeR * 0.85);
+    ctx.moveTo(lx + eyeR * 0.85, cy - eyeR * 0.85);
+    ctx.lineTo(lx - eyeR * 0.85, cy + eyeR * 0.85);
+    ctx.moveTo(rx - eyeR * 0.85, cy - eyeR * 0.85);
+    ctx.lineTo(rx + eyeR * 0.85, cy + eyeR * 0.85);
+    ctx.moveTo(rx + eyeR * 0.85, cy - eyeR * 0.85);
+    ctx.lineTo(rx - eyeR * 0.85, cy + eyeR * 0.85);
+    ctx.stroke();
+  }
+
+  function drawSparkleEyes(cx, cy, eyeR, gapX) {
+    var lx = cx - gapX, rx = cx + gapX;
+    ctx.fillStyle = "#fff";
+    ctx.beginPath();
+    ctx.arc(lx, cy, eyeR * 1.05, 0, Math.PI * 2);
+    ctx.arc(rx, cy, eyeR * 1.05, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#1a1a22";
+    ctx.beginPath();
+    ctx.arc(lx, cy, eyeR * 0.62, 0, Math.PI * 2);
+    ctx.arc(rx, cy, eyeR * 0.62, 0, Math.PI * 2);
+    ctx.fill();
+    function star(sx, sy, r) {
+      ctx.beginPath();
+      for (var i = 0; i < 8; i++) {
+        var a = i * Math.PI / 4;
+        var rr = (i % 2) ? r * 0.4 : r;
+        var px = sx + Math.cos(a) * rr;
+        var py = sy + Math.sin(a) * rr;
+        if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+      }
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.fillStyle = "#fffacd";
+    star(lx + eyeR * 0.20, cy - eyeR * 0.30, eyeR * 0.45);
+    star(rx + eyeR * 0.20, cy - eyeR * 0.30, eyeR * 0.45);
+  }
+
+  function drawFocusedEyes(cx, cy, eyeR, gapX, browAngle, browLift) {
+    // Narrowed/focused eyes for attacking state.
+    var lx = cx - gapX, rx = cx + gapX;
+    ctx.fillStyle = "#fff";
+    ctx.beginPath();
+    ctx.ellipse(lx, cy, eyeR, eyeR * 0.55, 0, 0, Math.PI * 2);
+    ctx.ellipse(rx, cy, eyeR, eyeR * 0.55, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "rgba(0,0,0,0.55)";
+    ctx.lineWidth = Math.max(0.8, 1 * U);
+    ctx.beginPath();
+    ctx.ellipse(lx, cy, eyeR, eyeR * 0.55, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.ellipse(rx, cy, eyeR, eyeR * 0.55, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.fillStyle = "#1a1a22";
+    ctx.beginPath();
+    ctx.arc(lx, cy, eyeR * 0.50, 0, Math.PI * 2);
+    ctx.arc(rx, cy, eyeR * 0.50, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "#1a1a22";
+    ctx.lineWidth = Math.max(1.4, 1.6 * U);
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(lx - eyeR * 0.9, cy - eyeR * 0.9 - browLift + browAngle);
+    ctx.lineTo(lx + eyeR * 0.6, cy - eyeR * 0.9 - browLift - browAngle);
+    ctx.moveTo(rx - eyeR * 0.6, cy - eyeR * 0.9 - browLift - browAngle);
+    ctx.lineTo(rx + eyeR * 0.9, cy - eyeR * 0.9 - browLift + browAngle);
+    ctx.stroke();
+  }
+
+  function drawHurtEyes(cx, cy, eyeR, gapX) {
+    // Squinted "ouch" eyes
+    ctx.strokeStyle = "#1a1a22";
+    ctx.lineWidth = Math.max(1.4, 1.7 * U);
+    ctx.lineCap = "round";
+    var lx = cx - gapX, rx = cx + gapX;
+    ctx.beginPath();
+    ctx.moveTo(lx - eyeR * 0.9, cy - eyeR * 0.5);
+    ctx.lineTo(lx + eyeR * 0.9, cy + eyeR * 0.4);
+    ctx.moveTo(lx - eyeR * 0.9, cy + eyeR * 0.4);
+    ctx.lineTo(lx + eyeR * 0.9, cy - eyeR * 0.5);
+    ctx.moveTo(rx - eyeR * 0.9, cy - eyeR * 0.5);
+    ctx.lineTo(rx + eyeR * 0.9, cy + eyeR * 0.4);
+    ctx.moveTo(rx - eyeR * 0.9, cy + eyeR * 0.4);
+    ctx.lineTo(rx + eyeR * 0.9, cy - eyeR * 0.5);
+    ctx.stroke();
   }
 
   function drawAnimeEyes(cx, cy, eyeR, gapX, pupilOffsetX, pupilOffsetY, browAngle, browLift, mood) {
@@ -1162,12 +1660,13 @@
 
   function drawTower(t) {
     var stats = towerStats(t);
-    if (state.selectedTower === t) {
-      drawRangeIndicator(t.x, t.y, stats.range * U);
-    }
     var idle = Math.sin(state.time * Math.PI + (t.idlePhase || 0));
     var pulse = 1 + idle * 0.025;
     var attacking = (t.attackAnim || 0) > 0;
+    var levelup = (t.levelupAnim || 0) > 0;
+    var blink = (t.blinkTimer || 0) > 0;
+    var expression = levelup ? "levelup" : attacking ? "attacking" : "idle";
+    if (levelup) pulse *= 1.10;
     drawShadow(t.x, t.y + 18 * U, 18 * U, 5 * U);
     if (t.muzzleFlash > 0) {
       ctx.fillStyle = "rgba(255, 245, 200, 0.45)";
@@ -1175,9 +1674,21 @@
       ctx.arc(t.x, t.y, 28 * U, 0, Math.PI * 2);
       ctx.fill();
     }
-    if (t.def.id === "macrofago") drawMacrofago(t, pulse, attacking);
-    else if (t.def.id === "linfocitoB") drawLinfocitoB(t, pulse, attacking);
-    else drawLinfocitoT(t, pulse, attacking);
+    if (t.def.id === "macrofago") drawMacrofago(t, pulse, expression, blink);
+    else if (t.def.id === "linfocitoB") drawLinfocitoB(t, pulse, expression, blink);
+    else drawLinfocitoT(t, pulse, expression, blink);
+    // Level-up sparkles
+    if (levelup) {
+      var lp = (t.levelupAnim / 0.5);
+      for (var s = 0; s < 6; s++) {
+        var sa = state.time * 4 + s * Math.PI / 3;
+        var sr = (28 + (1 - lp) * 22) * U;
+        ctx.fillStyle = "rgba(255, 230, 130, " + lp + ")";
+        ctx.beginPath();
+        ctx.arc(t.x + Math.cos(sa) * sr, t.y + Math.sin(sa) * sr, 2.4 * U, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
     // Level pips above sprite
     ctx.fillStyle = t.def.colorDark;
     var pipsY = t.y - 22 * U;
@@ -1188,7 +1699,7 @@
     }
   }
 
-  function drawMacrofago(t, pulse, attacking) {
+  function drawMacrofago(t, pulse, expression, blink) {
     var x = t.x, y = t.y;
     var R = 20 * U * pulse;
     ctx.save();
@@ -1217,15 +1728,24 @@
     ctx.strokeStyle = t.def.colorDark;
     ctx.lineWidth = Math.max(1.2, 1.5 * U);
     ctx.stroke();
-    // Face
+    // Face — expression-aware
     var eyeR = R * 0.20;
-    drawAnimeEyes(0, -R * 0.10, eyeR, R * 0.30, 0, 0, R * 0.10, R * 0.10, "fierce");
-    if (attacking) drawAnimeMouth(0, R * 0.30, R * 0.55, R * 0.55, "open");
+    if (blink) {
+      drawClosedEyes(0, -R * 0.10, eyeR, R * 0.30);
+    } else if (expression === "levelup") {
+      drawSparkleEyes(0, -R * 0.10, eyeR, R * 0.30);
+    } else if (expression === "attacking") {
+      drawFocusedEyes(0, -R * 0.10, eyeR, R * 0.30, R * 0.14, R * 0.05);
+    } else {
+      drawAnimeEyes(0, -R * 0.10, eyeR, R * 0.30, 0, 0, R * 0.10, R * 0.10, "fierce");
+    }
+    if (expression === "levelup") drawAnimeMouth(0, R * 0.30, R * 0.55, R * 0.30, "smile");
+    else if (expression === "attacking") drawAnimeMouth(0, R * 0.30, R * 0.55, R * 0.55, "open");
     else drawAnimeMouth(0, R * 0.32, R * 0.40, R * 0.20, "serious");
     ctx.restore();
   }
 
-  function drawLinfocitoB(t, pulse, attacking) {
+  function drawLinfocitoB(t, pulse, expression, blink) {
     var x = t.x, y = t.y;
     var R = 18 * U * pulse;
     ctx.save();
@@ -1250,9 +1770,12 @@
     ctx.strokeStyle = t.def.colorDark;
     ctx.lineWidth = Math.max(1.2, 1.5 * U);
     ctx.stroke();
-    // Face
+    // Face — expression-aware
     var eyeR = R * 0.22;
-    drawAnimeEyes(0, -R * 0.10, eyeR, R * 0.32, 0, 0, 0, 0, "happy");
+    if (blink) drawClosedEyes(0, -R * 0.10, eyeR, R * 0.32);
+    else if (expression === "levelup") drawSparkleEyes(0, -R * 0.10, eyeR, R * 0.32);
+    else if (expression === "attacking") drawFocusedEyes(0, -R * 0.10, eyeR, R * 0.32, R * 0.10, R * 0.04);
+    else drawAnimeEyes(0, -R * 0.10, eyeR, R * 0.32, 0, 0, 0, 0, "happy");
     drawAnimeMouth(0, R * 0.32, R * 0.55, R * 0.30, "smile");
     ctx.restore();
   }
@@ -1283,7 +1806,7 @@
     ctx.restore();
   }
 
-  function drawLinfocitoT(t, pulse, attacking) {
+  function drawLinfocitoT(t, pulse, expression, blink) {
     var x = t.x, y = t.y;
     var R = 19 * U * pulse;
     ctx.save();
@@ -1313,21 +1836,33 @@
       ctx.arc(gx, gy, R * 0.10 * (0.7 + gp * 0.3), 0, Math.PI * 2);
       ctx.fill();
     }
-    // Face — sharper, colder
+    // Face — sharper, colder; expression-aware
     var eyeR = R * 0.20;
-    drawAnimeEyes(0, -R * 0.08, eyeR, R * 0.30, 0, 0, R * 0.14, R * 0.05, "fierce");
-    drawAnimeMouth(0, R * 0.32, R * 0.40, R * 0.20, "neutral");
+    if (blink) drawClosedEyes(0, -R * 0.08, eyeR, R * 0.30);
+    else if (expression === "levelup") drawSparkleEyes(0, -R * 0.08, eyeR, R * 0.30);
+    else if (expression === "attacking") drawFocusedEyes(0, -R * 0.08, eyeR, R * 0.30, R * 0.18, R * 0.08);
+    else drawAnimeEyes(0, -R * 0.08, eyeR, R * 0.30, 0, 0, R * 0.14, R * 0.05, "fierce");
+    if (expression === "levelup") drawAnimeMouth(0, R * 0.32, R * 0.45, R * 0.25, "smile");
+    else if (expression === "attacking") drawAnimeMouth(0, R * 0.32, R * 0.50, R * 0.30, "fanged");
+    else drawAnimeMouth(0, R * 0.32, R * 0.40, R * 0.20, "neutral");
     ctx.restore();
   }
 
   function drawEnemy(e) {
     var def = e.def;
     var rad = def.radius * U;
-    drawShadow(e.x, e.y + rad * 0.85, rad * 0.85, rad * 0.22);
-    if (def.id === "bacteria") drawBacteria(e, rad);
-    else if (def.id === "virus") drawVirus(e, rad);
-    else if (def.id === "hongo") drawHongo(e, rad);
-    else if (def.id === "boss") drawBoss(e, rad);
+    var expression = e.dying ? "dying"
+      : e.hurtTimer > 0 ? "hurt"
+      : (e.def.isBoss && e.enraged) ? "enraged"
+      : "idle";
+    var blink = (e.blinkTimer || 0) > 0 && expression === "idle";
+    var dyingScale = e.dying ? Math.max(0.4, e.dyingTimer / 0.30) : 1;
+    drawShadow(e.x, e.y + rad * 0.85, rad * 0.85 * dyingScale, rad * 0.22 * dyingScale);
+    if (def.id === "bacteria") drawBacteria(e, rad * dyingScale, expression, blink);
+    else if (def.id === "virus") drawVirus(e, rad * dyingScale, expression, blink);
+    else if (def.id === "hongo") drawHongo(e, rad * dyingScale, expression, blink);
+    else if (def.id === "boss") drawBoss(e, rad * dyingScale, expression, blink);
+    if (e.dying) return; // hide HP bar while dying
     // HP bar
     var hpRatio = Math.max(0, e.hp / e.maxHp);
     var bw = Math.max(20 * U, rad * 2);
@@ -1339,7 +1874,7 @@
     ctx.fillRect(e.x - bw / 2, by, bw * hpRatio, bh);
   }
 
-  function drawBacteria(e, rad) {
+  function drawBacteria(e, rad, expression, blink) {
     var hit = e.hitFlash > 0;
     var stretch = 1 + Math.sin(e.wobble * 1.6) * 0.10;
     var squeeze = 1 - Math.sin(e.wobble * 1.6) * 0.06;
@@ -1372,14 +1907,19 @@
     ctx.strokeStyle = e.def.colorDark;
     ctx.lineWidth = Math.max(1.0, 1.2 * U);
     ctx.stroke();
-    // Face
+    // Face — expression-aware
     var eyeR = ry * 0.30;
-    drawAnimeEyes(rx * 0.10, -ry * 0.15, eyeR, rx * 0.28, 0, 0, ry * 0.18, ry * 0.10, "angry");
-    drawAnimeMouth(rx * 0.10, ry * 0.30, rx * 0.45, ry * 0.40, "fanged");
+    if (expression === "dying") drawXEyes(rx * 0.10, -ry * 0.15, eyeR, rx * 0.28);
+    else if (expression === "hurt") drawHurtEyes(rx * 0.10, -ry * 0.15, eyeR, rx * 0.28);
+    else if (blink) drawClosedEyes(rx * 0.10, -ry * 0.15, eyeR, rx * 0.28);
+    else drawAnimeEyes(rx * 0.10, -ry * 0.15, eyeR, rx * 0.28, 0, 0, ry * 0.18, ry * 0.10, "angry");
+    if (expression === "dying") drawAnimeMouth(rx * 0.10, ry * 0.30, rx * 0.5, ry * 0.55, "open");
+    else if (expression === "hurt") drawAnimeMouth(rx * 0.10, ry * 0.30, rx * 0.4, ry * 0.50, "open");
+    else drawAnimeMouth(rx * 0.10, ry * 0.30, rx * 0.45, ry * 0.40, "fanged");
     ctx.restore();
   }
 
-  function drawVirus(e, rad) {
+  function drawVirus(e, rad, expression, blink) {
     var hit = e.hitFlash > 0;
     ctx.save();
     ctx.translate(e.x, e.y);
@@ -1421,14 +1961,19 @@
     ctx.strokeStyle = e.def.colorDark;
     ctx.lineWidth = Math.max(1.0, 1.2 * U);
     ctx.stroke();
-    // Face — wide eyes, smirk
+    // Face — wide eyes, smirk; expression-aware
     var eyeR = capR * 0.32;
-    drawAnimeEyes(0, -capR * 0.15, eyeR, capR * 0.30, 0, 0, capR * 0.10, capR * 0.05, "evil");
-    drawAnimeMouth(0, capR * 0.30, capR * 0.55, capR * 0.30, "smirk");
+    if (expression === "dying") drawXEyes(0, -capR * 0.15, eyeR, capR * 0.30);
+    else if (expression === "hurt") drawHurtEyes(0, -capR * 0.15, eyeR, capR * 0.30);
+    else if (blink) drawClosedEyes(0, -capR * 0.15, eyeR, capR * 0.30);
+    else drawAnimeEyes(0, -capR * 0.15, eyeR, capR * 0.30, 0, 0, capR * 0.10, capR * 0.05, "evil");
+    if (expression === "dying") drawAnimeMouth(0, capR * 0.30, capR * 0.55, capR * 0.45, "open");
+    else if (expression === "hurt") drawAnimeMouth(0, capR * 0.30, capR * 0.45, capR * 0.40, "open");
+    else drawAnimeMouth(0, capR * 0.30, capR * 0.55, capR * 0.30, "smirk");
     ctx.restore();
   }
 
-  function drawHongo(e, rad) {
+  function drawHongo(e, rad, expression, blink) {
     var hit = e.hitFlash > 0;
     ctx.save();
     ctx.translate(e.x, e.y);
@@ -1458,42 +2003,49 @@
     ctx.strokeStyle = e.def.colorDark;
     ctx.lineWidth = Math.max(1.0, 1.2 * U);
     ctx.stroke();
-    // Face — sleepy evil
+    // Face — sleepy evil; expression-aware
     var eyeR = bw * 0.28;
-    // Sleepy eyes: half-closed lids
-    ctx.fillStyle = "#ffffff";
-    ctx.beginPath();
-    ctx.ellipse(-bw * 0.30, -bh * 0.10, eyeR, eyeR * 0.55, 0, 0, Math.PI * 2);
-    ctx.ellipse( bw * 0.30, -bh * 0.10, eyeR, eyeR * 0.55, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = "rgba(0,0,0,0.55)";
-    ctx.lineWidth = Math.max(0.8, 1 * U);
-    ctx.beginPath();
-    ctx.ellipse(-bw * 0.30, -bh * 0.10, eyeR, eyeR * 0.55, 0, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.ellipse( bw * 0.30, -bh * 0.10, eyeR, eyeR * 0.55, 0, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.fillStyle = "#1a1a22";
-    ctx.beginPath();
-    ctx.arc(-bw * 0.30, -bh * 0.10 + eyeR * 0.10, eyeR * 0.40, 0, Math.PI * 2);
-    ctx.arc( bw * 0.30, -bh * 0.10 + eyeR * 0.10, eyeR * 0.40, 0, Math.PI * 2);
-    ctx.fill();
-    drawAnimeMouth(0, bh * 0.30, bw * 0.65, bh * 0.30, "wicked");
+    if (expression === "dying") drawXEyes(0, -bh * 0.10, eyeR, bw * 0.30);
+    else if (expression === "hurt") drawHurtEyes(0, -bh * 0.10, eyeR, bw * 0.30);
+    else if (blink) drawClosedEyes(0, -bh * 0.10, eyeR, bw * 0.30);
+    else {
+      ctx.fillStyle = "#ffffff";
+      ctx.beginPath();
+      ctx.ellipse(-bw * 0.30, -bh * 0.10, eyeR, eyeR * 0.55, 0, 0, Math.PI * 2);
+      ctx.ellipse( bw * 0.30, -bh * 0.10, eyeR, eyeR * 0.55, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "rgba(0,0,0,0.55)";
+      ctx.lineWidth = Math.max(0.8, 1 * U);
+      ctx.beginPath();
+      ctx.ellipse(-bw * 0.30, -bh * 0.10, eyeR, eyeR * 0.55, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.ellipse( bw * 0.30, -bh * 0.10, eyeR, eyeR * 0.55, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.fillStyle = "#1a1a22";
+      ctx.beginPath();
+      ctx.arc(-bw * 0.30, -bh * 0.10 + eyeR * 0.10, eyeR * 0.40, 0, Math.PI * 2);
+      ctx.arc( bw * 0.30, -bh * 0.10 + eyeR * 0.10, eyeR * 0.40, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    if (expression === "dying" || expression === "hurt") drawAnimeMouth(0, bh * 0.30, bw * 0.55, bh * 0.40, "open");
+    else drawAnimeMouth(0, bh * 0.30, bw * 0.65, bh * 0.30, "wicked");
     ctx.restore();
   }
 
-  function drawBoss(e, rad) {
+  function drawBoss(e, rad, expression, blink) {
     var hit = e.hitFlash > 0;
     ctx.save();
     ctx.translate(e.x, e.y);
-    // Pulsing red halo
-    var halo = 0.5 + 0.5 * Math.sin(state.time * 4);
-    ctx.fillStyle = "rgba(231, 76, 60, " + (0.18 + halo * 0.12) + ")";
+    // Pulsing red halo (intensifies when enraged)
+    var enrageBoost = expression === "enraged" ? 1.8 : 1.0;
+    var haloSpeed = expression === "enraged" ? 7 : 4;
+    var halo = 0.5 + 0.5 * Math.sin(state.time * haloSpeed);
+    ctx.fillStyle = "rgba(231, 76, 60, " + ((0.18 + halo * 0.12) * enrageBoost) + ")";
     ctx.beginPath();
-    ctx.arc(0, 0, rad * (1.55 + halo * 0.10), 0, Math.PI * 2);
+    ctx.arc(0, 0, rad * (1.55 + halo * 0.10) * (expression === "enraged" ? 1.10 : 1), 0, Math.PI * 2);
     ctx.fill();
-    ctx.strokeStyle = "rgba(231, 76, 60, " + (0.5 + halo * 0.3) + ")";
+    ctx.strokeStyle = "rgba(231, 76, 60, " + ((0.5 + halo * 0.3) * enrageBoost) + ")";
     ctx.lineWidth = Math.max(2, 2.5 * U);
     ctx.beginPath();
     ctx.arc(0, 0, rad * 1.50, 0, Math.PI * 2);
@@ -1523,28 +2075,35 @@
     ctx.strokeStyle = "#3a0a0a";
     ctx.lineWidth = Math.max(1.5, 2 * U);
     ctx.stroke();
-    // Glowing red eyes
+    // Glowing red eyes — expression-aware
     var eyeR = ry * 0.32;
-    ctx.fillStyle = "rgba(255, 80, 80, 0.5)";
-    ctx.beginPath();
-    ctx.arc(-rx * 0.30, -ry * 0.18, eyeR * 1.6, 0, Math.PI * 2);
-    ctx.arc( rx * 0.30, -ry * 0.18, eyeR * 1.6, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = "#ffffff";
-    ctx.beginPath();
-    ctx.ellipse(-rx * 0.30, -ry * 0.18, eyeR, eyeR * 1.05, 0, 0, Math.PI * 2);
-    ctx.ellipse( rx * 0.30, -ry * 0.18, eyeR, eyeR * 1.05, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = "#e74c3c";
-    ctx.beginPath();
-    ctx.arc(-rx * 0.30, -ry * 0.18, eyeR * 0.6, 0, Math.PI * 2);
-    ctx.arc( rx * 0.30, -ry * 0.18, eyeR * 0.6, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = "#1a0a0a";
-    ctx.beginPath();
-    ctx.arc(-rx * 0.30, -ry * 0.18, eyeR * 0.32, 0, Math.PI * 2);
-    ctx.arc( rx * 0.30, -ry * 0.18, eyeR * 0.32, 0, Math.PI * 2);
-    ctx.fill();
+    if (expression === "dying") {
+      drawXEyes(0, -ry * 0.18, eyeR, rx * 0.30, "#7d1818");
+    } else if (expression === "hurt") {
+      drawHurtEyes(0, -ry * 0.18, eyeR, rx * 0.30);
+    } else {
+      var glowMult = expression === "enraged" ? 1.4 : 1.0;
+      ctx.fillStyle = "rgba(255, 80, 80, " + (0.5 * glowMult) + ")";
+      ctx.beginPath();
+      ctx.arc(-rx * 0.30, -ry * 0.18, eyeR * 1.6 * glowMult, 0, Math.PI * 2);
+      ctx.arc( rx * 0.30, -ry * 0.18, eyeR * 1.6 * glowMult, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#ffffff";
+      ctx.beginPath();
+      ctx.ellipse(-rx * 0.30, -ry * 0.18, eyeR, eyeR * 1.05, 0, 0, Math.PI * 2);
+      ctx.ellipse( rx * 0.30, -ry * 0.18, eyeR, eyeR * 1.05, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = expression === "enraged" ? "#ff2424" : "#e74c3c";
+      ctx.beginPath();
+      ctx.arc(-rx * 0.30, -ry * 0.18, eyeR * 0.6, 0, Math.PI * 2);
+      ctx.arc( rx * 0.30, -ry * 0.18, eyeR * 0.6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#1a0a0a";
+      ctx.beginPath();
+      ctx.arc(-rx * 0.30, -ry * 0.18, eyeR * 0.32, 0, Math.PI * 2);
+      ctx.arc( rx * 0.30, -ry * 0.18, eyeR * 0.32, 0, Math.PI * 2);
+      ctx.fill();
+    }
     // Brows
     ctx.strokeStyle = "#1a0a0a";
     ctx.lineWidth = Math.max(2, 2.5 * U);
@@ -1829,6 +2388,58 @@
     roundRect(rb.x, rb.y, rb.w, rb.h, 8);
     ctx.stroke();
     drawRestartIcon(rb.x + rb.w / 2, rb.y + rb.h / 2, rb.h * 0.32, "#fff");
+
+    // Mute button
+    var mb = UI.muteBtn;
+    ctx.fillStyle = "#5a3540";
+    roundRect(mb.x, mb.y, mb.w, mb.h, 8);
+    ctx.fill();
+    ctx.strokeStyle = "#3a2530";
+    ctx.lineWidth = 1.5;
+    roundRect(mb.x, mb.y, mb.w, mb.h, 8);
+    ctx.stroke();
+    drawSpeakerIcon(mb.x + mb.w / 2, mb.y + mb.h / 2, mb.h * 0.36, audio.muted, "#fff");
+  }
+
+  function drawSpeakerIcon(cx, cy, r, muted, color) {
+    ctx.save();
+    ctx.fillStyle = color;
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    // Speaker box + cone
+    ctx.beginPath();
+    ctx.moveTo(cx - r * 0.85, cy - r * 0.30);
+    ctx.lineTo(cx - r * 0.30, cy - r * 0.30);
+    ctx.lineTo(cx + r * 0.10, cy - r * 0.70);
+    ctx.lineTo(cx + r * 0.10, cy + r * 0.70);
+    ctx.lineTo(cx - r * 0.30, cy + r * 0.30);
+    ctx.lineTo(cx - r * 0.85, cy + r * 0.30);
+    ctx.closePath();
+    ctx.fill();
+    if (muted) {
+      // X over speaker
+      ctx.strokeStyle = "#ff7878";
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.moveTo(cx + r * 0.30, cy - r * 0.50);
+      ctx.lineTo(cx + r * 0.95, cy + r * 0.50);
+      ctx.moveTo(cx + r * 0.95, cy - r * 0.50);
+      ctx.lineTo(cx + r * 0.30, cy + r * 0.50);
+      ctx.stroke();
+    } else {
+      // Sound waves
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1.8;
+      ctx.beginPath();
+      ctx.arc(cx + r * 0.10, cy, r * 0.42, -Math.PI * 0.35, Math.PI * 0.35);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(cx + r * 0.10, cy, r * 0.70, -Math.PI * 0.30, Math.PI * 0.30);
+      ctx.stroke();
+    }
+    ctx.restore();
   }
 
   function drawRestartIcon(cx, cy, r, color) {
@@ -2051,35 +2662,42 @@
     ctx.save();
     ctx.globalAlpha = ok ? 0.85 : 0.55;
     var fakeTower = { x: x, y: y, def: def, level: 0, idlePhase: 0, attackAnim: 0, muzzleFlash: 0 };
-    if (def.id === "macrofago") drawMacrofago(fakeTower, 1, false);
-    else if (def.id === "linfocitoB") drawLinfocitoB(fakeTower, 1, false);
-    else drawLinfocitoT(fakeTower, 1, false);
+    if (def.id === "macrofago") drawMacrofago(fakeTower, 1, "idle", false);
+    else if (def.id === "linfocitoB") drawLinfocitoB(fakeTower, 1, "idle", false);
+    else drawLinfocitoT(fakeTower, 1, "idle", false);
     ctx.globalAlpha = 1;
     ctx.restore();
   }
 
   function drawWaveBanner() {
     if (state.waveBannerTimer <= 0 || !state.waveBannerText) return;
-    var t = state.waveBannerTimer / 1.4;
+    var t = state.waveBannerTimer / 1.2;
     var alpha;
-    if (t > 0.7) alpha = (1 - t) / 0.3;
-    else if (t < 0.25) alpha = t / 0.25;
+    if (t > 0.75) alpha = (1 - t) / 0.25;
+    else if (t < 0.20) alpha = t / 0.20;
     else alpha = 1;
+    alpha = Math.max(0, Math.min(1, alpha));
+    // Subtle dim of the field area only
     ctx.save();
-    ctx.globalAlpha = Math.max(0, Math.min(1, alpha));
-    var fs = Math.min(VW * 0.13, VH * 0.10, 64);
-    ctx.font = "900 " + fs + "px sans-serif";
+    ctx.fillStyle = "rgba(20, 12, 18, " + (alpha * 0.18) + ")";
+    ctx.fillRect(0, FIELD_TOP, VW, FIELD_BOTTOM - FIELD_TOP);
+    ctx.globalAlpha = alpha * 0.92;
+    var fs = Math.min(VW * 0.10, VH * 0.085, 52);
+    ctx.font = "600 " + fs + 'px Georgia, "Times New Roman", serif';
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    var by = VH / 2 - fs * 0.2;
-    ctx.lineWidth = 6;
-    ctx.strokeStyle = "rgba(0, 0, 0, 0.7)";
-    ctx.strokeText(state.waveBannerText, VW / 2, by);
-    ctx.fillStyle = "#fff8b0";
+    var by = FIELD_TOP + (FIELD_BOTTOM - FIELD_TOP) * 0.45;
+    ctx.fillStyle = "rgba(0, 0, 0, 0.30)";
+    ctx.fillText(state.waveBannerText, VW / 2 + 1, by + 2);
+    ctx.fillStyle = "#fffcf0";
     ctx.fillText(state.waveBannerText, VW / 2, by);
-    ctx.font = "bold " + (fs * 0.32) + "px sans-serif";
-    ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
-    ctx.fillText("¡Defiende el organismo!", VW / 2, by + fs * 0.7);
+    // Thin gold underline
+    ctx.strokeStyle = "rgba(245, 215, 110, " + alpha * 0.7 + ")";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(VW / 2 - fs * 1.2, by + fs * 0.55);
+    ctx.lineTo(VW / 2 + fs * 1.2, by + fs * 0.55);
+    ctx.stroke();
     ctx.restore();
   }
 
@@ -2127,50 +2745,87 @@
 
   function drawEndOverlay() {
     if (!state.gameOver && !state.victory) return;
-    if (state.victory && !state.confettiSpawned) {
-      spawnConfetti();
-      state.confettiSpawned = true;
+    var fade = Math.min(1, state.endRevealTimer / 0.45);
+    ctx.save();
+    if (state.victory) {
+      drawGoldParticles();
+      ctx.fillStyle = "rgba(255, 250, 245, " + (0.92 * fade) + ")";
+    } else {
+      ctx.fillStyle = "rgba(60, 20, 20, " + (0.85 * fade) + ")";
     }
-    ctx.fillStyle = state.victory ? "rgba(20, 50, 30, 0.55)" : "rgba(40, 0, 0, 0.65)";
     ctx.fillRect(0, 0, VW, VH);
+    ctx.globalAlpha = fade;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    var titleFs = Math.min(VW * 0.13, VH * 0.10, 64);
-    ctx.font = "900 " + titleFs + "px sans-serif";
-    ctx.lineWidth = 6;
-    ctx.strokeStyle = "rgba(0, 0, 0, 0.7)";
-    var title = state.victory ? "¡VICTORIA!" : "INFECCION CRITICA";
-    ctx.strokeText(title, VW / 2, VH / 2 - titleFs * 0.6);
-    ctx.fillStyle = state.victory ? "#9adfb1" : "#ff6363";
-    ctx.fillText(title, VW / 2, VH / 2 - titleFs * 0.6);
+    var titleFs = Math.min(VW * 0.085, VH * 0.075, 36);
+    ctx.font = '600 ' + titleFs + 'px Georgia, "Times New Roman", serif';
+    var title = state.victory ? "INFECCIÓN ERRADICADA" : "INFECCIÓN CRÍTICA";
+    ctx.fillStyle = state.victory ? "#2C3E50" : "#C0392B";
+    ctx.fillText(title, VW / 2, VH * 0.35);
 
-    ctx.font = "bold 16px sans-serif";
-    ctx.fillStyle = "#fff";
-    ctx.fillText(
-      state.victory
-        ? "Has detenido la infeccion. ¡Sistema inmune al maximo!"
-        : "Los patogenos invadieron el organismo.",
-      VW / 2, VH / 2 - 4
-    );
-    if (state.victory) {
-      ctx.font = "13px sans-serif";
-      ctx.fillStyle = "rgba(255, 255, 255, 0.85)";
-      ctx.fillText("Torres: " + state.towers.length + " • ATP final: " + state.atp + " • Vidas: " + state.lives,
-        VW / 2, VH / 2 + 18);
+    var subFs = Math.max(13, Math.min(18, titleFs * 0.45));
+    ctx.font = 'italic ' + subFs + 'px Georgia, serif';
+    ctx.fillStyle = state.victory ? "#555" : "rgba(255, 235, 230, 0.85)";
+    var sub = state.victory
+      ? "Tu sistema inmune defendió al organismo."
+      : "El organismo ha sido comprometido.";
+    ctx.fillText(sub, VW / 2, VH * 0.35 + titleFs * 0.95);
+
+    // Stats list
+    var sx = VW / 2;
+    var sy = VH * 0.35 + titleFs * 1.65;
+    ctx.font = 'bold ' + Math.max(14, 16) + 'px sans-serif';
+    var statsColor = state.victory ? "#2C3E50" : "#f5e7e7";
+    ctx.fillStyle = statsColor;
+    var stats = [
+      "Oleadas completadas: " + Math.min(state.waveIdx, WAVES.length) + " / " + WAVES.length,
+      "Patogenos eliminados: " + state.kills,
+      "ATP final: " + state.atp,
+      "Vida restante: " + state.lives + " / 20"
+    ];
+    var lineH = 24;
+    for (var si = 0; si < stats.length; si++) {
+      ctx.fillText(stats[si], sx, sy + si * lineH);
     }
-    drawButton(UI.endRestartBtn, "Reiniciar", "#1f8a4c", "#16632f", true);
+
+    // Single button
+    var btn = UI.endRestartBtn;
+    if (state.victory) {
+      ctx.fillStyle = "#2C3E50";
+      roundRect(btn.x, btn.y, btn.w, btn.h, 8);
+      ctx.fill();
+      ctx.strokeStyle = "#1a2b3a";
+      ctx.lineWidth = 1.5;
+      roundRect(btn.x, btn.y, btn.w, btn.h, 8);
+      ctx.stroke();
+      ctx.fillStyle = "#fff";
+      ctx.font = 'bold 15px sans-serif';
+      ctx.textBaseline = "middle";
+      ctx.fillText("Jugar de nuevo", btn.x + btn.w / 2, btn.y + btn.h / 2);
+    } else {
+      ctx.fillStyle = "#C0392B";
+      roundRect(btn.x, btn.y, btn.w, btn.h, 8);
+      ctx.fill();
+      ctx.strokeStyle = "#7d2419";
+      ctx.lineWidth = 1.5;
+      roundRect(btn.x, btn.y, btn.w, btn.h, 8);
+      ctx.stroke();
+      ctx.fillStyle = "#fff";
+      ctx.font = 'bold 15px sans-serif';
+      ctx.textBaseline = "middle";
+      ctx.fillText("Reintentar", btn.x + btn.w / 2, btn.y + btn.h / 2);
+    }
+    ctx.restore();
   }
 
   function render() {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-    // Shake offset (also applied if defeat is showing).
+    // Shake offset for life loss only (defeat overlay is calm/elegant per spec).
     var shakeOff = { x: 0, y: 0 };
-    if (state.shakeTimer > 0 || state.gameOver) {
-      var sm = state.gameOver ? 4 : (state.shakeMag || 5);
-      var sintensity = state.gameOver
-        ? (0.5 + 0.5 * Math.sin(state.time * 30))
-        : Math.min(1, state.shakeTimer / 0.3);
+    if (state.shakeTimer > 0 && !state.gameOver && !state.victory) {
+      var sm = state.shakeMag || 5;
+      var sintensity = Math.min(1, state.shakeTimer / 0.3);
       shakeOff.x = (Math.random() - 0.5) * sm * sintensity;
       shakeOff.y = (Math.random() - 0.5) * sm * sintensity;
     }
@@ -2179,11 +2834,13 @@
     clearCanvas();
     drawAmbient();
     drawPath();
+    drawRangeHint();
     for (var i = 0; i < state.towers.length; i++) drawTower(state.towers[i]);
     for (var j = 0; j < state.enemies.length; j++) drawEnemy(state.enemies[j]);
     for (var k = 0; k < state.projectiles.length; k++) drawProjectile(state.projectiles[k]);
     for (var m = 0; m < state.effects.length; m++) drawEffect(state.effects[m]);
     drawGhost();
+    drawDamageNumbers();
     drawHUD();
     drawPanel();
     drawMessage();
@@ -2196,6 +2853,62 @@
     }
     drawEndOverlay();
     drawConfirmModal();
+  }
+
+  function drawDamageNumbers() {
+    if (!state.damageNumbers.length) return;
+    for (var i = 0; i < state.damageNumbers.length; i++) {
+      var d = state.damageNumbers[i];
+      var alpha = Math.max(0, d.life / d.max);
+      var fs = Math.max(14, 16 * U);
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.font = "bold " + fs + "px sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.lineWidth = 4;
+      ctx.strokeStyle = "rgba(0, 0, 0, 0.85)";
+      ctx.strokeText(d.text, d.x, d.y);
+      ctx.fillStyle = d.color;
+      ctx.fillText(d.text, d.x, d.y);
+      ctx.restore();
+    }
+  }
+
+  function drawRangeHint() {
+    if (!state.rangeHint) return;
+    var rh = state.rangeHint;
+    ctx.save();
+    ctx.fillStyle = "rgba(255, 255, 255, 0.18)";
+    ctx.beginPath();
+    ctx.arc(rh.x, rh.y, rh.range, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.50)";
+    ctx.lineWidth = 2.4;
+    ctx.setLineDash([8, 4]);
+    ctx.beginPath();
+    ctx.arc(rh.x, rh.y, rh.range, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    // Subtle inner colored hairline so it's tinted by the source.
+    ctx.strokeStyle = "rgba(40, 40, 50, 0.35)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(rh.x, rh.y, rh.range, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawGoldParticles() {
+    if (!state.goldParticles.length) return;
+    for (var i = 0; i < state.goldParticles.length; i++) {
+      var p = state.goldParticles[i];
+      var alpha = Math.max(0, Math.min(1, p.life / 1.5)) * p.alpha;
+      ctx.fillStyle = "rgba(245, 215, 110, " + alpha + ")";
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+      ctx.fill();
+    }
   }
 
   // -------- LOOP ----------------------------------------------------------

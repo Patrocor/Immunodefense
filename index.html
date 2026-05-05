@@ -351,65 +351,56 @@
   var DRIP_WINDOW = 3.0;
 
   function layoutDrip() {
-    // Lymph node bean position; portrait = right side mid-field, landscape = top-left.
+    // Lymph node bean position: well inside the body zone, away from path/wounds.
     if (isPortrait) {
-      DRIP.x = FIELD_RIGHT - 50 * U;
-      DRIP.y = FIELD_TOP + FIELD_H * 0.32;
+      DRIP.x = FIELD_LEFT + FIELD_W * 0.12;
+      DRIP.y = FIELD_TOP + FIELD_H * 0.30;
     } else {
-      DRIP.x = FIELD_LEFT + 56 * U;
-      DRIP.y = FIELD_TOP + FIELD_H * 0.18 + 36 * U;
+      DRIP.x = FIELD_LEFT + FIELD_W * 0.12;
+      DRIP.y = FIELD_TOP + FIELD_H * 0.30;
     }
     DRIP.w = 56 * U;   // long axis radius
     DRIP.h = 34 * U;   // short axis radius
     DRIP.mouthY = DRIP.y + DRIP.h * 0.85;
   }
 
-  // -------- PATH (mixed segments: zigzag + arc + loop) -------------------
-  // Anchor points (normalized 0-1 inside field). Curves between them are
-  // generated via Catmull-Rom -> cubic Bezier conversion.
-  // Landscape: zigzag on left, semicircular arc in middle, downward loop near end.
-  var PATH_LANDSCAPE_BASE = [
-    { x: -0.06, y: 0.25 },
-    { x:  0.08, y: 0.30 },
-    { x:  0.18, y: 0.55 },
-    { x:  0.30, y: 0.32 },
-    { x:  0.42, y: 0.55 },
-    { x:  0.50, y: 0.32 },
-    { x:  0.62, y: 0.22 },
-    { x:  0.74, y: 0.40 },
-    { x:  0.68, y: 0.62 },
-    { x:  0.82, y: 0.78 },
-    { x:  0.95, y: 0.62 },
-    { x:  1.08, y: 0.75 }
+  // -------- PATH (3 branches converge -> 1 main path -> vessel) ---------
+  // Wound positions (normalized 0-1 in field). Aligned along the skin band
+  // at y=0.12 (just inside the new thinner skin band 7-15%).
+  var WOUND_POS_PORTRAIT = [
+    { x: 0.25, y: 0.12 },
+    { x: 0.50, y: 0.12 },
+    { x: 0.75, y: 0.12 }
   ];
-  // Portrait: zigzag at top, broad arc in middle, loop near bottom.
-  var PATH_PORTRAIT_BASE = [
-    { x: 0.25, y: -0.06 },
-    { x: 0.30, y:  0.10 },
-    { x: 0.55, y:  0.18 },
-    { x: 0.32, y:  0.30 },
-    { x: 0.58, y:  0.40 },
-    { x: 0.30, y:  0.50 },
-    { x: 0.55, y:  0.62 },
-    { x: 0.78, y:  0.70 },
-    { x: 0.62, y:  0.82 },
-    { x: 0.40, y:  0.78 },
-    { x: 0.50, y:  0.92 },
-    { x: 0.50, y:  1.08 }
+  var WOUND_POS_LANDSCAPE = [
+    { x: 0.25, y: 0.12 },
+    { x: 0.50, y: 0.12 },
+    { x: 0.75, y: 0.12 }
   ];
-  function selectPathAnchors() {
-    return isPortrait ? PATH_PORTRAIT_BASE : PATH_LANDSCAPE_BASE;
-  }
-  // Backward-compat aliases (other code may still reference these).
+  var CONFLUENCE_POS = { x: 0.50, y: 0.35 };
+  var VESSEL_POS = { x: 0.80, y: 0.85 };
+  var TORRENT_ABSORB_TRIGGER = 0.88;
+
+  // Legacy single-path arrays (no longer rendered, kept to avoid undefined refs).
+  var PATH_LANDSCAPE_BASE = [];
+  var PATH_PORTRAIT_BASE = [];
   var PATH_LANDSCAPE = PATH_LANDSCAPE_BASE;
   var PATH_PORTRAIT = PATH_PORTRAIT_BASE;
+
   var PATH = {
-    anchors: [],
+    branches: [],          // 3 branch sub-paths (one per wound)
+    main: null,            // shared trunk from confluence to vessel
+    confluence: null,      // pixel point where branches merge
+    wounds: [],            // 3 wound centers in pixels
+    exit: null,            // vessel center in pixels
+    totalForBranch: [0, 0, 0], // branch.length + main.length per branch
+    absorbStartForBranch: [0, 0, 0],
+    orientation: null,
+    // Legacy aliases (default to wound 1 / main):
     beziers: [],
     total: 0,
-    orientation: null,
     entry: null,
-    exit: null
+    absorbStart: 0
   };
 
   function bezierPoint(p0, p1, p2, p3, t) {
@@ -420,22 +411,12 @@
     };
   }
 
-  function rebuildPath() {
-    var src = isPortrait ? PATH_PORTRAIT : PATH_LANDSCAPE;
-    PATH.orientation = isPortrait ? "portrait" : "landscape";
-    // Convert normalized anchors -> field-pixel anchors.
-    var anchors = [];
-    for (var i = 0; i < src.length; i++) {
-      anchors.push({
-        x: FIELD_LEFT + src[i].x * FIELD_W,
-        y: FIELD_TOP + src[i].y * FIELD_H
-      });
-    }
-    PATH.anchors = anchors;
+  // Build cubic Beziers from anchor points using Catmull-Rom smoothing.
+  function buildBezierPath(anchors) {
     var n = anchors.length;
-    PATH.beziers = [];
-    PATH.total = 0;
-    var STEPS = 28;
+    var beziers = [];
+    var total = 0;
+    var STEPS = 26;
     for (var s = 0; s < n - 1; s++) {
       var p0 = anchors[s];
       var p3 = anchors[s + 1];
@@ -453,24 +434,138 @@
         samples.push({ x: pt.x, y: pt.y, d: d });
         lastX = pt.x; lastY = pt.y;
       }
-      PATH.beziers.push({
-        p0: p0, c1: c1, c2: c2, p3: p3,
-        samples: samples,
-        length: d,
-        startD: PATH.total
-      });
-      PATH.total += d;
+      beziers.push({ p0: p0, c1: c1, c2: c2, p3: p3, samples: samples, length: d, startD: total });
+      total += d;
     }
-    // Visible entry/exit (just inside field). Use anchor[1] / anchor[N-2].
-    PATH.entry = anchors[1] || anchors[0];
-    PATH.exit = anchors[n - 2] || anchors[n - 1];
-    // Cumulative distance at the vessel position (== start of last segment).
-    // When an enemy reaches this progress they begin the absorb animation
-    // instead of continuing past the torrent sprite.
-    PATH.absorbStart = PATH.beziers.length > 1
-      ? PATH.beziers[PATH.beziers.length - 1].startD
-      : PATH.total * 0.92;
+    return { beziers: beziers, length: total, anchors: anchors };
+  }
+
+  function rebuildPath() {
+    PATH.orientation = isPortrait ? "portrait" : "landscape";
+    var woundsNorm = isPortrait ? WOUND_POS_PORTRAIT : WOUND_POS_LANDSCAPE;
+    function toPx(p) {
+      return { x: FIELD_LEFT + p.x * FIELD_W, y: FIELD_TOP + p.y * FIELD_H };
+    }
+    var confluencePx = toPx(CONFLUENCE_POS);
+    var vesselPx = toPx(VESSEL_POS);
+    PATH.confluence = confluencePx;
+    PATH.exit = vesselPx;
+    // Wounds in pixels with phase offsets so palpitation doesn't sync.
+    PATH.wounds = [];
+    for (var w = 0; w < woundsNorm.length; w++) {
+      var wp = toPx(woundsNorm[w]);
+      PATH.wounds.push({ x: wp.x, y: wp.y, phase: w * 0.4 });
+    }
+    // Build 3 branches: wound -> mid -> confluence.
+    PATH.branches = [];
+    for (var i = 0; i < 3; i++) {
+      var anchors = [
+        { x: PATH.wounds[i].x, y: PATH.wounds[i].y },
+        { x: (PATH.wounds[i].x + confluencePx.x) / 2,
+          y: (PATH.wounds[i].y + confluencePx.y) / 2 + FIELD_H * 0.02 },
+        { x: confluencePx.x, y: confluencePx.y }
+      ];
+      PATH.branches.push(buildBezierPath(anchors));
+    }
+    // Build main from confluence -> snake -> vessel.
+    var mainAnchorsNorm = [
+      { x: CONFLUENCE_POS.x, y: CONFLUENCE_POS.y },
+      { x: 0.30, y: 0.48 },
+      { x: 0.55, y: 0.55 },
+      { x: 0.32, y: 0.66 },
+      { x: 0.58, y: 0.74 },
+      { x: VESSEL_POS.x, y: VESSEL_POS.y }
+    ];
+    var mainAnchorsPx = mainAnchorsNorm.map(toPx);
+    PATH.main = buildBezierPath(mainAnchorsPx);
+    // Per-branch totals and absorb thresholds.
+    PATH.totalForBranch = [];
+    PATH.absorbStartForBranch = [];
+    for (var b = 0; b < 3; b++) {
+      var t = PATH.branches[b].length + PATH.main.length;
+      PATH.totalForBranch.push(t);
+      PATH.absorbStartForBranch.push(t * TORRENT_ABSORB_TRIGGER);
+    }
+    // Legacy aliases for code that still uses single-path semantics.
+    PATH.beziers = PATH.main.beziers;
+    PATH.total = PATH.totalForBranch[0];
+    PATH.entry = PATH.wounds[1];     // middle wound as default entry
+    PATH.absorbStart = PATH.absorbStartForBranch[0];
     if (state) generateTissue();
+  }
+
+  // Sample a point on a beziers array at distance `progress` (0..length).
+  function sampleBeziers(beziers, progress) {
+    if (!beziers.length) return { x: 0, y: 0, angle: 0 };
+    if (progress <= 0) {
+      var f = beziers[0];
+      return { x: f.p0.x, y: f.p0.y, angle: 0 };
+    }
+    var last = beziers[beziers.length - 1];
+    if (progress >= last.startD + last.length) {
+      return { x: last.p3.x, y: last.p3.y, angle: 0 };
+    }
+    for (var i = 0; i < beziers.length; i++) {
+      var seg = beziers[i];
+      if (progress <= seg.startD + seg.length) {
+        var localD = progress - seg.startD;
+        var samples = seg.samples;
+        for (var j = 1; j < samples.length; j++) {
+          if (samples[j].d >= localD) {
+            var prev = samples[j - 1];
+            var curr = samples[j];
+            var span = curr.d - prev.d;
+            var t = span > 0 ? (localD - prev.d) / span : 0;
+            return {
+              x: prev.x + (curr.x - prev.x) * t,
+              y: prev.y + (curr.y - prev.y) * t,
+              angle: Math.atan2(curr.y - prev.y, curr.x - prev.x)
+            };
+          }
+        }
+      }
+    }
+    var Lf = beziers[beziers.length - 1];
+    return { x: Lf.p3.x, y: Lf.p3.y, angle: 0 };
+  }
+
+  function pathPos(progress, heridaIdx) {
+    heridaIdx = heridaIdx | 0;
+    if (heridaIdx < 0 || heridaIdx > 2) heridaIdx = 0;
+    if (!PATH.branches.length) return { x: 0, y: 0, angle: 0 };
+    var branch = PATH.branches[heridaIdx];
+    if (progress <= branch.length) {
+      return sampleBeziers(branch.beziers, progress);
+    }
+    var mainProgress = progress - branch.length;
+    return sampleBeziers(PATH.main.beziers, mainProgress);
+  }
+
+  function distPointToPath(x, y) {
+    var best = Infinity;
+    function checkBeziers(beziers) {
+      for (var i = 0; i < beziers.length; i++) {
+        var samples = beziers[i].samples;
+        for (var j = 0; j < samples.length - 1; j++) {
+          var a = samples[j], b = samples[j + 1];
+          var dx = b.x - a.x, dy = b.y - a.y;
+          var len2 = dx * dx + dy * dy;
+          var d;
+          if (len2 < 1e-6) d = Math.hypot(x - a.x, y - a.y);
+          else {
+            var t = ((x - a.x) * dx + (y - a.y) * dy) / len2;
+            if (t < 0) t = 0; else if (t > 1) t = 1;
+            d = Math.hypot(x - (a.x + t * dx), y - (a.y + t * dy));
+          }
+          if (d < best) best = d;
+        }
+      }
+    }
+    if (PATH.branches) {
+      for (var b = 0; b < PATH.branches.length; b++) checkBeziers(PATH.branches[b].beziers);
+    }
+    if (PATH.main) checkBeziers(PATH.main.beziers);
+    return best;
   }
 
   // -------- TISSUE CACHE (deterministic, regenerated only on path rebuild) --
@@ -483,8 +578,9 @@
     function distToPath(x, y) { return distPointToPath(x, y); }
     function isFar(x, y) {
       // Avoid skin/circulatory zones, drip area, wound, vessel.
-      if (y < FIELD_TOP + FIELD_H * 0.18 + 6) return false;
-      if (y > FIELD_BOTTOM - FIELD_H * 0.14 - 6) return false;
+      // Keep tissue out of exterior(0-7%), skin(7-15%), and circulatory(85-100%).
+      if (y < FIELD_TOP + FIELD_H * 0.16 + 4) return false;
+      if (y > FIELD_BOTTOM - FIELD_H * 0.16 - 4) return false;
       if (PATH.entry && Math.hypot(x - PATH.entry.x, y - PATH.entry.y) < 60 * U) return false;
       if (PATH.exit && Math.hypot(x - PATH.exit.x, y - PATH.exit.y) < 60 * U) return false;
       return true;
@@ -578,61 +674,7 @@
     state.tissue = tissue;
   }
 
-  function pathPos(progress) {
-    if (!PATH.beziers.length) return { x: 0, y: 0, angle: 0 };
-    if (progress <= 0) {
-      var f = PATH.beziers[0];
-      return { x: f.p0.x, y: f.p0.y, angle: 0 };
-    }
-    if (progress >= PATH.total) {
-      var L = PATH.beziers[PATH.beziers.length - 1];
-      return { x: L.p3.x, y: L.p3.y, angle: 0 };
-    }
-    for (var i = 0; i < PATH.beziers.length; i++) {
-      var seg = PATH.beziers[i];
-      if (progress <= seg.startD + seg.length) {
-        var localD = progress - seg.startD;
-        var samples = seg.samples;
-        // linear scan (samples are short)
-        for (var j = 1; j < samples.length; j++) {
-          if (samples[j].d >= localD) {
-            var prev = samples[j - 1];
-            var curr = samples[j];
-            var span = curr.d - prev.d;
-            var t = span > 0 ? (localD - prev.d) / span : 0;
-            return {
-              x: prev.x + (curr.x - prev.x) * t,
-              y: prev.y + (curr.y - prev.y) * t,
-              angle: Math.atan2(curr.y - prev.y, curr.x - prev.x)
-            };
-          }
-        }
-      }
-    }
-    var Lf = PATH.beziers[PATH.beziers.length - 1];
-    return { x: Lf.p3.x, y: Lf.p3.y, angle: 0 };
-  }
 
-  function distPointToPath(x, y) {
-    var best = Infinity;
-    for (var i = 0; i < PATH.beziers.length; i++) {
-      var samples = PATH.beziers[i].samples;
-      for (var j = 0; j < samples.length - 1; j++) {
-        var a = samples[j], b = samples[j + 1];
-        var dx = b.x - a.x, dy = b.y - a.y;
-        var len2 = dx * dx + dy * dy;
-        var d;
-        if (len2 < 1e-6) d = Math.hypot(x - a.x, y - a.y);
-        else {
-          var t = ((x - a.x) * dx + (y - a.y) * dy) / len2;
-          if (t < 0) t = 0; else if (t > 1) t = 1;
-          d = Math.hypot(x - (a.x + t * dx), y - (a.y + t * dy));
-        }
-        if (d < best) best = d;
-      }
-    }
-    return best;
-  }
 
   // -------- DEFINITIONS ---------------------------------------------------
   // Distances/speeds in design pixels; multiplied by U at use.
@@ -831,6 +873,8 @@
       mitosis: null,         // active mitosis cell or null
       nextMitosisAt: 12,     // first mitosis ~12s into the level
       patrol: [],            // patrol macrophages (decorative)
+      restos: [],            // pathogen remnants awaiting cleanup
+      collectors: [],        // collector cells (cleanup workers)
       inflammation: null,    // active inflammation pulse
       nextInflammationAt: 8  // first inflammation pulse
     };
@@ -977,25 +1021,27 @@
 
   function spawnEnemy(typeId, hpMult) {
     var def = ENEMY_DEFS[typeId];
-    var entry = PATH.entry || ((PATH.beziers && PATH.beziers.length) ? PATH.beziers[0].p0 : { x: 0, y: 0 });
     var diff = getDifficulty(state.currentLevel);
     var hp = def.hp * hpMult * diff.hp;
-    // Funnel entry: enemy starts in "falling" state above the wound at a random offset.
-    var ang = -Math.PI / 2 + (Math.random() - 0.5) * Math.PI * 0.7; // mostly upward fan
-    var dist = (90 + Math.random() * 80) * U;
-    var startX = entry.x + Math.cos(ang) * dist;
-    var startY = entry.y + Math.sin(ang) * dist;
-    var vx = (entry.x - startX) * 0.6 + (Math.random() - 0.5) * 30 * U;
-    var vy = (entry.y - startY) * 0.5 + (Math.random() * 20 + 10) * U;
+    // Pick one of the 3 wounds at random.
+    var heridaIdx = Math.floor(Math.random() * (PATH.wounds.length || 1));
+    var wound = PATH.wounds[heridaIdx] || { x: VW * 0.5, y: FIELD_TOP + 20 * U };
+    // Initial OUTSIDE state: hover above the skin band briefly.
+    var outX = wound.x + (Math.random() - 0.5) * 80 * U;
+    var skinTop = FIELD_TOP + FIELD_H * 0.07;
+    var outY = FIELD_TOP + Math.random() * (skinTop - FIELD_TOP) * 0.8 + 4 * U;
     state.enemies.push({
       def: def,
       hp: hp,
       maxHp: hp,
       speedMultLevel: diff.speed,
-      state: "falling",   // falling -> entering -> walking -> absorbing
+      heridaIdx: heridaIdx,
+      state: "outside",   // outside -> falling -> entering -> walking -> absorbing
+      outsideTimer: 1.0 + Math.random() * 1.0,  // 1-2s in exterior
       progress: 0,
-      x: startX, y: startY,
-      vx: vx, vy: vy,
+      x: outX, y: outY,
+      vx: (Math.random() - 0.5) * 16 * U,
+      vy: 0,
       fallRot: Math.random() * Math.PI * 2,
       fallRotSpd: (Math.random() - 0.5) * 6,
       enteringTimer: 0,
@@ -1008,7 +1054,6 @@
       sporeTimer: Math.random() * 1.5,
       blinkTimer: 0,
       nextBlink: state.time + 2 + Math.random() * 3,
-      spawnFade: 0,        // unused now, replaced by state machine
       absorbing: false,
       absorbScale: 1,
       absorbAlpha: 1,
@@ -1079,13 +1124,37 @@
           spawnEffect("death", e.x, e.y, e.def.color);
           sfx("enemyDie");
           state.kills += 1;
+          dropResto(e.x, e.y);
+        }
+        continue;
+      }
+      // OUTSIDE: hover in exterior zone above the skin briefly with chaotic jitter.
+      if (e.state === "outside") {
+        e.outsideTimer -= dt;
+        e.x += e.vx * dt;
+        e.y += e.vy * dt;
+        e.vx *= 0.92;
+        e.vy *= 0.92;
+        // Random nudge so the germ wobbles in place.
+        e.vx += (Math.random() - 0.5) * 80 * U * dt;
+        e.vy += (Math.random() - 0.5) * 50 * U * dt;
+        e.fallRot += e.fallRotSpd * dt;
+        if (e.outsideTimer <= 0) {
+          e.state = "falling";
+          // Aim falling velocity toward the assigned wound.
+          var wd = PATH.wounds[e.heridaIdx] || PATH.wounds[0];
+          if (wd) {
+            e.vx = (wd.x - e.x) * 0.6;
+            e.vy = (wd.y - e.y) * 0.5 + 30 * U;
+          }
         }
         continue;
       }
       // FALLING: chaotic descent toward the wound funnel.
       if (e.state === "falling") {
-        if (!PATH.entry) { e.state = "walking"; e.progress = 0; continue; }
-        var tx = PATH.entry.x, ty = PATH.entry.y;
+        var wd2 = PATH.wounds[e.heridaIdx] || PATH.wounds[0] || PATH.entry;
+        if (!wd2) { e.state = "walking"; e.progress = 0; continue; }
+        var tx = wd2.x, ty = wd2.y;
         var ddx = tx - e.x, ddy = ty - e.y;
         var d = Math.hypot(ddx, ddy) || 0.0001;
         var pull = 480 * U; // gravity-like acceleration toward funnel
@@ -1127,15 +1196,16 @@
         }
         continue;
       }
-      // ABSORBING: explicit linear lerp from snapshot start -> vessel center.
+      // ABSORBING: explicit easeInQuad lerp from snapshot start -> vessel center.
       if (e.absorbing) {
         var elapsed = state.time - e.absorbStartTime;
-        var t01 = Math.min(1, elapsed / 0.35);
-        e.x = e.absorbStartX + (e.absorbTargetX - e.absorbStartX) * t01;
-        e.y = e.absorbStartY + (e.absorbTargetY - e.absorbStartY) * t01;
+        var t01 = Math.min(1, elapsed / 0.40);
+        var et = t01 * t01;  // easeInQuad per spec
+        e.x = e.absorbStartX + (e.absorbTargetX - e.absorbStartX) * et;
+        e.y = e.absorbStartY + (e.absorbTargetY - e.absorbStartY) * et;
         e.absorbScale = Math.max(0, 1 - t01);
         e.absorbAlpha = Math.max(0, 1 - t01);
-        e.absorbedRot += dt * 12;  // fast spin during suction
+        e.absorbedRot += dt * 6;  // spin during suction (per spec ~6 rad/s)
         if (t01 >= 1) {
           e.dead = true;
           state.vesselFlashTimer = Math.max(state.vesselFlashTimer, 0.20);
@@ -1165,10 +1235,15 @@
           });
         }
       }
-      // Trigger absorbing as soon as the enemy reaches the vessel position
-      // (start of the last bezier segment), so it never visually sails past
-      // the torrent sprite into the circulatory zone below.
-      var absorbThreshold = (PATH.absorbStart != null) ? PATH.absorbStart : (PATH.total * 0.92);
+      // Trigger absorbing at TORRENT_ABSORB_TRIGGER (88%) of THIS enemy's
+      // total route (branch + main). Capture the position at trigger so the
+      // animation lerps explicitly to the vessel center and never visually
+      // overshoots the torrent sprite.
+      var hi = e.heridaIdx | 0;
+      var totalForThis = PATH.totalForBranch[hi] || PATH.total;
+      var absorbThreshold = PATH.absorbStartForBranch[hi] != null
+        ? PATH.absorbStartForBranch[hi]
+        : totalForThis * TORRENT_ABSORB_TRIGGER;
       if (e.progress >= absorbThreshold && !e.absorbing) {
         e.absorbing = true;
         e.absorbStartTime = state.time;
@@ -1194,12 +1269,10 @@
         }
         continue;
       } else {
-        var p = pathPos(e.progress);
-        // Virus zigzag: small perpendicular wobble using path angle.
+        var p = pathPos(e.progress, hi);
         if (e.def.id === "virus") {
           var sx = Math.cos(p.angle), sy = Math.sin(p.angle);
-          var sl = 1;
-          var nx = -sy / sl, ny = sx / sl;
+          var nx = -sy, ny = sx;
           var off = Math.sin(e.wobble * 1.4) * 4 * U;
           e.x = p.x + nx * off;
           e.y = p.y + ny * off;
@@ -1879,6 +1952,285 @@
     updateInflammation(dt);
     updateMitosis(dt);
     updatePatrol(dt);
+    updateRestos(dt);
+    updateCollectors(dt);
+  }
+
+  // -------- RESTOS (pathogen remnants) ---------------------------------
+  var MAX_RESTOS = 15;
+  var RESTO_LIFE = 8.0;
+  function dropResto(x, y) {
+    if (state.restos.length >= MAX_RESTOS) state.restos.shift();
+    var dots = [];
+    var n = 3 + Math.floor(Math.random() * 3); // 3-5 puntos
+    for (var i = 0; i < n; i++) {
+      var ang = Math.random() * Math.PI * 2;
+      var rad = Math.random() * 4 * U;
+      dots.push({
+        ox: Math.cos(ang) * rad,
+        oy: Math.sin(ang) * rad,
+        r: (1.4 + Math.random() * 1.0) * U
+      });
+    }
+    state.restos.push({
+      x: x, y: y,
+      dots: dots,
+      life: RESTO_LIFE, max: RESTO_LIFE,
+      claimedBy: null
+    });
+  }
+  function updateRestos(dt) {
+    for (var i = 0; i < state.restos.length; i++) {
+      var r = state.restos[i];
+      r.life -= dt;
+    }
+    state.restos = state.restos.filter(function (r) { return r.life > 0; });
+  }
+  function drawRestos() {
+    for (var i = 0; i < state.restos.length; i++) {
+      var r = state.restos[i];
+      // Fade alpha during last 1.5s
+      var alpha = r.life > 1.5 ? 0.6 : (r.life / 1.5) * 0.6;
+      ctx.fillStyle = "rgba(178, 34, 34, " + alpha + ")";
+      for (var d = 0; d < r.dots.length; d++) {
+        var dot = r.dots[d];
+        ctx.beginPath();
+        ctx.arc(r.x + dot.ox, r.y + dot.oy, dot.r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+  }
+
+  // -------- COLLECTORS (cleanup cells) --------------------------------
+  function ensureCollectors() {
+    while (state.collectors.length < 2) {
+      // Spawn somewhere in the body zone, far from path.
+      var x, y, ok = false;
+      for (var attempt = 0; attempt < 30 && !ok; attempt++) {
+        x = FIELD_LEFT + 40 + Math.random() * (FIELD_W - 80);
+        y = FIELD_TOP + FIELD_H * 0.30 + Math.random() * FIELD_H * 0.50;
+        if (distPointToPath(x, y) > 50 * U) ok = true;
+      }
+      if (!ok) return;
+      state.collectors.push({
+        x: x, y: y,
+        vx: (Math.random() - 0.5) * 14 * U,
+        vy: (Math.random() - 0.5) * 14 * U,
+        nextWanderAt: state.time + 2 + Math.random() * 2,
+        idlePhase: Math.random() * Math.PI * 2,
+        target: null,        // resto being collected
+        absorbTimer: 0       // 0 = idle/moving, >0 = absorbing animation
+      });
+    }
+  }
+  function updateCollectors(dt) {
+    ensureCollectors();
+    var collectorSpeed = 0.4 * 60 * 1.5 * U;  // slow (~36 px/s scaled)
+    for (var i = 0; i < state.collectors.length; i++) {
+      var c = state.collectors[i];
+      c.idlePhase += dt;
+      // Absorbing animation
+      if (c.absorbTimer > 0) {
+        c.absorbTimer -= dt;
+        if (c.absorbTimer <= 0) {
+          c.target = null;  // done; back to idle
+        }
+        continue;
+      }
+      // If has target and target still exists, move toward it.
+      if (c.target) {
+        // Verify target still in restos
+        if (state.restos.indexOf(c.target) < 0) {
+          c.target = null;
+        }
+      }
+      // If no target and there's an unclaimed resto, claim nearest.
+      if (!c.target) {
+        var nearest = null, nearestD = Infinity;
+        for (var ri = 0; ri < state.restos.length; ri++) {
+          var r = state.restos[ri];
+          if (r.claimedBy && r.claimedBy !== c) continue;
+          var d = Math.hypot(r.x - c.x, r.y - c.y);
+          if (d < nearestD) { nearestD = d; nearest = r; }
+        }
+        if (nearest) {
+          if (nearest.claimedBy && nearest.claimedBy !== c) {
+            // skip
+          } else {
+            nearest.claimedBy = c;
+            c.target = nearest;
+          }
+        }
+      }
+      if (c.target) {
+        var tx = c.target.x, ty = c.target.y;
+        var dx = tx - c.x, dy = ty - c.y;
+        var d = Math.hypot(dx, dy) || 0.0001;
+        c.vx = (dx / d) * collectorSpeed;
+        c.vy = (dy / d) * collectorSpeed;
+        c.x += c.vx * dt;
+        c.y += c.vy * dt;
+        if (d < 14 * U) {
+          // Collect: trigger absorb animation, +5 ATP, remove resto.
+          state.atp += 5;
+          pushEffect({
+            kind: "atpText",
+            x: c.target.x, y: c.target.y - 6 * U,
+            vy: -32 * U,
+            text: "+5 ATP",
+            life: 0.7, max: 0.7,
+            color: "#50C878"
+          });
+          for (var sp = 0; sp < 6; sp++) {
+            var sa = Math.random() * Math.PI * 2;
+            pushEffect({
+              kind: "particle",
+              x: c.target.x, y: c.target.y,
+              vx: Math.cos(sa) * 30 * U,
+              vy: Math.sin(sa) * 30 * U,
+              life: 0.3, max: 0.5,
+              color: "#FFFFFF"
+            });
+          }
+          state.restos = state.restos.filter(function (rr) { return rr !== c.target; });
+          c.target = null;
+          c.absorbTimer = 0.4;
+        }
+      } else {
+        // IDLE wander
+        if (state.time >= c.nextWanderAt) {
+          c.nextWanderAt = state.time + 2 + Math.random() * 2;
+          var ang = Math.random() * Math.PI * 2;
+          c.vx = Math.cos(ang) * collectorSpeed * 0.6;
+          c.vy = Math.sin(ang) * collectorSpeed * 0.6;
+        }
+        c.x += c.vx * dt;
+        c.y += c.vy * dt;
+        // Browniano sutil
+        c.x += (Math.random() - 0.5) * 8 * U * dt;
+        c.y += (Math.random() - 0.5) * 8 * U * dt;
+      }
+      // Avoid path
+      if (distPointToPath(c.x, c.y) < 30 * U) {
+        c.vx = -c.vx;
+        c.vy = -c.vy;
+        c.x += c.vx * dt * 2;
+        c.y += c.vy * dt * 2;
+      }
+      // Soft bounds (stay inside body zone)
+      var minY = FIELD_TOP + FIELD_H * 0.18;
+      var maxY = FIELD_BOTTOM - FIELD_H * 0.16;
+      if (c.x < FIELD_LEFT + 20) c.x = FIELD_LEFT + 20;
+      if (c.x > FIELD_RIGHT - 20) c.x = FIELD_RIGHT - 20;
+      if (c.y < minY) c.y = minY;
+      if (c.y > maxY) c.y = maxY;
+    }
+  }
+  function drawCollectors() {
+    for (var i = 0; i < state.collectors.length; i++) {
+      var c = state.collectors[i];
+      var R = 12 * U;
+      var pulse = 1 + Math.sin(c.idlePhase) * 0.04;
+      // Absorbing pulse: 1.0 -> 1.2 -> 0.9 -> 1.0 over 0.4s
+      if (c.absorbTimer > 0) {
+        var t = 1 - c.absorbTimer / 0.4;
+        var anim;
+        if (t < 0.4) anim = 1 + (t / 0.4) * 0.2;       // grow to 1.2
+        else if (t < 0.7) anim = 1.2 - ((t - 0.4) / 0.3) * 0.3;  // shrink to 0.9
+        else anim = 0.9 + ((t - 0.7) / 0.3) * 0.1;     // back to 1.0
+        pulse = anim;
+      }
+      drawShadow(c.x, c.y + R * 0.85, R * 0.85, R * 0.22);
+      ctx.save();
+      ctx.translate(c.x, c.y);
+      // White flash during absorption
+      if (c.absorbTimer > 0) {
+        var flashT = c.absorbTimer / 0.4;
+        ctx.shadowColor = "rgba(255, 255, 255, " + flashT + ")";
+        ctx.shadowBlur = 14;
+      }
+      // Body
+      ctx.fillStyle = "#FFF8DC";
+      ctx.beginPath();
+      ctx.arc(0, 0, R * pulse, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "#D4C99A";
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
+      // Lobed nucleus (4 lobes like clover)
+      ctx.fillStyle = "#B0B0B0";
+      for (var lb = 0; lb < 4; lb++) {
+        var la = lb * Math.PI / 2 + 0.3;
+        var lx = Math.cos(la) * R * 0.30;
+        var ly = Math.sin(la) * R * 0.30;
+        ctx.beginPath();
+        ctx.arc(lx, ly, R * 0.28, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      // Center connector
+      ctx.fillStyle = "#A0A0A0";
+      ctx.beginPath();
+      ctx.arc(0, 0, R * 0.18, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  // -------- EXTERIOR ENVIRONMENT (above skin) --------------------------
+  function drawExteriorZone() {
+    var h = FIELD_H * 0.07;
+    var y = FIELD_TOP;
+    // Sky-ish gradient
+    var grad = ctx.createLinearGradient(0, y, 0, y + h);
+    grad.addColorStop(0, "#87B5A0");
+    grad.addColorStop(1, "#6B9E7A");
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, y, VW, h);
+    // Deterministic grass/twigs/pollen positions per orientation.
+    var seed = 5557 + (PATH.orientation === "portrait" ? 11 : 23);
+    function rng() { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; }
+    // Pasto strokes
+    ctx.strokeStyle = "rgba(90, 139, 79, 0.85)";
+    ctx.lineWidth = 1.2;
+    ctx.lineCap = "round";
+    for (var i = 0; i < 5; i++) {
+      var gx = rng() * VW;
+      var glen = (8 + rng() * 5) * U;
+      ctx.beginPath();
+      ctx.moveTo(gx, y + h);
+      ctx.quadraticCurveTo(gx + (rng() - 0.5) * 4 * U, y + h - glen * 0.6,
+                           gx + (rng() - 0.5) * 4 * U, y + h - glen);
+      ctx.stroke();
+    }
+    // Twigs (branches)
+    ctx.strokeStyle = "rgba(120, 80, 50, 0.7)";
+    ctx.lineWidth = 1.4;
+    for (var t = 0; t < 2; t++) {
+      var tx = rng() * VW;
+      var ty = y + h * 0.35 + rng() * h * 0.4;
+      ctx.beginPath();
+      ctx.moveTo(tx, ty);
+      ctx.lineTo(tx + 14 * U, ty - 4 * U);
+      ctx.moveTo(tx + 6 * U, ty - 2 * U);
+      ctx.lineTo(tx + 9 * U, ty - 6 * U);
+      ctx.stroke();
+    }
+    // Floating pollen with slow vertical animation
+    for (var p = 0; p < 4; p++) {
+      var px = (p + 1) * VW / 5 + Math.sin(state.time * 0.3 + p) * 6;
+      var py = y + h * 0.5 + Math.sin(state.time * 0.4 + p * 1.7) * h * 0.3;
+      ctx.fillStyle = "rgba(255, 230, 150, 0.7)";
+      ctx.beginPath();
+      ctx.arc(px, py, 1.6 * U, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // Bottom edge separator (subtle line)
+    ctx.strokeStyle = "rgba(90, 139, 79, 0.5)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, y + h);
+    ctx.lineTo(VW, y + h);
+    ctx.stroke();
   }
 
   // -------- INFLAMMATION PULSE -----------------------------------------
@@ -2256,18 +2608,27 @@
 
   function canPlaceTowerAt(x, y) {
     var pad = 24 * U;
-    if (y < FIELD_TOP + pad || y > FIELD_BOTTOM - pad) return false;
+    // Restrict to body interior zone (15%-85% of field height).
+    var bodyTop = FIELD_TOP + FIELD_H * 0.16;
+    var bodyBottom = FIELD_BOTTOM - FIELD_H * 0.16;
+    if (y < bodyTop + pad || y > bodyBottom - pad) return false;
     if (x < FIELD_LEFT + pad || x > FIELD_RIGHT - pad) return false;
-    if (distPointToPath(x, y) < 28 * U) return false;
+    // Min distance to ANY path segment (branches + main).
+    if (distPointToPath(x, y) < 30 * U) return false;
     for (var i = 0; i < state.towers.length; i++) {
       if (Math.hypot(state.towers[i].x - x, state.towers[i].y - y) < 38 * U) return false;
     }
-    // Keep clear of the lymphatic drip column.
+    // Keep clear of lymph node bean.
     if (Math.abs(x - DRIP.x) < DRIP.w + 14 * U &&
         Math.abs(y - DRIP.y) < DRIP.h + 14 * U) return false;
-    // Keep clear of wound and vessel landmarks.
-    if (PATH.entry && Math.hypot(x - PATH.entry.x, y - PATH.entry.y) < 38 * U) return false;
-    if (PATH.exit && Math.hypot(x - PATH.exit.x, y - PATH.exit.y) < 42 * U) return false;
+    // Keep clear of all 3 wounds and the vessel.
+    if (PATH.wounds) {
+      for (var w = 0; w < PATH.wounds.length; w++) {
+        if (Math.hypot(x - PATH.wounds[w].x, y - PATH.wounds[w].y) < 40 * U) return false;
+      }
+    }
+    if (PATH.exit && Math.hypot(x - PATH.exit.x, y - PATH.exit.y) < 44 * U) return false;
+    if (PATH.confluence && Math.hypot(x - PATH.confluence.x, y - PATH.confluence.y) < 36 * U) return false;
     return true;
   }
 
@@ -2371,8 +2732,10 @@
 
   // -------- SKIN / CIRCULATORY AMBIENT BANDS ---------------------------
   function drawSkinZone() {
-    var h = FIELD_H * 0.18;
-    var y = FIELD_TOP;
+    // Skin band reduced per Sprint 4A: 7-15% of field height.
+    var skinTop = FIELD_TOP + FIELD_H * 0.07;
+    var h = FIELD_H * 0.08;  // 15% - 7% = 8% band
+    var y = skinTop;
     var grad = ctx.createLinearGradient(0, y, 0, y + h);
     grad.addColorStop(0, "#F4D1A6");
     grad.addColorStop(1, "#E8B894");
@@ -2523,32 +2886,52 @@
     }
   }
 
-  function strokePathLine() {
-    if (!PATH.beziers.length) return;
+  function strokeBeziers(beziers) {
+    if (!beziers || !beziers.length) return;
     ctx.beginPath();
-    var first = PATH.beziers[0];
+    var first = beziers[0];
     ctx.moveTo(first.p0.x, first.p0.y);
-    for (var i = 0; i < PATH.beziers.length; i++) {
-      var s = PATH.beziers[i];
+    for (var i = 0; i < beziers.length; i++) {
+      var s = beziers[i];
       ctx.bezierCurveTo(s.c1.x, s.c1.y, s.c2.x, s.c2.y, s.p3.x, s.p3.y);
     }
     ctx.stroke();
   }
 
+  function strokeAllPaths() {
+    if (PATH.branches) {
+      for (var b = 0; b < PATH.branches.length; b++) strokeBeziers(PATH.branches[b].beziers);
+    }
+    if (PATH.main) strokeBeziers(PATH.main.beziers);
+  }
+
   function drawPath() {
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
-    ctx.strokeStyle = "#e8b8b0"; ctx.lineWidth = 38 * U; strokePathLine();
-    ctx.strokeStyle = "#d8978b"; ctx.lineWidth = 30 * U; strokePathLine();
-    ctx.strokeStyle = "#c47a6e"; ctx.lineWidth = 22 * U; strokePathLine();
+    ctx.strokeStyle = "#e8b8b0"; ctx.lineWidth = 38 * U; strokeAllPaths();
+    ctx.strokeStyle = "#d8978b"; ctx.lineWidth = 30 * U; strokeAllPaths();
+    ctx.strokeStyle = "#c47a6e"; ctx.lineWidth = 22 * U; strokeAllPaths();
+    // Confluence "blob" — slightly larger pad where the 3 branches merge.
+    if (PATH.confluence) {
+      ctx.fillStyle = "#c47a6e";
+      ctx.beginPath();
+      ctx.arc(PATH.confluence.x, PATH.confluence.y, 18 * U, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#d8978b";
+      ctx.beginPath();
+      ctx.arc(PATH.confluence.x, PATH.confluence.y, 13 * U, 0, Math.PI * 2);
+      ctx.fill();
+    }
     ctx.strokeStyle = "rgba(255,255,255,0.30)";
     ctx.lineWidth = 2.4 * U;
     ctx.setLineDash([4 * U, 10 * U]);
     ctx.lineCap = "round";
-    strokePathLine();
+    strokeAllPaths();
     ctx.setLineDash([]);
     ctx.lineCap = "butt";
   }
+  // Legacy alias kept for any straggler refs.
+  function strokePathLine() { strokeAllPaths(); }
 
   // ---- Herida (wound) at path entry ------------------------------------
   // Stable jitter: precompute once.
@@ -2563,15 +2946,12 @@
   })();
   var WOUND_DROPLETS = [];
 
-  function drawWound() {
-    if (!PATH.entry) return;
-    var ex = PATH.entry.x, ey = PATH.entry.y;
-    var baseR = 26 * U;
+  function drawSingleWound(ex, ey, phaseOffset) {
+    var baseR = 22 * U;
     var flash = state.woundFlashTimer > 0 ? state.woundFlashTimer / 0.25 : 0;
-    var palpitate = Math.sin(state.time * 5.2);  // ~1.2s period at 5.2 rad/s
+    var palpitate = Math.sin(state.time * 5.2 + phaseOffset);
     var pulse = 1 + palpitate * (0.04 + flash * 0.04);
-    // Outer inflamed ring
-    var outerR = baseR * (1.35 + flash * 0.20) * (1 + palpitate * 0.06);
+    var outerR = baseR * (1.35 + flash * 0.18) * (1 + palpitate * 0.06);
     var inflGrad = ctx.createRadialGradient(ex, ey, baseR, ex, ey, outerR);
     inflGrad.addColorStop(0, "rgba(255, 107, 107, 0.55)");
     inflGrad.addColorStop(1, "rgba(255, 107, 107, 0)");
@@ -2579,7 +2959,6 @@
     ctx.beginPath();
     ctx.arc(ex, ey, outerR, 0, Math.PI * 2);
     ctx.fill();
-    // Wound body — irregular blob with stable jitter
     ctx.beginPath();
     var pts = WOUND_JITTER.length;
     var R = baseR * pulse;
@@ -2601,11 +2980,21 @@
     ctx.strokeStyle = "rgba(80, 10, 10, 0.55)";
     ctx.lineWidth = 1.4;
     ctx.stroke();
-    // Occasional escaping droplet
+  }
+
+  function drawWound() {
+    if (!PATH.wounds || !PATH.wounds.length) return;
+    for (var w = 0; w < PATH.wounds.length; w++) {
+      var wd = PATH.wounds[w];
+      drawSingleWound(wd.x, wd.y, wd.phase || 0);
+    }
+    // Occasional escaping droplet from a random wound.
     if (Math.random() < 0.05 && WOUND_DROPLETS.length < 8) {
+      var pickIdx = Math.floor(Math.random() * PATH.wounds.length);
+      var pick = PATH.wounds[pickIdx];
       var ang = Math.random() * Math.PI * 2;
       WOUND_DROPLETS.push({
-        x: ex, y: ey,
+        x: pick.x, y: pick.y,
         vx: Math.cos(ang) * (10 + Math.random() * 14) * U,
         vy: Math.sin(ang) * (10 + Math.random() * 14) * U - 4 * U,
         life: 0.6 + Math.random() * 0.3,
@@ -2613,7 +3002,6 @@
         r: (1.4 + Math.random() * 1.4) * U
       });
     }
-    // Update + draw droplets (kept local to wound)
     for (var dpi = 0; dpi < WOUND_DROPLETS.length; dpi++) {
       var dp = WOUND_DROPLETS[dpi];
       dp.life -= 1 / 60;
@@ -2626,12 +3014,6 @@
       ctx.fill();
     }
     WOUND_DROPLETS = WOUND_DROPLETS.filter(function (d) { return d.life > 0; });
-    // Label
-    ctx.fillStyle = "rgba(122, 31, 31, 0.65)";
-    ctx.font = 'italic 11px Georgia, serif';
-    ctx.textAlign = "center";
-    ctx.textBaseline = "top";
-    ctx.fillText("HERIDA", ex, ey + outerR + 4);
   }
 
   // ---- Vaso (blood vessel) at path exit -------------------------------
@@ -2656,7 +3038,7 @@
     var beat = Math.sin(state.time * Math.PI * 2 * 1.0);
     var flash = state.vesselFlashTimer > 0 ? state.vesselFlashTimer / 0.30 : 0;
     var swallow = state.vesselSwallow > 0 ? (state.vesselSwallow / 0.20) : 0;
-    var pulse = 1 + Math.max(0, beat) * 0.04 + flash * 0.10 + swallow * 0.15;
+    var pulse = 1 + Math.max(0, beat) * 0.04 + flash * 0.10 + swallow * 0.20;
     var W = w * pulse, H = h * pulse;
     if (flash > 0) {
       // Red glow when an enemy gets absorbed.
@@ -4297,23 +4679,36 @@
     }
     ctx.setTransform(dpr, 0, 0, dpr, shakeOff.x * dpr, shakeOff.y * dpr);
 
+    // Strict render order per Sprint 4A spec.
     clearCanvas();
-    drawSkinZone();
-    drawCirculatoryZone();
+    drawExteriorZone();      // 0-7%: green outdoor band
+    drawSkinZone();          // 7-15%: thinner skin band
+    drawCirculatoryZone();   // 85-100%: blood vessels area
     drawAmbient();
     drawMitosis();
     drawPatrol();
     drawTissue();
     drawInflammation();
-    drawPath();
-    drawWound();
+    drawPath();              // path strokes (3 branches + main)
+    drawWound();             // 3 wound sprites
     drawLymphNode();
+    drawRestos();
+    drawCollectors();
     drawRangeHint();
-    for (var i = 0; i < state.towers.length; i++) drawTower(state.towers[i]);
-    for (var j = 0; j < state.enemies.length; j++) drawEnemy(state.enemies[j]);
-    // Vessel drawn AFTER enemies so absorbing pathogens are visually
-    // covered by the torrent sprite (the failsafe for the long-standing bug).
+    // Pasada A: enemigos NO absorbing (visualmente bajo el torrente).
+    for (var j = 0; j < state.enemies.length; j++) {
+      var ej = state.enemies[j];
+      if (!ej.absorbing) drawEnemy(ej);
+    }
+    // Torrente sprite — cubre cualquier enemigo cerca del vaso.
     drawVessel();
+    // Pasada B: enemigos absorbing (sobre el torrente, se ven siendo tragados).
+    for (var jb = 0; jb < state.enemies.length; jb++) {
+      var ejb = state.enemies[jb];
+      if (ejb.absorbing) drawEnemy(ejb);
+    }
+    // Towers on top of everything in the field.
+    for (var i = 0; i < state.towers.length; i++) drawTower(state.towers[i]);
     drawLymphDrop();
     for (var k = 0; k < state.projectiles.length; k++) drawProjectile(state.projectiles[k]);
     for (var m = 0; m < state.effects.length; m++) drawEffect(state.effects[m]);

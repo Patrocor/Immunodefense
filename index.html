@@ -64,6 +64,7 @@
   var FIELD_TOP = 0, FIELD_BOTTOM = 0, FIELD_LEFT = 0, FIELD_RIGHT = 0;
   var FIELD_W = 0, FIELD_H = 0;
   var U = 1; // pixel scale unit (smaller of field width/height vs design 500)
+  var isPortrait = false;
 
   function readSafeAreas() {
     var probe = document.getElementById("__safe_probe");
@@ -76,9 +77,11 @@
   }
 
   function resize() {
+    var oldPathTotal = PATH.total || 0;
     dpr = Math.max(1, window.devicePixelRatio || 1);
     VW = window.innerWidth;
     VH = window.innerHeight;
+    isPortrait = VH > VW;
     canvas.width = Math.max(1, Math.floor(VW * dpr));
     canvas.height = Math.max(1, Math.floor(VH * dpr));
     canvas.style.width = VW + "px";
@@ -86,11 +89,35 @@
     readSafeAreas();
     layout();
     rebuildPath();
+    // Reproject world objects so a rotation doesn't strand towers / enemies.
+    if (typeof state !== "undefined" && state) {
+      for (var i = 0; i < state.towers.length; i++) {
+        var t = state.towers[i];
+        if (typeof t.nx === "number") {
+          t.x = FIELD_LEFT + t.nx * FIELD_W;
+          t.y = FIELD_TOP + t.ny * FIELD_H;
+        }
+      }
+      if (oldPathTotal > 0 && PATH.total > 0) {
+        var ratio = PATH.total / oldPathTotal;
+        for (var j = 0; j < state.enemies.length; j++) {
+          var e = state.enemies[j];
+          e.progress *= ratio;
+          var p = pathPos(e.progress);
+          e.x = p.x;
+          e.y = p.y;
+        }
+      }
+      // Projectiles aimed at obsolete coords; safest to drop them.
+      state.projectiles = [];
+    }
   }
 
   function layout() {
-    var hudBase = Math.max(48, Math.min(72, VH * 0.085));
-    var panelBase = Math.max(120, Math.min(180, VH * 0.22));
+    var hudBase = Math.max(48, Math.min(72, VH * 0.075));
+    var panelBase = isPortrait
+      ? Math.max(200, Math.min(250, VH * 0.30))
+      : Math.max(120, Math.min(180, VH * 0.22));
     HUD_H = Math.round(hudBase + safeTop);
     PANEL_H = Math.round(panelBase + safeBottom);
     FIELD_TOP = HUD_H;
@@ -104,7 +131,8 @@
   }
 
   // -------- PATH (normalized inside field) -------------------------------
-  var PATH_NORM = [
+  // Landscape: enters left ("Herida"), exits right ("Vaso"), horizontal snake.
+  var PATH_LANDSCAPE = [
     { x: -0.05, y: 0.18 },
     { x:  0.22, y: 0.18 },
     { x:  0.22, y: 0.55 },
@@ -112,14 +140,29 @@
     { x:  0.58, y: 0.85 },
     { x:  1.05, y: 0.85 }
   ];
-  var PATH = { points: [], segs: [], total: 0 };
+  // Portrait: enters top ("Herida"), exits bottom ("Vaso"), vertical snake.
+  var PATH_PORTRAIT = [
+    { x: 0.20, y: -0.05 },
+    { x: 0.20, y:  0.18 },
+    { x: 0.78, y:  0.18 },
+    { x: 0.78, y:  0.42 },
+    { x: 0.22, y:  0.42 },
+    { x: 0.22, y:  0.66 },
+    { x: 0.78, y:  0.66 },
+    { x: 0.78, y:  0.88 },
+    { x: 0.30, y:  0.88 },
+    { x: 0.30, y:  1.05 }
+  ];
+  var PATH = { points: [], segs: [], total: 0, orientation: null };
 
   function rebuildPath() {
+    var src = isPortrait ? PATH_PORTRAIT : PATH_LANDSCAPE;
+    PATH.orientation = isPortrait ? "portrait" : "landscape";
     var pts = [];
-    for (var i = 0; i < PATH_NORM.length; i++) {
+    for (var i = 0; i < src.length; i++) {
       pts.push({
-        x: FIELD_LEFT + PATH_NORM[i].x * FIELD_W,
-        y: FIELD_TOP + PATH_NORM[i].y * FIELD_H
+        x: FIELD_LEFT + src[i].x * FIELD_W,
+        y: FIELD_TOP + src[i].y * FIELD_H
       });
     }
     PATH.points = pts;
@@ -301,12 +344,16 @@
   var UI = {};
   function layoutUI() {
     var topY = safeTop + 8;
-    var hudH = HUD_H - safeTop - 16;
-    var btnH = Math.min(40, Math.max(32, hudH));
+    var hudInner = HUD_H - safeTop - 16;
+    var btnH = Math.min(40, Math.max(32, hudInner));
     var rightX = VW - safeRight - 8;
 
     UI.restartBtn = { x: rightX - btnH, y: topY, w: btnH, h: btnH };
-    var nwW = Math.min(220, Math.max(140, VW * 0.4));
+    // Next-wave button width: portrait keeps it tight so stats fit beside it.
+    var nwMaxByStats = isPortrait
+      ? VW - safeLeft - safeRight - btnH - 24 - 165 // reserve ~165px for compact stats
+      : VW * 0.4;
+    var nwW = Math.min(220, Math.max(110, nwMaxByStats));
     UI.nextWaveBtn = { x: UI.restartBtn.x - nwW - 8, y: topY, w: nwW, h: btnH };
 
     var panelTop = VH - PANEL_H + 8;
@@ -315,30 +362,60 @@
     var panelRight = VW - safeRight - 8;
     var panelW = panelRight - panelLeft;
 
-    var cardCount = 3;
-    var cardGap = 6;
-    var cardW = Math.max(70, Math.min(108, (panelW * 0.5 - cardGap * (cardCount - 1)) / cardCount));
-    var cardH = Math.max(96, Math.min(panelInner, 116));
-    UI.cards = [];
-    for (var i = 0; i < cardCount; i++) {
-      UI.cards.push({
-        x: panelLeft + i * (cardW + cardGap),
-        y: panelTop,
-        w: cardW,
-        h: cardH
-      });
+    if (isPortrait) {
+      // Portrait: full-width row of 3 cards + bottom row for info & action buttons.
+      var cardCount = 3;
+      var cardGap = 8;
+      var cardW = (panelW - cardGap * (cardCount - 1)) / cardCount;
+      var cardH = Math.min(Math.max(panelInner * 0.50, 80), 100);
+      UI.cards = [];
+      for (var i = 0; i < cardCount; i++) {
+        UI.cards.push({
+          x: panelLeft + i * (cardW + cardGap),
+          y: panelTop,
+          w: cardW,
+          h: cardH
+        });
+      }
+      var infoY = panelTop + cardH + 6;
+      var infoH = panelInner - cardH - 6;
+      UI.infoX = panelLeft;
+      UI.infoY = infoY;
+      UI.infoW = panelW;
+      UI.infoH = infoH;
+      var actionH = Math.min(38, Math.max(32, infoH * 0.55));
+      var actionY = infoY + infoH - actionH;
+      var deselectW = Math.min(96, panelW * 0.30);
+      UI.deselectBtn = { x: panelLeft + panelW - deselectW, y: infoY, w: deselectW, h: 22 };
+      var sellW = Math.max(96, panelW * 0.42);
+      UI.sellBtn = { x: panelLeft, y: actionY, w: sellW, h: actionH };
+      UI.upgradeBtn = { x: panelLeft + sellW + 8, y: actionY, w: panelW - sellW - 8, h: actionH };
+    } else {
+      var cardCountL = 3;
+      var cardGapL = 6;
+      var cardWL = Math.max(70, Math.min(108, (panelW * 0.5 - cardGapL * (cardCountL - 1)) / cardCountL));
+      var cardHL = Math.max(96, Math.min(panelInner, 116));
+      UI.cards = [];
+      for (var k = 0; k < cardCountL; k++) {
+        UI.cards.push({
+          x: panelLeft + k * (cardWL + cardGapL),
+          y: panelTop,
+          w: cardWL,
+          h: cardHL
+        });
+      }
+      var infoXL = panelLeft + cardCountL * (cardWL + cardGapL) + 8;
+      var infoWL = Math.max(140, panelRight - infoXL);
+      UI.infoX = infoXL;
+      UI.infoW = infoWL;
+      UI.infoY = panelTop;
+      UI.infoH = cardHL;
+      var deselectWL = Math.min(108, infoWL * 0.45);
+      UI.deselectBtn = { x: infoXL + infoWL - deselectWL, y: panelTop, w: deselectWL, h: 26 };
+      var sellWL = Math.min(150, Math.max(80, infoWL * 0.42));
+      UI.sellBtn = { x: infoXL, y: panelTop + cardHL - 36, w: sellWL, h: 36 };
+      UI.upgradeBtn = { x: infoXL + sellWL + 8, y: panelTop + cardHL - 36, w: infoWL - sellWL - 8, h: 36 };
     }
-    var infoX = panelLeft + cardCount * (cardW + cardGap) + 8;
-    var infoW = Math.max(140, panelRight - infoX);
-    UI.infoX = infoX;
-    UI.infoW = infoW;
-    UI.infoY = panelTop;
-    UI.infoH = cardH;
-    var deselectW = Math.min(108, infoW * 0.45);
-    UI.deselectBtn = { x: infoX + infoW - deselectW, y: panelTop, w: deselectW, h: 26 };
-    var sellW = Math.min(150, Math.max(80, infoW * 0.42));
-    UI.sellBtn = { x: infoX, y: panelTop + cardH - 36, w: sellW, h: 36 };
-    UI.upgradeBtn = { x: infoX + sellW + 8, y: panelTop + cardH - 36, w: infoW - sellW - 8, h: 36 };
 
     var modalW = Math.min(340, VW - 32);
     var modalH = 180;
@@ -446,6 +523,8 @@
     var def = TOWER_DEFS[typeId];
     state.towers.push({
       x: x, y: y,
+      nx: FIELD_W > 0 ? (x - FIELD_LEFT) / FIELD_W : 0,
+      ny: FIELD_H > 0 ? (y - FIELD_TOP) / FIELD_H : 0,
       def: def,
       level: 0,
       cooldown: 0,
@@ -970,26 +1049,39 @@
     ctx.fillStyle = "rgba(255,255,255,0.06)";
     ctx.fillRect(0, FIELD_TOP - 2, VW, 2);
 
-    var statsY = safeTop + 8;
     var leftX = safeLeft + 12;
-    var fontStat = Math.max(14, Math.min(20, VW * 0.018));
-    var fontLabel = Math.max(10, Math.min(13, VW * 0.012));
-
-    drawHudStat("⚡ ATP", state.atp, leftX, statsY, "#f5d76e", fontStat, fontLabel);
-    drawHudStat("♥ Vida", state.lives, leftX + Math.min(160, VW * 0.22), statsY,
-      state.lives <= 5 ? "#ff7878" : "#9adfb1", fontStat, fontLabel);
-    drawHudStat("⌖ Oleada", state.waveIdx + " / " + WAVES.length,
-      leftX + Math.min(320, VW * 0.44), statsY, "#e0e0e0", fontStat, fontLabel);
-
-    if (!state.waveActive && state.waveIdx < WAVES.length) {
-      drawButton(UI.nextWaveBtn, "▶ Iniciar Oleada", "#1f8a4c", "#16632f", true);
-    } else if (state.waveActive) {
-      drawButton(UI.nextWaveBtn, "Oleada en curso...", "#5a4250", "#3a2530", false);
+    if (isPortrait) {
+      // Compact single-line stats: no labels, tiny gap, fits beside buttons.
+      var midY = safeTop + (HUD_H - safeTop) / 2;
+      ctx.textBaseline = "middle";
+      ctx.textAlign = "left";
+      ctx.font = "bold 14px sans-serif";
+      ctx.fillStyle = "#f5d76e";
+      ctx.fillText("⚡ " + state.atp, leftX, midY);
+      ctx.fillStyle = state.lives <= 5 ? "#ff7878" : "#9adfb1";
+      ctx.fillText("♥ " + state.lives, leftX + 64, midY);
+      ctx.fillStyle = "#e0e0e0";
+      ctx.fillText("⌖ " + state.waveIdx + "/" + WAVES.length, leftX + 118, midY);
     } else {
-      drawButton(UI.nextWaveBtn, "Sin mas oleadas", "#5a4250", "#3a2530", false);
+      var statsY = safeTop + 8;
+      var fontStat = Math.max(14, Math.min(20, VW * 0.018));
+      var fontLabel = Math.max(10, Math.min(13, VW * 0.012));
+      drawHudStat("⚡ ATP", state.atp, leftX, statsY, "#f5d76e", fontStat, fontLabel);
+      drawHudStat("♥ Vida", state.lives, leftX + Math.min(160, VW * 0.22), statsY,
+        state.lives <= 5 ? "#ff7878" : "#9adfb1", fontStat, fontLabel);
+      drawHudStat("⌖ Oleada", state.waveIdx + " / " + WAVES.length,
+        leftX + Math.min(320, VW * 0.44), statsY, "#e0e0e0", fontStat, fontLabel);
     }
 
-    // Restart button: circular ↻
+    var nwLabel = isPortrait ? "▶ Oleada" : "▶ Iniciar Oleada";
+    if (!state.waveActive && state.waveIdx < WAVES.length) {
+      drawButton(UI.nextWaveBtn, nwLabel, "#1f8a4c", "#16632f", true);
+    } else if (state.waveActive) {
+      drawButton(UI.nextWaveBtn, isPortrait ? "En curso..." : "Oleada en curso...", "#5a4250", "#3a2530", false);
+    } else {
+      drawButton(UI.nextWaveBtn, isPortrait ? "Fin" : "Sin mas oleadas", "#5a4250", "#3a2530", false);
+    }
+
     var rb = UI.restartBtn;
     ctx.fillStyle = "#5a3540";
     roundRect(rb.x, rb.y, rb.w, rb.h, 8);
@@ -1083,23 +1175,26 @@
       ctx.stroke();
 
       var cx = card.x + card.w / 2;
-      drawHexagon(cx, card.y + card.h * 0.28, Math.min(18, card.w * 0.16), canAfford ? def.color : "#555", def.colorDark, 2);
-      drawHexagon(cx, card.y + card.h * 0.28, Math.min(9, card.w * 0.08), "#fff", null);
+      var showDesc = card.w >= 120;
+      drawHexagon(cx, card.y + card.h * 0.28, Math.min(18, card.w * 0.18), canAfford ? def.color : "#555", def.colorDark, 2);
+      drawHexagon(cx, card.y + card.h * 0.28, Math.min(9, card.w * 0.09), "#fff", null);
 
       ctx.fillStyle = canAfford ? "#fff" : "rgba(255,255,255,0.45)";
-      var fs1 = Math.max(10, Math.min(13, card.w * 0.13));
+      var fs1 = Math.max(10, Math.min(13, card.w * 0.14));
       ctx.font = "bold " + fs1 + "px sans-serif";
       ctx.textAlign = "center";
       ctx.textBaseline = "top";
-      ctx.fillText(def.name, cx, card.y + card.h * 0.50);
+      ctx.fillText(def.name, cx, card.y + card.h * (showDesc ? 0.50 : 0.54));
 
-      ctx.font = Math.max(9, Math.min(11, card.w * 0.10)) + "px sans-serif";
-      ctx.fillStyle = "rgba(255,255,255,0.55)";
-      ctx.fillText(def.desc, cx, card.y + card.h * 0.65);
+      if (showDesc) {
+        ctx.font = Math.max(9, Math.min(11, card.w * 0.10)) + "px sans-serif";
+        ctx.fillStyle = "rgba(255,255,255,0.55)";
+        ctx.fillText(def.desc, cx, card.y + card.h * 0.66);
+      }
 
-      ctx.font = "bold " + Math.max(11, Math.min(13, card.w * 0.12)) + "px sans-serif";
+      ctx.font = "bold " + Math.max(11, Math.min(13, card.w * 0.13)) + "px sans-serif";
       ctx.fillStyle = canAfford ? "#f5d76e" : "#d9534f";
-      ctx.fillText("⚡ " + def.cost, cx, card.y + card.h * 0.80);
+      ctx.fillText("⚡ " + def.cost, cx, card.y + card.h * (showDesc ? 0.82 : 0.78));
     }
 
     var infoX = UI.infoX, infoY = UI.infoY;
@@ -1109,13 +1204,19 @@
       var t = state.selectedTower;
       var stats = towerStats(t);
       ctx.fillStyle = t.def.color;
-      ctx.font = "bold 16px sans-serif";
-      ctx.fillText(t.def.name + "  Nv " + (t.level + 1) + "/3", infoX, infoY + 4);
+      ctx.font = "bold 15px sans-serif";
+      ctx.fillText(t.def.name + "  Nv " + (t.level + 1) + "/3", infoX, infoY + 2);
 
       ctx.font = "12px sans-serif";
       ctx.fillStyle = "rgba(255,255,255,0.85)";
-      ctx.fillText("Daño: " + stats.damage + (stats.splash > 0 ? "  AOE: " + stats.splash : ""), infoX, infoY + 24);
-      ctx.fillText("Rango: " + stats.range + "    Cadencia: " + stats.fireRate.toFixed(2) + "/s", infoX, infoY + 40);
+      if (isPortrait) {
+        var oneLine = "Dmg " + stats.damage + (stats.splash > 0 ? " (AOE)" : "") +
+          " • R " + stats.range + " • " + stats.fireRate.toFixed(1) + "/s";
+        ctx.fillText(oneLine, infoX, infoY + 22);
+      } else {
+        ctx.fillText("Daño: " + stats.damage + (stats.splash > 0 ? "  AOE: " + stats.splash : ""), infoX, infoY + 24);
+        ctx.fillText("Rango: " + stats.range + "    Cadencia: " + stats.fireRate.toFixed(2) + "/s", infoX, infoY + 40);
+      }
 
       ctx.fillStyle = "rgba(255,255,255,0.1)";
       roundRect(UI.deselectBtn.x, UI.deselectBtn.y, UI.deselectBtn.w, UI.deselectBtn.h, 6);
@@ -1123,7 +1224,9 @@
       ctx.fillStyle = "rgba(255,255,255,0.7)";
       ctx.font = "bold 11px sans-serif";
       ctx.textAlign = "center";
-      ctx.fillText("Deseleccionar", UI.deselectBtn.x + UI.deselectBtn.w / 2, UI.deselectBtn.y + UI.deselectBtn.h / 2 + 4);
+      ctx.fillText(isPortrait ? "X cerrar" : "Deseleccionar",
+        UI.deselectBtn.x + UI.deselectBtn.w / 2,
+        UI.deselectBtn.y + UI.deselectBtn.h / 2 + 4);
       ctx.textAlign = "left";
 
       var sellRefund = Math.floor(t.def.cost * 0.6);
@@ -1144,20 +1247,31 @@
     } else if (state.selectedToBuild) {
       var def2 = TOWER_DEFS[state.selectedToBuild];
       ctx.fillStyle = def2.color;
-      ctx.font = "bold 16px sans-serif";
-      ctx.fillText("Construyendo: " + def2.name, infoX, infoY + 4);
+      ctx.font = "bold 15px sans-serif";
+      ctx.fillText(def2.name + " — " + def2.desc, infoX, infoY + 4);
       ctx.font = "12px sans-serif";
-      ctx.fillStyle = "rgba(255,255,255,0.7)";
-      ctx.fillText("Toca el campo para colocar (⚡ " + def2.cost + ")", infoX, infoY + 26);
-      ctx.fillText("ESC cancela • ATP: " + state.atp, infoX, infoY + 44);
+      ctx.fillStyle = "rgba(255,255,255,0.75)";
+      ctx.fillText("Toca el campo para colocar (⚡ " + def2.cost + ", ATP: " + state.atp + ")", infoX, infoY + 24);
+      if (!isPortrait) {
+        ctx.fillStyle = "rgba(255,255,255,0.5)";
+        ctx.fillText("ESC cancela", infoX, infoY + 42);
+      }
     } else {
       ctx.fillStyle = "rgba(255,255,255,0.55)";
       ctx.font = "13px sans-serif";
-      ctx.fillText("Elige una celula inmune o toca una torre.", infoX, infoY + 8);
-      ctx.font = "11px sans-serif";
-      ctx.fillStyle = "rgba(255,255,255,0.35)";
-      ctx.fillText("1/2/3 elegir • ESC cancelar • SPACE oleada • R reiniciar", infoX, infoY + 30);
-      ctx.fillText("Patogenos: bacteria lenta+fuerte • virus rapido • hongo medio", infoX, infoY + 48);
+      ctx.fillText(isPortrait
+        ? "Toca una celula para construir."
+        : "Elige una celula inmune o toca una torre.", infoX, infoY + 6);
+      if (!isPortrait) {
+        ctx.font = "11px sans-serif";
+        ctx.fillStyle = "rgba(255,255,255,0.35)";
+        ctx.fillText("1/2/3 elegir • ESC cancelar • SPACE oleada • R reiniciar", infoX, infoY + 30);
+        ctx.fillText("Patogenos: bacteria lenta+fuerte • virus rapido • hongo medio", infoX, infoY + 48);
+      } else {
+        ctx.font = "11px sans-serif";
+        ctx.fillStyle = "rgba(255,255,255,0.4)";
+        ctx.fillText("Toca torre colocada para mejorar/vender.", infoX, infoY + 26);
+      }
     }
   }
 

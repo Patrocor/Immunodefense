@@ -351,17 +351,17 @@
   var DRIP_WINDOW = 3.0;
 
   function layoutDrip() {
-    // Place outside the path: portrait = right edge mid; landscape = top-left corner.
+    // Lymph node bean position; portrait = right side mid-field, landscape = top-left.
     if (isPortrait) {
-      DRIP.x = FIELD_RIGHT - 28 * U;
-      DRIP.y = FIELD_TOP + FIELD_H * 0.30;
+      DRIP.x = FIELD_RIGHT - 50 * U;
+      DRIP.y = FIELD_TOP + FIELD_H * 0.32;
     } else {
-      DRIP.x = FIELD_LEFT + 32 * U;
-      DRIP.y = FIELD_TOP + 28 * U;
+      DRIP.x = FIELD_LEFT + 56 * U;
+      DRIP.y = FIELD_TOP + FIELD_H * 0.18 + 36 * U;
     }
-    DRIP.w = 14 * U;
-    DRIP.h = 50 * U;
-    DRIP.mouthY = DRIP.y + DRIP.h / 2;
+    DRIP.w = 56 * U;   // long axis radius
+    DRIP.h = 34 * U;   // short axis radius
+    DRIP.mouthY = DRIP.y + DRIP.h * 0.85;
   }
 
   // -------- PATH (mixed segments: zigzag + arc + loop) -------------------
@@ -464,6 +464,112 @@
     // Visible entry/exit (just inside field). Use anchor[1] / anchor[N-2].
     PATH.entry = anchors[1] || anchors[0];
     PATH.exit = anchors[n - 2] || anchors[n - 1];
+    if (state) generateTissue();
+  }
+
+  // -------- TISSUE CACHE (deterministic, regenerated only on path rebuild) --
+  function generateTissue() {
+    var rng = (function () {
+      var s = 9283 + (PATH.orientation === "portrait" ? 17 : 31) +
+              Math.round(FIELD_W) * 13 + Math.round(FIELD_H) * 7;
+      return function () { s = (s * 9301 + 49297) % 233280; return s / 233280; };
+    })();
+    function distToPath(x, y) { return distPointToPath(x, y); }
+    function isFar(x, y) {
+      // Avoid skin/circulatory zones, drip area, wound, vessel.
+      if (y < FIELD_TOP + FIELD_H * 0.18 + 6) return false;
+      if (y > FIELD_BOTTOM - FIELD_H * 0.14 - 6) return false;
+      if (PATH.entry && Math.hypot(x - PATH.entry.x, y - PATH.entry.y) < 60 * U) return false;
+      if (PATH.exit && Math.hypot(x - PATH.exit.x, y - PATH.exit.y) < 60 * U) return false;
+      return true;
+    }
+    var tissue = { platelets: [], fibrin: [], fibroblasts: [], collagen: [], epithelials: [] };
+    var attempts = 0;
+    // Platelets: near path (within 80px, but not on it)
+    while (tissue.platelets.length < 22 && attempts < 600) {
+      attempts++;
+      var x = FIELD_LEFT + rng() * FIELD_W;
+      var y = FIELD_TOP + rng() * FIELD_H;
+      if (!isFar(x, y)) continue;
+      var d = distToPath(x, y);
+      if (d < 32 * U || d > 80 * U) continue;
+      tissue.platelets.push({
+        x: x, y: y,
+        size: (4 + rng() * 2) * U,
+        rot: rng() * Math.PI,
+        phase: rng() * Math.PI * 2,
+        reactiveTimer: 0
+      });
+    }
+    // Fibrin: near path
+    attempts = 0;
+    while (tissue.fibrin.length < 12 && attempts < 600) {
+      attempts++;
+      var fx = FIELD_LEFT + rng() * FIELD_W;
+      var fy = FIELD_TOP + rng() * FIELD_H;
+      if (!isFar(fx, fy)) continue;
+      var fd = distToPath(fx, fy);
+      if (fd < 32 * U || fd > 80 * U) continue;
+      var fang = rng() * Math.PI * 2;
+      var flen = (15 + rng() * 10) * U;
+      tissue.fibrin.push({
+        x: fx, y: fy,
+        endX: fx + Math.cos(fang) * flen,
+        endY: fy + Math.sin(fang) * flen,
+        ctrlOff: (rng() - 0.5) * 6 * U,
+        reactiveTimer: 0
+      });
+    }
+    // Fibroblasts: far from path (>80px)
+    attempts = 0;
+    while (tissue.fibroblasts.length < 8 && attempts < 600) {
+      attempts++;
+      var bx = FIELD_LEFT + rng() * FIELD_W;
+      var by = FIELD_TOP + rng() * FIELD_H;
+      if (!isFar(bx, by)) continue;
+      var bd = distToPath(bx, by);
+      if (bd <= 80 * U) continue;
+      tissue.fibroblasts.push({
+        x: bx, y: by,
+        rx: (8 + rng() * 6) * U,
+        ry: (4 + rng() * 3) * U,
+        rot: rng() * Math.PI,
+        phase: rng() * Math.PI * 2
+      });
+    }
+    // Collagen: far, long thin lines
+    attempts = 0;
+    while (tissue.collagen.length < 12 && attempts < 600) {
+      attempts++;
+      var cx = FIELD_LEFT + rng() * FIELD_W;
+      var cy = FIELD_TOP + rng() * FIELD_H;
+      if (!isFar(cx, cy)) continue;
+      var cd = distToPath(cx, cy);
+      if (cd <= 70 * U) continue;
+      var cang = rng() * Math.PI * 2;
+      var clen = (20 + rng() * 14) * U;
+      tissue.collagen.push({
+        x: cx, y: cy,
+        endX: cx + Math.cos(cang) * clen,
+        endY: cy + Math.sin(cang) * clen
+      });
+    }
+    // Epithelials (small clusters of 3-5 polygons)
+    attempts = 0;
+    while (tissue.epithelials.length < 4 && attempts < 200) {
+      attempts++;
+      var ex = FIELD_LEFT + rng() * FIELD_W;
+      var ey = FIELD_TOP + rng() * FIELD_H;
+      if (!isFar(ex, ey)) continue;
+      if (distToPath(ex, ey) <= 90 * U) continue;
+      tissue.epithelials.push({
+        x: ex, y: ey,
+        size: (8 + rng() * 4) * U,
+        rot: rng() * Math.PI,
+        sides: 5 + Math.floor(rng() * 2)
+      });
+    }
+    state.tissue = tissue;
   }
 
   function pathPos(progress) {
@@ -701,15 +807,22 @@
       kills: 0,
       endRevealTimer: 0,
       endMusicSwitched: false,
-      drip: {
+      drip: {           // legacy alias, kept for other refs
+        nextDropAt: getInitialDripDelay(level),
+        drop: null
+      },
+      lymph: {
         nextDropAt: getInitialDripDelay(level),
         drop: null
       },
       vesselFlashTimer: 0,
+      vesselSwallow: 0,
       woundFlashTimer: 0,
       levelTransition: false,
       finalScreen: false,
-      transitionTimer: 0
+      transitionTimer: 0,
+      tissue: null,  // pre-generated connective tissue elements (cached per path)
+      lymph: { node: null, drop: null, nextDropAt: 6 }
     };
   }
   state = newState(1);
@@ -853,17 +966,28 @@
 
   function spawnEnemy(typeId, hpMult) {
     var def = ENEMY_DEFS[typeId];
-    var entry = (PATH.beziers && PATH.beziers.length) ? PATH.beziers[0].p0 : { x: 0, y: 0 };
+    var entry = PATH.entry || ((PATH.beziers && PATH.beziers.length) ? PATH.beziers[0].p0 : { x: 0, y: 0 });
     var diff = getDifficulty(state.currentLevel);
     var hp = def.hp * hpMult * diff.hp;
+    // Funnel entry: enemy starts in "falling" state above the wound at a random offset.
+    var ang = -Math.PI / 2 + (Math.random() - 0.5) * Math.PI * 0.7; // mostly upward fan
+    var dist = (90 + Math.random() * 80) * U;
+    var startX = entry.x + Math.cos(ang) * dist;
+    var startY = entry.y + Math.sin(ang) * dist;
+    var vx = (entry.x - startX) * 0.6 + (Math.random() - 0.5) * 30 * U;
+    var vy = (entry.y - startY) * 0.5 + (Math.random() * 20 + 10) * U;
     state.enemies.push({
       def: def,
       hp: hp,
       maxHp: hp,
       speedMultLevel: diff.speed,
+      state: "falling",   // falling -> entering -> walking -> absorbing
       progress: 0,
-      x: entry.x,
-      y: entry.y,
+      x: startX, y: startY,
+      vx: vx, vy: vy,
+      fallRot: Math.random() * Math.PI * 2,
+      fallRotSpd: (Math.random() - 0.5) * 6,
+      enteringTimer: 0,
       wobble: Math.random() * Math.PI * 2,
       hitFlash: 0,
       hurtTimer: 0,
@@ -873,13 +997,16 @@
       sporeTimer: Math.random() * 1.5,
       blinkTimer: 0,
       nextBlink: state.time + 2 + Math.random() * 3,
-      spawnFade: 0.30,
-      absorbed: false,
-      absorbedTimer: 0,
+      spawnFade: 0,        // unused now, replaced by state machine
+      absorbing: false,
+      absorbScale: 1,
+      absorbAlpha: 1,
+      absorbStartX: 0, absorbStartY: 0,
+      absorbTargetX: 0, absorbTargetY: 0,
+      absorbStartTime: 0,
       absorbedRot: 0,
       dead: false
     });
-    state.woundFlashTimer = 0.25;
   }
 
   function updateWave(dt) {
@@ -934,7 +1061,6 @@
       }
       if (e.hurtTimer > 0) e.hurtTimer -= dt;
       if (e.hitFlash > 0) e.hitFlash -= dt;
-      if (e.spawnFade > 0) e.spawnFade -= dt;
       if (e.dying) {
         e.dyingTimer -= dt;
         if (e.dyingTimer <= 0) {
@@ -945,15 +1071,66 @@
         }
         continue;
       }
-      if (e.absorbed) {
-        e.absorbedTimer -= dt;
-        e.absorbedRot += dt * Math.PI;  // ~180 deg over 0.4s pull-in
-        // Pull toward vessel center while shrinking.
-        if (PATH.exit) {
-          e.x += (PATH.exit.x - e.x) * Math.min(1, dt * 10);
-          e.y += (PATH.exit.y - e.y) * Math.min(1, dt * 10);
+      // FALLING: chaotic descent toward the wound funnel.
+      if (e.state === "falling") {
+        if (!PATH.entry) { e.state = "walking"; e.progress = 0; continue; }
+        var tx = PATH.entry.x, ty = PATH.entry.y;
+        var ddx = tx - e.x, ddy = ty - e.y;
+        var d = Math.hypot(ddx, ddy) || 0.0001;
+        var pull = 480 * U; // gravity-like acceleration toward funnel
+        e.vx += (ddx / d) * pull * dt;
+        e.vy += (ddy / d) * pull * dt;
+        // Damping to keep speeds bounded.
+        e.vx *= 0.985;
+        e.vy *= 0.985;
+        e.x += e.vx * dt;
+        e.y += e.vy * dt;
+        e.fallRot += e.fallRotSpd * dt;
+        if (d < 22 * U) {
+          e.state = "entering";
+          e.enteringTimer = 0.20;
+          e.x = tx; e.y = ty;
+          e.vx = 0; e.vy = 0;
+          state.woundFlashTimer = 0.30;
+          // Wound pulse particle ring
+          for (var pj = 0; pj < 8; pj++) {
+            var pa = pj * Math.PI / 4;
+            pushEffect({
+              kind: "particle",
+              x: tx, y: ty,
+              vx: Math.cos(pa) * 60 * U,
+              vy: Math.sin(pa) * 60 * U,
+              life: 0.4, max: 0.5,
+              color: "rgba(178, 34, 34, 0.7)"
+            });
+          }
         }
-        if (e.absorbedTimer <= 0) e.dead = true;
+        continue;
+      }
+      // ENTERING: brief funnel-in animation.
+      if (e.state === "entering") {
+        e.enteringTimer -= dt;
+        if (e.enteringTimer <= 0) {
+          e.state = "walking";
+          e.progress = 0;
+        }
+        continue;
+      }
+      // ABSORBING: explicit start->target lerp with easeInQuad.
+      if (e.absorbing) {
+        var elapsed = state.time - e.absorbStartTime;
+        var t01 = Math.min(1, elapsed / 0.40);
+        var et = t01 * t01;  // easeInQuad
+        e.x = e.absorbStartX + (e.absorbTargetX - e.absorbStartX) * et;
+        e.y = e.absorbStartY + (e.absorbTargetY - e.absorbStartY) * et;
+        e.absorbScale = Math.max(0, 1 - t01);
+        e.absorbAlpha = Math.max(0, 1 - t01);
+        e.absorbedRot += dt * 8;
+        if (t01 >= 1) {
+          e.dead = true;
+          state.vesselFlashTimer = Math.max(state.vesselFlashTimer, 0.20);
+          state.vesselSwallow = 0.20;
+        }
         continue;
       }
       // Boss enraged check
@@ -978,21 +1155,26 @@
           });
         }
       }
-      if (e.progress >= PATH.total) {
-        // Vessel absorption animation; viral load increases immediately.
-        e.absorbed = true;
-        e.absorbedTimer = 0.40;
+      if (e.progress >= PATH.total * 0.98 && !e.absorbing) {
+        // Lock onto vessel center for explicit absorb animation.
+        e.absorbing = true;
+        e.absorbStartTime = state.time;
+        e.absorbStartX = e.x;
+        e.absorbStartY = e.y;
+        e.absorbTargetX = PATH.exit ? PATH.exit.x : e.x;
+        e.absorbTargetY = PATH.exit ? PATH.exit.y : e.y;
         e.absorbedRot = 0;
+        e.absorbScale = 1;
+        e.absorbAlpha = 1;
         var viralAdd = VIRAL_BY_TYPE[e.def.id] || 5;
         state.viralLoad = Math.min(state.viralThreshold, state.viralLoad + viralAdd);
         state.pathogensReached += 1;
         META.totalPathogensInfiltrated += 1;
         triggerShake(0.25, e.def.isBoss ? 7 : 4);
         state.vesselFlashTimer = 0.30;
-        // Vessel "swallow" pulse (+15% for 0.2s) handled by vesselFlashTimer scaling.
-        spawnEffect("escape", e.x, e.y);
+        state.vesselSwallow = 0.20;  // visible "swallow" pulse
+        spawnEffect("escape", PATH.exit ? PATH.exit.x : e.x, PATH.exit ? PATH.exit.y : e.y);
         sfx("playerHurt");
-        // Drop a tracer into the circulatory ambient zone below the vessel.
         spawnCirculatoryTracer(e.def);
         if (state.viralLoad >= state.viralThreshold) {
           triggerLevelEnd();
@@ -1061,7 +1243,7 @@
       var target = null, bestProgress = -1;
       for (var j = 0; j < state.enemies.length; j++) {
         var e = state.enemies[j];
-        if (e.dead || e.dying) continue;
+        if (e.dead || e.dying || e.absorbing || e.state === "falling" || e.state === "entering") continue;
         var d = Math.hypot(e.x - t.x, e.y - t.y);
         if (d <= rangePx && e.progress > bestProgress) {
           bestProgress = e.progress;
@@ -1134,7 +1316,7 @@
     for (var i = 0; i < state.projectiles.length; i++) {
       var p = state.projectiles[i];
       if (p.dead) continue;
-      if (!p.target || p.target.dead || p.target.dying) { p.dead = true; continue; }
+      if (!p.target || p.target.dead || p.target.dying || p.target.absorbing) { p.dead = true; continue; }
       var dx = p.target.x - p.x, dy = p.target.y - p.y;
       var d = Math.hypot(dx, dy);
       var step = p.speedDesign * U * dt;
@@ -1143,7 +1325,7 @@
         if (splashPx > 0) {
           for (var j = 0; j < state.enemies.length; j++) {
             var e = state.enemies[j];
-            if (e.dead || e.dying) continue;
+            if (e.dead || e.dying || e.absorbing || e.state === "falling" || e.state === "entering") continue;
             if (Math.hypot(e.x - p.target.x, e.y - p.target.y) <= splashPx) {
               damageEnemy(e, p.damage);
             }
@@ -1312,6 +1494,7 @@
     if (state.shakeTimer > 0) state.shakeTimer -= dt;
     if (state.waveBannerTimer > 0) state.waveBannerTimer -= dt;
     if (state.vesselFlashTimer > 0) state.vesselFlashTimer -= dt;
+    if (state.vesselSwallow > 0) state.vesselSwallow -= dt;
     if (state.woundFlashTimer > 0) state.woundFlashTimer -= dt;
     if (state.levelTransition && state.transitionTimer < 1) state.transitionTimer += dt;
     // Circulatory tracers (ambient drift)
@@ -1337,33 +1520,36 @@
 
   // -------- LYMPHATIC DRIP UPDATE / DRAW --------------------------------
   function updateDrip(dt) {
+    // Backwards-compat wrapper that drives the lymph node drop.
     if (state.gameOver || state.victory || state.confirmRestart || state.levelTransition) return;
-    if (!state.drip.drop) {
-      state.drip.nextDropAt -= dt;
-      if (state.drip.nextDropAt <= 0) {
-        state.drip.drop = {
+    if (!state.lymph) state.lymph = { drop: null, nextDropAt: 6 };
+    if (!state.lymph.drop) {
+      if (state.lymph.nextDropAt === undefined) state.lymph.nextDropAt = 6;
+      state.lymph.nextDropAt -= dt;
+      if (state.lymph.nextDropAt <= 0) {
+        state.lymph.drop = {
           x: DRIP.x,
           y: DRIP.mouthY,
-          vy: 18 * U,
-          life: DRIP_WINDOW,
-          max: DRIP_WINDOW,
-          fading: false
+          vy: 24 * U,
+          ay: 90 * U,           // gentle gravity
+          life: 2.5,
+          max: 2.5
         };
-        state.drip.nextDropAt = DRIP_INTERVAL;
+        state.lymph.nextDropAt = DRIP_INTERVAL;
       }
     } else {
-      var d = state.drip.drop;
+      var d = state.lymph.drop;
       d.life -= dt;
-      // Drop falls slowly the first 0.5s, then floats in place pulsing.
+      d.vy += d.ay * dt;
       d.y += d.vy * dt;
-      d.vy *= 0.97;
-      // Hover near rest position once gravity decays.
-      if (d.life <= 0) state.drip.drop = null;
+      // Drift sideways slightly as it falls.
+      d.x += Math.sin(state.time * 1.5) * 0.4;
+      if (d.life <= 0) state.lymph.drop = null;
     }
   }
 
   function tryClickDrip(x, y) {
-    var d = state.drip.drop;
+    var d = state.lymph && state.lymph.drop;
     if (!d) return false;
     if (Math.hypot(x - d.x, y - d.y) <= 30 * U) {
       state.atp += DRIP_REWARD;
@@ -1375,7 +1561,6 @@
         life: 0.85, max: 0.85,
         color: "#FFD93D"
       });
-      // Burst sparkles
       for (var i = 0; i < 10; i++) {
         var a = Math.random() * Math.PI * 2;
         var sp = (40 + Math.random() * 50) * U;
@@ -1390,87 +1575,260 @@
         });
       }
       sfx("upgrade");
-      state.drip.drop = null;
+      state.lymph.drop = null;
       return true;
     }
     return false;
   }
 
-  function drawDrip() {
-    // Tube body — translucent yellow vein
-    var x = DRIP.x, y = DRIP.y, w = DRIP.w, h = DRIP.h;
+  // Bean-shaped lymph node (replaces the rectangular tube).
+  function drawLymphNode() {
+    var cx = DRIP.x, cy = DRIP.y;
+    var rx = DRIP.w, ry = DRIP.h;
+    // Organic pulsation 1.0 <-> 1.06 with 1.8s period.
+    var pulse = 1 + Math.sin(state.time * (Math.PI * 2 / 1.8)) * 0.06;
+    var rxp = rx * pulse, ryp = ry * pulse;
     ctx.save();
-    // Soft outer glow
-    var glow = ctx.createRadialGradient(x, y, w * 0.5, x, y, w * 1.6);
-    glow.addColorStop(0, "rgba(244, 228, 184, 0.35)");
+    // Afferent lymphatic vessels (decorative curves) on each side.
+    ctx.strokeStyle = "rgba(190, 160, 90, 0.55)";
+    ctx.lineWidth = 2.2;
+    ctx.lineCap = "round";
+    var sideSign = (cx > VW / 2) ? -1 : 1;
+    ctx.beginPath();
+    ctx.moveTo(cx - sideSign * rxp * 0.95, cy - ryp * 0.10);
+    ctx.quadraticCurveTo(cx - sideSign * (rxp * 1.45), cy - ryp * 0.4,
+                         cx - sideSign * (rxp * 1.7), cy - ryp * 0.6);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(cx - sideSign * rxp * 0.85, cy + ryp * 0.10);
+    ctx.quadraticCurveTo(cx - sideSign * (rxp * 1.25), cy + ryp * 0.45,
+                         cx - sideSign * (rxp * 1.55), cy + ryp * 0.65);
+    ctx.stroke();
+    // Bean shape: closed Bezier curve with 6 control points and subtle wobble.
+    var pts = [];
+    var nPts = 6;
+    var deformBase = state.time * 1.4;
+    for (var i = 0; i < nPts; i++) {
+      var ang = (i / nPts) * Math.PI * 2;
+      var w = 1.0 + Math.cos(ang * 2) * 0.18 - Math.cos(ang) * 0.18; // bean indent on one side
+      var px = cx + Math.cos(ang) * rxp * w + Math.sin(deformBase + i) * 1.5 * U;
+      var py = cy + Math.sin(ang) * ryp * w + Math.cos(deformBase * 0.8 + i * 1.3) * 1.5 * U;
+      pts.push({ x: px, y: py });
+    }
+    // Soft outer glow.
+    var glow = ctx.createRadialGradient(cx, cy, rxp * 0.5, cx, cy, rxp * 1.5);
+    glow.addColorStop(0, "rgba(244, 228, 184, 0.30)");
     glow.addColorStop(1, "rgba(244, 228, 184, 0)");
     ctx.fillStyle = glow;
     ctx.beginPath();
-    ctx.arc(x, y, w * 1.6, 0, Math.PI * 2);
+    ctx.arc(cx, cy, rxp * 1.5, 0, Math.PI * 2);
     ctx.fill();
-    // Tube outline (capsule)
-    ctx.fillStyle = "rgba(244, 228, 184, 0.55)";
-    ctx.beginPath();
-    ctx.moveTo(x - w / 2, y - h / 2 + w / 2);
-    ctx.arc(x, y - h / 2 + w / 2, w / 2, Math.PI, 0, false);
-    ctx.lineTo(x + w / 2, y + h / 2 - w / 2);
-    ctx.arc(x, y + h / 2 - w / 2, w / 2, 0, Math.PI, false);
-    ctx.closePath();
-    ctx.fill();
-    ctx.strokeStyle = "rgba(190, 160, 90, 0.55)";
-    ctx.lineWidth = 1.4;
-    ctx.stroke();
-    // Liquid flowing inside (vertical gradient that animates)
-    ctx.save();
-    ctx.beginPath();
-    ctx.moveTo(x - w / 2 + 2, y - h / 2 + w / 2);
-    ctx.arc(x, y - h / 2 + w / 2, w / 2 - 2, Math.PI, 0, false);
-    ctx.lineTo(x + w / 2 - 2, y + h / 2 - w / 2);
-    ctx.arc(x, y + h / 2 - w / 2, w / 2 - 2, 0, Math.PI, false);
-    ctx.closePath();
-    ctx.clip();
-    var flow = (state.time * 0.4) % 1;
-    var grad = ctx.createLinearGradient(x, y - h / 2, x, y + h / 2);
-    grad.addColorStop(Math.max(0, flow - 0.4), "rgba(244, 228, 184, 0.0)");
-    grad.addColorStop(flow, "rgba(255, 220, 110, 0.65)");
-    grad.addColorStop(Math.min(1, flow + 0.3), "rgba(244, 228, 184, 0.0)");
+    // Body fill (radial gradient #F4E4B8 -> #FFF8DC).
+    var grad = ctx.createRadialGradient(cx - rxp * 0.2, cy - ryp * 0.2, rxp * 0.15,
+                                        cx, cy, rxp);
+    grad.addColorStop(0, "#FFF8DC");
+    grad.addColorStop(1, "#F4E4B8");
     ctx.fillStyle = grad;
-    ctx.fillRect(x - w / 2, y - h / 2, w, h);
-    ctx.restore();
-    // Bottom mouth
-    ctx.fillStyle = "rgba(190, 160, 90, 0.7)";
     ctx.beginPath();
-    ctx.arc(x, y + h / 2 - w / 2, w * 0.5, 0, Math.PI * 2);
+    ctx.moveTo((pts[0].x + pts[nPts - 1].x) / 2, (pts[0].y + pts[nPts - 1].y) / 2);
+    for (var k = 0; k < nPts; k++) {
+      var p1 = pts[k];
+      var p2 = pts[(k + 1) % nPts];
+      var midX = (p1.x + p2.x) / 2;
+      var midY = (p1.y + p2.y) / 2;
+      ctx.quadraticCurveTo(p1.x, p1.y, midX, midY);
+    }
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = "#C8B068";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    // Internal follicles (3 white-ish circles pulsing independently).
+    var follicles = [
+      { ox: -0.40, oy: -0.05, r: 0.28, ph: 0 },
+      { ox:  0.18, oy:  0.18, r: 0.22, ph: 1.7 },
+      { ox:  0.45, oy: -0.15, r: 0.18, ph: 3.1 }
+    ];
+    for (var f = 0; f < follicles.length; f++) {
+      var fl = follicles[f];
+      var pp = 0.8 + 0.2 * Math.sin(state.time * 1.6 + fl.ph);
+      ctx.fillStyle = "rgba(255, 255, 245, " + (0.45 * pp) + ")";
+      ctx.beginPath();
+      ctx.arc(cx + fl.ox * rxp, cy + fl.oy * ryp, fl.r * Math.min(rxp, ryp) * pp, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "rgba(170, 140, 60, 0.4)";
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+    // Subtle highlight at top edge.
+    ctx.fillStyle = "rgba(255, 255, 240, 0.25)";
+    ctx.beginPath();
+    ctx.ellipse(cx - rxp * 0.1, cy - ryp * 0.5, rxp * 0.4, ryp * 0.18, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // Tiny label
+    ctx.fillStyle = "rgba(120, 100, 50, 0.55)";
+    ctx.font = 'italic 10px Georgia, serif';
+    ctx.textAlign = "center";
+    ctx.textBaseline = "top";
+    ctx.fillText("NÓDULO LINFÁTICO", cx, cy + ryp + 6);
+    ctx.restore();
+  }
+
+  function drawLymphDrop() {
+    var d = state.lymph && state.lymph.drop;
+    if (!d) return;
+    var pulse = 0.85 + Math.sin(state.time * 6) * 0.15;
+    var alpha = Math.max(0, Math.min(1, d.life / d.max));
+    ctx.save();
+    ctx.fillStyle = "rgba(255, 220, 110, " + (alpha * 0.35) + ")";
+    ctx.beginPath();
+    ctx.arc(d.x, d.y, 18 * U * pulse, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.translate(d.x, d.y);
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = "#FFD93D";
+    ctx.beginPath();
+    ctx.moveTo(0, -10 * U);
+    ctx.bezierCurveTo(8 * U, -4 * U, 8 * U, 7 * U, 0, 9 * U);
+    ctx.bezierCurveTo(-8 * U, 7 * U, -8 * U, -4 * U, 0, -10 * U);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = "rgba(180, 130, 30, 0.7)";
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
+    ctx.fillStyle = "rgba(255, 255, 230, 0.65)";
+    ctx.beginPath();
+    ctx.ellipse(-2 * U, -2 * U, 2.5 * U, 4 * U, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
-    // Active drop
-    var d = state.drip.drop;
-    if (d) {
-      var pulse = 0.85 + Math.sin(state.time * 6) * 0.15;
-      var alpha = Math.max(0, Math.min(1, d.life / d.max));
-      // Halo
-      ctx.fillStyle = "rgba(255, 220, 110, " + (alpha * 0.35) + ")";
+  }
+
+  // Connective tissue render (cached).
+  function drawTissue() {
+    var T = state.tissue;
+    if (!T) return;
+    // Update reactivity: enemies near tissue elements set reactiveTimer.
+    var enemies = state.enemies;
+    var rThresh = 30 * U;
+    for (var pi = 0; pi < T.platelets.length; pi++) {
+      var p = T.platelets[pi];
+      if (p.reactiveTimer > 0) p.reactiveTimer -= 0.016;
+      for (var ei = 0; ei < enemies.length; ei++) {
+        var en = enemies[ei];
+        if (en.dead || en.absorbing || en.state === "falling") continue;
+        if (Math.hypot(en.x - p.x, en.y - p.y) < rThresh) {
+          p.reactiveTimer = 1.5;
+          break;
+        }
+      }
+    }
+    for (var fi = 0; fi < T.fibrin.length; fi++) {
+      var f = T.fibrin[fi];
+      if (f.reactiveTimer > 0) f.reactiveTimer -= 0.016;
+      for (var ei2 = 0; ei2 < enemies.length; ei2++) {
+        var en2 = enemies[ei2];
+        if (en2.dead || en2.absorbing || en2.state === "falling") continue;
+        if (Math.hypot(en2.x - f.x, en2.y - f.y) < rThresh) {
+          f.reactiveTimer = 1.5;
+          break;
+        }
+      }
+    }
+    // Collagen (background, far)
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.32)";
+    ctx.lineWidth = 1;
+    for (var ci = 0; ci < T.collagen.length; ci++) {
+      var c = T.collagen[ci];
       ctx.beginPath();
-      ctx.arc(d.x, d.y, 18 * U * pulse, 0, Math.PI * 2);
-      ctx.fill();
-      // Drop body (teardrop)
+      ctx.moveTo(c.x, c.y);
+      ctx.lineTo(c.endX, c.endY);
+      ctx.stroke();
+    }
+    // Fibroblasts (oval cells with darker nucleus)
+    for (var bi = 0; bi < T.fibroblasts.length; bi++) {
+      var b = T.fibroblasts[bi];
+      var pulse = 1 + Math.sin(state.time * 0.6 + b.phase) * 0.04;
       ctx.save();
-      ctx.translate(d.x, d.y);
-      ctx.fillStyle = "#FFD93D";
+      ctx.translate(b.x, b.y);
+      ctx.rotate(b.rot);
+      ctx.fillStyle = "rgba(232, 184, 148, 0.85)";
       ctx.beginPath();
-      ctx.moveTo(0, -10 * U);
-      ctx.bezierCurveTo(8 * U, -4 * U, 8 * U, 7 * U, 0, 9 * U);
-      ctx.bezierCurveTo(-8 * U, 7 * U, -8 * U, -4 * U, 0, -10 * U);
+      ctx.ellipse(0, 0, b.rx * pulse, b.ry * pulse, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "rgba(140, 90, 70, 0.55)";
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      // Nucleus
+      ctx.fillStyle = "rgba(110, 70, 50, 0.7)";
+      ctx.beginPath();
+      ctx.ellipse(0, 0, b.rx * 0.35, b.ry * 0.45, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+    // Epithelial clusters (small polygons)
+    for (var ei3 = 0; ei3 < T.epithelials.length; ei3++) {
+      var ep = T.epithelials[ei3];
+      ctx.save();
+      ctx.translate(ep.x, ep.y);
+      ctx.rotate(ep.rot);
+      ctx.fillStyle = "rgba(232, 184, 148, 0.55)";
+      ctx.strokeStyle = "rgba(140, 90, 70, 0.45)";
+      ctx.lineWidth = 1;
+      for (var sx = -1; sx <= 1; sx++) {
+        for (var sy = -1; sy <= 1; sy++) {
+          if ((sx + sy) % 2 !== 0) continue;
+          ctx.beginPath();
+          for (var ss = 0; ss < ep.sides; ss++) {
+            var sa = (ss / ep.sides) * Math.PI * 2;
+            var spx = sx * ep.size * 1.2 + Math.cos(sa) * ep.size * 0.6;
+            var spy = sy * ep.size * 1.2 + Math.sin(sa) * ep.size * 0.6;
+            if (ss === 0) ctx.moveTo(spx, spy); else ctx.lineTo(spx, spy);
+          }
+          ctx.closePath();
+          ctx.fill();
+          ctx.stroke();
+        }
+      }
+      ctx.restore();
+    }
+    // Fibrin (curved threads, near path)
+    for (var fi2 = 0; fi2 < T.fibrin.length; fi2++) {
+      var fb = T.fibrin[fi2];
+      var react = fb.reactiveTimer > 0 ? Math.min(1, fb.reactiveTimer / 1.5) : 0;
+      ctx.strokeStyle = react > 0
+        ? "rgba(255, 215, 100, " + (0.6 + react * 0.4) + ")"
+        : "rgba(244, 228, 188, 0.65)";
+      ctx.lineWidth = 1 + react * 0.5;
+      ctx.beginPath();
+      var midX = (fb.x + fb.endX) / 2 + fb.ctrlOff;
+      var midY = (fb.y + fb.endY) / 2 + fb.ctrlOff;
+      ctx.moveTo(fb.x, fb.y);
+      ctx.quadraticCurveTo(midX, midY, fb.endX, fb.endY);
+      ctx.stroke();
+    }
+    // Platelets (small starburst shapes, near path, vibrate when reactive)
+    for (var pi2 = 0; pi2 < T.platelets.length; pi2++) {
+      var pl = T.platelets[pi2];
+      var react2 = pl.reactiveTimer > 0 ? Math.min(1, pl.reactiveTimer / 1.5) : 0;
+      var jitter = react2 > 0 ? (Math.random() - 0.5) * 1.5 : Math.sin(state.time * 4 + pl.phase) * 0.4;
+      ctx.save();
+      ctx.translate(pl.x + jitter * U, pl.y + jitter * U);
+      ctx.rotate(pl.rot + state.time * 0.2);
+      ctx.fillStyle = react2 > 0 ? "#FFFFFF" : "#C8A2C8";
+      ctx.beginPath();
+      var spikes = 6;
+      for (var sp = 0; sp < spikes * 2; sp++) {
+        var srad = (sp % 2 === 0) ? pl.size : pl.size * 0.5;
+        var sang = (sp / (spikes * 2)) * Math.PI * 2;
+        var ssx = Math.cos(sang) * srad;
+        var ssy = Math.sin(sang) * srad;
+        if (sp === 0) ctx.moveTo(ssx, ssy); else ctx.lineTo(ssx, ssy);
+      }
       ctx.closePath();
       ctx.fill();
-      ctx.strokeStyle = "rgba(180, 130, 30, 0.7)";
-      ctx.lineWidth = 1.2;
+      ctx.strokeStyle = react2 > 0 ? "rgba(255, 220, 100, 0.8)" : "rgba(120, 70, 130, 0.5)";
+      ctx.lineWidth = 1;
       ctx.stroke();
-      // Inner highlight
-      ctx.fillStyle = "rgba(255, 255, 230, 0.65)";
-      ctx.beginPath();
-      ctx.ellipse(-2 * U, -2 * U, 2.5 * U, 4 * U, 0, 0, Math.PI * 2);
-      ctx.fill();
       ctx.restore();
     }
   }
@@ -1659,8 +2017,8 @@
       if (Math.hypot(state.towers[i].x - x, state.towers[i].y - y) < 38 * U) return false;
     }
     // Keep clear of the lymphatic drip column.
-    if (Math.abs(x - DRIP.x) < DRIP.w * 0.7 + 18 * U &&
-        Math.abs(y - DRIP.y) < DRIP.h * 0.5 + 18 * U) return false;
+    if (Math.abs(x - DRIP.x) < DRIP.w + 14 * U &&
+        Math.abs(y - DRIP.y) < DRIP.h + 14 * U) return false;
     // Keep clear of wound and vessel landmarks.
     if (PATH.entry && Math.hypot(x - PATH.entry.x, y - PATH.entry.y) < 38 * U) return false;
     if (PATH.exit && Math.hypot(x - PATH.exit.x, y - PATH.exit.y) < 42 * U) return false;
@@ -1944,8 +2302,6 @@
     strokePathLine();
     ctx.setLineDash([]);
     ctx.lineCap = "butt";
-    drawWound();
-    drawVessel();
   }
 
   // ---- Herida (wound) at path entry ------------------------------------
@@ -2053,7 +2409,8 @@
     // ~60 BPM = 1 Hz
     var beat = Math.sin(state.time * Math.PI * 2 * 1.0);
     var flash = state.vesselFlashTimer > 0 ? state.vesselFlashTimer / 0.30 : 0;
-    var pulse = 1 + Math.max(0, beat) * 0.04 + flash * 0.10;
+    var swallow = state.vesselSwallow > 0 ? (state.vesselSwallow / 0.20) : 0;
+    var pulse = 1 + Math.max(0, beat) * 0.04 + flash * 0.10 + swallow * 0.15;
     var W = w * pulse, H = h * pulse;
     if (flash > 0) {
       // Red glow when an enemy gets absorbed.
@@ -2573,17 +2930,28 @@
       : "idle";
     var blink = (e.blinkTimer || 0) > 0 && expression === "idle";
     var dyingScale = e.dying ? Math.max(0.4, e.dyingTimer / 0.30) : 1;
-    var absorbScale = e.absorbed ? Math.max(0.0, e.absorbedTimer / 0.40) : 1;
-    var scale = dyingScale * absorbScale;
+    var absorbScale = e.absorbing ? (e.absorbScale != null ? e.absorbScale : 1) : 1;
+    // Falling state: small entry scale to suggest "falling from above".
+    var fallScale = (e.state === "falling") ? 0.85 : 1;
+    var enteringScale = 1;
+    if (e.state === "entering") {
+      // Animate 0 -> 0.5 -> 1 over 0.2s
+      var et = 1 - Math.max(0, e.enteringTimer / 0.20);
+      enteringScale = 0.5 + 0.5 * Math.sin(et * Math.PI);
+    }
+    var scale = dyingScale * absorbScale * fallScale * enteringScale;
     var alpha = 1;
-    if (e.spawnFade > 0) alpha *= Math.max(0, 1 - e.spawnFade / 0.30);
-    if (e.absorbed) alpha *= Math.max(0, e.absorbedTimer / 0.40);
+    if (e.absorbing) alpha *= e.absorbAlpha != null ? e.absorbAlpha : 1;
+    if (e.state === "entering") alpha *= 0.5 + 0.5 * Math.sin((1 - e.enteringTimer / 0.20) * Math.PI);
     ctx.save();
     ctx.globalAlpha = alpha;
-    if (e.absorbed) {
-      // Apply suction rotation around enemy center.
+    if (e.absorbing) {
       ctx.translate(e.x, e.y);
       ctx.rotate(e.absorbedRot || 0);
+      ctx.translate(-e.x, -e.y);
+    } else if (e.state === "falling") {
+      ctx.translate(e.x, e.y);
+      ctx.rotate(e.fallRot || 0);
       ctx.translate(-e.x, -e.y);
     }
     drawShadow(e.x, e.y + rad * 0.85, rad * 0.85 * scale, rad * 0.22 * scale);
@@ -2592,7 +2960,7 @@
     else if (def.id === "hongo") drawHongo(e, rad * scale, expression, blink);
     else if (def.id === "boss") drawBoss(e, rad * scale, expression, blink);
     ctx.restore();
-    if (e.dying || e.absorbed || e.spawnFade > 0.05) return; // hide HP bar
+    if (e.dying || e.absorbing || e.state === "falling" || e.state === "entering") return;
     // HP bar
     var hpRatio = Math.max(0, e.hp / e.maxHp);
     var bw = Math.max(20 * U, rad * 2);
@@ -3687,11 +4055,15 @@
     drawSkinZone();
     drawCirculatoryZone();
     drawAmbient();
+    drawTissue();
     drawPath();
-    drawDrip();
+    drawWound();
+    drawLymphNode();
     drawRangeHint();
     for (var i = 0; i < state.towers.length; i++) drawTower(state.towers[i]);
     for (var j = 0; j < state.enemies.length; j++) drawEnemy(state.enemies[j]);
+    drawVessel();
+    drawLymphDrop();
     for (var k = 0; k < state.projectiles.length; k++) drawProjectile(state.projectiles[k]);
     for (var m = 0; m < state.effects.length; m++) drawEffect(state.effects[m]);
     drawGhost();

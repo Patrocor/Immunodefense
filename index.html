@@ -364,29 +364,45 @@
     DRIP.mouthY = DRIP.y + DRIP.h / 2;
   }
 
-  // -------- PATH (normalized inside field, smooth Bezier curves) ---------
+  // -------- PATH (mixed segments: zigzag + arc + loop) -------------------
   // Anchor points (normalized 0-1 inside field). Curves between them are
   // generated via Catmull-Rom -> cubic Bezier conversion.
-  var PATH_LANDSCAPE = [
-    { x: -0.06, y: 0.22 },
-    { x:  0.10, y: 0.30 },
-    { x:  0.28, y: 0.55 },
-    { x:  0.45, y: 0.30 },
-    { x:  0.60, y: 0.62 },
-    { x:  0.78, y: 0.45 },
-    { x:  0.92, y: 0.78 },
-    { x:  1.08, y: 0.70 }
+  // Landscape: zigzag on left, semicircular arc in middle, downward loop near end.
+  var PATH_LANDSCAPE_BASE = [
+    { x: -0.06, y: 0.25 },
+    { x:  0.08, y: 0.30 },
+    { x:  0.18, y: 0.55 },
+    { x:  0.30, y: 0.32 },
+    { x:  0.42, y: 0.55 },
+    { x:  0.50, y: 0.32 },
+    { x:  0.62, y: 0.22 },
+    { x:  0.74, y: 0.40 },
+    { x:  0.68, y: 0.62 },
+    { x:  0.82, y: 0.78 },
+    { x:  0.95, y: 0.62 },
+    { x:  1.08, y: 0.75 }
   ];
-  var PATH_PORTRAIT = [
-    { x: 0.22, y: -0.06 },
-    { x: 0.30, y:  0.12 },
-    { x: 0.62, y:  0.22 },
-    { x: 0.40, y:  0.40 },
-    { x: 0.70, y:  0.55 },
-    { x: 0.32, y:  0.70 },
-    { x: 0.55, y:  0.86 },
+  // Portrait: zigzag at top, broad arc in middle, loop near bottom.
+  var PATH_PORTRAIT_BASE = [
+    { x: 0.25, y: -0.06 },
+    { x: 0.30, y:  0.10 },
+    { x: 0.55, y:  0.18 },
+    { x: 0.32, y:  0.30 },
+    { x: 0.58, y:  0.40 },
+    { x: 0.30, y:  0.50 },
+    { x: 0.55, y:  0.62 },
+    { x: 0.78, y:  0.70 },
+    { x: 0.62, y:  0.82 },
+    { x: 0.40, y:  0.78 },
+    { x: 0.50, y:  0.92 },
     { x: 0.50, y:  1.08 }
   ];
+  function selectPathAnchors() {
+    return isPortrait ? PATH_PORTRAIT_BASE : PATH_LANDSCAPE_BASE;
+  }
+  // Backward-compat aliases (other code may still reference these).
+  var PATH_LANDSCAPE = PATH_LANDSCAPE_BASE;
+  var PATH_PORTRAIT = PATH_PORTRAIT_BASE;
   var PATH = {
     anchors: [],
     beziers: [],
@@ -608,10 +624,53 @@
 
   // -------- STATE ---------------------------------------------------------
   var state;
-  function newState() {
+  // -------- LEVEL CONFIG --------------------------------------------------
+  var MAX_LEVEL = 10;
+  var VIRAL_BY_TYPE = { bacteria: 5, virus: 8, hongo: 12, boss: 40 };
+  function getViralThreshold(level) {
+    if (level <= 0) return 30;
+    var table = [30, 50, 70, 90, 100, 100, 110, 120, 130, 150];
+    return table[Math.min(level - 1, table.length - 1)];
+  }
+  function getDifficulty(level) {
+    var k = Math.max(0, level - 1);
+    return { speed: 1.0 + k * 0.15, hp: 1.0 + k * 0.10 };
+  }
+  function getInitialAtpFor(level) { return 60 + 10 * level; }
+  function getInitialDripDelay(level) { return Math.max(3, 6 - level * 0.3); }
+
+  var META = {
+    highestLevelReached: 1,
+    totalPathogensDefeated: 0,
+    totalPathogensInfiltrated: 0
+  };
+  function loadMeta() {
+    try {
+      var raw = localStorage.getItem("immunodefense_meta");
+      if (raw) {
+        var p = JSON.parse(raw);
+        META.highestLevelReached = Math.max(1, parseInt(p.highestLevelReached) || 1);
+        META.totalPathogensDefeated = parseInt(p.totalPathogensDefeated) || 0;
+        META.totalPathogensInfiltrated = parseInt(p.totalPathogensInfiltrated) || 0;
+      }
+    } catch (e) {}
+  }
+  function saveMeta() {
+    try {
+      localStorage.setItem("immunodefense_meta", JSON.stringify(META));
+    } catch (e) {}
+  }
+  loadMeta();
+
+  function newState(level) {
+    level = Math.max(1, Math.min(MAX_LEVEL, level || 1));
     return {
-      atp: 60,
-      lives: 20,
+      atp: getInitialAtpFor(level),
+      currentLevel: level,
+      viralLoad: 0,
+      viralThreshold: getViralThreshold(level),
+      pathogensReached: 0,
+      pathogensDefeated: 0,
       waveIdx: 0,
       waveActive: false,
       pendingSpawns: [],
@@ -623,6 +682,7 @@
       damageNumbers: [],
       goldParticles: [],
       ambient: [],
+      circulatory: [],
       selectedToBuild: null,
       selectedTower: null,
       pointer: { x: 0, y: 0, isOver: false },
@@ -642,14 +702,17 @@
       endRevealTimer: 0,
       endMusicSwitched: false,
       drip: {
-        nextDropAt: 6,    // first drop ~6s in
-        drop: null         // active interactable drop or null
+        nextDropAt: getInitialDripDelay(level),
+        drop: null
       },
       vesselFlashTimer: 0,
-      woundFlashTimer: 0
+      woundFlashTimer: 0,
+      levelTransition: false,
+      finalScreen: false,
+      transitionTimer: 0
     };
   }
-  state = newState();
+  state = newState(1);
 
   var MAX_EFFECTS = 80;
   var MAX_DAMAGE_NUMBERS = 20;
@@ -791,10 +854,13 @@
   function spawnEnemy(typeId, hpMult) {
     var def = ENEMY_DEFS[typeId];
     var entry = (PATH.beziers && PATH.beziers.length) ? PATH.beziers[0].p0 : { x: 0, y: 0 };
+    var diff = getDifficulty(state.currentLevel);
+    var hp = def.hp * hpMult * diff.hp;
     state.enemies.push({
       def: def,
-      hp: def.hp * hpMult,
-      maxHp: def.hp * hpMult,
+      hp: hp,
+      maxHp: hp,
+      speedMultLevel: diff.speed,
       progress: 0,
       x: entry.x,
       y: entry.y,
@@ -807,12 +873,12 @@
       sporeTimer: Math.random() * 1.5,
       blinkTimer: 0,
       nextBlink: state.time + 2 + Math.random() * 3,
-      spawnFade: 0.30,   // 0.3s fade-in seeping out of wound
-      absorbed: false,    // when reaching vessel, animate suck-in
+      spawnFade: 0.30,
+      absorbed: false,
       absorbedTimer: 0,
+      absorbedRot: 0,
       dead: false
     });
-    // Wound pulses harder for an instant on spawn.
     state.woundFlashTimer = 0.25;
   }
 
@@ -837,9 +903,18 @@
       var bonus = 25 + state.waveIdx * 5;
       state.atp += bonus;
       if (state.waveIdx >= WAVES.length) {
-        state.victory = true;
+        // Survived all waves without exceeding viral threshold -> advance level.
         sfx("victory");
-        showMsg("VICTORIA");
+        showMsg("Nivel superado");
+        if (!state.levelTransition) {
+          state.levelTransition = true;
+          state.transitionTimer = 0;
+          if (state.currentLevel >= MAX_LEVEL) state.finalScreen = true;
+          else {
+            META.highestLevelReached = Math.max(META.highestLevelReached, state.currentLevel + 1);
+            saveMeta();
+          }
+        }
       } else {
         showMsg("Oleada superada (+" + bonus + " ATP)");
       }
@@ -872,10 +947,11 @@
       }
       if (e.absorbed) {
         e.absorbedTimer -= dt;
+        e.absorbedRot += dt * Math.PI;  // ~180 deg over 0.4s pull-in
         // Pull toward vessel center while shrinking.
         if (PATH.exit) {
-          e.x += (PATH.exit.x - e.x) * Math.min(1, dt * 8);
-          e.y += (PATH.exit.y - e.y) * Math.min(1, dt * 8);
+          e.x += (PATH.exit.x - e.x) * Math.min(1, dt * 10);
+          e.y += (PATH.exit.y - e.y) * Math.min(1, dt * 10);
         }
         if (e.absorbedTimer <= 0) e.dead = true;
         continue;
@@ -884,7 +960,7 @@
       if (e.def.isBoss && !e.enraged && e.hp / e.maxHp < 0.5) {
         e.enraged = true;
       }
-      var pxSpeed = e.def.speedMult * BASE_SPEED * U;
+      var pxSpeed = e.def.speedMult * (e.speedMultLevel || 1) * BASE_SPEED * U;
       e.progress += pxSpeed * dt;
       e.wobble += dt * 6;
       if (e.sporeTimer !== undefined) {
@@ -903,20 +979,23 @@
         }
       }
       if (e.progress >= PATH.total) {
-        // Vessel absorption animation; takes life immediately.
+        // Vessel absorption animation; viral load increases immediately.
         e.absorbed = true;
-        e.absorbedTimer = 0.30;
-        var damageToPlayer = e.def.isBoss ? 5 : 1;
-        state.lives -= damageToPlayer;
-        triggerShake(0.3, damageToPlayer >= 5 ? 7 : 4);
+        e.absorbedTimer = 0.40;
+        e.absorbedRot = 0;
+        var viralAdd = VIRAL_BY_TYPE[e.def.id] || 5;
+        state.viralLoad = Math.min(state.viralThreshold, state.viralLoad + viralAdd);
+        state.pathogensReached += 1;
+        META.totalPathogensInfiltrated += 1;
+        triggerShake(0.25, e.def.isBoss ? 7 : 4);
         state.vesselFlashTimer = 0.30;
+        // Vessel "swallow" pulse (+15% for 0.2s) handled by vesselFlashTimer scaling.
         spawnEffect("escape", e.x, e.y);
         sfx("playerHurt");
-        if (state.lives <= 0) {
-          state.lives = 0;
-          state.gameOver = true;
-          showMsg("DERROTA");
-          if (audio.ctx) sfx("defeat");
+        // Drop a tracer into the circulatory ambient zone below the vessel.
+        spawnCirculatoryTracer(e.def);
+        if (state.viralLoad >= state.viralThreshold) {
+          triggerLevelEnd();
         }
         continue;
       } else {
@@ -1037,6 +1116,8 @@
       e.dying = true;
       e.dyingTimer = 0.30;
       state.atp += e.def.reward;
+      state.pathogensDefeated += 1;
+      META.totalPathogensDefeated += 1;
       pushEffect({
         kind: "atpText",
         x: e.x, y: e.y - e.def.radius * U - 4,
@@ -1128,6 +1209,54 @@
     if (mag > state.shakeMag) state.shakeMag = mag;
   }
 
+  function spawnCirculatoryTracer(def) {
+    // Visual reinforcement that the absorbed pathogen entered the bloodstream.
+    state.circulatory.push({
+      x: PATH.exit ? PATH.exit.x : VW * 0.5,
+      y: (FIELD_BOTTOM + (VH - safeBottom)) * 0.5 + 8 * U,
+      vx: (Math.random() - 0.5) * 30 * U,
+      vy: 18 * U,
+      life: 0.5, max: 0.5,
+      color: def.color || "#c54040",
+      r: (def.radius || 14) * U * 0.5
+    });
+  }
+
+  function triggerLevelEnd() {
+    if (state.levelTransition) return;
+    state.levelTransition = true;
+    state.transitionTimer = 0;
+    showMsg("Infeccion establecida");
+    sfx("defeat");
+    if (state.currentLevel >= MAX_LEVEL) {
+      state.finalScreen = true;
+    } else {
+      META.highestLevelReached = Math.max(META.highestLevelReached, state.currentLevel + 1);
+      saveMeta();
+    }
+  }
+
+  function startNextLevel() {
+    var nextLevel = Math.min(MAX_LEVEL, state.currentLevel + 1);
+    var savedMeta = {
+      totalDefeated: META.totalPathogensDefeated,
+      totalInfiltrated: META.totalPathogensInfiltrated
+    };
+    state = newState(nextLevel);
+    META.totalPathogensDefeated = savedMeta.totalDefeated;
+    META.totalPathogensInfiltrated = savedMeta.totalInfiltrated;
+    rebuildPath();
+    layoutDrip();
+    state.waveBannerText = "Nivel " + nextLevel;
+    state.waveBannerTimer = 1.4;
+  }
+
+  function restartFromLevel1() {
+    state = newState(1);
+    rebuildPath();
+    layoutDrip();
+  }
+
   function updateEffects(dt) {
     for (var i = 0; i < state.effects.length; i++) {
       var ef = state.effects[i];
@@ -1184,6 +1313,16 @@
     if (state.waveBannerTimer > 0) state.waveBannerTimer -= dt;
     if (state.vesselFlashTimer > 0) state.vesselFlashTimer -= dt;
     if (state.woundFlashTimer > 0) state.woundFlashTimer -= dt;
+    if (state.levelTransition && state.transitionTimer < 1) state.transitionTimer += dt;
+    // Circulatory tracers (ambient drift)
+    for (var ci = 0; ci < state.circulatory.length; ci++) {
+      var c = state.circulatory[ci];
+      c.life -= dt;
+      c.x += c.vx * dt;
+      c.y += c.vy * dt;
+      c.vy *= 0.96;
+    }
+    state.circulatory = state.circulatory.filter(function (c) { return c.life > 0; });
     if (state.endRevealTimer < 0.5 && (state.victory || state.gameOver)) {
       state.endRevealTimer += dt;
     }
@@ -1198,7 +1337,7 @@
 
   // -------- LYMPHATIC DRIP UPDATE / DRAW --------------------------------
   function updateDrip(dt) {
-    if (state.gameOver || state.victory || state.confirmRestart) return;
+    if (state.gameOver || state.victory || state.confirmRestart || state.levelTransition) return;
     if (!state.drip.drop) {
       state.drip.nextDropAt -= dt;
       if (state.drip.nextDropAt <= 0) {
@@ -1393,9 +1532,17 @@
       }
       return;
     }
-    // End overlay
+    // Level transition / final screen overlay handles click first.
+    if (state.levelTransition) {
+      if (UI.transitionBtn && inRect(x, y, UI.transitionBtn)) {
+        if (state.finalScreen) restartFromLevel1();
+        else startNextLevel();
+      }
+      return;
+    }
+    // End overlay (legacy victory screen no longer used; restart goes to level 1).
     if (state.gameOver || state.victory) {
-      if (inRect(x, y, UI.endRestartBtn)) state = newState();
+      if (inRect(x, y, UI.endRestartBtn)) restartFromLevel1();
       return;
     }
     // Lymphatic drip drop: highest priority so finger taps grant ATP.
@@ -1615,6 +1762,160 @@
       ctx.beginPath();
       ctx.arc(x, y, r, 0, Math.PI * 2);
       ctx.fill();
+    }
+  }
+
+  // -------- SKIN / CIRCULATORY AMBIENT BANDS ---------------------------
+  function drawSkinZone() {
+    var h = FIELD_H * 0.18;
+    var y = FIELD_TOP;
+    var grad = ctx.createLinearGradient(0, y, 0, y + h);
+    grad.addColorStop(0, "#F4D1A6");
+    grad.addColorStop(1, "#E8B894");
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, y, VW, h);
+    // Pores (deterministic seeded)
+    var seed = 41;
+    for (var i = 0; i < 36; i++) {
+      seed = (seed * 9301 + 49297) % 233280;
+      var px = (seed / 233280) * VW;
+      seed = (seed * 9301 + 49297) % 233280;
+      var py = y + (seed / 233280) * h;
+      seed = (seed * 9301 + 49297) % 233280;
+      var pr = (1 + (seed / 233280) * 2) * U;
+      ctx.fillStyle = "rgba(168, 122, 92, 0.42)";
+      ctx.beginPath();
+      ctx.arc(px, py, pr, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // Hairs (curved short strokes, all roughly same direction)
+    ctx.strokeStyle = "rgba(139, 111, 71, 0.65)";
+    ctx.lineWidth = 1;
+    ctx.lineCap = "round";
+    for (var j = 0; j < 14; j++) {
+      seed = (seed * 9301 + 49297) % 233280;
+      var hx = (seed / 233280) * VW;
+      seed = (seed * 9301 + 49297) % 233280;
+      var hy = y + (seed / 233280) * h * 0.80;
+      seed = (seed * 9301 + 49297) % 233280;
+      var len = (8 + (seed / 233280) * 7) * U;
+      seed = (seed * 9301 + 49297) % 233280;
+      var ang = -Math.PI / 2 + ((seed / 233280) - 0.5) * 0.6;
+      var dx = Math.cos(ang), dy = Math.sin(ang);
+      ctx.beginPath();
+      ctx.moveTo(hx, hy);
+      ctx.quadraticCurveTo(
+        hx + dx * len * 0.6 + 3 * U, hy + dy * len * 0.6 + 1 * U,
+        hx + dx * len, hy + dy * len
+      );
+      ctx.stroke();
+    }
+    // Fine grain texture
+    for (var t = 0; t < 90; t++) {
+      seed = (seed * 9301 + 49297) % 233280;
+      var tx = (seed / 233280) * VW;
+      seed = (seed * 9301 + 49297) % 233280;
+      var ty = y + (seed / 233280) * h;
+      ctx.fillStyle = "rgba(120, 80, 60, 0.08)";
+      ctx.fillRect(tx, ty, 1, 1);
+    }
+    // Organic torn edge connecting skin to wound area.
+    var edgeSeed = 131;
+    ctx.fillStyle = "#E8B894";
+    ctx.beginPath();
+    ctx.moveTo(0, y + h);
+    for (var ex = 0; ex <= VW; ex += 6) {
+      edgeSeed = (edgeSeed * 9301 + 49297) % 233280;
+      var jitter = ((edgeSeed / 233280) - 0.5) * 10 * U;
+      ctx.lineTo(ex, y + h + jitter);
+    }
+    ctx.lineTo(VW, y + h - 4);
+    ctx.lineTo(0, y + h - 4);
+    ctx.closePath();
+    ctx.fill();
+    // Edge shadow line
+    ctx.strokeStyle = "rgba(120, 80, 60, 0.4)";
+    ctx.lineWidth = 1.2;
+    edgeSeed = 131;
+    ctx.beginPath();
+    for (var ex2 = 0; ex2 <= VW; ex2 += 6) {
+      edgeSeed = (edgeSeed * 9301 + 49297) % 233280;
+      var j2 = ((edgeSeed / 233280) - 0.5) * 10 * U;
+      if (ex2 === 0) ctx.moveTo(ex2, y + h + j2);
+      else ctx.lineTo(ex2, y + h + j2);
+    }
+    ctx.stroke();
+  }
+
+  function drawCirculatoryZone() {
+    var h = FIELD_H * 0.14;
+    var y = FIELD_BOTTOM - h;
+    var grad = ctx.createLinearGradient(0, y, 0, y + h);
+    grad.addColorStop(0, "#7a0606");
+    grad.addColorStop(1, "#3a0000");
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, y, VW, h);
+    // Top organic edge that visually continues from the vessel mouth.
+    var edgeSeed = 211;
+    ctx.fillStyle = "#7a0606";
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    for (var ex = 0; ex <= VW; ex += 6) {
+      edgeSeed = (edgeSeed * 9301 + 49297) % 233280;
+      var jitter = ((edgeSeed / 233280) - 0.5) * 8 * U;
+      ctx.lineTo(ex, y + jitter);
+    }
+    ctx.lineTo(VW, y - 3);
+    ctx.lineTo(0, y - 3);
+    ctx.closePath();
+    ctx.fill();
+    // Ambient erythrocytes drifting
+    for (var i = 0; i < 11; i++) {
+      var phase = state.time * (0.25 + (i % 3) * 0.06) + i * 1.7;
+      var bx = (phase * 12 + i * VW * 0.11) % (VW + 60) - 30;
+      var by = y + 6 * U + ((i * 11) % Math.max(1, h - 14 * U)) + Math.sin(phase * 1.1) * 3 * U;
+      ctx.fillStyle = "rgba(220, 20, 60, 0.72)";
+      ctx.beginPath();
+      ctx.ellipse(bx, by, 5 * U, 3 * U, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "rgba(150, 10, 30, 0.55)";
+      ctx.beginPath();
+      ctx.arc(bx, by, 1.4 * U, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // Rising oxygen bubbles
+    for (var b = 0; b < 4; b++) {
+      var bt = (state.time * 0.35 + b * 0.27) % 1;
+      var bbx = (b + 1) * VW / 5 + Math.sin(state.time * 0.6 + b) * 6;
+      var bby = y + h - bt * h;
+      ctx.fillStyle = "rgba(255, 210, 215, " + (0.2 + 0.2 * (1 - bt)) + ")";
+      ctx.beginPath();
+      ctx.arc(bbx, bby, 2 * U, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // Subtle flow lines
+    ctx.strokeStyle = "rgba(255, 80, 80, 0.10)";
+    ctx.lineWidth = 1;
+    for (var f = 0; f < 5; f++) {
+      var fy = y + ((f + 0.5) / 5) * h;
+      ctx.beginPath();
+      ctx.moveTo(0, fy);
+      for (var fx = 0; fx <= VW; fx += 12) {
+        var off = Math.sin(fx * 0.02 + state.time * 0.4 + f) * 2.5;
+        ctx.lineTo(fx, fy + off);
+      }
+      ctx.stroke();
+    }
+    // Tracers from recently absorbed enemies
+    for (var c = 0; c < state.circulatory.length; c++) {
+      var cv = state.circulatory[c];
+      var alpha = Math.max(0, cv.life / cv.max);
+      ctx.globalAlpha = alpha * 0.7;
+      ctx.fillStyle = cv.color;
+      ctx.beginPath();
+      ctx.arc(cv.x, Math.min(cv.y, y + h - 6), cv.r * (0.5 + 0.5 * alpha), 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
     }
   }
 
@@ -2272,13 +2573,19 @@
       : "idle";
     var blink = (e.blinkTimer || 0) > 0 && expression === "idle";
     var dyingScale = e.dying ? Math.max(0.4, e.dyingTimer / 0.30) : 1;
-    var absorbScale = e.absorbed ? Math.max(0.05, e.absorbedTimer / 0.30) : 1;
+    var absorbScale = e.absorbed ? Math.max(0.0, e.absorbedTimer / 0.40) : 1;
     var scale = dyingScale * absorbScale;
     var alpha = 1;
     if (e.spawnFade > 0) alpha *= Math.max(0, 1 - e.spawnFade / 0.30);
-    if (e.absorbed) alpha *= Math.max(0, e.absorbedTimer / 0.30);
+    if (e.absorbed) alpha *= Math.max(0, e.absorbedTimer / 0.40);
     ctx.save();
     ctx.globalAlpha = alpha;
+    if (e.absorbed) {
+      // Apply suction rotation around enemy center.
+      ctx.translate(e.x, e.y);
+      ctx.rotate(e.absorbedRot || 0);
+      ctx.translate(-e.x, -e.y);
+    }
     drawShadow(e.x, e.y + rad * 0.85, rad * 0.85 * scale, rad * 0.22 * scale);
     if (def.id === "bacteria") drawBacteria(e, rad * scale, expression, blink);
     else if (def.id === "virus") drawVirus(e, rad * scale, expression, blink);
@@ -2758,6 +3065,53 @@
     }
   }
 
+  function getViralColor(ratio) {
+    if (ratio < 0.30) return "#2ECC71";
+    if (ratio < 0.70) return "#F39C12";
+    if (ratio < 1.00) return "#E67E22";
+    return "#C0392B";
+  }
+  function getViralLabel(ratio) {
+    if (ratio < 0.30) return "ORGANISMO SALUDABLE";
+    if (ratio < 0.70) return "INFECCION LOCAL";
+    if (ratio < 1.00) return "INFECCION SISTEMICA";
+    return "INFECCION ESTABLECIDA";
+  }
+
+  function drawViralBar() {
+    var pad = 10;
+    var barW = VW - 2 * pad - safeLeft - safeRight;
+    var barH = Math.max(10, Math.min(14, HUD_H * 0.18));
+    var bx = safeLeft + pad;
+    var by = FIELD_TOP - barH - 4;
+    var ratio = Math.min(1, state.viralLoad / Math.max(1, state.viralThreshold));
+    var color = getViralColor(ratio);
+    // Background track
+    ctx.fillStyle = "rgba(20, 10, 14, 0.85)";
+    roundRect(bx, by, barW, barH, barH / 2);
+    ctx.fill();
+    ctx.strokeStyle = "rgba(255,255,255,0.10)";
+    ctx.lineWidth = 1;
+    roundRect(bx, by, barW, barH, barH / 2);
+    ctx.stroke();
+    // Fill
+    if (ratio > 0) {
+      var innerW = (barW - 4) * ratio;
+      ctx.fillStyle = color;
+      roundRect(bx + 2, by + 2, Math.max(barH - 4, innerW), barH - 4, (barH - 4) / 2);
+      ctx.fill();
+    }
+    // Inline text
+    var label = getViralLabel(ratio) + "  " + Math.floor(state.viralLoad) + " / " + state.viralThreshold;
+    ctx.font = "bold " + Math.max(10, Math.min(12, barH * 0.85)) + "px sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = "rgba(0,0,0,0.55)";
+    ctx.fillText(label, bx + barW / 2 + 1, by + barH / 2 + 1);
+    ctx.fillStyle = "#fff";
+    ctx.fillText(label, bx + barW / 2, by + barH / 2);
+  }
+
   function drawHUD() {
     ctx.fillStyle = "#3a2530";
     ctx.fillRect(0, 0, VW, FIELD_TOP);
@@ -2773,20 +3127,22 @@
       ctx.font = "bold 14px sans-serif";
       ctx.fillStyle = "#f5d76e";
       ctx.fillText("⚡ " + state.atp, leftX, midY);
-      ctx.fillStyle = state.lives <= 5 ? "#ff7878" : "#9adfb1";
-      ctx.fillText("♥ " + state.lives, leftX + 64, midY);
+      ctx.fillStyle = "#bcd0f5";
+      ctx.fillText("Nv " + state.currentLevel, leftX + 64, midY);
       ctx.fillStyle = "#e0e0e0";
-      ctx.fillText("⌖ " + state.waveIdx + "/" + WAVES.length, leftX + 118, midY);
+      ctx.fillText("⌖ " + state.waveIdx + "/" + WAVES.length, leftX + 116, midY);
     } else {
       var statsY = safeTop + 8;
       var fontStat = Math.max(14, Math.min(20, VW * 0.018));
       var fontLabel = Math.max(10, Math.min(13, VW * 0.012));
       drawHudStat("⚡ ATP", state.atp, leftX, statsY, "#f5d76e", fontStat, fontLabel);
-      drawHudStat("♥ Vida", state.lives, leftX + Math.min(160, VW * 0.22), statsY,
-        state.lives <= 5 ? "#ff7878" : "#9adfb1", fontStat, fontLabel);
+      drawHudStat("⊛ Nivel", state.currentLevel + " / " + MAX_LEVEL,
+        leftX + Math.min(160, VW * 0.22), statsY, "#bcd0f5", fontStat, fontLabel);
       drawHudStat("⌖ Oleada", state.waveIdx + " / " + WAVES.length,
         leftX + Math.min(320, VW * 0.44), statsY, "#e0e0e0", fontStat, fontLabel);
     }
+    // Viral load bar — full width below HUD, inside field area.
+    drawViralBar();
 
     var nwLabel = isPortrait ? "▶ Oleada" : "▶ Iniciar Oleada";
     if (!state.waveActive && state.waveIdx < WAVES.length) {
@@ -3166,6 +3522,78 @@
     drawButton(UI.modalNo, "Cancelar", "#1f8a4c", "#16632f", true);
   }
 
+  function drawLevelTransition() {
+    if (!state.levelTransition) return;
+    var t = Math.min(1, state.transitionTimer / 0.4);
+    ctx.save();
+    ctx.fillStyle = "rgba(40, 20, 20, " + (0.92 * t) + ")";
+    ctx.fillRect(0, 0, VW, VH);
+    // Subtle red particles falling (decorative)
+    for (var i = 0; i < 24; i++) {
+      var px = ((state.time * 6 + i * 41) % VW + VW) % VW;
+      var py = ((state.time * 22 + i * 73) % VH + VH) % VH;
+      ctx.fillStyle = "rgba(192, 57, 43, " + (0.10 + 0.10 * Math.sin(state.time + i)) + ")";
+      ctx.beginPath();
+      ctx.arc(px, py, 1.5 * U, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = t;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    var titleFs = Math.min(VW * 0.085, VH * 0.075, 36);
+    ctx.font = '600 ' + titleFs + 'px Georgia, "Times New Roman", serif';
+    ctx.fillStyle = "#C0392B";
+    var title = state.finalScreen ? "FIN DE LA SIMULACIÓN" : "INFECCIÓN ESTABLECIDA";
+    ctx.fillText(title, VW / 2, VH * 0.28);
+
+    var subFs = Math.max(13, Math.min(18, titleFs * 0.45));
+    ctx.font = 'italic ' + subFs + 'px Georgia, serif';
+    ctx.fillStyle = "rgba(255, 235, 230, 0.85)";
+    var sub = state.finalScreen
+      ? "Has alcanzado el último nivel."
+      : "Avanzando a Nivel " + (state.currentLevel + 1);
+    ctx.fillText(sub, VW / 2, VH * 0.28 + titleFs * 0.95);
+
+    var sx = VW / 2;
+    var sy = VH * 0.28 + titleFs * 1.6;
+    ctx.font = 'bold 15px sans-serif';
+    ctx.fillStyle = "#f5e7e7";
+    var stats = state.finalScreen ? [
+      "Niveles superados: " + state.currentLevel + " / " + MAX_LEVEL,
+      "Patogenos eliminados (total): " + META.totalPathogensDefeated,
+      "Patogenos infiltrados (total): " + META.totalPathogensInfiltrated,
+      "Mejor nivel alcanzado: " + META.highestLevelReached
+    ] : [
+      "Nivel: " + state.currentLevel + " / " + MAX_LEVEL,
+      "Patogenos eliminados: " + state.pathogensDefeated,
+      "Patogenos infiltrados: " + state.pathogensReached,
+      "ATP no usado: " + state.atp
+    ];
+    var lineH = 22;
+    for (var si = 0; si < stats.length; si++) {
+      ctx.fillText(stats[si], sx, sy + si * lineH);
+    }
+
+    // Continue button
+    var btnW = 240, btnH = 50;
+    var btn = { x: VW / 2 - btnW / 2, y: sy + stats.length * lineH + 24, w: btnW, h: btnH };
+    UI.transitionBtn = btn;
+    ctx.fillStyle = state.finalScreen ? "#2C3E50" : "#1f8a4c";
+    roundRect(btn.x, btn.y, btn.w, btn.h, 8);
+    ctx.fill();
+    ctx.strokeStyle = "rgba(0,0,0,0.4)";
+    ctx.lineWidth = 1.5;
+    roundRect(btn.x, btn.y, btn.w, btn.h, 8);
+    ctx.stroke();
+    ctx.fillStyle = "#fff";
+    ctx.font = 'bold 16px sans-serif';
+    ctx.fillText(
+      state.finalScreen ? "Reiniciar simulación" : "Continuar al Nivel " + (state.currentLevel + 1),
+      btn.x + btn.w / 2, btn.y + btn.h / 2
+    );
+    ctx.restore();
+  }
+
   function drawEndOverlay() {
     if (!state.gameOver && !state.victory) return;
     var fade = Math.min(1, state.endRevealTimer / 0.45);
@@ -3201,10 +3629,11 @@
     var statsColor = state.victory ? "#2C3E50" : "#f5e7e7";
     ctx.fillStyle = statsColor;
     var stats = [
+      "Nivel: " + state.currentLevel + " / " + MAX_LEVEL,
       "Oleadas completadas: " + Math.min(state.waveIdx, WAVES.length) + " / " + WAVES.length,
-      "Patogenos eliminados: " + state.kills,
-      "ATP final: " + state.atp,
-      "Vida restante: " + state.lives + " / 20"
+      "Patogenos eliminados: " + state.pathogensDefeated,
+      "Patogenos infiltrados: " + state.pathogensReached,
+      "ATP final: " + state.atp
     ];
     var lineH = 24;
     for (var si = 0; si < stats.length; si++) {
@@ -3255,6 +3684,8 @@
     ctx.setTransform(dpr, 0, 0, dpr, shakeOff.x * dpr, shakeOff.y * dpr);
 
     clearCanvas();
+    drawSkinZone();
+    drawCirculatoryZone();
     drawAmbient();
     drawPath();
     drawDrip();
@@ -3276,6 +3707,7 @@
       ctx.strokeRect(2, FIELD_TOP + 2, VW - 4, FIELD_H - 4);
     }
     drawEndOverlay();
+    drawLevelTransition();
     drawConfirmModal();
   }
 
@@ -3349,7 +3781,7 @@
     var dt = Math.min(0.05, (now - lastT) / 1000);
     lastT = now;
     state.time += dt;
-    if (!state.gameOver && !state.victory && !state.confirmRestart) {
+    if (!state.gameOver && !state.victory && !state.confirmRestart && !state.levelTransition) {
       updateWave(dt);
       updateEnemies(dt);
       updateTowers(dt);

@@ -1965,11 +1965,11 @@
     var n = 3 + Math.floor(Math.random() * 3); // 3-5 puntos
     for (var i = 0; i < n; i++) {
       var ang = Math.random() * Math.PI * 2;
-      var rad = Math.random() * 4 * U;
+      var rad = (1.5 + Math.random() * 5) * U;  // visible spread
       dots.push({
         ox: Math.cos(ang) * rad,
         oy: Math.sin(ang) * rad,
-        r: (1.4 + Math.random() * 1.0) * U
+        r: (2.6 + Math.random() * 1.4) * U  // 2.6-4 px each, clearly visible
       });
     }
     state.restos.push({
@@ -1990,7 +1990,12 @@
     for (var i = 0; i < state.restos.length; i++) {
       var r = state.restos[i];
       // Fade alpha during last 1.5s
-      var alpha = r.life > 1.5 ? 0.6 : (r.life / 1.5) * 0.6;
+      var alpha = r.life > 1.5 ? 0.65 : (r.life / 1.5) * 0.65;
+      // Soft halo
+      ctx.fillStyle = "rgba(178, 34, 34, " + (alpha * 0.25) + ")";
+      ctx.beginPath();
+      ctx.arc(r.x, r.y, 9 * U, 0, Math.PI * 2);
+      ctx.fill();
       ctx.fillStyle = "rgba(178, 34, 34, " + alpha + ")";
       for (var d = 0; d < r.dots.length; d++) {
         var dot = r.dots[d];
@@ -2004,126 +2009,140 @@
   // -------- COLLECTORS (cleanup cells) --------------------------------
   function ensureCollectors() {
     while (state.collectors.length < 2) {
-      // Spawn somewhere in the body zone, far from path.
       var x, y, ok = false;
-      for (var attempt = 0; attempt < 30 && !ok; attempt++) {
+      for (var attempt = 0; attempt < 40 && !ok; attempt++) {
         x = FIELD_LEFT + 40 + Math.random() * (FIELD_W - 80);
         y = FIELD_TOP + FIELD_H * 0.30 + Math.random() * FIELD_H * 0.50;
         if (distPointToPath(x, y) > 50 * U) ok = true;
       }
-      if (!ok) return;
+      if (!ok) {
+        // Fallback: place dead-center if path is too dense.
+        x = FIELD_LEFT + FIELD_W * 0.50;
+        y = FIELD_TOP + FIELD_H * 0.55;
+      }
+      var ang = Math.random() * Math.PI * 2;
       state.collectors.push({
         x: x, y: y,
-        vx: (Math.random() - 0.5) * 14 * U,
-        vy: (Math.random() - 0.5) * 14 * U,
-        nextWanderAt: state.time + 2 + Math.random() * 2,
+        vx: Math.cos(ang) * 30 * U,
+        vy: Math.sin(ang) * 30 * U,
+        wanderTimer: 0.5 + Math.random() * 1.0,  // first wander very soon
         idlePhase: Math.random() * Math.PI * 2,
-        target: null,        // resto being collected
-        absorbTimer: 0       // 0 = idle/moving, >0 = absorbing animation
+        cstate: "IDLE",      // IDLE | COLLECTING | ABSORBING
+        target: null,
+        absorbTimer: 0
       });
     }
   }
+
   function updateCollectors(dt) {
     ensureCollectors();
-    var collectorSpeed = 0.4 * 60 * 1.5 * U;  // slow (~36 px/s scaled)
+    var SPEED_IDLE = 36 * U;        // ~0.4 * virus speed
+    var SPEED_COLLECTING = 50 * U;  // ~0.5 * virus speed
+    var DETECT_RADIUS = 240 * U;    // pickup detection radius
+    var COLLECT_RADIUS = 10 * U;
     for (var i = 0; i < state.collectors.length; i++) {
       var c = state.collectors[i];
       c.idlePhase += dt;
-      // Absorbing animation
-      if (c.absorbTimer > 0) {
+      // ABSORBING animation lock — only animation runs.
+      if (c.cstate === "ABSORBING") {
         c.absorbTimer -= dt;
         if (c.absorbTimer <= 0) {
-          c.target = null;  // done; back to idle
+          c.cstate = "IDLE";
+          c.wanderTimer = 0; // resume wander immediately
         }
         continue;
       }
-      // If has target and target still exists, move toward it.
-      if (c.target) {
-        // Verify target still in restos
-        if (state.restos.indexOf(c.target) < 0) {
-          c.target = null;
-        }
+      // If we had a target but it disappeared, drop back to IDLE.
+      if (c.target && state.restos.indexOf(c.target) < 0) {
+        c.target = null;
+        c.cstate = "IDLE";
+        c.wanderTimer = 0;
       }
-      // If no target and there's an unclaimed resto, claim nearest.
-      if (!c.target) {
+      // IDLE: try to find a fresh resto in detection range.
+      if (c.cstate === "IDLE") {
         var nearest = null, nearestD = Infinity;
         for (var ri = 0; ri < state.restos.length; ri++) {
           var r = state.restos[ri];
-          if (r.claimedBy && r.claimedBy !== c) continue;
-          var d = Math.hypot(r.x - c.x, r.y - c.y);
-          if (d < nearestD) { nearestD = d; nearest = r; }
+          if (r.claimedBy) continue;
+          var dd = Math.hypot(r.x - c.x, r.y - c.y);
+          if (dd < nearestD) { nearestD = dd; nearest = r; }
         }
-        if (nearest) {
-          if (nearest.claimedBy && nearest.claimedBy !== c) {
-            // skip
-          } else {
-            nearest.claimedBy = c;
-            c.target = nearest;
-          }
+        if (nearest && nearestD <= DETECT_RADIUS) {
+          nearest.claimedBy = c;
+          c.target = nearest;
+          c.cstate = "COLLECTING";
         }
       }
-      if (c.target) {
+      // COLLECTING: navigate toward target.
+      if (c.cstate === "COLLECTING" && c.target) {
         var tx = c.target.x, ty = c.target.y;
         var dx = tx - c.x, dy = ty - c.y;
         var d = Math.hypot(dx, dy) || 0.0001;
-        c.vx = (dx / d) * collectorSpeed;
-        c.vy = (dy / d) * collectorSpeed;
-        c.x += c.vx * dt;
-        c.y += c.vy * dt;
-        if (d < 14 * U) {
-          // Collect: trigger absorb animation, +5 ATP, remove resto.
+        if (d <= COLLECT_RADIUS) {
+          // Reach! Absorb the resto.
           state.atp += 5;
           pushEffect({
             kind: "atpText",
-            x: c.target.x, y: c.target.y - 6 * U,
-            vy: -32 * U,
+            x: c.target.x, y: c.target.y - 8 * U,
+            vy: -34 * U,
             text: "+5 ATP",
-            life: 0.7, max: 0.7,
+            life: 0.8, max: 0.8,
             color: "#50C878"
           });
-          for (var sp = 0; sp < 6; sp++) {
+          for (var sp = 0; sp < 8; sp++) {
             var sa = Math.random() * Math.PI * 2;
             pushEffect({
               kind: "particle",
               x: c.target.x, y: c.target.y,
-              vx: Math.cos(sa) * 30 * U,
-              vy: Math.sin(sa) * 30 * U,
-              life: 0.3, max: 0.5,
-              color: "#FFFFFF"
+              vx: Math.cos(sa) * 36 * U,
+              vy: Math.sin(sa) * 36 * U,
+              life: 0.35, max: 0.5,
+              color: "rgba(255, 255, 255, 0.85)"
             });
           }
           state.restos = state.restos.filter(function (rr) { return rr !== c.target; });
           c.target = null;
-          c.absorbTimer = 0.4;
+          c.cstate = "ABSORBING";
+          c.absorbTimer = 0.40;
+          continue;
+        } else {
+          c.vx = (dx / d) * SPEED_COLLECTING;
+          c.vy = (dy / d) * SPEED_COLLECTING;
+          c.x += c.vx * dt;
+          c.y += c.vy * dt;
         }
       } else {
-        // IDLE wander
-        if (state.time >= c.nextWanderAt) {
-          c.nextWanderAt = state.time + 2 + Math.random() * 2;
-          var ang = Math.random() * Math.PI * 2;
-          c.vx = Math.cos(ang) * collectorSpeed * 0.6;
-          c.vy = Math.sin(ang) * collectorSpeed * 0.6;
+        // IDLE wander: pick new direction every 2-4s.
+        c.wanderTimer -= dt;
+        if (c.wanderTimer <= 0) {
+          c.wanderTimer = 2 + Math.random() * 2;
+          var ang2 = Math.random() * Math.PI * 2;
+          c.vx = Math.cos(ang2) * SPEED_IDLE;
+          c.vy = Math.sin(ang2) * SPEED_IDLE;
         }
         c.x += c.vx * dt;
         c.y += c.vy * dt;
-        // Browniano sutil
-        c.x += (Math.random() - 0.5) * 8 * U * dt;
-        c.y += (Math.random() - 0.5) * 8 * U * dt;
       }
-      // Avoid path
-      if (distPointToPath(c.x, c.y) < 30 * U) {
-        c.vx = -c.vx;
-        c.vy = -c.vy;
-        c.x += c.vx * dt * 2;
-        c.y += c.vy * dt * 2;
+      // Path clearance: bounce gently away from any path segment.
+      var dpath = distPointToPath(c.x, c.y);
+      if (dpath < 30 * U) {
+        c.vx = -c.vx * 0.9;
+        c.vy = -c.vy * 0.9;
+        c.x += c.vx * dt * 1.5;
+        c.y += c.vy * dt * 1.5;
+        // If still too close, force-place outward (rare, only on weird overlap).
+        if (distPointToPath(c.x, c.y) < 28 * U) {
+          c.x += (Math.random() - 0.5) * 30 * U;
+          c.y += (Math.random() - 0.5) * 30 * U;
+        }
       }
-      // Soft bounds (stay inside body zone)
+      // Stay inside the body zone (15-85% of FIELD_H), with bouncing.
       var minY = FIELD_TOP + FIELD_H * 0.18;
       var maxY = FIELD_BOTTOM - FIELD_H * 0.16;
-      if (c.x < FIELD_LEFT + 20) c.x = FIELD_LEFT + 20;
-      if (c.x > FIELD_RIGHT - 20) c.x = FIELD_RIGHT - 20;
-      if (c.y < minY) c.y = minY;
-      if (c.y > maxY) c.y = maxY;
+      if (c.x < FIELD_LEFT + 16) { c.x = FIELD_LEFT + 16; c.vx = Math.abs(c.vx); }
+      if (c.x > FIELD_RIGHT - 16) { c.x = FIELD_RIGHT - 16; c.vx = -Math.abs(c.vx); }
+      if (c.y < minY) { c.y = minY; c.vy = Math.abs(c.vy); }
+      if (c.y > maxY) { c.y = maxY; c.vy = -Math.abs(c.vy); }
     }
   }
   function drawCollectors() {

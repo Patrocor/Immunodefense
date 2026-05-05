@@ -2058,7 +2058,7 @@
         c.cstate = "IDLE";
         c.wanderTimer = 0;
       }
-      // IDLE: try to find a fresh resto in detection range.
+      // IDLE: search EVERY frame for the nearest unclaimed resto, no radius cap.
       if (c.cstate === "IDLE") {
         var nearest = null, nearestD = Infinity;
         for (var ri = 0; ri < state.restos.length; ri++) {
@@ -2067,13 +2067,15 @@
           var dd = Math.hypot(r.x - c.x, r.y - c.y);
           if (dd < nearestD) { nearestD = dd; nearest = r; }
         }
-        if (nearest && nearestD <= DETECT_RADIUS) {
+        if (nearest) {
           nearest.claimedBy = c;
           c.target = nearest;
           c.cstate = "COLLECTING";
         }
       }
-      // COLLECTING: navigate toward target.
+      // COLLECTING: navigate straight toward target. Path clearance is
+      // disabled while collecting so the cell can cross the path to reach
+      // the resto.
       if (c.cstate === "COLLECTING" && c.target) {
         var tx = c.target.x, ty = c.target.y;
         var dx = tx - c.x, dy = ty - c.y;
@@ -2105,13 +2107,12 @@
           c.cstate = "ABSORBING";
           c.absorbTimer = 0.40;
           continue;
-        } else {
-          c.vx = (dx / d) * SPEED_COLLECTING;
-          c.vy = (dy / d) * SPEED_COLLECTING;
-          c.x += c.vx * dt;
-          c.y += c.vy * dt;
         }
-      } else {
+        c.vx = (dx / d) * SPEED_COLLECTING;
+        c.vy = (dy / d) * SPEED_COLLECTING;
+        c.x += c.vx * dt;
+        c.y += c.vy * dt;
+      } else if (c.cstate === "IDLE") {
         // IDLE wander: pick new direction every 2-4s.
         c.wanderTimer -= dt;
         if (c.wanderTimer <= 0) {
@@ -2122,18 +2123,17 @@
         }
         c.x += c.vx * dt;
         c.y += c.vy * dt;
-      }
-      // Path clearance: bounce gently away from any path segment.
-      var dpath = distPointToPath(c.x, c.y);
-      if (dpath < 30 * U) {
-        c.vx = -c.vx * 0.9;
-        c.vy = -c.vy * 0.9;
-        c.x += c.vx * dt * 1.5;
-        c.y += c.vy * dt * 1.5;
-        // If still too close, force-place outward (rare, only on weird overlap).
-        if (distPointToPath(c.x, c.y) < 28 * U) {
-          c.x += (Math.random() - 0.5) * 30 * U;
-          c.y += (Math.random() - 0.5) * 30 * U;
+        // Path clearance ONLY in IDLE so wander doesn't sit on the path.
+        var dpath = distPointToPath(c.x, c.y);
+        if (dpath < 30 * U) {
+          c.vx = -c.vx * 0.9;
+          c.vy = -c.vy * 0.9;
+          c.x += c.vx * dt * 1.5;
+          c.y += c.vy * dt * 1.5;
+          if (distPointToPath(c.x, c.y) < 28 * U) {
+            c.x += (Math.random() - 0.5) * 30 * U;
+            c.y += (Math.random() - 0.5) * 30 * U;
+          }
         }
       }
       // Stay inside the body zone (15-85% of FIELD_H), with bouncing.

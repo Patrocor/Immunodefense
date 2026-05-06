@@ -727,15 +727,103 @@
   // BASE_SPEED in design px/s; multiplied by U each frame for actual movement.
   var BASE_SPEED = 60;
   var ENEMY_DEFS = {
-    bacteria: { id: "bacteria", name: "Bacteria", color: "#E74C3C", colorDark: "#922a1f", radius: 14, speedMult: 0.6, hp:  200, reward:  10, isBoss: false },
-    virus:    { id: "virus",    name: "Virus",    color: "#8E44AD", colorDark: "#5a2c70", radius:  9, speedMult: 1.5, hp:   80, reward:   5, isBoss: false },
-    hongo:    { id: "hongo",    name: "Hongo",    color: "#E91E63", colorDark: "#8c1240", radius: 12, speedMult: 1.0, hp:  140, reward:  15, isBoss: false },
-    boss:     { id: "boss",     name: "Boss",     color: "#E74C3C", colorDark: "#5a1010", radius: 42, speedMult: 0.4, hp: 2000, reward: 100, isBoss: true  },
-    // Sprint 5 specialty bosses on waves 3, 7, 12, 18.
-    bossBacteria:  { id: "bossBacteria",  name: "Mega Bacteria",      bossKind: "bacteria",  color: "#8B0000", colorDark: "#3d0a0a", radius: 35, speedMult: 0.40, hp:  600, reward:  50, isBoss: true },
-    bossVirus:     { id: "bossVirus",     name: "Virus Mutado",        bossKind: "virus",     color: "#6A1B9A", colorDark: "#3a0f5b", radius: 22, speedMult: 1.20, hp:  700, reward:  60, isBoss: true },
-    bossHongo:     { id: "bossHongo",     name: "Hongo Invasivo",      bossKind: "hongo",     color: "#C2185B", colorDark: "#6a0d33", radius: 33, speedMult: 0.90, hp:  850, reward:  80, isBoss: true },
-    bossPrimordial:{ id: "bossPrimordial",name: "Patogeno Primordial", bossKind: "primordial",color: "#2A2424", colorDark: "#0a0606", radius: 45, speedMult: 0.50, hp: 1500, reward: 150, isBoss: true }
+    // ---- 6 real pathogens (Sprint 6) -------------------------------------
+    ecoli: {
+      id: "ecoli", name: "Escherichia coli", baseKind: "bacteria",
+      color: "#E74C3C", colorDark: "#922a1f", radius: 13,
+      speedMult: 1.2, hp: 150, reward: 8, viralAdd: 5, isBoss: false,
+      shield: null,
+      tooltip: "Bacteria gram negativa rápida y vulnerable. Sin defensa especial. Habita comúnmente el intestino, pero algunas cepas son patógenas."
+    },
+    spneumoniae: {
+      id: "spneumoniae", name: "Streptococcus pneumoniae", baseKind: "bacteria",
+      color: "#F8BBD0", colorDark: "#a47080", radius: 13,
+      speedMult: 0.8, hp: 220, reward: 12, viralAdd: 6, isBoss: false,
+      shield: { type: "capsula", maxHP: 3, regenRate: 3 / 10, regenDelay: 10, doubleRing: false },
+      tooltip: "Bacteria con cápsula polisacárida que bloquea la fagocitosis. Causa neumonía, otitis y meningitis. Su cápsula es su principal factor de virulencia."
+    },
+    saureus: {
+      id: "saureus", name: "Staphylococcus aureus", baseKind: "bacteria",
+      color: "#F9A825", colorDark: "#9c6e0a", radius: 14,
+      speedMult: 0.7, hp: 350, reward: 18, viralAdd: 8, isBoss: false,
+      shield: { type: "capsula", maxHP: 5, regenRate: 0, regenDelay: 0, doubleRing: true },
+      tooltip: "Bacteria con cápsula y capacidad de formar biofilm protector. Causa infecciones cutáneas, neumonía y septicemia. Algunas cepas (MRSA) son resistentes a antibióticos."
+    },
+    influenza: {
+      id: "influenza", name: "Virus Influenza", baseKind: "virus",
+      color: "#66BB6A", colorDark: "#357a32", radius: 9,
+      speedMult: 1.5, hp: 100, reward: 10, viralAdd: 6, isBoss: false,
+      shield: null,
+      tooltip: "Virus de RNA muy rápido y mutable. Sin defensas estructurales fuertes. Causa la gripe estacional. Su mutabilidad le permite evadir la inmunidad previa."
+    },
+    vih: {
+      id: "vih", name: "Virus VIH", baseKind: "virus",
+      color: "#7B1FA2", colorDark: "#3e0e54", radius: 11,
+      speedMult: 1.0, hp: 180, reward: 20, viralAdd: 8, isBoss: false,
+      shield: { type: "spike", maxHP: 4, regenRate: 4 / 12, regenDelay: 0, requiresT: true },
+      tooltip: "Retrovirus con envoltura de proteínas spike (gp120/gp41). Solo los Linfocitos T citotóxicos pueden eliminarlo eficazmente. Ataca al sistema inmune y causa el SIDA."
+    },
+    candida: {
+      id: "candida", name: "Candida albicans", baseKind: "hongo",
+      color: "#EC407A", colorDark: "#7a1d3e", radius: 12,
+      speedMult: 0.9, hp: 250, reward: 15, viralAdd: 8, isBoss: false,
+      shield: { type: "wall", maxHP: 4, regenRate: 0, regenDelay: 0 },
+      tooltip: "Hongo levadura con pared celular de quitina y β-glucanos. Causa candidiasis. Su pared rígida lo protege parcialmente del ataque inmune."
+    },
+    // ---- Bosses --------------------------------------------------------
+    bossPyogenes: {
+      id: "bossPyogenes", name: "Streptococcus pyogenes", baseKind: "bacteria",
+      color: "#C62828", colorDark: "#5a0d0d", radius: 32,
+      speedMult: 0.8, hp: 700, reward: 50, viralAdd: 15, isBoss: true,
+      shield: { type: "capsula", maxHP: 6, regenRate: 6 / 8, regenDelay: 0 },
+      tooltip: "La 'bacteria carnívora'. Causa fascitis necrotizante y faringitis severa. Su cápsula y exotoxinas la hacen muy peligrosa."
+    },
+    bossTuberculosis: {
+      id: "bossTuberculosis", name: "Mycobacterium tuberculosis", baseKind: "bacteria",
+      color: "#6D4C41", colorDark: "#352318", radius: 30,
+      speedMult: 0.5, hp: 900, reward: 60, viralAdd: 18, isBoss: true,
+      shield: { type: "wall", maxHP: 8, regenRate: 0, regenDelay: 0, waxy: true },
+      tooltip: "Bacteria del agente causal de la tuberculosis. Su pared cerosa de ácidos micólicos la hace extremadamente resistente. Avanza lento pero implacable."
+    },
+    bossAspergillus: {
+      id: "bossAspergillus", name: "Aspergillus fumigatus", baseKind: "hongo",
+      color: "#689F38", colorDark: "#33491a", radius: 33,
+      speedMult: 0.9, hp: 1100, reward: 80, viralAdd: 22, isBoss: true,
+      shield: { type: "wall", maxHP: 5, regenRate: 1 / 5, regenDelay: 0 },
+      tooltip: "Hongo filamentoso con esporas (conidias) que se diseminan por el aire. Causa aspergilosis pulmonar. Sus hifas le permiten invadir tejidos profundos."
+    },
+    bossMRSA: {
+      id: "bossMRSA", name: "MRSA", baseKind: "bacteria",
+      color: "#424242", colorDark: "#1a1a1a", radius: 38,
+      speedMult: 0.6, hp: 1800, reward: 150, viralAdd: 35, isBoss: true,
+      shield: { type: "capsula", maxHP: 10, regenRate: 2 / 6, regenDelay: 0, doubleRing: true, mrsaHalo: true },
+      tooltip: "Staphylococcus aureus multi-resistente a antibióticos. Una de las amenazas microbiológicas más serias del siglo XXI. Combina cápsula, biofilm y resistencia genética. Su erradicación requiere arsenal completo del sistema inmune."
+    },
+    // ---- Legacy aliases (some old code still references these by name) --
+    bacteria: {
+      id: "bacteria", name: "Bacteria", baseKind: "bacteria",
+      color: "#E74C3C", colorDark: "#922a1f", radius: 14, speedMult: 0.6,
+      hp: 200, reward: 10, viralAdd: 5, isBoss: false, shield: null
+    },
+    virus: {
+      id: "virus", name: "Virus", baseKind: "virus",
+      color: "#8E44AD", colorDark: "#5a2c70", radius: 9, speedMult: 1.5,
+      hp: 80, reward: 5, viralAdd: 6, isBoss: false, shield: null
+    },
+    hongo: {
+      id: "hongo", name: "Hongo", baseKind: "hongo",
+      color: "#E91E63", colorDark: "#8c1240", radius: 12, speedMult: 1.0,
+      hp: 140, reward: 15, viralAdd: 8, isBoss: false, shield: null
+    },
+    boss: {
+      id: "boss", name: "Boss", baseKind: "bacteria",
+      color: "#E74C3C", colorDark: "#5a1010", radius: 42, speedMult: 0.4,
+      hp: 2000, reward: 100, viralAdd: 20, isBoss: true, shield: null
+    },
+    bossBacteria:  { id: "bossBacteria",  name: "Mega Bacteria",      baseKind: "bacteria",  color: "#8B0000", colorDark: "#3d0a0a", radius: 35, speedMult: 0.40, hp:  600, reward:  50, viralAdd: 15, isBoss: true, shield: null },
+    bossVirus:     { id: "bossVirus",     name: "Virus Mutado",        baseKind: "virus",     color: "#6A1B9A", colorDark: "#3a0f5b", radius: 22, speedMult: 1.20, hp:  700, reward:  60, viralAdd: 18, isBoss: true, shield: null },
+    bossHongo:     { id: "bossHongo",     name: "Hongo Invasivo",      baseKind: "hongo",     color: "#C2185B", colorDark: "#6a0d33", radius: 33, speedMult: 0.90, hp:  850, reward:  80, viralAdd: 22, isBoss: true, shield: null },
+    bossPrimordial:{ id: "bossPrimordial",name: "Patogeno Primordial", baseKind: "primordial",color: "#2A2424", colorDark: "#0a0606", radius: 45, speedMult: 0.50, hp: 1500, reward: 150, viralAdd: 35, isBoss: true, shield: null }
   };
 
   // Wave 1: only bacteria. Wave 2: bacteria + virus. Wave 3+: all 3 types.
@@ -816,36 +904,54 @@
   }
   function getInitialAtp() { return 80; }
   function getInitialDripDelay() { return 6; }
-  // Procedural wave: works for any waveNum >= 1, infinite supply.
+  // ---- Wave roster (Sprint 6 explicit table per spec) -------------------
+  // Each entry is an array of { type, count, interval }. After wave 18 we
+  // fall back to a procedural mix so the game keeps escalating.
+  var WAVE_TABLE = {
+    1:  [["ecoli",4,1.2]],
+    2:  [["ecoli",4,1.1],["influenza",3,0.6]],
+    3:  [["ecoli",5,1.0],["influenza",4,0.6],["bossPyogenes",1,0]],
+    4:  [["ecoli",4,1.0],["influenza",4,0.6],["spneumoniae",2,1.0]],
+    5:  [["ecoli",5,1.0],["influenza",5,0.55],["spneumoniae",3,1.0]],
+    6:  [["ecoli",4,1.0],["influenza",4,0.55],["spneumoniae",3,1.0],["candida",2,0.9]],
+    7:  [["ecoli",5,0.9],["influenza",5,0.55],["spneumoniae",3,1.0],["candida",2,0.9],["bossTuberculosis",1,0]],
+    8:  [["ecoli",5,0.9],["influenza",5,0.5],["spneumoniae",4,1.0],["candida",2,0.9],["saureus",2,1.0]],
+    9:  [["ecoli",5,0.9],["influenza",5,0.5],["spneumoniae",4,1.0],["candida",3,0.9],["saureus",3,1.0]],
+    10: [["ecoli",4,0.9],["influenza",5,0.5],["spneumoniae",4,1.0],["candida",3,0.9],["saureus",3,1.0],["vih",2,0.9]],
+    11: [["ecoli",5,0.85],["influenza",5,0.5],["spneumoniae",4,1.0],["candida",3,0.9],["saureus",3,1.0],["vih",3,0.9]],
+    12: [["ecoli",4,0.85],["influenza",4,0.5],["spneumoniae",4,1.0],["candida",3,0.9],["saureus",3,1.0],["vih",3,0.9],["bossAspergillus",1,0]],
+    13: [["ecoli",5,0.8],["influenza",5,0.5],["spneumoniae",5,1.0],["candida",4,0.9],["saureus",4,1.0],["vih",4,0.9]],
+    14: [["ecoli",5,0.8],["influenza",6,0.5],["spneumoniae",5,1.0],["candida",4,0.9],["saureus",4,1.0],["vih",4,0.9]],
+    15: [["ecoli",6,0.8],["influenza",6,0.5],["spneumoniae",5,1.0],["candida",5,0.9],["saureus",5,1.0],["vih",5,0.9]],
+    16: [["ecoli",6,0.75],["influenza",6,0.45],["spneumoniae",6,1.0],["candida",5,0.9],["saureus",5,1.0],["vih",5,0.9]],
+    17: [["ecoli",7,0.75],["influenza",7,0.45],["spneumoniae",6,1.0],["candida",6,0.9],["saureus",6,1.0],["vih",6,0.9]],
+    18: [["ecoli",5,0.7],["influenza",5,0.45],["spneumoniae",5,1.0],["candida",4,0.9],["saureus",8,1.0],["vih",4,0.9],["bossMRSA",1,0]]
+  };
   function getWaveDef(waveNum) {
     var diffHp = 1 + (waveNum - 1) * 0.05;
     var diffSpeed = 1 + (waveNum - 1) * 0.04;
-    var baseCount = 4 + Math.min(waveNum, 14);
-    var bossKey = BOSS_WAVES[waveNum];
-    var mult = bossKey ? 0.5 : 1.0; // half regular enemies on boss waves
-    var groups = [];
-    if (waveNum === 1) {
-      groups.push({ type: "bacteria", count: Math.max(4, Math.round(baseCount * mult)), interval: 1.2 });
-    } else if (waveNum === 2) {
-      groups.push({ type: "bacteria", count: Math.round(baseCount * 0.55 * mult), interval: 1.1 });
-      groups.push({ type: "virus",    count: Math.round(baseCount * 0.50 * mult), interval: 0.7 });
-    } else {
-      var bCount = Math.max(2, Math.round(baseCount * 0.40 * mult));
-      var vCount = Math.max(2, Math.round(baseCount * 0.40 * mult));
-      var hCount = Math.max(2, Math.round(baseCount * 0.30 * mult));
-      groups.push({ type: "bacteria", count: bCount, interval: 1.1 });
-      groups.push({ type: "virus",    count: vCount, interval: 0.6 });
-      groups.push({ type: "hongo",    count: hCount, interval: 0.85 });
+    var entry = WAVE_TABLE[waveNum];
+    if (!entry) {
+      // Post-table: scale up the tier 17 mix and rotate boss types every 6 waves.
+      var base17 = WAVE_TABLE[17];
+      entry = base17.map(function (g) { return [g[0], g[1] + Math.floor((waveNum - 17) / 2), g[2]]; });
+      var bossPool = ["bossPyogenes", "bossTuberculosis", "bossAspergillus", "bossMRSA"];
+      if (waveNum % 6 === 0) {
+        entry = entry.concat([[bossPool[(waveNum / 6) % bossPool.length], 1, 0]]);
+      }
     }
-    if (bossKey) {
-      groups.push({ type: bossKey, count: 1, interval: 0.0 });
+    var groups = entry.map(function (g) { return { type: g[0], count: g[1], interval: g[2] }; });
+    var bossKey = null;
+    for (var i = 0; i < groups.length; i++) {
+      var d = ENEMY_DEFS[groups[i].type];
+      if (d && d.isBoss) { bossKey = groups[i].type; break; }
     }
     return {
       groups: groups,
       hpMult: diffHp,
       speedMult: diffSpeed,
       isBossWave: !!bossKey,
-      bossKey: bossKey || null
+      bossKey: bossKey
     };
   }
 
@@ -941,10 +1047,37 @@
       bossActive: null,                 // ref to current boss enemy (if alive)
       showIntro: true,                  // first-load comic intro screen
       inflammation: null,                // active inflammation pulse
-      nextInflammationAt: 8              // first inflammation pulse
+      nextInflammationAt: 8,             // first inflammation pulse
+      activeTooltip: null,               // {defId, timer, isFirst}
+      tooltipPauseSpawn: 0,              // seconds during which spawn shifts pause
+      mrsaIntro: null,                   // {t, duration} during MRSA boss spawn
+      vistos: null                       // populated below from localStorage
     };
   }
+  // ---- Pathogen "vistos" persistence (Sprint 6 tooltips) ----------------
+  var VISTOS_KEY = "immunodefense_pathogens_seen";
+  function loadVistos() {
+    var s = {};
+    try {
+      var raw = localStorage.getItem(VISTOS_KEY);
+      if (raw) {
+        var arr = JSON.parse(raw);
+        if (Array.isArray(arr)) for (var i = 0; i < arr.length; i++) s[arr[i]] = true;
+      }
+    } catch (e) {}
+    return s;
+  }
+  function saveVistos(map) {
+    try {
+      var arr = [];
+      for (var k in map) if (map[k]) arr.push(k);
+      localStorage.setItem(VISTOS_KEY, JSON.stringify(arr));
+    } catch (e) {}
+  }
+  var firstTooltipShownThisSession = false;
+
   state = newState();
+  state.vistos = loadVistos();
 
   // Per-wave difficulty (replaces getDifficulty(level)). Speed also receives
   // an additional snowball multiplier from infestation in updateEnemies.
@@ -1138,17 +1271,33 @@
       absorbTargetX: 0, absorbTargetY: 0,
       absorbStartTime: 0,
       absorbedRot: 0,
+      shieldHP: def.shield ? def.shield.maxHP : 0,
+      shieldRegenTimer: 0,
+      shieldRegenAccum: 0,
+      shieldShatterTimer: 0,
+      shieldHitTimer: 0,
+      tooltipShown: false,
       dead: false
     });
+    // Trigger MRSA cinematic banner the moment the boss is queued up.
+    if (typeId === "bossMRSA" && !state.mrsaIntro) {
+      state.mrsaIntro = { t: 0, duration: 2.5 };
+    }
   }
 
   function updateWave(dt) {
     if (!state.waveActive) return;
+    // Tooltip pause: don't advance spawnElapsed while a tooltip pauses spawns.
+    if (state.tooltipPauseSpawn > 0) {
+      state.tooltipPauseSpawn -= dt;
+      return;
+    }
     state.spawnElapsed += dt;
     while (state.pendingSpawns.length && state.pendingSpawns[0].time <= state.spawnElapsed) {
       var s = state.pendingSpawns[0];
       // Single-file enforcement: if any live enemy is still very close to entry, hold.
       var def = ENEMY_DEFS[s.type];
+      if (!def) { state.pendingSpawns.shift(); continue; }
       var minSep = (def.radius + 10) * 2 * U;
       var minProgress = Infinity;
       for (var i = 0; i < state.enemies.length; i++) {
@@ -1204,6 +1353,34 @@
       }
       if (e.hurtTimer > 0) e.hurtTimer -= dt;
       if (e.hitFlash > 0) e.hitFlash -= dt;
+      if (e.shieldHitTimer > 0) e.shieldHitTimer -= dt;
+      if (e.shieldShatterTimer > 0) e.shieldShatterTimer -= dt;
+      // Shield regeneration (off-screen tick)
+      if (e.def.shield && e.shieldHP < e.def.shield.maxHP) {
+        if (e.shieldRegenTimer > 0) {
+          e.shieldRegenTimer -= dt;
+        } else if (e.def.shield.regenRate > 0) {
+          e.shieldRegenAccum = (e.shieldRegenAccum || 0) + dt * e.def.shield.regenRate;
+          while (e.shieldRegenAccum >= 1 && e.shieldHP < e.def.shield.maxHP) {
+            e.shieldHP += 1;
+            e.shieldRegenAccum -= 1;
+          }
+        }
+      }
+      // Tooltip detection: first time this pathogen reaches walking state.
+      if (!e.tooltipShown && e.state === "walking" && !state.activeTooltip
+          && !state.vistos[e.def.id] && !state.showIntro && !state.cinematicEnd) {
+        state.vistos[e.def.id] = true;
+        saveVistos(state.vistos);
+        state.activeTooltip = {
+          defId: e.def.id,
+          timer: 5.0,
+          isFirst: !firstTooltipShownThisSession
+        };
+        firstTooltipShownThisSession = true;
+        state.tooltipPauseSpawn = 3.0;
+        e.tooltipShown = true;
+      }
       if (e.dying) {
         e.dyingTimer -= dt;
         if (e.dyingTimer <= 0) {
@@ -1347,7 +1524,7 @@
         e.absorbedRot = 0;
         e.absorbScale = 1;
         e.absorbAlpha = 1;
-        var viralAdd = VIRAL_BY_TYPE[e.def.id] || 5;
+        var viralAdd = (e.def.viralAdd != null ? e.def.viralAdd : (VIRAL_BY_TYPE[e.def.id] || 5));
         state.viralLoad = Math.min(state.viralThreshold, state.viralLoad + viralAdd);
         state.pathogensReached += 1;
         META.totalPathogensInfiltrated += 1;
@@ -1448,7 +1625,7 @@
   function fireTower(t, target) {
     var stats = towerStats(t);
     if (stats.projectileSpeed === 0) {
-      damageEnemy(target, stats.damage);
+      damageEnemy(target, stats.damage, t.def.id);
       pushEffect({ kind: "melee", x1: t.x, y1: t.y, x2: target.x, y2: target.y, life: 0.18, max: 0.18, color: t.def.color });
     } else {
       state.projectiles.push({
@@ -1459,39 +1636,85 @@
         splashDesign: stats.splash,
         color: t.def.color,
         towerId: t.def.id,
+        attackerType: t.def.id,
         rot: 0,
         dead: false
       });
     }
   }
 
-  function damageEnemy(e, amount) {
+  // Sprint 6: shielded damage. attackerType lets the VIH spike-shield enforce
+  // the "only Linfocito T citotoxico can pierce" rule.
+  function damageEnemy(e, amount, attackerType) {
     if (e.dead || e.dying) return;
-    e.hp -= amount;
+    var def = e.def;
+    var bodyDamage = amount;
+    var dmgLabel = "-" + Math.round(amount);
+    var dmgColor = "#FFD93D";
+    if (def.shield && e.shieldHP > 0) {
+      var sd = def.shield;
+      if (sd.requiresT && attackerType !== "linfocitoT") {
+        // Spike-shield rebote: 5% damage to body, no shield decrement.
+        bodyDamage = amount * 0.05;
+        dmgLabel = "✕" + Math.max(1, Math.round(bodyDamage));
+        dmgColor = "#888888";
+      } else {
+        // Capsula / wall / pierced spike: shield absorbs 70%, body 30%, -1 hit.
+        bodyDamage = amount * 0.30;
+        e.shieldHP = Math.max(0, e.shieldHP - 1);
+        e.shieldRegenTimer = sd.regenDelay || 0;
+        e.shieldRegenAccum = 0;
+        e.shieldHitTimer = 0.20;
+        if (e.shieldHP === 0) {
+          e.shieldShatterTimer = 0.45;
+          // Burst of capsule particles
+          for (var sp = 0; sp < 10; sp++) {
+            var sa = Math.random() * Math.PI * 2;
+            pushEffect({
+              kind: "particle",
+              x: e.x, y: e.y,
+              vx: Math.cos(sa) * 70 * U,
+              vy: Math.sin(sa) * 70 * U,
+              life: 0.4, max: 0.5,
+              color: shieldGlowColor(sd.type)
+            });
+          }
+        }
+        dmgLabel = "-" + Math.round(bodyDamage) + " ◇";
+        dmgColor = "#FFE680";
+      }
+    }
+    e.hp -= bodyDamage;
     e.hitFlash = 0.18;
     e.hurtTimer = 0.15;
     pushDamageNumber(
       e.x + (Math.random() * 12 - 6) * U,
       e.y - e.def.radius * U - 2 * U,
-      "-" + amount,
-      "#FFD93D"
+      dmgLabel,
+      dmgColor
     );
     if (e.hp <= 0) {
       e.hp = 0;
       e.dying = true;
       e.dyingTimer = 0.30;
-      state.atp += e.def.reward;
+      state.atp += def.reward;
       state.pathogensDefeated += 1;
       META.totalPathogensDefeated += 1;
       pushEffect({
         kind: "atpText",
-        x: e.x, y: e.y - e.def.radius * U - 4,
+        x: e.x, y: e.y - def.radius * U - 4,
         vy: -36 * U,
-        text: "+" + e.def.reward + " ATP",
+        text: "+" + def.reward + " ATP",
         life: 0.85, max: 0.85,
         color: "#f5d76e"
       });
     }
+  }
+
+  function shieldGlowColor(type) {
+    if (type === "spike") return "rgba(100, 181, 246, 0.85)";
+    if (type === "wall")  return "rgba(197, 225, 165, 0.85)";
+    return "rgba(255, 245, 157, 0.85)";  // capsula
   }
 
   // -------- PROJECTILES ---------------------------------------------------
@@ -1510,12 +1733,12 @@
             var e = state.enemies[j];
             if (e.dead || e.dying || e.absorbing || e.state === "falling" || e.state === "entering") continue;
             if (Math.hypot(e.x - p.target.x, e.y - p.target.y) <= splashPx) {
-              damageEnemy(e, p.damage);
+              damageEnemy(e, p.damage, p.attackerType);
             }
           }
           pushEffect({ kind: "explosion", x: p.target.x, y: p.target.y, r: 0, max: splashPx, life: 0.4, color: p.color });
         } else {
-          damageEnemy(p.target, p.damage);
+          damageEnemy(p.target, p.damage, p.attackerType);
           pushEffect({ kind: "hit", x: p.target.x, y: p.target.y, life: 0.2, max: 0.2, color: p.color });
         }
         p.dead = true;
@@ -1688,6 +1911,20 @@
     }
     updateDrip(dt);
     updateAmbient(dt);
+    updateTooltip(dt);
+    updateMrsaIntro(dt);
+  }
+
+  function updateTooltip(dt) {
+    if (!state.activeTooltip) return;
+    state.activeTooltip.timer -= dt;
+    if (state.activeTooltip.timer <= 0) state.activeTooltip = null;
+  }
+
+  function updateMrsaIntro(dt) {
+    if (!state.mrsaIntro) return;
+    state.mrsaIntro.t += dt;
+    if (state.mrsaIntro.t >= state.mrsaIntro.duration) state.mrsaIntro = null;
   }
 
   // -------- LYMPHATIC DRIP UPDATE / DRAW --------------------------------
@@ -2787,6 +3024,18 @@
         state.showIntro = false;
       }
       return;
+    }
+    // Tooltip educativo: button OR tap outside the card closes it.
+    if (state.activeTooltip) {
+      if (UI.tooltipBtn && inRect(x, y, UI.tooltipBtn)) {
+        state.activeTooltip = null;
+        return;
+      }
+      if (UI.tooltipCard && !inRect(x, y, UI.tooltipCard)) {
+        state.activeTooltip = null;
+        return;
+      }
+      return; // tap inside card without hitting the button: do nothing
     }
     // Cinematic end overlay: only the Continue button responds (after T+7s).
     if (state.cinematicEnd) {
@@ -3895,12 +4144,16 @@
       ctx.translate(-e.x, -e.y);
     }
     drawShadow(e.x, e.y + rad * 0.85, rad * 0.85 * scale, rad * 0.22 * scale);
-    var kind = def.bossKind || def.id;
+    var kind = def.baseKind || def.bossKind || def.id;
     if (kind === "bacteria") drawBacteria(e, rad * scale, expression, blink);
     else if (kind === "virus") drawVirus(e, rad * scale, expression, blink);
     else if (kind === "hongo") drawHongo(e, rad * scale, expression, blink);
     else if (kind === "primordial" || def.id === "boss") drawBoss(e, rad * scale, expression, blink);
     ctx.restore();
+    // Shield overlay (drawn on top of body but under HP bar).
+    if (def.shield && (e.shieldHP > 0 || e.shieldShatterTimer > 0)) {
+      drawShield(e, rad * scale);
+    }
     if (e.dying || e.absorbing || e.state === "falling" || e.state === "entering") return;
     // HP bar
     var hpRatio = Math.max(0, e.hp / e.maxHp);
@@ -3911,6 +4164,117 @@
     ctx.fillRect(e.x - bw / 2, by, bw, bh);
     ctx.fillStyle = hpRatio > 0.5 ? "#5cb85c" : hpRatio > 0.25 ? "#f0ad4e" : "#d9534f";
     ctx.fillRect(e.x - bw / 2, by, bw * hpRatio, bh);
+  }
+
+  function drawShield(e, rad) {
+    var def = e.def;
+    var sd = def.shield;
+    if (!sd) return;
+    var ratio = sd.maxHP > 0 ? Math.max(0, e.shieldHP) / sd.maxHP : 0;
+    var shatter = e.shieldShatterTimer > 0 ? Math.min(1, e.shieldShatterTimer / 0.45) : 0;
+    var hit = e.shieldHitTimer > 0 ? Math.min(1, e.shieldHitTimer / 0.20) : 0;
+    var R = rad * 1.45;
+    ctx.save();
+    ctx.translate(e.x, e.y);
+    if (sd.type === "capsula") {
+      // Yellow translucent ring with subtle pulse.
+      var pulse = 1 + Math.sin(state.time * 4 + e.wobble) * 0.05;
+      ctx.fillStyle = "rgba(255, 245, 157, " + (0.45 * ratio + hit * 0.4) + ")";
+      ctx.beginPath();
+      ctx.arc(0, 0, R * pulse, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "rgba(214, 192, 80, " + (0.85 * ratio + hit * 0.4) + ")";
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      ctx.arc(0, 0, R * pulse, 0, Math.PI * 2);
+      ctx.stroke();
+      // Double ring for biofilm cases (saureus / MRSA)
+      if (sd.doubleRing) {
+        ctx.strokeStyle = "rgba(214, 192, 80, " + (0.55 * ratio) + ")";
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        ctx.arc(0, 0, R * pulse * 1.10, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      // Pulsating dark halo for MRSA
+      if (sd.mrsaHalo) {
+        var ph = 0.4 + 0.6 * Math.sin(state.time * 2);
+        ctx.strokeStyle = "rgba(40, 40, 40, " + (0.55 * ph) + ")";
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.arc(0, 0, R * pulse * 1.25, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    } else if (sd.type === "spike") {
+      // Blue ring with radial spikes (representa proteínas spike del VIH).
+      ctx.fillStyle = "rgba(100, 181, 246, " + (0.40 * ratio + hit * 0.4) + ")";
+      ctx.beginPath();
+      ctx.arc(0, 0, R, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "rgba(60, 130, 200, " + (0.85 * ratio + hit * 0.4) + ")";
+      ctx.lineWidth = 1.4;
+      ctx.beginPath();
+      ctx.arc(0, 0, R, 0, Math.PI * 2);
+      ctx.stroke();
+      // Radial spike lines (each indica un punto de hp del escudo)
+      var spikes = 12;
+      var visibleSpikes = Math.ceil(spikes * ratio);
+      ctx.strokeStyle = "rgba(60, 130, 200, " + (0.9 * ratio) + ")";
+      ctx.lineWidth = 1.6;
+      ctx.lineCap = "round";
+      for (var s = 0; s < visibleSpikes; s++) {
+        var a = (s / spikes) * Math.PI * 2 + state.time * 0.6;
+        ctx.beginPath();
+        ctx.moveTo(Math.cos(a) * R, Math.sin(a) * R);
+        ctx.lineTo(Math.cos(a) * (R + 5 * U), Math.sin(a) * (R + 5 * U));
+        ctx.stroke();
+      }
+      // Sparkle (pulse)
+      var sparkle = 0.5 + 0.5 * Math.sin(state.time * 5);
+      ctx.fillStyle = "rgba(180, 220, 255, " + (sparkle * 0.4 * ratio) + ")";
+      ctx.beginPath();
+      ctx.arc(0, 0, R * 0.95, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (sd.type === "wall") {
+      // Thick green ring with granular texture (pared celular fúngica/cerosa).
+      ctx.fillStyle = "rgba(197, 225, 165, " + (0.50 * ratio + hit * 0.4) + ")";
+      ctx.beginPath();
+      ctx.arc(0, 0, R * 1.05, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "rgba(120, 160, 90, " + (0.85 * ratio + hit * 0.4) + ")";
+      ctx.lineWidth = 2.2;
+      ctx.beginPath();
+      ctx.arc(0, 0, R * 1.05, 0, Math.PI * 2);
+      ctx.stroke();
+      // Inner granules / waxy texture
+      var granules = sd.waxy ? 14 : 10;
+      ctx.fillStyle = "rgba(140, 175, 100, " + (0.7 * ratio) + ")";
+      for (var g = 0; g < granules; g++) {
+        var ga = (g / granules) * Math.PI * 2;
+        ctx.beginPath();
+        ctx.arc(Math.cos(ga) * R * 0.92, Math.sin(ga) * R * 0.92, 1.4 * U, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    // Shatter flash
+    if (shatter > 0) {
+      ctx.strokeStyle = "rgba(255, 255, 255, " + (shatter * 0.85) + ")";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(0, 0, R * (1 + (1 - shatter) * 0.4), 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.restore();
+    // Tiny shield HP indicator below the body when shield exists and < max.
+    if (e.shieldHP > 0 && e.shieldHP < sd.maxHP && !e.dying && !e.absorbing) {
+      var bw = Math.max(18 * U, rad * 1.6);
+      var bh = 2.4 * Math.max(1, U * 0.9);
+      var by = e.y + rad * 1.05;
+      ctx.fillStyle = "rgba(0,0,0,0.5)";
+      ctx.fillRect(e.x - bw / 2, by, bw, bh);
+      ctx.fillStyle = sd.type === "spike" ? "#64B5F6" : sd.type === "wall" ? "#C5E1A5" : "#FFF59D";
+      ctx.fillRect(e.x - bw / 2, by, bw * (e.shieldHP / sd.maxHP), bh);
+    }
   }
 
   function drawBacteria(e, rad, expression, blink) {
@@ -4917,6 +5281,177 @@
     ctx.restore();
   }
 
+  // -------- TOOLTIP EDUCATIVO (Sprint 6) ------------------------------
+  function drawTooltip() {
+    var tt = state.activeTooltip;
+    if (!tt) return;
+    var def = ENEMY_DEFS[tt.defId];
+    if (!def) { state.activeTooltip = null; return; }
+    var fade = tt.timer > 4.5 ? (5.0 - tt.timer) / 0.5
+              : tt.timer < 0.4 ? tt.timer / 0.4 : 1;
+    fade = Math.max(0, Math.min(1, fade));
+    ctx.save();
+    // Semi-transparent backdrop (juego visible detrás).
+    ctx.fillStyle = "rgba(15, 10, 14, " + (0.55 * fade) + ")";
+    ctx.fillRect(0, FIELD_TOP, VW, FIELD_BOTTOM - FIELD_TOP);
+    // Card
+    var cw = Math.min(440, VW - 32);
+    var ch = 220;
+    var cx = (VW - cw) / 2;
+    var cy = (VH - ch) / 2;
+    UI.tooltipCard = { x: cx, y: cy, w: cw, h: ch };
+    ctx.globalAlpha = fade;
+    ctx.fillStyle = "#fbf2e0";
+    ctx.fillRect(cx, cy, cw, ch);
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = "#1a1a22";
+    ctx.strokeRect(cx, cy, cw, ch);
+    // First-of-session header
+    if (tt.isFirst) {
+      ctx.font = "bold 12px sans-serif";
+      ctx.fillStyle = "#1565C0";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "top";
+      ctx.fillText("🔬  NUEVO PATÓGENO IDENTIFICADO", cx + cw / 2, cy + 12);
+    }
+    var headerY = tt.isFirst ? cy + 30 : cy + 14;
+    // Mini sprite preview (left side)
+    var previewX = cx + 50;
+    var previewY = headerY + 56;
+    drawTooltipSprite(def, previewX, previewY, 22 * U);
+    // Name
+    ctx.font = "600 18px Georgia, serif";
+    ctx.fillStyle = "#B22222";
+    ctx.textAlign = "left";
+    ctx.textBaseline = "top";
+    ctx.fillText(def.name, cx + 100, headerY + 18);
+    // Shield indicator
+    if (def.shield) {
+      var shieldLabel;
+      var shieldColor;
+      if (def.shield.type === "capsula") { shieldLabel = "🟡 Cápsula"; shieldColor = "#C8B068"; }
+      else if (def.shield.type === "spike") { shieldLabel = "🔵 Proteínas spike"; shieldColor = "#3F8AC8"; }
+      else { shieldLabel = "🟢 Pared celular"; shieldColor = "#7CA850"; }
+      ctx.font = "bold 11px sans-serif";
+      ctx.fillStyle = shieldColor;
+      ctx.fillText(shieldLabel + " (" + def.shield.maxHP + " hits)", cx + 100, headerY + 42);
+    }
+    // Description
+    ctx.font = "13px Georgia, serif";
+    ctx.fillStyle = "#2C2A28";
+    var descLines = wrapText(def.tooltip || "", cw - 32, 13);
+    var ly = headerY + 78;
+    for (var i = 0; i < descLines.length && i < 5; i++) {
+      ctx.fillText(descLines[i], cx + 16, ly);
+      ly += 16;
+    }
+    // Continue button (bottom-right)
+    var btnW = 110, btnH = 32;
+    var btn = { x: cx + cw - btnW - 14, y: cy + ch - btnH - 12, w: btnW, h: btnH };
+    UI.tooltipBtn = btn;
+    ctx.fillStyle = "#1a1a22";
+    ctx.fillRect(btn.x, btn.y, btn.w, btn.h);
+    ctx.strokeStyle = "#000";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(btn.x, btn.y, btn.w, btn.h);
+    ctx.fillStyle = "#fff";
+    ctx.font = "bold 13px sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("Continuar", btn.x + btn.w / 2, btn.y + btn.h / 2);
+    // Auto-close countdown
+    ctx.font = "10px sans-serif";
+    ctx.fillStyle = "rgba(60, 50, 40, 0.6)";
+    ctx.textAlign = "left";
+    ctx.fillText("Cierra en " + Math.max(0, Math.ceil(tt.timer)) + "s", cx + 16, cy + ch - 22);
+    ctx.restore();
+  }
+
+  function wrapText(text, maxWidth, fontSize) {
+    var words = text.split(" ");
+    var lines = [];
+    var curr = "";
+    ctx.font = fontSize + "px Georgia, serif";
+    for (var w = 0; w < words.length; w++) {
+      var test = curr ? curr + " " + words[w] : words[w];
+      if (ctx.measureText(test).width <= maxWidth) curr = test;
+      else { if (curr) lines.push(curr); curr = words[w]; }
+    }
+    if (curr) lines.push(curr);
+    return lines;
+  }
+
+  function drawTooltipSprite(def, cx, cy, R) {
+    // Lightweight preview using existing sprite renderers.
+    var fakeEnemy = {
+      def: def,
+      x: cx, y: cy,
+      wobble: 0,
+      hitFlash: 0,
+      hurtTimer: 0,
+      enraged: false,
+      sporeTimer: 0,
+      blinkTimer: 0,
+      shieldHP: def.shield ? def.shield.maxHP : 0,
+      shieldHitTimer: 0,
+      shieldShatterTimer: 0
+    };
+    ctx.save();
+    var kind = def.baseKind || def.id;
+    if (kind === "bacteria") drawBacteria(fakeEnemy, R, "idle", false);
+    else if (kind === "virus") drawVirus(fakeEnemy, R, "idle", false);
+    else if (kind === "hongo") drawHongo(fakeEnemy, R, "idle", false);
+    else drawBoss(fakeEnemy, R, "idle", false);
+    if (def.shield) drawShield(fakeEnemy, R);
+    ctx.restore();
+  }
+
+  // -------- MRSA INTRO BANNER (Sprint 6) ------------------------------
+  function drawMrsaIntro() {
+    var mi = state.mrsaIntro;
+    if (!mi) return;
+    var t = mi.t / mi.duration;
+    var alpha;
+    if (t < 0.2) alpha = t / 0.2;
+    else if (t > 0.85) alpha = (1 - t) / 0.15;
+    else alpha = 1;
+    alpha = Math.max(0, Math.min(1, alpha));
+    var slideY = (1 - Math.min(1, mi.t / 0.4)) * 30;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    var bw = VW * 0.6;
+    var bh = 110;
+    var bx = (VW - bw) / 2;
+    var by = VH * 0.35 - bh / 2 + slideY;
+    var grad = ctx.createLinearGradient(bx, by, bx + bw, by);
+    grad.addColorStop(0, "#1A0000");
+    grad.addColorStop(0.5, "#4A0000");
+    grad.addColorStop(1, "#1A0000");
+    ctx.fillStyle = grad;
+    ctx.fillRect(bx, by, bw, bh);
+    // Glow border
+    ctx.shadowColor = "rgba(231, 76, 60, 0.85)";
+    ctx.shadowBlur = 20;
+    ctx.strokeStyle = "#E74C3C";
+    ctx.lineWidth = 3;
+    ctx.strokeRect(bx, by, bw, bh);
+    ctx.shadowBlur = 0;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = "rgba(231, 76, 60, 0.6)";
+    ctx.font = "600 38px Georgia, serif";
+    ctx.fillText("MRSA", bx + bw / 2 + 1, by + 28 + 1);
+    ctx.fillStyle = "#FFFFFF";
+    ctx.fillText("MRSA", bx + bw / 2, by + 28);
+    ctx.font = "italic 14px Georgia, serif";
+    ctx.fillStyle = "#FFCDD2";
+    ctx.fillText("Staphylococcus aureus resistente a meticilina", bx + bw / 2, by + 60);
+    ctx.font = "11px sans-serif";
+    ctx.fillStyle = "#F0E68C";
+    ctx.fillText("Multi-resistente. Arsenal completo requerido.", bx + bw / 2, by + 84);
+    ctx.restore();
+  }
+
   // -------- COMIC INTRO SCREEN ----------------------------------------
   function drawIntroScreen() {
     if (!state.showIntro) return;
@@ -5184,6 +5719,11 @@
       shakeOff.x = (Math.random() - 0.5) * sm * sintensity;
       shakeOff.y = (Math.random() - 0.5) * sm * sintensity;
     }
+    // MRSA intro earthquake: ±2px on both axes for the duration of the banner.
+    if (state.mrsaIntro) {
+      shakeOff.x += (Math.random() - 0.5) * 4;
+      shakeOff.y += (Math.random() - 0.5) * 4;
+    }
     ctx.setTransform(dpr, 0, 0, dpr, shakeOff.x * dpr, shakeOff.y * dpr);
 
     // Strict render order per Sprint 4A spec.
@@ -5233,7 +5773,9 @@
       ctx.strokeRect(2, FIELD_TOP + 2, VW - 4, FIELD_H - 4);
     }
     drawEndOverlay();
+    drawMrsaIntro();
     drawCinematicEnd();
+    drawTooltip();
     drawIntroScreen();
     drawConfirmModal();
   }

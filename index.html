@@ -730,7 +730,12 @@
     bacteria: { id: "bacteria", name: "Bacteria", color: "#E74C3C", colorDark: "#922a1f", radius: 14, speedMult: 0.6, hp:  200, reward:  10, isBoss: false },
     virus:    { id: "virus",    name: "Virus",    color: "#8E44AD", colorDark: "#5a2c70", radius:  9, speedMult: 1.5, hp:   80, reward:   5, isBoss: false },
     hongo:    { id: "hongo",    name: "Hongo",    color: "#E91E63", colorDark: "#8c1240", radius: 12, speedMult: 1.0, hp:  140, reward:  15, isBoss: false },
-    boss:     { id: "boss",     name: "Boss",     color: "#E74C3C", colorDark: "#5a1010", radius: 42, speedMult: 0.4, hp: 2000, reward: 100, isBoss: true  }
+    boss:     { id: "boss",     name: "Boss",     color: "#E74C3C", colorDark: "#5a1010", radius: 42, speedMult: 0.4, hp: 2000, reward: 100, isBoss: true  },
+    // Sprint 5 specialty bosses on waves 3, 7, 12, 18.
+    bossBacteria:  { id: "bossBacteria",  name: "Mega Bacteria",      bossKind: "bacteria",  color: "#8B0000", colorDark: "#3d0a0a", radius: 35, speedMult: 0.40, hp:  600, reward:  50, isBoss: true },
+    bossVirus:     { id: "bossVirus",     name: "Virus Mutado",        bossKind: "virus",     color: "#6A1B9A", colorDark: "#3a0f5b", radius: 22, speedMult: 1.20, hp:  700, reward:  60, isBoss: true },
+    bossHongo:     { id: "bossHongo",     name: "Hongo Invasivo",      bossKind: "hongo",     color: "#C2185B", colorDark: "#6a0d33", radius: 33, speedMult: 0.90, hp:  850, reward:  80, isBoss: true },
+    bossPrimordial:{ id: "bossPrimordial",name: "Patogeno Primordial", bossKind: "primordial",color: "#2A2424", colorDark: "#0a0606", radius: 45, speedMult: 0.50, hp: 1500, reward: 150, isBoss: true }
   };
 
   // Wave 1: only bacteria. Wave 2: bacteria + virus. Wave 3+: all 3 types.
@@ -778,34 +783,85 @@
 
   // -------- STATE ---------------------------------------------------------
   var state;
-  // -------- LEVEL CONFIG --------------------------------------------------
-  var MAX_LEVEL = 10;
-  var VIRAL_BY_TYPE = { bacteria: 5, virus: 8, hongo: 12, boss: 40 };
-  function getViralThreshold(level) {
-    if (level <= 0) return 30;
-    var table = [30, 50, 70, 90, 100, 100, 110, 120, 130, 150];
-    return table[Math.min(level - 1, table.length - 1)];
+  // -------- PHASE 1 CONFIG ------------------------------------------------
+  // Fase 1 de la experiencia: la invasión inevitable. Sin niveles, sin victoria.
+  // El jugador retrasa el avance de la infestación hasta el 100%, momento en
+  // el que se dispara la animación de envenenamiento cinematográfico.
+  var INFESTACION_THRESHOLD = 100;
+  var VIRAL_BY_TYPE = {
+    bacteria: 5,
+    virus: 6,
+    hongo: 8,
+    boss: 15,             // generic boss (fallback)
+    bossBacteria: 15,
+    bossVirus: 18,
+    bossHongo: 22,
+    bossPrimordial: 35
+  };
+  var BOSS_WAVES = { 3: "bossBacteria", 7: "bossVirus", 12: "bossHongo", 18: "bossPrimordial" };
+  // Snowball multipliers as a function of infestation 0-100.
+  function infestSpawnMult(inf) {
+    // 0%->1.0  30%->1.3  60%->1.6  85%->1.85  100%->2.0
+    if (inf <= 0) return 1.0;
+    return 1.0 + Math.min(1.0, inf / 100);
   }
-  function getDifficulty(level) {
-    var k = Math.max(0, level - 1);
-    return { speed: 1.0 + k * 0.15, hp: 1.0 + k * 0.10 };
+  function infestSpeedMult(inf) {
+    // 0%->1.0  60%->1.20  85%->1.30  100%->1.35
+    if (inf <= 0) return 1.0;
+    return 1.0 + Math.min(0.35, (inf / 100) * 0.35);
   }
-  function getInitialAtpFor(level) { return 60 + 10 * level; }
-  function getInitialDripDelay(level) { return Math.max(3, 6 - level * 0.3); }
+  function infestWaveGapMult(inf) {
+    // 0%->1.0  30%->0.90  60%->0.70  85%->0.55  100%->0.50
+    return Math.max(0.50, 1.0 - (inf / 100) * 0.50);
+  }
+  function getInitialAtp() { return 80; }
+  function getInitialDripDelay() { return 6; }
+  // Procedural wave: works for any waveNum >= 1, infinite supply.
+  function getWaveDef(waveNum) {
+    var diffHp = 1 + (waveNum - 1) * 0.05;
+    var diffSpeed = 1 + (waveNum - 1) * 0.04;
+    var baseCount = 4 + Math.min(waveNum, 14);
+    var bossKey = BOSS_WAVES[waveNum];
+    var mult = bossKey ? 0.5 : 1.0; // half regular enemies on boss waves
+    var groups = [];
+    if (waveNum === 1) {
+      groups.push({ type: "bacteria", count: Math.max(4, Math.round(baseCount * mult)), interval: 1.2 });
+    } else if (waveNum === 2) {
+      groups.push({ type: "bacteria", count: Math.round(baseCount * 0.55 * mult), interval: 1.1 });
+      groups.push({ type: "virus",    count: Math.round(baseCount * 0.50 * mult), interval: 0.7 });
+    } else {
+      var bCount = Math.max(2, Math.round(baseCount * 0.40 * mult));
+      var vCount = Math.max(2, Math.round(baseCount * 0.40 * mult));
+      var hCount = Math.max(2, Math.round(baseCount * 0.30 * mult));
+      groups.push({ type: "bacteria", count: bCount, interval: 1.1 });
+      groups.push({ type: "virus",    count: vCount, interval: 0.6 });
+      groups.push({ type: "hongo",    count: hCount, interval: 0.85 });
+    }
+    if (bossKey) {
+      groups.push({ type: bossKey, count: 1, interval: 0.0 });
+    }
+    return {
+      groups: groups,
+      hpMult: diffHp,
+      speedMult: diffSpeed,
+      isBossWave: !!bossKey,
+      bossKey: bossKey || null
+    };
+  }
 
   var META = {
-    highestLevelReached: 1,
     totalPathogensDefeated: 0,
-    totalPathogensInfiltrated: 0
+    totalPathogensInfiltrated: 0,
+    wavesReached: 1
   };
   function loadMeta() {
     try {
       var raw = localStorage.getItem("immunodefense_meta");
       if (raw) {
         var p = JSON.parse(raw);
-        META.highestLevelReached = Math.max(1, parseInt(p.highestLevelReached) || 1);
         META.totalPathogensDefeated = parseInt(p.totalPathogensDefeated) || 0;
         META.totalPathogensInfiltrated = parseInt(p.totalPathogensInfiltrated) || 0;
+        META.wavesReached = Math.max(1, parseInt(p.wavesReached) || 1);
       }
     } catch (e) {}
   }
@@ -816,13 +872,13 @@
   }
   loadMeta();
 
-  function newState(level) {
-    level = Math.max(1, Math.min(MAX_LEVEL, level || 1));
+  function newState() {
     return {
-      atp: getInitialAtpFor(level),
-      currentLevel: level,
+      atp: getInitialAtp(),
+      // Kept-named legacy fields drive the same code paths.
+      currentLevel: 1,
       viralLoad: 0,
-      viralThreshold: getViralThreshold(level),
+      viralThreshold: INFESTACION_THRESHOLD,
       pathogensReached: 0,
       pathogensDefeated: 0,
       waveIdx: 0,
@@ -855,12 +911,12 @@
       kills: 0,
       endRevealTimer: 0,
       endMusicSwitched: false,
-      drip: {           // legacy alias, kept for other refs
-        nextDropAt: getInitialDripDelay(level),
+      drip: {
+        nextDropAt: getInitialDripDelay(),
         drop: null
       },
       lymph: {
-        nextDropAt: getInitialDripDelay(level),
+        nextDropAt: getInitialDripDelay(),
         drop: null
       },
       vesselFlashTimer: 0,
@@ -870,18 +926,32 @@
       finalScreen: false,
       transitionTimer: 0,
       tissue: null,
-      mitosis: null,         // active mitosis cell or null
-      nextMitosisAt: 12,     // first mitosis ~12s into the level
-      patrol: [],            // patrol macrophages (decorative)
-      restos: [],            // pathogen remnants awaiting cleanup
-      collectors: [],        // collector cells (cleanup workers)
-      barricada: null,       // single active coagulation barricade
-      nextBarricadaAt: 10 + Math.random() * 6,  // first spawn in 10-16s
-      inflammation: null,    // active inflammation pulse
-      nextInflammationAt: 8  // first inflammation pulse
+      mitosis: null,
+      nextMitosisAt: 12,
+      patrol: [],
+      restos: [],
+      collectors: [],
+      barricada: null,
+      nextBarricadaAt: 10 + Math.random() * 6,
+      // Sprint 5 fields:
+      nextWaveAt: 6,                    // countdown to first wave
+      waveCountdownActive: true,        // showing "PRÓXIMA OLEADA EN Ns"
+      cinematicEnd: null,               // when infestacion >= 100, becomes object
+      pathInflammation: [],             // marks where enemies recently passed
+      bossActive: null,                 // ref to current boss enemy (if alive)
+      showIntro: true,                  // first-load comic intro screen
+      inflammation: null,                // active inflammation pulse
+      nextInflammationAt: 8              // first inflammation pulse
     };
   }
-  state = newState(1);
+  state = newState();
+
+  // Per-wave difficulty (replaces getDifficulty(level)). Speed also receives
+  // an additional snowball multiplier from infestation in updateEnemies.
+  function getDifficulty() {
+    var w = Math.max(0, (state.waveIdx | 0) - 1);
+    return { speed: 1.0 + w * 0.04, hp: 1.0 + w * 0.05 };
+  }
 
   var MAX_EFFECTS = 80;
   var MAX_DAMAGE_NUMBERS = 20;
@@ -998,33 +1068,38 @@
 
   // -------- WAVES / SPAWN -------------------------------------------------
   function startNextWave() {
-    if (state.waveActive || state.gameOver || state.victory || state.confirmRestart) return;
-    if (state.waveIdx >= WAVES.length) return;
-    var wave = WAVES[state.waveIdx];
+    if (state.waveActive || state.cinematicEnd || state.confirmRestart || state.showIntro) return;
     state.waveIdx += 1;
+    META.wavesReached = Math.max(META.wavesReached, state.waveIdx);
+    saveMeta();
+    var wave = getWaveDef(state.waveIdx);
+    state.currentWaveDef = wave;
     state.waveActive = true;
+    state.waveCountdownActive = false;
     state.spawnElapsed = 0;
     state.pendingSpawns = [];
     var t = 0;
+    var spawnMult = infestSpawnMult(state.viralLoad);
     for (var i = 0; i < wave.groups.length; i++) {
       var g = wave.groups[i];
       for (var k = 0; k < g.count; k++) {
         state.pendingSpawns.push({ type: g.type, time: t, hpMult: wave.hpMult });
-        // Jittered spawn cadence: 0.5-1.3s per spec, keeps oleadas chaotic.
-        t += 0.5 + Math.random() * 0.8;
+        // Jittered spawn cadence (0.5-1.3s base) divided by infestation rate.
+        t += (0.5 + Math.random() * 0.8) / spawnMult;
       }
-      t += 0.6;
+      t += 0.6 / spawnMult;
     }
-    state.waveBannerText = "Oleada " + state.waveIdx;
-    state.waveBannerTimer = 1.2;
+    state.waveBannerText = wave.isBossWave ? ("¡OLEADA " + state.waveIdx + " — BOSS!") : ("OLEADA " + state.waveIdx);
+    state.waveBannerTimer = 1.4;
     sfx("wave");
-    showMsg("Oleada " + state.waveIdx + " iniciada");
   }
 
   function spawnEnemy(typeId, hpMult) {
     var def = ENEMY_DEFS[typeId];
-    var diff = getDifficulty(state.currentLevel);
+    if (!def) return;
+    var diff = getDifficulty();
     var hp = def.hp * hpMult * diff.hp;
+    if (def.isBoss) state.bossActive = null;  // reset; will be set after push
     // Pick one of the 3 wounds at random.
     var heridaIdx = Math.floor(Math.random() * (PATH.wounds.length || 1));
     var wound = PATH.wounds[heridaIdx] || { x: VW * 0.5, y: FIELD_TOP + 20 * U };
@@ -1083,25 +1158,35 @@
       state.pendingSpawns.shift();
       spawnEnemy(s.type, s.hpMult);
     }
-    if (!state.pendingSpawns.length && !state.enemies.length) {
+    // Wave is over once both spawns and live enemies are gone.
+    var bossAlive = false;
+    for (var bi = 0; bi < state.enemies.length; bi++) {
+      if (state.enemies[bi].def && state.enemies[bi].def.isBoss && !state.enemies[bi].dead) {
+        bossAlive = true; break;
+      }
+    }
+    if (!state.pendingSpawns.length && !state.enemies.length && !bossAlive) {
       state.waveActive = false;
-      var bonus = 25 + state.waveIdx * 5;
+      var bonus = 12 + state.waveIdx * 2;
       state.atp += bonus;
-      if (state.waveIdx >= WAVES.length) {
-        // Survived all waves without exceeding viral threshold -> advance level.
-        sfx("victory");
-        showMsg("Nivel superado");
-        if (!state.levelTransition) {
-          state.levelTransition = true;
-          state.transitionTimer = 0;
-          if (state.currentLevel >= MAX_LEVEL) state.finalScreen = true;
-          else {
-            META.highestLevelReached = Math.max(META.highestLevelReached, state.currentLevel + 1);
-            saveMeta();
-          }
-        }
-      } else {
-        showMsg("Oleada superada (+" + bonus + " ATP)");
+      // Auto-schedule next wave: base gap shrinks with wave, infestation
+      // multiplier shrinks gap further (snowball).
+      var baseGap = Math.max(8, 25 - state.waveIdx);
+      state.nextWaveAt = baseGap * infestWaveGapMult(state.viralLoad);
+      state.waveCountdownActive = true;
+      showMsg("Oleada " + state.waveIdx + " superada (+" + bonus + " ATP)");
+    }
+  }
+
+  // Auto-spawn ticker — every frame outside an active wave, drain countdown.
+  function updateWaveScheduler(dt) {
+    if (state.cinematicEnd || state.confirmRestart || state.showIntro) return;
+    if (state.waveActive) return;
+    if (state.nextWaveAt > 0) {
+      state.nextWaveAt -= dt;
+      if (state.nextWaveAt <= 0) {
+        state.nextWaveAt = 0;
+        startNextWave();
       }
     }
   }
@@ -1219,7 +1304,8 @@
       if (e.def.isBoss && !e.enraged && e.hp / e.maxHp < 0.5) {
         e.enraged = true;
       }
-      var pxSpeed = e.def.speedMult * (e.speedMultLevel || 1) * BASE_SPEED * U;
+      var pxSpeed = e.def.speedMult * (e.speedMultLevel || 1) * BASE_SPEED * U *
+                    infestSpeedMult(state.viralLoad);
       // BLOCKED by a coagulation barricade: stop advancing along the path.
       // Position still resolves via pathPos at the held progress so the
       // sprite stays put on the path with a small shake jitter.
@@ -1501,37 +1587,26 @@
     });
   }
 
-  function triggerLevelEnd() {
-    if (state.levelTransition) return;
-    state.levelTransition = true;
-    state.transitionTimer = 0;
-    showMsg("Infeccion establecida");
-    sfx("defeat");
-    if (state.currentLevel >= MAX_LEVEL) {
-      state.finalScreen = true;
-    } else {
-      META.highestLevelReached = Math.max(META.highestLevelReached, state.currentLevel + 1);
-      saveMeta();
-    }
-  }
-
-  function startNextLevel() {
-    var nextLevel = Math.min(MAX_LEVEL, state.currentLevel + 1);
-    var savedMeta = {
-      totalDefeated: META.totalPathogensDefeated,
-      totalInfiltrated: META.totalPathogensInfiltrated
+  // Cinematic end trigger when infestation reaches 100. Sets up a 7s timeline
+  // played in updateCinematic + drawn in drawCinematicEnd.
+  function triggerCinematicEnd() {
+    if (state.cinematicEnd) return;
+    state.cinematicEnd = {
+      t: 0,
+      buttonShown: false
     };
-    state = newState(nextLevel);
-    META.totalPathogensDefeated = savedMeta.totalDefeated;
-    META.totalPathogensInfiltrated = savedMeta.totalInfiltrated;
-    rebuildPath();
-    layoutDrip();
-    state.waveBannerText = "Nivel " + nextLevel;
-    state.waveBannerTimer = 1.4;
+    state.waveActive = false;
+    showMsg("INFECCIÓN ESTABLECIDA");
+    if (audio && audio.ctx) sfx("defeat");
+    META.totalPathogensInfiltrated = META.totalPathogensInfiltrated;
+    saveMeta();
   }
+  // Backward-compat shim: old code may still call triggerLevelEnd().
+  function triggerLevelEnd() { triggerCinematicEnd(); }
 
   function restartFromLevel1() {
-    state = newState(1);
+    state = newState();
+    state.showIntro = false;  // restart skips the intro
     rebuildPath();
     layoutDrip();
   }
@@ -2706,20 +2781,29 @@
   }
 
   function handleClick(x, y) {
+    // Comic intro screen: COMENZAR closes the overlay.
+    if (state.showIntro) {
+      if (UI.introBtn && inRect(x, y, UI.introBtn)) {
+        state.showIntro = false;
+      }
+      return;
+    }
+    // Cinematic end overlay: only the Continue button responds (after T+7s).
+    if (state.cinematicEnd) {
+      if (state.cinematicEnd.buttonShown && UI.cinematicBtn && inRect(x, y, UI.cinematicBtn)) {
+        showMsg("La Fase 2 esta en desarrollo. Reiniciando Fase 1...");
+        restartFromLevel1();
+      }
+      return;
+    }
     // Confirmation modal: only modal buttons respond.
     if (state.confirmRestart) {
       if (inRect(x, y, UI.modalYes)) {
         state = newState();
+        rebuildPath();
+        layoutDrip();
       } else if (inRect(x, y, UI.modalNo)) {
         state.confirmRestart = false;
-      }
-      return;
-    }
-    // Level transition / final screen overlay handles click first.
-    if (state.levelTransition) {
-      if (UI.transitionBtn && inRect(x, y, UI.transitionBtn)) {
-        if (state.finalScreen) restartFromLevel1();
-        else startNextLevel();
       }
       return;
     }
@@ -2742,10 +2826,7 @@
         sfx("tick");
         return;
       }
-      if (inRect(x, y, UI.nextWaveBtn) && !state.waveActive && state.waveIdx < WAVES.length) {
-        startNextWave();
-        return;
-      }
+      // Next-wave button removed in Sprint 5 (waves auto-spawn).
       return;
     }
     // Panel
@@ -2921,8 +3002,12 @@
     if (e.key === " " || e.code === "Space") {
       e.preventDefault();
       ensureAudio();
+      if (state.showIntro) { state.showIntro = false; return; }
       if (state.confirmRestart) { state.confirmRestart = false; return; }
-      if (!state.waveActive && !state.gameOver && !state.victory) startNextWave();
+      // Waves auto-spawn now; SPACE skips countdown if any.
+      if (!state.waveActive && state.nextWaveAt > 0 && !state.cinematicEnd) {
+        state.nextWaveAt = 0;
+      }
     } else if (e.key === "Escape") {
       if (state.confirmRestart) state.confirmRestart = false;
       else { state.selectedToBuild = null; state.selectedTower = null; clearRangeHint(); }
@@ -3810,10 +3895,11 @@
       ctx.translate(-e.x, -e.y);
     }
     drawShadow(e.x, e.y + rad * 0.85, rad * 0.85 * scale, rad * 0.22 * scale);
-    if (def.id === "bacteria") drawBacteria(e, rad * scale, expression, blink);
-    else if (def.id === "virus") drawVirus(e, rad * scale, expression, blink);
-    else if (def.id === "hongo") drawHongo(e, rad * scale, expression, blink);
-    else if (def.id === "boss") drawBoss(e, rad * scale, expression, blink);
+    var kind = def.bossKind || def.id;
+    if (kind === "bacteria") drawBacteria(e, rad * scale, expression, blink);
+    else if (kind === "virus") drawVirus(e, rad * scale, expression, blink);
+    else if (kind === "hongo") drawHongo(e, rad * scale, expression, blink);
+    else if (kind === "primordial" || def.id === "boss") drawBoss(e, rad * scale, expression, blink);
     ctx.restore();
     if (e.dying || e.absorbing || e.state === "falling" || e.state === "entering") return;
     // HP bar
@@ -4290,15 +4376,16 @@
 
   function getViralColor(ratio) {
     if (ratio < 0.30) return "#2ECC71";
-    if (ratio < 0.70) return "#F39C12";
-    if (ratio < 1.00) return "#E67E22";
-    return "#C0392B";
+    if (ratio < 0.60) return "#F39C12";
+    if (ratio < 0.85) return "#E67E22";
+    return "#E74C3C";
   }
   function getViralLabel(ratio) {
     if (ratio < 0.30) return "ORGANISMO SALUDABLE";
-    if (ratio < 0.70) return "INFECCION LOCAL";
-    if (ratio < 1.00) return "INFECCION SISTEMICA";
-    return "INFECCION ESTABLECIDA";
+    if (ratio < 0.60) return "INFLAMACIÓN AGUDA";
+    if (ratio < 0.85) return "RESPUESTA SISTÉMICA";
+    if (ratio < 1.00) return "FALLA INMINENTE";
+    return "INFECCIÓN ESTABLECIDA";
   }
 
   function drawViralBar() {
@@ -4350,35 +4437,48 @@
       ctx.font = "bold 14px sans-serif";
       ctx.fillStyle = "#f5d76e";
       ctx.fillText("⚡ " + state.atp, leftX, midY);
-      ctx.fillStyle = "#bcd0f5";
-      ctx.fillText("Nv " + state.currentLevel, leftX + 64, midY);
+      ctx.font = 'italic 12px Georgia, serif';
+      ctx.fillStyle = "rgba(220, 200, 200, 0.85)";
+      ctx.fillText("FASE 1", leftX + 64, midY);
+      ctx.font = "bold 13px sans-serif";
       ctx.fillStyle = "#e0e0e0";
-      ctx.fillText("⌖ " + state.waveIdx + "/" + WAVES.length, leftX + 116, midY);
+      ctx.fillText("⌖ " + state.waveIdx, leftX + 116, midY);
     } else {
       var statsY = safeTop + 8;
       var fontStat = Math.max(14, Math.min(20, VW * 0.018));
       var fontLabel = Math.max(10, Math.min(13, VW * 0.012));
       drawHudStat("⚡ ATP", state.atp, leftX, statsY, "#f5d76e", fontStat, fontLabel);
-      drawHudStat("⊛ Nivel", state.currentLevel + " / " + MAX_LEVEL,
-        leftX + Math.min(160, VW * 0.22), statsY, "#bcd0f5", fontStat, fontLabel);
-      drawHudStat("⌖ Oleada", state.waveIdx + " / " + WAVES.length,
-        leftX + Math.min(320, VW * 0.44), statsY, "#e0e0e0", fontStat, fontLabel);
+      drawHudStat("⊛ Acto", "I — Invasion",
+        leftX + Math.min(160, VW * 0.22), statsY, "#d6c0a0", fontStat, fontLabel);
+      drawHudStat("⌖ Oleada", "" + state.waveIdx,
+        leftX + Math.min(330, VW * 0.46), statsY, "#e0e0e0", fontStat, fontLabel);
     }
     // Viral load bar — full width below HUD, inside field area.
     drawViralBar();
 
-    var nwLabel = isPortrait ? "▶ Oleada" : "▶ Iniciar Oleada";
-    if (!state.waveActive && state.waveIdx < WAVES.length) {
-      var pulse = 0.5 + 0.5 * Math.sin(state.time * 3.5);
-      ctx.save();
-      ctx.shadowColor = "rgba(31, 138, 76, " + (0.5 + pulse * 0.45) + ")";
-      ctx.shadowBlur = 8 + pulse * 14;
-      drawButton(UI.nextWaveBtn, nwLabel, "#1f8a4c", "#16632f", true);
-      ctx.restore();
-    } else if (state.waveActive) {
-      drawButton(UI.nextWaveBtn, isPortrait ? "En curso..." : "Oleada en curso...", "#5a4250", "#3a2530", false);
-    } else {
-      drawButton(UI.nextWaveBtn, isPortrait ? "Fin" : "Sin mas oleadas", "#5a4250", "#3a2530", false);
+    // Passive wave-status indicator (replaces the old "Iniciar Oleada" button).
+    var statusText;
+    if (state.cinematicEnd) statusText = "INFECCIÓN ESTABLECIDA";
+    else if (state.waveActive) statusText = "OLEADA " + state.waveIdx + " EN CURSO";
+    else if (state.waveIdx === 0 && state.nextWaveAt > 0) {
+      statusText = "PRIMERA OLEADA EN " + Math.max(0, Math.ceil(state.nextWaveAt)) + "s";
+    } else if (state.waveCountdownActive && state.nextWaveAt > 0) {
+      statusText = "PRÓXIMA OLEADA EN " + Math.max(0, Math.ceil(state.nextWaveAt)) + "s";
+    } else statusText = "OLEADA " + state.waveIdx;
+    var nb = UI.nextWaveBtn;
+    if (nb) {
+      ctx.fillStyle = "rgba(20, 14, 18, 0.55)";
+      roundRect(nb.x, nb.y, nb.w, nb.h, 8);
+      ctx.fill();
+      ctx.strokeStyle = "rgba(255,255,255,0.10)";
+      ctx.lineWidth = 1;
+      roundRect(nb.x, nb.y, nb.w, nb.h, 8);
+      ctx.stroke();
+      ctx.fillStyle = "#ffd6c4";
+      ctx.font = "bold " + Math.max(11, Math.min(13, nb.h * 0.36)) + "px sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(statusText, nb.x + nb.w / 2, nb.y + nb.h / 2);
     }
 
     var rb = UI.restartBtn;
@@ -4817,6 +4917,187 @@
     ctx.restore();
   }
 
+  // -------- COMIC INTRO SCREEN ----------------------------------------
+  function drawIntroScreen() {
+    if (!state.showIntro) return;
+    ctx.save();
+    // Cream wash
+    ctx.fillStyle = "rgba(245, 235, 215, 0.95)";
+    ctx.fillRect(0, 0, VW, VH);
+    // Comic vignette
+    var vw = Math.min(560, VW - 32);
+    var vh = Math.min(420, VH - 64);
+    var vx = VW / 2 - vw / 2;
+    var vy = VH / 2 - vh / 2;
+    // Paper shadow
+    ctx.fillStyle = "rgba(0,0,0,0.20)";
+    ctx.fillRect(vx + 6, vy + 6, vw, vh);
+    ctx.fillStyle = "#fbf2e0";
+    ctx.fillRect(vx, vy, vw, vh);
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = "#1a1a22";
+    ctx.strokeRect(vx, vy, vw, vh);
+    // Title
+    ctx.textAlign = "center";
+    ctx.textBaseline = "top";
+    var tFs = Math.min(34, vw * 0.075);
+    ctx.font = "600 " + tFs + 'px Georgia, "Times New Roman", serif';
+    ctx.fillStyle = "#B22222";
+    ctx.fillText("ImmunoDefense", VW / 2, vy + 28);
+    // Subtitle
+    ctx.font = "italic " + Math.max(14, tFs * 0.55) + 'px Georgia, serif';
+    ctx.fillStyle = "#555";
+    ctx.fillText("ACTO I — LA INVASIÓN", VW / 2, vy + 28 + tFs + 4);
+    // Divider
+    ctx.strokeStyle = "rgba(40, 30, 30, 0.45)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(vx + 40, vy + 28 + tFs + 36);
+    ctx.lineTo(vx + vw - 40, vy + 28 + tFs + 36);
+    ctx.stroke();
+    // Narrative paragraphs
+    var paraFs = Math.max(13, Math.min(15, vw * 0.030));
+    ctx.font = paraFs + 'px Georgia, serif';
+    ctx.fillStyle = "#2C2A28";
+    ctx.textAlign = "left";
+    var lines = [
+      "Una herida ha abierto la barrera.",
+      "Los patógenos buscan ingresar al torrente sanguíneo.",
+      "",
+      "Tu sistema inmunológico debe contenerlos...",
+      "pero la batalla está predeterminada.",
+      "",
+      "Cada germen que escape acelera lo inevitable."
+    ];
+    var lineY = vy + 28 + tFs + 60;
+    var lh = paraFs + 8;
+    var maxLineW = vw - 56;
+    for (var i = 0; i < lines.length; i++) {
+      var ln = lines[i];
+      // Center align each line manually
+      ctx.textAlign = "center";
+      ctx.fillText(ln, VW / 2, lineY + i * lh);
+    }
+    // COMENZAR button
+    var btnW = 200, btnH = 50;
+    var btn = { x: VW / 2 - btnW / 2, y: vy + vh - btnH - 24, w: btnW, h: btnH };
+    UI.introBtn = btn;
+    var pulse = 1 + Math.sin(state.time * 3) * 0.03;
+    ctx.save();
+    ctx.translate(btn.x + btn.w / 2, btn.y + btn.h / 2);
+    ctx.scale(pulse, pulse);
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(-btn.w / 2, -btn.h / 2, btn.w, btn.h);
+    ctx.strokeStyle = "#1a1a22";
+    ctx.lineWidth = 3;
+    ctx.strokeRect(-btn.w / 2, -btn.h / 2, btn.w, btn.h);
+    ctx.fillStyle = "#1a1a22";
+    ctx.font = "bold 18px sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("COMENZAR", 0, 0);
+    ctx.restore();
+    ctx.restore();
+  }
+
+  // -------- CINEMATIC ENDING (infestacion >= 100) ---------------------
+  function updateCinematic(dt) {
+    var ce = state.cinematicEnd;
+    if (!ce) return;
+    ce.t += dt;
+    if (ce.t >= 7.0 && !ce.buttonShown) ce.buttonShown = true;
+  }
+
+  function drawCinematicEnd() {
+    var ce = state.cinematicEnd;
+    if (!ce) return;
+    var t = ce.t;
+    ctx.save();
+    // T+0..1: red flash pulse from center
+    if (t < 1.0) {
+      var alpha = (1 - t) * 0.6;
+      var rg = ctx.createRadialGradient(VW / 2, VH / 2, 0, VW / 2, VH / 2, Math.max(VW, VH) * 0.7);
+      rg.addColorStop(0, "rgba(220, 30, 30, " + alpha + ")");
+      rg.addColorStop(1, "rgba(220, 30, 30, 0)");
+      ctx.fillStyle = rg;
+      ctx.fillRect(0, 0, VW, VH);
+    }
+    // T+1..3: toxic wave from vessel expanding outward
+    if (t >= 1.0 && t < 3.0 && PATH.exit) {
+      var wt = t - 1.0;
+      var wr = wt * 600 * U;  // ~600 px/s scaled
+      var ringAlpha = Math.max(0, 1 - wt / 2.0);
+      var wrG = ctx.createRadialGradient(PATH.exit.x, PATH.exit.y, wr * 0.6, PATH.exit.x, PATH.exit.y, wr);
+      wrG.addColorStop(0, "rgba(74, 20, 76, " + ringAlpha * 0.55 + ")");
+      wrG.addColorStop(1, "rgba(139, 0, 0, " + ringAlpha * 0.10 + ")");
+      ctx.fillStyle = wrG;
+      ctx.beginPath();
+      ctx.arc(PATH.exit.x, PATH.exit.y, wr, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "rgba(180, 50, 90, " + ringAlpha + ")";
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.arc(PATH.exit.x, PATH.exit.y, wr, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    // T+2..5: progressive poison background covering field bottom-up
+    if (t >= 2.0) {
+      var pt = Math.min(1, (t - 2.0) / 3.0);
+      var bandH = (FIELD_BOTTOM - FIELD_TOP) * pt;
+      var by = FIELD_BOTTOM - bandH;
+      var pg = ctx.createLinearGradient(0, FIELD_BOTTOM, 0, by);
+      pg.addColorStop(0, "rgba(74, 0, 0, 0.85)");
+      pg.addColorStop(1, "rgba(139, 0, 0, 0.0)");
+      ctx.fillStyle = pg;
+      ctx.fillRect(0, by, VW, bandH);
+    }
+    // T+4.5..7: skin/exterior darken (overlay)
+    if (t >= 4.5) {
+      var dt2 = Math.min(1, (t - 4.5) / 1.5);
+      ctx.fillStyle = "rgba(20, 10, 10, " + (dt2 * 0.50) + ")";
+      ctx.fillRect(0, 0, VW, FIELD_TOP + FIELD_H * 0.15);
+    }
+    // T+5.5..7: text fade in
+    if (t >= 5.5) {
+      var tt = Math.min(1, (t - 5.5) / 1.0);
+      ctx.globalAlpha = tt;
+      var titleFs = Math.min(VW * 0.085, VH * 0.075, 38);
+      ctx.font = "600 " + titleFs + 'px Georgia, "Times New Roman", serif';
+      ctx.fillStyle = "rgba(0, 0, 0, 0.65)";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("INFECCIÓN ESTABLECIDA", VW / 2 + 1, VH * 0.40 + 1);
+      ctx.fillStyle = "#E74C3C";
+      ctx.fillText("INFECCIÓN ESTABLECIDA", VW / 2, VH * 0.40);
+      ctx.font = "italic 16px Georgia, serif";
+      ctx.fillStyle = "rgba(255, 230, 220, 0.92)";
+      ctx.fillText("Los patógenos han alcanzado el torrente sanguíneo.", VW / 2, VH * 0.40 + titleFs * 0.85);
+      ctx.fillText("Comienza la diseminación...", VW / 2, VH * 0.40 + titleFs * 1.4);
+    }
+    // T+7+: continue button
+    if (t >= 7.0) {
+      var btnW = 320, btnH = 56;
+      var btn = { x: VW / 2 - btnW / 2, y: VH * 0.72, w: btnW, h: btnH };
+      UI.cinematicBtn = btn;
+      var bp = 1 + Math.sin(state.time * 3) * 0.03;
+      ctx.save();
+      ctx.translate(btn.x + btn.w / 2, btn.y + btn.h / 2);
+      ctx.scale(bp, bp);
+      ctx.fillStyle = "#fff";
+      ctx.fillRect(-btn.w / 2, -btn.h / 2, btn.w, btn.h);
+      ctx.strokeStyle = "#1a1a22";
+      ctx.lineWidth = 3;
+      ctx.strokeRect(-btn.w / 2, -btn.h / 2, btn.w, btn.h);
+      ctx.fillStyle = "#1a1a22";
+      ctx.font = "bold 16px sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("▶ CONTINUAR A FASE 2 (Próximamente)", 0, 0);
+      ctx.restore();
+    }
+    ctx.restore();
+  }
+
   function drawEndOverlay() {
     if (!state.gameOver && !state.victory) return;
     var fade = Math.min(1, state.endRevealTimer / 0.45);
@@ -4852,8 +5133,7 @@
     var statsColor = state.victory ? "#2C3E50" : "#f5e7e7";
     ctx.fillStyle = statsColor;
     var stats = [
-      "Nivel: " + state.currentLevel + " / " + MAX_LEVEL,
-      "Oleadas completadas: " + Math.min(state.waveIdx, WAVES.length) + " / " + WAVES.length,
+      "Oleadas alcanzadas: " + state.waveIdx,
       "Patogenos eliminados: " + state.pathogensDefeated,
       "Patogenos infiltrados: " + state.pathogensReached,
       "ATP final: " + state.atp
@@ -4953,7 +5233,8 @@
       ctx.strokeRect(2, FIELD_TOP + 2, VW - 4, FIELD_H - 4);
     }
     drawEndOverlay();
-    drawLevelTransition();
+    drawCinematicEnd();
+    drawIntroScreen();
     drawConfirmModal();
   }
 
@@ -5027,12 +5308,15 @@
     var dt = Math.min(0.05, (now - lastT) / 1000);
     lastT = now;
     state.time += dt;
-    if (!state.gameOver && !state.victory && !state.confirmRestart && !state.levelTransition) {
+    var paused = state.confirmRestart || state.showIntro || state.cinematicEnd;
+    if (!paused) {
+      updateWaveScheduler(dt);
       updateWave(dt);
       updateEnemies(dt);
       updateTowers(dt);
       updateProjectiles(dt);
     }
+    if (state.cinematicEnd) updateCinematic(dt);
     updateEffects(dt);
     if (state.msgTimer > 0) state.msgTimer -= dt;
     render();

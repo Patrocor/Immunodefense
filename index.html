@@ -731,42 +731,42 @@
     ecoli: {
       id: "ecoli", name: "Escherichia coli", baseKind: "bacteria",
       color: "#E74C3C", colorDark: "#922a1f", radius: 13,
-      speedMult: 1.2, hp: 150, reward: 8, viralAdd: 5, isBoss: false,
+      speedMult: 1.2, hp: 225, reward: 8, viralAdd: 5, isBoss: false,
       shield: null,
       tooltip: "Bacteria gram negativa rápida y vulnerable. Sin defensa especial. Habita comúnmente el intestino, pero algunas cepas son patógenas."
     },
     spneumoniae: {
       id: "spneumoniae", name: "Streptococcus pneumoniae", baseKind: "bacteria",
       color: "#F8BBD0", colorDark: "#a47080", radius: 13,
-      speedMult: 0.8, hp: 220, reward: 12, viralAdd: 6, isBoss: false,
+      speedMult: 0.8, hp: 330, reward: 12, viralAdd: 6, isBoss: false,
       shield: { type: "capsula", maxHP: 3, regenRate: 3 / 10, regenDelay: 10, doubleRing: false },
       tooltip: "Bacteria con cápsula polisacárida que bloquea la fagocitosis. Causa neumonía, otitis y meningitis. Su cápsula es su principal factor de virulencia."
     },
     saureus: {
       id: "saureus", name: "Staphylococcus aureus", baseKind: "bacteria",
       color: "#F9A825", colorDark: "#9c6e0a", radius: 14,
-      speedMult: 0.7, hp: 350, reward: 18, viralAdd: 8, isBoss: false,
+      speedMult: 0.7, hp: 525, reward: 18, viralAdd: 8, isBoss: false,
       shield: { type: "capsula", maxHP: 5, regenRate: 0, regenDelay: 0, doubleRing: true },
       tooltip: "Bacteria con cápsula y capacidad de formar biofilm protector. Causa infecciones cutáneas, neumonía y septicemia. Algunas cepas (MRSA) son resistentes a antibióticos."
     },
     influenza: {
       id: "influenza", name: "Virus Influenza", baseKind: "virus",
       color: "#66BB6A", colorDark: "#357a32", radius: 9,
-      speedMult: 1.5, hp: 100, reward: 10, viralAdd: 6, isBoss: false,
+      speedMult: 1.5, hp: 150, reward: 10, viralAdd: 6, isBoss: false,
       shield: null,
       tooltip: "Virus de RNA muy rápido y mutable. Sin defensas estructurales fuertes. Causa la gripe estacional. Su mutabilidad le permite evadir la inmunidad previa."
     },
     vih: {
       id: "vih", name: "Virus VIH", baseKind: "virus",
       color: "#7B1FA2", colorDark: "#3e0e54", radius: 11,
-      speedMult: 1.0, hp: 180, reward: 20, viralAdd: 8, isBoss: false,
+      speedMult: 1.0, hp: 270, reward: 20, viralAdd: 8, isBoss: false,
       shield: { type: "spike", maxHP: 4, regenRate: 4 / 12, regenDelay: 0, requiresT: true },
       tooltip: "Retrovirus con envoltura de proteínas spike (gp120/gp41). Solo los Linfocitos T citotóxicos pueden eliminarlo eficazmente. Ataca al sistema inmune y causa el SIDA."
     },
     candida: {
       id: "candida", name: "Candida albicans", baseKind: "hongo",
       color: "#EC407A", colorDark: "#7a1d3e", radius: 12,
-      speedMult: 0.9, hp: 250, reward: 15, viralAdd: 8, isBoss: false,
+      speedMult: 0.9, hp: 375, reward: 15, viralAdd: 8, isBoss: false,
       shield: { type: "wall", maxHP: 4, regenRate: 0, regenDelay: 0 },
       tooltip: "Hongo levadura con pared celular de quitina y β-glucanos. Causa candidiasis. Su pared rígida lo protege parcialmente del ataque inmune."
     },
@@ -774,28 +774,28 @@
     bossPyogenes: {
       id: "bossPyogenes", name: "Streptococcus pyogenes", baseKind: "bacteria",
       color: "#C62828", colorDark: "#5a0d0d", radius: 32,
-      speedMult: 0.8, hp: 700, reward: 50, viralAdd: 15, isBoss: true,
+      speedMult: 0.8, hp: 1050, reward: 50, viralAdd: 15, isBoss: true,
       shield: { type: "capsula", maxHP: 6, regenRate: 6 / 8, regenDelay: 0 },
       tooltip: "La 'bacteria carnívora'. Causa fascitis necrotizante y faringitis severa. Su cápsula y exotoxinas la hacen muy peligrosa."
     },
     bossTuberculosis: {
       id: "bossTuberculosis", name: "Mycobacterium tuberculosis", baseKind: "bacteria",
       color: "#6D4C41", colorDark: "#352318", radius: 30,
-      speedMult: 0.5, hp: 900, reward: 60, viralAdd: 18, isBoss: true,
+      speedMult: 0.5, hp: 1350, reward: 60, viralAdd: 18, isBoss: true,
       shield: { type: "wall", maxHP: 8, regenRate: 0, regenDelay: 0, waxy: true },
       tooltip: "Bacteria del agente causal de la tuberculosis. Su pared cerosa de ácidos micólicos la hace extremadamente resistente. Avanza lento pero implacable."
     },
     bossAspergillus: {
       id: "bossAspergillus", name: "Aspergillus fumigatus", baseKind: "hongo",
       color: "#689F38", colorDark: "#33491a", radius: 33,
-      speedMult: 0.9, hp: 1100, reward: 80, viralAdd: 22, isBoss: true,
+      speedMult: 0.9, hp: 1650, reward: 80, viralAdd: 22, isBoss: true,
       shield: { type: "wall", maxHP: 5, regenRate: 1 / 5, regenDelay: 0 },
       tooltip: "Hongo filamentoso con esporas (conidias) que se diseminan por el aire. Causa aspergilosis pulmonar. Sus hifas le permiten invadir tejidos profundos."
     },
     bossMRSA: {
       id: "bossMRSA", name: "MRSA", baseKind: "bacteria",
       color: "#424242", colorDark: "#1a1a1a", radius: 38,
-      speedMult: 0.6, hp: 1800, reward: 150, viralAdd: 35, isBoss: true,
+      speedMult: 0.6, hp: 2700, reward: 150, viralAdd: 35, isBoss: true,
       shield: { type: "capsula", maxHP: 10, regenRate: 2 / 6, regenDelay: 0, doubleRing: true, mrsaHalo: true },
       tooltip: "Staphylococcus aureus multi-resistente a antibióticos. Una de las amenazas microbiológicas más serias del siglo XXI. Combina cápsula, biofilm y resistencia genética. Su erradicación requiere arsenal completo del sistema inmune."
     },
@@ -1288,11 +1288,7 @@
 
   function updateWave(dt) {
     if (!state.waveActive) return;
-    // Tooltip pause: don't advance spawnElapsed while a tooltip pauses spawns.
-    if (state.tooltipPauseSpawn > 0) {
-      state.tooltipPauseSpawn -= dt;
-      return;
-    }
+    // Sprint 8A: tooltip ya no pausa spawn; el juego sigue corriendo.
     state.spawnElapsed += dt;
     while (state.pendingSpawns.length && state.pendingSpawns[0].time <= state.spawnElapsed) {
       var s = state.pendingSpawns[0];
@@ -1321,7 +1317,7 @@
       state.atp += bonus;
       // Auto-schedule next wave: base gap shrinks with wave, infestation
       // multiplier shrinks gap further (snowball).
-      var baseGap = Math.max(5, 15 - state.waveIdx * 0.7);
+      var baseGap = Math.max(2.5, 7.5 - state.waveIdx * 0.4);
       state.nextWaveAt = baseGap * infestWaveGapMult(state.viralLoad);
       state.waveCountdownActive = true;
       showMsg("Oleada " + state.waveIdx + " superada (+" + bonus + " ATP)");
@@ -1368,7 +1364,6 @@
   }
   function updateIntermediateSpawns(dt) {
     if (state.waveIdx < 1) return;          // no stragglers before wave 1 actually starts
-    if (state.tooltipPauseSpawn > 0) return;
     state.nextIntermediateAt -= dt;
     if (state.nextIntermediateAt > 0) return;
     state.nextIntermediateAt = 4 + Math.random() * 3;
@@ -1403,18 +1398,20 @@
           }
         }
       }
-      // Tooltip detection: first time this pathogen reaches walking state.
-      if (!e.tooltipShown && e.state === "walking" && !state.activeTooltip
+      // Sprint 8A: lateral tooltip — first encounter goes to a queue. The
+      // game does NOT pause; the tooltip slides in from the right side and
+      // auto-closes after 3s. Multiple new pathogens line up.
+      if (!e.tooltipShown && e.state === "walking"
           && !state.vistos[e.def.id] && !state.showIntro && !state.cinematicEnd) {
         state.vistos[e.def.id] = true;
         saveVistos(state.vistos);
-        state.activeTooltip = {
-          defId: e.def.id,
-          timer: 5.0,
-          isFirst: !firstTooltipShownThisSession
-        };
-        firstTooltipShownThisSession = true;
-        state.tooltipPauseSpawn = 3.0;
+        if (!state.tooltipQueue) state.tooltipQueue = [];
+        // Avoid duplicates already queued or active.
+        var alreadyQueued = (state.activeTooltip && state.activeTooltip.defId === e.def.id);
+        for (var q = 0; q < state.tooltipQueue.length && !alreadyQueued; q++) {
+          if (state.tooltipQueue[q] === e.def.id) alreadyQueued = true;
+        }
+        if (!alreadyQueued) state.tooltipQueue.push(e.def.id);
         e.tooltipShown = true;
       }
       if (e.dying) {
@@ -1960,10 +1957,33 @@
     updatePathInflammation(dt);
   }
 
+  // Sprint 8A: tooltips lateral con cola. Si no hay activo y hay pendientes,
+  // se promueve el primero de la cola con animación de entrada.
   function updateTooltip(dt) {
+    if (!state.activeTooltip && state.tooltipQueue && state.tooltipQueue.length > 0) {
+      var defId = state.tooltipQueue.shift();
+      state.activeTooltip = {
+        defId: defId,
+        timer: 3.0,        // 3s exact auto-close
+        max: 3.0,
+        elapsed: 0,
+        closing: false,
+        closeProgress: 0,  // 0->1 over 0.4s when closing
+        isFirst: !firstTooltipShownThisSession
+      };
+      firstTooltipShownThisSession = true;
+      return;
+    }
     if (!state.activeTooltip) return;
-    state.activeTooltip.timer -= dt;
-    if (state.activeTooltip.timer <= 0) state.activeTooltip = null;
+    var tt = state.activeTooltip;
+    tt.elapsed += dt;
+    if (!tt.closing) {
+      tt.timer -= dt;
+      if (tt.timer <= 0) tt.closing = true;
+    } else {
+      tt.closeProgress += dt / 0.4;
+      if (tt.closeProgress >= 1) state.activeTooltip = null;
+    }
   }
 
   function updateMrsaIntro(dt) {
@@ -3118,18 +3138,8 @@
       }
       return;
     }
-    // Tooltip educativo: button OR tap outside the card closes it.
-    if (state.activeTooltip) {
-      if (UI.tooltipBtn && inRect(x, y, UI.tooltipBtn)) {
-        state.activeTooltip = null;
-        return;
-      }
-      if (UI.tooltipCard && !inRect(x, y, UI.tooltipCard)) {
-        state.activeTooltip = null;
-        return;
-      }
-      return; // tap inside card without hitting the button: do nothing
-    }
+    // Sprint 8A: tooltip lateral no se cierra por tap; auto-close 3s.
+    // Los taps pasan a través al juego underneath.
     // Cinematic end overlay: only the Continue button responds (after T+7s).
     if (state.cinematicEnd) {
       if (state.cinematicEnd.buttonShown && UI.cinematicBtn && inRect(x, y, UI.cinematicBtn)) {
@@ -5242,23 +5252,9 @@
         ctx.fillStyle = "rgba(255,255,255,0.5)";
         ctx.fillText("ESC cancela", infoX, infoY + 42);
       }
-    } else {
-      ctx.fillStyle = "rgba(255,255,255,0.55)";
-      ctx.font = "13px sans-serif";
-      ctx.fillText(isPortrait
-        ? "Toca una celula para construir."
-        : "Elige una celula inmune o toca una torre.", infoX, infoY + 6);
-      if (!isPortrait) {
-        ctx.font = "11px sans-serif";
-        ctx.fillStyle = "rgba(255,255,255,0.35)";
-        ctx.fillText("1/2/3 elegir • ESC cancelar • SPACE oleada • R reiniciar", infoX, infoY + 30);
-        ctx.fillText("Patogenos: bacteria lenta+fuerte • virus rapido • hongo medio", infoX, infoY + 48);
-      } else {
-        ctx.font = "11px sans-serif";
-        ctx.fillStyle = "rgba(255,255,255,0.4)";
-        ctx.fillText("Toca torre colocada para mejorar/vender.", infoX, infoY + 26);
-      }
     }
+    // Sprint 8A: removed default-state explainer text. The game is intuitive
+    // by visuals; descriptions only appear when actively building/selecting.
   }
 
   function drawGhost() {
@@ -5442,86 +5438,113 @@
   // -------- TOOLTIP EDUCATIVO (Sprint 6) ------------------------------
   function drawTooltip() {
     var tt = state.activeTooltip;
-    if (!tt) return;
+    if (!tt) { UI.tooltipCard = null; UI.tooltipBtn = null; return; }
     var def = ENEMY_DEFS[tt.defId];
     if (!def) { state.activeTooltip = null; return; }
-    var fade = tt.timer > 4.5 ? (5.0 - tt.timer) / 0.5
-              : tt.timer < 0.4 ? tt.timer / 0.4 : 1;
-    fade = Math.max(0, Math.min(1, fade));
+    // Sprint 8A: lateral right-side sticky note. No backdrop, no button.
+    var W = Math.min(220, VW - 32);
+    var H = Math.min(260, FIELD_BOTTOM - FIELD_TOP - 24);
+    var marginRight = 8;
+    var anchorX = VW - marginRight - W;
+    var anchorY = FIELD_TOP + (FIELD_BOTTOM - FIELD_TOP) / 2 - H / 2;
+    // Slide animation: enter from right (0->1 over 0.3s easeOut),
+    // exit slide right + fade (closeProgress 0->1 over 0.4s).
+    var enterT = Math.min(1, tt.elapsed / 0.30);
+    var enterEase = 1 - Math.pow(1 - enterT, 3); // easeOutCubic
+    var exitT = tt.closing ? Math.min(1, tt.closeProgress) : 0;
+    var slideOffset = (1 - enterEase) * (W + marginRight + 20)
+                    + exitT * (W + marginRight + 20);
+    var x = anchorX + slideOffset;
+    var y = anchorY;
+    var alpha = tt.closing ? Math.max(0, 1 - exitT) : enterEase;
+    if (alpha <= 0.01) { UI.tooltipCard = null; return; }
+    UI.tooltipCard = { x: x, y: y, w: W, h: H };
+    UI.tooltipBtn = null;
     ctx.save();
-    // Semi-transparent backdrop (juego visible detrás).
-    ctx.fillStyle = "rgba(15, 10, 14, " + (0.55 * fade) + ")";
-    ctx.fillRect(0, FIELD_TOP, VW, FIELD_BOTTOM - FIELD_TOP);
-    // Card
-    var cw = Math.min(440, VW - 32);
-    var ch = 220;
-    var cx = (VW - cw) / 2;
-    var cy = (VH - ch) / 2;
-    UI.tooltipCard = { x: cx, y: cy, w: cw, h: ch };
-    ctx.globalAlpha = fade;
-    ctx.fillStyle = "#fbf2e0";
-    ctx.fillRect(cx, cy, cw, ch);
-    ctx.lineWidth = 3;
+    ctx.globalAlpha = alpha;
+    // Soft shadow to the left (the card "floats")
+    ctx.shadowColor = "rgba(0, 0, 0, 0.20)";
+    ctx.shadowBlur = 14;
+    ctx.shadowOffsetX = -4;
+    ctx.shadowOffsetY = 2;
+    // Cream rounded card
+    ctx.fillStyle = "#FFF8E7";
+    roundRect(x, y, W, H, 12);
+    ctx.fill();
+    ctx.shadowColor = "transparent";
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 0;
     ctx.strokeStyle = "#1a1a22";
-    ctx.strokeRect(cx, cy, cw, ch);
-    // First-of-session header
+    ctx.lineWidth = 1.5;
+    roundRect(x, y, W, H, 12);
+    ctx.stroke();
+    // Sticky-note tab on the left edge (small dot)
+    ctx.fillStyle = "#B22222";
+    ctx.beginPath();
+    ctx.arc(x, y + 22, 5, 0, Math.PI * 2);
+    ctx.fill();
+    // Lab notebook header (only first tooltip of the session).
+    var contentY = y + 14;
     if (tt.isFirst) {
-      ctx.font = "bold 12px sans-serif";
+      ctx.font = "bold 10px sans-serif";
       ctx.fillStyle = "#1565C0";
       ctx.textAlign = "center";
       ctx.textBaseline = "top";
-      ctx.fillText("🔬  NUEVO PATÓGENO IDENTIFICADO", cx + cw / 2, cy + 12);
+      ctx.fillText("🔬  NUEVO PATÓGENO", x + W / 2, contentY);
+      contentY += 18;
     }
-    var headerY = tt.isFirst ? cy + 30 : cy + 14;
-    // Mini sprite preview (left side)
-    var previewX = cx + 50;
-    var previewY = headerY + 56;
-    drawTooltipSprite(def, previewX, previewY, 22 * U);
-    // Name
-    ctx.font = "600 18px Georgia, serif";
+    // Sprite preview (1.8x scale per spec)
+    var previewSize = 18 * U;
+    drawTooltipSprite(def, x + W / 2, contentY + previewSize + 6, previewSize);
+    contentY += previewSize * 2 + 14;
+    // Name (italic bold serif)
+    ctx.font = "italic bold 14px Georgia, serif";
     ctx.fillStyle = "#B22222";
-    ctx.textAlign = "left";
+    ctx.textAlign = "center";
     ctx.textBaseline = "top";
-    ctx.fillText(def.name, cx + 100, headerY + 18);
-    // Shield indicator
+    var nm = def.name;
+    // Auto-shrink if too wide
+    if (ctx.measureText(nm).width > W - 24) {
+      ctx.font = "italic bold 12px Georgia, serif";
+    }
+    ctx.fillText(nm, x + W / 2, contentY);
+    contentY += 22;
+    // Thin separator
+    ctx.strokeStyle = "rgba(80, 60, 60, 0.30)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(x + 16, contentY);
+    ctx.lineTo(x + W - 16, contentY);
+    ctx.stroke();
+    contentY += 6;
+    // Shield info if any
     if (def.shield) {
-      var shieldLabel;
-      var shieldColor;
+      var shieldLabel, shieldColor;
       if (def.shield.type === "capsula") { shieldLabel = "🟡 Cápsula"; shieldColor = "#C8B068"; }
-      else if (def.shield.type === "spike") { shieldLabel = "🔵 Proteínas spike"; shieldColor = "#3F8AC8"; }
+      else if (def.shield.type === "spike") { shieldLabel = "🔵 Spike (solo Linf-T)"; shieldColor = "#3F8AC8"; }
       else { shieldLabel = "🟢 Pared celular"; shieldColor = "#7CA850"; }
       ctx.font = "bold 11px sans-serif";
       ctx.fillStyle = shieldColor;
-      ctx.fillText(shieldLabel + " (" + def.shield.maxHP + " hits)", cx + 100, headerY + 42);
+      ctx.fillText(shieldLabel + " · " + def.shield.maxHP + " hits", x + W / 2, contentY);
+      contentY += 16;
+    } else {
+      ctx.font = "italic 11px sans-serif";
+      ctx.fillStyle = "rgba(80, 60, 60, 0.65)";
+      ctx.fillText("Sin escudo", x + W / 2, contentY);
+      contentY += 16;
     }
-    // Description
-    ctx.font = "13px Georgia, serif";
+    // Description (wrapped)
+    ctx.font = "12px Georgia, serif";
     ctx.fillStyle = "#2C2A28";
-    var descLines = wrapText(def.tooltip || "", cw - 32, 13);
-    var ly = headerY + 78;
-    for (var i = 0; i < descLines.length && i < 5; i++) {
-      ctx.fillText(descLines[i], cx + 16, ly);
-      ly += 16;
-    }
-    // Continue button (bottom-right)
-    var btnW = 110, btnH = 32;
-    var btn = { x: cx + cw - btnW - 14, y: cy + ch - btnH - 12, w: btnW, h: btnH };
-    UI.tooltipBtn = btn;
-    ctx.fillStyle = "#1a1a22";
-    ctx.fillRect(btn.x, btn.y, btn.w, btn.h);
-    ctx.strokeStyle = "#000";
-    ctx.lineWidth = 2;
-    ctx.strokeRect(btn.x, btn.y, btn.w, btn.h);
-    ctx.fillStyle = "#fff";
-    ctx.font = "bold 13px sans-serif";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText("Continuar", btn.x + btn.w / 2, btn.y + btn.h / 2);
-    // Auto-close countdown
-    ctx.font = "10px sans-serif";
-    ctx.fillStyle = "rgba(60, 50, 40, 0.6)";
     ctx.textAlign = "left";
-    ctx.fillText("Cierra en " + Math.max(0, Math.ceil(tt.timer)) + "s", cx + 16, cy + ch - 22);
+    var descLines = wrapText(def.tooltip || "", W - 24, 12);
+    var ly = contentY + 4;
+    var maxLines = Math.floor((y + H - 12 - ly) / 14);
+    for (var i = 0; i < descLines.length && i < maxLines; i++) {
+      ctx.fillText(descLines[i], x + 12, ly);
+      ly += 14;
+    }
     ctx.restore();
   }
 

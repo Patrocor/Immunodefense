@@ -328,9 +328,12 @@
 
   function layout() {
     var hudBase = Math.max(48, Math.min(72, VH * 0.075));
+    // Sprint 8B: reduce panel height so the field can absorb the previously
+    // wasted strip below it. Portrait drops from 200-250 to 140-170; landscape
+    // from 120-180 to 96-130.
     var panelBase = isPortrait
-      ? Math.max(200, Math.min(250, VH * 0.30))
-      : Math.max(120, Math.min(180, VH * 0.22));
+      ? Math.max(140, Math.min(170, VH * 0.22))
+      : Math.max(96, Math.min(130, VH * 0.16));
     HUD_H = Math.round(hudBase + safeTop);
     PANEL_H = Math.round(panelBase + safeBottom);
     FIELD_TOP = HUD_H;
@@ -467,13 +470,16 @@
       ];
       PATH.branches.push(buildBezierPath(anchors));
     }
-    // Build main from confluence -> snake -> vessel.
+    // Build main from confluence -> snake -> vessel. Sprint 8B: 8 anchors
+    // (vs 6 antes) y curvas más amplias para alargar el camino ~25-30%.
     var mainAnchorsNorm = [
       { x: CONFLUENCE_POS.x, y: CONFLUENCE_POS.y },
-      { x: 0.30, y: 0.48 },
-      { x: 0.55, y: 0.55 },
-      { x: 0.32, y: 0.66 },
-      { x: 0.58, y: 0.74 },
+      { x: 0.22, y: 0.44 },
+      { x: 0.62, y: 0.50 },
+      { x: 0.18, y: 0.58 },
+      { x: 0.66, y: 0.66 },
+      { x: 0.22, y: 0.74 },
+      { x: 0.62, y: 0.82 },
       { x: VESSEL_POS.x, y: VESSEL_POS.y }
     ];
     var mainAnchorsPx = mainAnchorsNorm.map(toPx);
@@ -5724,6 +5730,123 @@
     if (ce.t >= 7.0 && !ce.buttonShown) ce.buttonShown = true;
   }
 
+  // Sprint 8B: deterministic blood-drip metadata for the cinematic title.
+  // Computed once at first call so the random offsets/lengths don't jitter
+  // every frame. We pick 4 letter indices and assign a phase + max length.
+  var TERROR_DRIPS = null;
+  function ensureTerrorDrips(text) {
+    if (TERROR_DRIPS && TERROR_DRIPS.text === text) return TERROR_DRIPS;
+    var n = text.length;
+    var picks = [];
+    var attempts = 0;
+    while (picks.length < 4 && attempts < 80) {
+      attempts++;
+      var idx = Math.floor(Math.random() * n);
+      var ch = text.charAt(idx);
+      if (ch === " ") continue;
+      var dup = false;
+      for (var p = 0; p < picks.length; p++) if (picks[p].idx === idx) { dup = true; break; }
+      if (dup) continue;
+      picks.push({
+        idx: idx,
+        phase: Math.random() * Math.PI * 2,
+        period: 3.0 + Math.random() * 1.0,    // 3-4s loop
+        maxLen: 60 + Math.random() * 20       // 60-80px
+      });
+    }
+    TERROR_DRIPS = { text: text, picks: picks };
+    return TERROR_DRIPS;
+  }
+
+  // Centered, auto-fit horror title with blood drips below selected letters.
+  function drawTerrorTitle(text, cx, cy, time) {
+    var padding = 24;
+    var maxW = VW - padding * 2;
+    // Auto-fit font size so text + padding fits the viewport.
+    var fs = Math.min(VW * 0.14, 72);
+    fs = Math.max(28, fs);
+    var fontStack = "'Impact', 'Arial Black', 'Helvetica Neue', sans-serif";
+    while (fs > 28) {
+      ctx.font = "900 " + fs + "px " + fontStack;
+      if (ctx.measureText(text).width <= maxW) break;
+      fs -= 2;
+    }
+    ctx.font = "900 " + fs + "px " + fontStack;
+    var savedSpacing = ctx.letterSpacing;
+    if ("letterSpacing" in ctx) {
+      try { ctx.letterSpacing = (fs * 0.05) + "px"; } catch (e) {}
+    }
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    var upper = text.toUpperCase();
+    // Pulsing red outer glow
+    var pulse = 0.5 + 0.5 * Math.sin(time * 4);
+    ctx.save();
+    ctx.shadowColor = "rgba(255, 0, 0, " + (0.55 + pulse * 0.25) + ")";
+    ctx.shadowBlur = 8 + pulse * 6;
+    ctx.fillStyle = "#8B0000";
+    ctx.fillText(upper, cx, cy);
+    ctx.restore();
+    // Black stroke for contrast.
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = "#000";
+    ctx.strokeText(upper, cx, cy);
+    // Re-fill on top so the body color is unmistakable.
+    ctx.fillStyle = "#8B0000";
+    ctx.fillText(upper, cx, cy);
+    if ("letterSpacing" in ctx) {
+      try { ctx.letterSpacing = savedSpacing || "0px"; } catch (e) {}
+    }
+    // Blood drips: compute positions of selected letters using measureText.
+    var drips = ensureTerrorDrips(upper);
+    var totalW = ctx.measureText(upper).width;
+    var leftEdge = cx - totalW / 2;
+    for (var d = 0; d < drips.picks.length; d++) {
+      var pk = drips.picks[d];
+      var prefix = upper.substring(0, pk.idx);
+      var letter = upper.charAt(pk.idx);
+      var prefixW = ctx.measureText(prefix).width;
+      var letterW = ctx.measureText(letter).width;
+      var letterCx = leftEdge + prefixW + letterW / 2;
+      var dripTopY = cy + fs * 0.35;
+      // Drip phase 0..1 over period
+      var ph = ((time + pk.phase) % pk.period) / pk.period;
+      // Stretch 0->1 over first 0.65 of the cycle, then a falling drop.
+      var stretchT = Math.min(1, ph / 0.65);
+      var len = stretchT * pk.maxLen;
+      // Trail: stretched ellipse (gradient dark->bright red).
+      var grd = ctx.createLinearGradient(letterCx, dripTopY, letterCx, dripTopY + len);
+      grd.addColorStop(0, "rgba(80, 0, 0, 0.75)");
+      grd.addColorStop(0.6, "rgba(180, 20, 20, 0.92)");
+      grd.addColorStop(1, "rgba(255, 60, 60, 0.95)");
+      ctx.fillStyle = grd;
+      ctx.beginPath();
+      ctx.moveTo(letterCx - 2, dripTopY);
+      ctx.bezierCurveTo(letterCx - 2.8, dripTopY + len * 0.5,
+                        letterCx - 2.0, dripTopY + len * 0.95,
+                        letterCx, dripTopY + len);
+      ctx.bezierCurveTo(letterCx + 2.0, dripTopY + len * 0.95,
+                        letterCx + 2.8, dripTopY + len * 0.5,
+                        letterCx + 2, dripTopY);
+      ctx.closePath();
+      ctx.fill();
+      // Beaded tip
+      ctx.fillStyle = "#C0392B";
+      ctx.beginPath();
+      ctx.arc(letterCx, dripTopY + len, 3.4, 0, Math.PI * 2);
+      ctx.fill();
+      // Falling detached droplet during last third of the cycle.
+      if (ph > 0.65) {
+        var fallT = (ph - 0.65) / 0.35;
+        var fallY = dripTopY + len + fallT * 80 + fallT * fallT * 60;
+        ctx.fillStyle = "rgba(192, 57, 43, " + (1 - fallT) + ")";
+        ctx.beginPath();
+        ctx.ellipse(letterCx, fallY, 3 + fallT * 1.2, 4 + fallT * 2, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+  }
+
   function drawCinematicEnd() {
     var ce = state.cinematicEnd;
     if (!ce) return;
@@ -5773,22 +5896,21 @@
       ctx.fillStyle = "rgba(20, 10, 10, " + (dt2 * 0.50) + ")";
       ctx.fillRect(0, 0, VW, FIELD_TOP + FIELD_H * 0.15);
     }
-    // T+5.5..7: text fade in
+    // T+5.5..7: text fade in (Sprint 8B: estilo terror Impact + goteo)
     if (t >= 5.5) {
       var tt = Math.min(1, (t - 5.5) / 1.0);
       ctx.globalAlpha = tt;
-      var titleFs = Math.min(VW * 0.085, VH * 0.075, 38);
-      ctx.font = "600 " + titleFs + 'px Georgia, "Times New Roman", serif';
-      ctx.fillStyle = "rgba(0, 0, 0, 0.65)";
+      drawTerrorTitle("INFECCIÓN ESTABLECIDA", VW / 2, VH * 0.42, t);
+      ctx.font = "italic 16px Georgia, serif";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.fillText("INFECCIÓN ESTABLECIDA", VW / 2 + 1, VH * 0.40 + 1);
-      ctx.fillStyle = "#E74C3C";
-      ctx.fillText("INFECCIÓN ESTABLECIDA", VW / 2, VH * 0.40);
-      ctx.font = "italic 16px Georgia, serif";
-      ctx.fillStyle = "rgba(255, 230, 220, 0.92)";
-      ctx.fillText("Los patógenos han alcanzado el torrente sanguíneo.", VW / 2, VH * 0.40 + titleFs * 0.85);
-      ctx.fillText("Comienza la diseminación...", VW / 2, VH * 0.40 + titleFs * 1.4);
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = "rgba(0, 0, 0, 0.85)";
+      ctx.strokeText("Los patógenos han alcanzado el torrente sanguíneo.", VW / 2, VH * 0.42 + 100);
+      ctx.fillStyle = "#FF6B6B";
+      ctx.fillText("Los patógenos han alcanzado el torrente sanguíneo.", VW / 2, VH * 0.42 + 100);
+      ctx.strokeText("Comienza la diseminación...", VW / 2, VH * 0.42 + 124);
+      ctx.fillText("Comienza la diseminación...", VW / 2, VH * 0.42 + 124);
     }
     // T+7+: continue button
     if (t >= 7.0) {
@@ -5943,8 +6065,12 @@
     for (var m = 0; m < state.effects.length; m++) drawEffect(state.effects[m]);
     drawGhost();
     drawDamageNumbers();
-    drawHUD();
-    drawPanel();
+    // Sprint 8B: durante la cinemática se oculta el HUD y el panel para
+    // que el canvas se sienta fullscreen.
+    if (!state.cinematicEnd) {
+      drawHUD();
+      drawPanel();
+    }
     drawMessage();
     drawWaveBanner();
     if (state.time - state.lastPlaceFailedAt < 0.25) {

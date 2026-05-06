@@ -875,6 +875,8 @@
       patrol: [],            // patrol macrophages (decorative)
       restos: [],            // pathogen remnants awaiting cleanup
       collectors: [],        // collector cells (cleanup workers)
+      barricada: null,       // single active coagulation barricade
+      nextBarricadaAt: 10 + Math.random() * 6,  // first spawn in 10-16s
       inflammation: null,    // active inflammation pulse
       nextInflammationAt: 8  // first inflammation pulse
     };
@@ -1218,7 +1220,12 @@
         e.enraged = true;
       }
       var pxSpeed = e.def.speedMult * (e.speedMultLevel || 1) * BASE_SPEED * U;
-      e.progress += pxSpeed * dt;
+      // BLOCKED by a coagulation barricade: stop advancing along the path.
+      // Position still resolves via pathPos at the held progress so the
+      // sprite stays put on the path with a small shake jitter.
+      if (e.state !== "blocked") {
+        e.progress += pxSpeed * dt;
+      }
       e.wobble += dt * 6;
       if (e.sporeTimer !== undefined) {
         e.sporeTimer -= dt;
@@ -1270,7 +1277,11 @@
         continue;
       } else {
         var p = pathPos(e.progress, hi);
-        if (e.def.id === "virus") {
+        if (e.state === "blocked") {
+          // Held in place by coagulation; small jitter shake.
+          e.x = p.x + (Math.random() - 0.5) * 4 * U;
+          e.y = p.y + (Math.random() - 0.5) * 4 * U;
+        } else if (e.def.id === "virus") {
           var sx = Math.cos(p.angle), sy = Math.sin(p.angle);
           var nx = -sy, ny = sx;
           var off = Math.sin(e.wobble * 1.4) * 4 * U;
@@ -1954,6 +1965,203 @@
     updatePatrol(dt);
     updateRestos(dt);
     updateCollectors(dt);
+    updateBarricada(dt);
+  }
+
+  // -------- BARRICADA (coagulation barricade on main path) -------------
+  function spawnBarricada() {
+    if (state.barricada) return;
+    if (!PATH.main || !PATH.main.length) return;
+    // Weighted progress on MAIN path (60% mid, 30% early, 10% late, max 0.95).
+    var roll = Math.random();
+    var fraction;
+    if (roll < 0.6)      fraction = 0.30 + Math.random() * 0.40;     // mid
+    else if (roll < 0.9) fraction = Math.random() * 0.30;             // early
+    else                 fraction = 0.70 + Math.random() * 0.25;      // late capped at 0.95
+    if (fraction > 0.95) fraction = 0.95;
+    var progressPx = fraction * PATH.main.length;
+    var p = sampleBeziers(PATH.main.beziers, progressPx);
+    // Generate platelets clustered around the spawn point.
+    var platelets = [];
+    var n = 8 + Math.floor(Math.random() * 5); // 8-12
+    for (var i = 0; i < n; i++) {
+      var ang = Math.random() * Math.PI * 2;
+      var rad = (3 + Math.random() * 9) * U;
+      var dispAng = Math.random() * Math.PI * 2;
+      var flightAng = Math.random() * Math.PI * 2;
+      platelets.push({
+        ox: Math.cos(ang) * rad,
+        oy: Math.sin(ang) * rad,
+        size: (2.4 + Math.random() * 1.5) * U,
+        rot: Math.random() * Math.PI,
+        vibPhase: Math.random() * Math.PI * 2,
+        flightX: Math.cos(flightAng) * 30 * U,
+        flightY: Math.sin(flightAng) * 30 * U,
+        dispersalVx: Math.cos(dispAng) * 80 * U,
+        dispersalVy: Math.sin(dispAng) * 80 * U
+      });
+    }
+    var fibrins = [];
+    var fn = 4 + Math.floor(Math.random() * 3); // 4-6
+    for (var f = 0; f < fn; f++) {
+      var fa1 = Math.random() * Math.PI * 2;
+      var fa2 = fa1 + Math.PI + (Math.random() - 0.5) * 1.0;
+      var r1 = (8 + Math.random() * 6) * U;
+      var r2 = (8 + Math.random() * 6) * U;
+      fibrins.push({
+        ox1: Math.cos(fa1) * r1, oy1: Math.sin(fa1) * r1,
+        ox2: Math.cos(fa2) * r2, oy2: Math.sin(fa2) * r2,
+        ctrlOx: (Math.random() - 0.5) * 8 * U,
+        ctrlOy: (Math.random() - 0.5) * 8 * U
+      });
+    }
+    state.barricada = {
+      x: p.x, y: p.y,
+      age: 0,
+      life: 4.0 + Math.random() * 2.0,   // 4-6s before dissolving
+      formTime: 1.0,
+      dissolveTime: 0.8,
+      bstate: "forming",                 // forming -> active -> dissolving
+      platelets: platelets,
+      fibrins: fibrins,
+      textTimer: 1.5
+    };
+    state.nextBarricadaAt = 12 + Math.random() * 6;
+  }
+
+  function updateBarricada(dt) {
+    if (state.gameOver || state.victory || state.confirmRestart || state.levelTransition) return;
+    if (!state.barricada) {
+      state.nextBarricadaAt -= dt;
+      if (state.nextBarricadaAt <= 0) spawnBarricada();
+      return;
+    }
+    var b = state.barricada;
+    b.age += dt;
+    if (b.textTimer > 0) b.textTimer -= dt;
+    if (b.bstate === "forming" && b.age >= b.formTime) b.bstate = "active";
+    if (b.bstate !== "dissolving" && b.age >= b.life) {
+      b.bstate = "dissolving";
+    }
+    if (b.bstate === "dissolving" && b.age >= b.life + b.dissolveTime) {
+      // Unblock any blocked enemies still stuck here, then remove barricada.
+      for (var u = 0; u < state.enemies.length; u++) {
+        var eu = state.enemies[u];
+        if (eu.state === "blocked") eu.state = "walking";
+      }
+      state.barricada = null;
+      return;
+    }
+    // Apply blocking to walking enemies within the catch radius.
+    var blockR = 22 * U;
+    var blocking = b.bstate !== "dissolving";
+    for (var i = 0; i < state.enemies.length; i++) {
+      var e = state.enemies[i];
+      if (e.dead || e.absorbing) continue;
+      var d = Math.hypot(e.x - b.x, e.y - b.y);
+      if (blocking && e.state === "walking" && d < blockR) {
+        e.state = "blocked";
+      } else if (!blocking && e.state === "blocked") {
+        e.state = "walking";
+      }
+    }
+  }
+
+  function drawBarricada() {
+    var b = state.barricada;
+    if (!b) return;
+    var tForm = Math.min(1, b.age / b.formTime);
+    var tDissolve = b.bstate === "dissolving"
+      ? Math.min(1, (b.age - b.life) / b.dissolveTime)
+      : 0;
+    ctx.save();
+    ctx.translate(b.x, b.y);
+    // Outer aura
+    var auraAlpha = b.bstate === "active"
+      ? 0.20 + 0.12 * Math.sin(b.age * 6)
+      : (b.bstate === "forming" ? 0.06 + tForm * 0.18 : (1 - tDissolve) * 0.22);
+    var auraR = 22 * U * (b.bstate === "forming" ? tForm : (b.bstate === "dissolving" ? 1 + tDissolve * 0.4 : 1));
+    var aura = ctx.createRadialGradient(0, 0, auraR * 0.4, 0, 0, auraR);
+    aura.addColorStop(0, "rgba(255, 235, 150, " + auraAlpha + ")");
+    aura.addColorStop(1, "rgba(255, 235, 150, 0)");
+    ctx.fillStyle = aura;
+    ctx.beginPath();
+    ctx.arc(0, 0, auraR, 0, Math.PI * 2);
+    ctx.fill();
+    // Fibrin threads (drawn under platelets)
+    var fibAlpha = b.bstate === "forming" ? tForm * 0.85
+                 : b.bstate === "dissolving" ? (1 - tDissolve) * 0.9
+                 : 0.7 + 0.3 * Math.sin(b.age * 4);
+    ctx.strokeStyle = "rgba(244, 228, 188, " + fibAlpha + ")";
+    ctx.lineWidth = 1.6;
+    ctx.lineCap = "round";
+    var spread = b.bstate === "forming" ? tForm
+               : b.bstate === "dissolving" ? (1 + tDissolve * 0.4)
+               : 1;
+    for (var f = 0; f < b.fibrins.length; f++) {
+      var fb = b.fibrins[f];
+      ctx.beginPath();
+      ctx.moveTo(fb.ox1 * spread, fb.oy1 * spread);
+      ctx.quadraticCurveTo(fb.ctrlOx, fb.ctrlOy, fb.ox2 * spread, fb.oy2 * spread);
+      ctx.stroke();
+    }
+    // Platelets
+    for (var i = 0; i < b.platelets.length; i++) {
+      var pl = b.platelets[i];
+      var px, py;
+      if (b.bstate === "forming") {
+        var fly = 1 - tForm;
+        px = pl.ox + pl.flightX * fly;
+        py = pl.oy + pl.flightY * fly;
+      } else if (b.bstate === "dissolving") {
+        px = pl.ox + pl.dispersalVx * tDissolve;
+        py = pl.oy + pl.dispersalVy * tDissolve;
+      } else {
+        px = pl.ox + Math.sin(b.age * 8 + pl.vibPhase) * U;
+        py = pl.oy + Math.cos(b.age * 8 + pl.vibPhase) * U;
+      }
+      var scale = b.bstate === "dissolving" ? Math.max(0, 1 - tDissolve)
+                : (b.bstate === "forming" ? 0.4 + tForm * 0.6 : 1);
+      if (scale <= 0) continue;
+      ctx.save();
+      ctx.translate(px, py);
+      ctx.rotate(pl.rot + b.age * 0.4);
+      ctx.fillStyle = "#C8A2C8";
+      ctx.beginPath();
+      var spikes = 6;
+      for (var sp = 0; sp < spikes * 2; sp++) {
+        var srad = (sp % 2 === 0) ? pl.size : pl.size * 0.5;
+        var sang = (sp / (spikes * 2)) * Math.PI * 2;
+        var ssx = Math.cos(sang) * srad * scale;
+        var ssy = Math.sin(sang) * srad * scale;
+        if (sp === 0) ctx.moveTo(ssx, ssy); else ctx.lineTo(ssx, ssy);
+      }
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = "rgba(120, 70, 130, 0.55)";
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.restore();
+    }
+    ctx.restore();
+    // Floating "COAGULACIÓN" text on spawn.
+    if (b.textTimer > 0) {
+      var alpha = Math.min(1, b.textTimer / 0.4);
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      var fs = Math.max(11, 13 * U);
+      ctx.font = "bold " + fs + "px sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      var ty = b.y - 32 * U - (1.5 - b.textTimer) * 14 * U;
+      ctx.lineWidth = 3;
+      ctx.lineJoin = "round";
+      ctx.strokeStyle = "rgba(60, 50, 0, 0.85)";
+      ctx.strokeText("COAGULACIÓN", b.x, ty);
+      ctx.fillStyle = "#FFE680";
+      ctx.fillText("COAGULACIÓN", b.x, ty);
+      ctx.restore();
+    }
   }
 
   // -------- RESTOS (pathogen remnants) ---------------------------------
@@ -4713,6 +4921,7 @@
     drawLymphNode();
     drawRestos();
     drawCollectors();
+    drawBarricada();         // coagulation barricade (under enemies)
     drawRangeHint();
     // Pasada A: enemigos NO absorbing (visualmente bajo el torrente).
     for (var j = 0; j < state.enemies.length; j++) {

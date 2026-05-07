@@ -382,8 +382,10 @@
     { x: 0.50, y: 0.12 },
     { x: 0.75, y: 0.12 }
   ];
-  var CONFLUENCE_POS = { x: 0.50, y: 0.35 };
-  var VESSEL_POS = { x: 0.80, y: 0.92 };
+  // Sprint 8B-Polish-3A: confluencia más arriba (22%) para que el main
+  // tenga 5 curvas amplias entre 22% y 88% del alto del campo.
+  var CONFLUENCE_POS = { x: 0.50, y: 0.22 };
+  var VESSEL_POS = { x: 0.80, y: 0.88 };
   var TORRENT_ABSORB_TRIGGER = 0.88;
 
   // Legacy single-path arrays (no longer rendered, kept to avoid undefined refs).
@@ -472,22 +474,16 @@
       ];
       PATH.branches.push(buildBezierPath(anchors));
     }
-    // Build main from confluence -> snake -> vessel. Sprint 8B-Polish-2:
-    // 11 anchors (10 segmentos) con amplitud horizontal mayor para que el
-    // recorrido total sea ~50-60% más largo y aproveche todo el alto del
-    // campo hasta el torrente en y=0.92.
+    // Sprint 8B-Polish-3A: 5 curvas amplias orgánicas (no zigzag agudo).
+    // 6 anchors a 22%, 35%, 48%, 61%, 74%, 88% de la altura, alternando X
+    // entre 30% y 70% para que el camino se sienta como intestino lento.
     var mainAnchorsNorm = [
-      { x: CONFLUENCE_POS.x, y: CONFLUENCE_POS.y },
-      { x: 0.22, y: 0.42 },
-      { x: 0.70, y: 0.46 },
-      { x: 0.18, y: 0.52 },
-      { x: 0.66, y: 0.58 },
-      { x: 0.18, y: 0.64 },
-      { x: 0.64, y: 0.70 },
-      { x: 0.22, y: 0.76 },
-      { x: 0.66, y: 0.82 },
-      { x: 0.30, y: 0.88 },
-      { x: VESSEL_POS.x, y: VESSEL_POS.y }
+      { x: CONFLUENCE_POS.x, y: CONFLUENCE_POS.y }, // y=0.22
+      { x: 0.30, y: 0.35 },
+      { x: 0.70, y: 0.48 },
+      { x: 0.30, y: 0.61 },
+      { x: 0.70, y: 0.74 },
+      { x: VESSEL_POS.x, y: VESSEL_POS.y }          // y=0.88
     ];
     var mainAnchorsPx = mainAnchorsNorm.map(toPx);
     PATH.main = buildBezierPath(mainAnchorsPx);
@@ -5748,19 +5744,16 @@
       var ch = text.charAt(i);
       if (ch === " ") { letters.push(null); continue; }
       letters.push({
-        maxLen: 30 + Math.random() * 60,            // 30-90px main drip
-        wobble: (Math.random() - 0.5) * 0.4,         // lateral lean
-        period: 2.0,                                  // grow time
-        startDelay: 0.5 + Math.random() * 0.3,       // staggered start
-        narrow: 0.55 + Math.random() * 0.30,         // taper factor
-        sideDrip: Math.random() < 0.35,              // ~35% letters get a side drip
-        sideOffset: (Math.random() < 0.5 ? -1 : 1) * (0.3 + Math.random() * 0.2),
-        sideLen: 12 + Math.random() * 18,
-        // Falling drops emitted over time
+        maxLen: 40 + Math.random() * 50,            // 40-90px per spec
+        growTime: 1.5 + Math.random() * 1.0,         // 1.5-2.5s to reach max
+        startDelay: 0.5 + Math.random() * 0.4,       // staggered start ~0.5s
+        jitter1: Math.random() * 4 + 1,              // bezier mid noise (1-5)
+        jitter2: Math.random() * 3 + 0.5,            // bezier shoulder noise
+        // Detached drops cycling every 3-4s.
         fallDrops: [
           { delay: 1.8 + Math.random() * 1.5, speed: 90 + Math.random() * 50 },
-          { delay: 3.2 + Math.random() * 1.8, speed: 90 + Math.random() * 50 },
-          { delay: 4.6 + Math.random() * 2.0, speed: 90 + Math.random() * 50 }
+          { delay: 3.4 + Math.random() * 1.5, speed: 90 + Math.random() * 50 },
+          { delay: 5.0 + Math.random() * 2.0, speed: 90 + Math.random() * 50 }
         ]
       });
     }
@@ -5768,62 +5761,53 @@
     return TERROR_DRIPS;
   }
 
-  function drawMeltDrip(letterCx, letterTop, letterW, dripTopY, len, narrow) {
+  // Sprint 8B-Polish-3A: organic teardrop drip per spec.
+  // Form: starts at letter base full width -> narrows irregularly via beziers
+  // -> ends in a ROUND BALL (radius 4-7px), not a point.
+  function drawMeltDrip(letterCx, letterBaseY, letterW, len, jitter1, jitter2) {
     if (len <= 1) return;
-    // Organic teardrop: starts at full letter width, narrows irregularly,
-    // rounds at the bottom into a beaded tip.
     var halfW = letterW * 0.5;
-    var grd = ctx.createLinearGradient(letterCx, dripTopY, letterCx, dripTopY + len);
-    grd.addColorStop(0, "#8B0000");
-    grd.addColorStop(0.55, "#B0151A");
+    var topY = letterBaseY;
+    var midY = topY + len * 0.55;
+    var dropR = 4 + (jitter1 % 3.5);   // 4-7.5px
+    var dropY = topY + len - dropR;
+    // Path: top edge -> right side curving in -> ball arc -> left side back up
+    ctx.beginPath();
+    ctx.moveTo(letterCx - halfW, topY);
+    ctx.lineTo(letterCx + halfW, topY);
+    // Right wall curving inward toward the ball
+    ctx.bezierCurveTo(
+      letterCx + halfW - jitter1, midY,
+      letterCx + dropR + jitter2, dropY - 5,
+      letterCx + dropR, dropY
+    );
+    // Round ball at the bottom (lower hemisphere, 0..PI sweeps left)
+    ctx.arc(letterCx, dropY, dropR, 0, Math.PI);
+    // Left wall back up to the letter base
+    ctx.bezierCurveTo(
+      letterCx - dropR - jitter2, dropY - 5,
+      letterCx - halfW + jitter1, midY,
+      letterCx - halfW, topY
+    );
+    ctx.closePath();
+    var grd = ctx.createLinearGradient(letterCx, topY, letterCx, dropY + dropR);
+    grd.addColorStop(0, "#5A0000");
+    grd.addColorStop(0.55, "#8B0000");
     grd.addColorStop(1, "#DC143C");
     ctx.fillStyle = grd;
-    ctx.beginPath();
-    // Left wall: top -> waist -> tip
-    ctx.moveTo(letterCx - halfW, dripTopY);
-    ctx.bezierCurveTo(
-      letterCx - halfW * 0.85, dripTopY + len * 0.30,
-      letterCx - halfW * narrow * 0.6, dripTopY + len * 0.70,
-      letterCx - halfW * 0.18, dripTopY + len
-    );
-    // Bottom rounded tip
-    ctx.bezierCurveTo(
-      letterCx - halfW * 0.05, dripTopY + len + halfW * 0.18,
-      letterCx + halfW * 0.05, dripTopY + len + halfW * 0.18,
-      letterCx + halfW * 0.18, dripTopY + len
-    );
-    // Right wall back up
-    ctx.bezierCurveTo(
-      letterCx + halfW * narrow * 0.6, dripTopY + len * 0.70,
-      letterCx + halfW * 0.85, dripTopY + len * 0.30,
-      letterCx + halfW, dripTopY
-    );
-    ctx.closePath();
     ctx.fill();
-    // Subtle left-side highlight for 3D
+    // Subtle white highlight on the left side for 3D feel.
+    ctx.save();
+    ctx.clip();
     var hi = ctx.createLinearGradient(letterCx - halfW, 0, letterCx, 0);
-    hi.addColorStop(0, "rgba(255, 220, 200, 0.30)");
-    hi.addColorStop(1, "rgba(255, 220, 200, 0)");
+    hi.addColorStop(0, "rgba(255, 255, 255, 0.20)");
+    hi.addColorStop(1, "rgba(255, 255, 255, 0)");
     ctx.fillStyle = hi;
-    ctx.beginPath();
-    ctx.moveTo(letterCx - halfW * 0.85, dripTopY + 2);
-    ctx.bezierCurveTo(
-      letterCx - halfW * 0.70, dripTopY + len * 0.30,
-      letterCx - halfW * narrow * 0.45, dripTopY + len * 0.65,
-      letterCx - halfW * 0.18, dripTopY + len * 0.92
-    );
-    ctx.lineTo(letterCx - halfW * 0.05, dripTopY + len * 0.94);
-    ctx.lineTo(letterCx - halfW * 0.55, dripTopY + 4);
-    ctx.closePath();
-    ctx.fill();
-    // Beaded tip emphasis
-    ctx.fillStyle = "#FF3838";
-    ctx.beginPath();
-    ctx.arc(letterCx, dripTopY + len, halfW * 0.22 + 2.6, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.fillRect(letterCx - halfW, topY, halfW, len);
+    ctx.restore();
   }
 
-  // Centered, auto-fit horror title with melt drips per letter.
+  // Centered, auto-fit horror title using the strict stroke+fill pattern.
   function drawTerrorTitle(text, cx, cy, time) {
     var padding = 24;
     var maxW = VW - padding * 2;
@@ -5835,38 +5819,38 @@
       if (ctx.measureText(text).width <= maxW) break;
       fs -= 2;
     }
+    ctx.save();
+    // ---- 1. Setup compartido ------------------------------------------
     ctx.font = "900 " + fs + "px " + fontStack;
     if ("letterSpacing" in ctx) {
       try { ctx.letterSpacing = (fs * 0.05) + "px"; } catch (e) {}
     }
-    ctx.textAlign = "left";
+    ctx.textAlign = "center";
     ctx.textBaseline = "middle";
+    ctx.lineJoin = "round";
     var upper = text.toUpperCase();
-    // Time since cinematic started so drips can stagger / settle.
     var ce = state.cinematicEnd;
     var ceT = ce ? ce.t : time;
-    // Total width with current spacing.
+    // ---- 2. Pulsing red glow (8..16) ---------------------------------
+    var pulseSlow = 0.5 + 0.5 * Math.sin(ceT * (Math.PI * 2 / 1.5));
+    ctx.shadowColor = "rgba(255, 0, 0, " + (0.55 + pulseSlow * 0.30) + ")";
+    ctx.shadowBlur = 8 + pulseSlow * 8;
+    // ---- 3. Stroke negro (UNA SOLA VEZ, mismas cx/cy) ----------------
+    ctx.lineWidth = 6;
+    ctx.strokeStyle = "#000000";
+    ctx.strokeText(upper, cx, cy);
+    // ---- 4. Fill rojo (UNA SOLA VEZ, mismas cx/cy) -------------------
+    ctx.fillStyle = "#8B0000";
+    ctx.fillText(upper, cx, cy);
+    // ---- 5. Quitar sombra antes de los chorros -----------------------
+    ctx.shadowBlur = 0;
+    ctx.shadowColor = "transparent";
+    // ---- 6. textAlign="left" SOLO para medir letras (no re-render del título)
+    ctx.textAlign = "left";
     var totalW = ctx.measureText(upper).width;
     var leftEdge = cx - totalW / 2;
-    var letterTop = cy - fs * 0.45;
-    var letterBaseY = cy + fs * 0.35;  // drip start (just below letter base)
-    // Outer pulsing red glow + black stroke + red fill, drawn centered.
-    var pulseSlow = 0.5 + 0.5 * Math.sin(ceT * (Math.PI * 2 / 1.5));
-    ctx.save();
-    ctx.shadowColor = "rgba(255, 0, 0, " + (0.55 + pulseSlow * 0.30) + ")";
-    ctx.shadowBlur = 6 + pulseSlow * 8;
-    ctx.fillStyle = "#8B0000";
-    ctx.textAlign = "center";
-    ctx.fillText(upper, cx, cy);
-    ctx.restore();
-    ctx.lineWidth = 5.5;
-    ctx.lineJoin = "round";
-    ctx.strokeStyle = "#000";
-    ctx.strokeText(upper, cx, cy);
-    ctx.fillStyle = "#8B0000";
-    ctx.fillText(upper, cx, cy);
-    // Switch to left align so per-letter measurement gives the actual x.
-    ctx.textAlign = "left";
+    var letterBaseY = cy + fs * 0.35;
+    // ---- 7. Loop letras: solo chorros, ningún fillText/strokeText del título.
     var drips = ensureTerrorDrips(upper);
     var cursorX = leftEdge;
     var maxDripBottomY = letterBaseY;
@@ -5877,80 +5861,79 @@
       if (ch !== " ") {
         var meta = drips.letters[i];
         if (meta) {
-          var t01 = Math.max(0, Math.min(1, (ceT - meta.startDelay) / meta.period));
-          // EaseOutCubic
+          var t01 = Math.max(0, Math.min(1, (ceT - meta.startDelay) / meta.growTime));
+          // easeOutCubic
           var ease = 1 - Math.pow(1 - t01, 3);
           var len = meta.maxLen * ease;
           if (len > 1) {
-            drawMeltDrip(cursorX + lw / 2, letterTop, lw * 0.85,
-                         letterBaseY, len, meta.narrow);
+            drawMeltDrip(cursorX + lw / 2, letterBaseY, lw * 0.80, len,
+                         meta.jitter1, meta.jitter2);
             poolMinX = Math.min(poolMinX, cursorX + lw * 0.05);
-            poolMaxX = Math.max(poolMaxX, cursorX + lw - lw * 0.05);
+            poolMaxX = Math.max(poolMaxX, cursorX + lw * 0.95);
             maxDripBottomY = Math.max(maxDripBottomY, letterBaseY + len);
           }
-          // Optional small side drip on some letters
-          if (meta.sideDrip) {
-            var sideLen = meta.sideLen * ease;
-            if (sideLen > 1) {
-              var sx = cursorX + lw * (0.5 + meta.sideOffset);
-              drawMeltDrip(sx, letterTop, lw * 0.30, letterBaseY + 4, sideLen, 0.7);
-            }
-          }
-          // Falling drops emitted at staggered times.
+          // Falling drops at staggered times after maxLen reached.
           for (var dq = 0; dq < meta.fallDrops.length; dq++) {
             var fd = meta.fallDrops[dq];
             var elapsed = ceT - fd.delay;
-            if (elapsed > 0 && elapsed < 2.0) {
+            if (elapsed > 0 && elapsed < 1.8) {
               var fy = letterBaseY + meta.maxLen + elapsed * fd.speed
                        + 0.5 * 220 * elapsed * elapsed;
-              var fa = Math.max(0, 1 - elapsed / 1.6);
+              var fa = Math.max(0, 1 - elapsed / 1.5);
               ctx.fillStyle = "rgba(180, 20, 20, " + fa + ")";
               ctx.beginPath();
-              ctx.ellipse(cursorX + lw / 2, fy, 3.2, 4.2, 0, 0, Math.PI * 2);
+              ctx.ellipse(cursorX + lw / 2, fy, 3.4, 4.6, 0, 0, Math.PI * 2);
               ctx.fill();
+              // Tiny splash dots when about to fade.
+              if (elapsed > 1.0) {
+                var splashY = fy + 4;
+                ctx.fillStyle = "rgba(140, 10, 10, " + fa * 0.7 + ")";
+                for (var sp = 0; sp < 4; sp++) {
+                  var sx = cursorX + lw / 2 + (Math.cos(sp + dq) * 6 + (sp - 2) * 2);
+                  ctx.beginPath();
+                  ctx.arc(sx, splashY, 1.2, 0, Math.PI * 2);
+                  ctx.fill();
+                }
+              }
             }
           }
         }
       }
       cursorX += lw;
     }
-    // Blood pool at the base of the longest drips.
+    // ---- 8. Charco inferior ondulado (Beziers) -----------------------
     if (poolMaxX > poolMinX && maxDripBottomY > letterBaseY + 30) {
       var pY = maxDripBottomY + 6;
       var pW = poolMaxX - poolMinX;
-      // Bumpy top edge using sine wave + small amplitude sin wobble.
       ctx.save();
-      ctx.fillStyle = "#5A0000";
+      var poolGrad = ctx.createLinearGradient(0, pY, 0, pY + 18);
+      poolGrad.addColorStop(0, "#5A0000");
+      poolGrad.addColorStop(1, "#2A0000");
+      ctx.fillStyle = poolGrad;
       ctx.beginPath();
-      ctx.moveTo(poolMinX, pY);
-      var step = 6;
-      for (var px = 0; px <= pW; px += step) {
-        var ux = poolMinX + px;
-        var uy = pY - 1 + Math.sin(px * 0.18 + ceT * 1.5) * 2.6
-                       + Math.sin(px * 0.07 - ceT) * 1.4;
-        ctx.lineTo(ux, uy);
+      ctx.moveTo(poolMinX, pY + 8);
+      // Top edge: chained quadratic curves with animated y offset.
+      var step = Math.max(18, pW / 14);
+      var prevX = poolMinX, prevY = pY + 8;
+      for (var seg = 1; seg * step <= pW + step; seg++) {
+        var nx = poolMinX + Math.min(seg * step, pW);
+        var ph = (nx - poolMinX) * 0.04 + ceT * 1.2;
+        var ny = pY + Math.sin(ph) * 4 + Math.sin(ph * 0.6 + 1.2) * 2.5;
+        var cpX = (prevX + nx) / 2;
+        var cpY = (prevY + ny) / 2 - 3;
+        ctx.quadraticCurveTo(cpX, cpY, nx, ny);
+        prevX = nx; prevY = ny;
       }
-      ctx.lineTo(poolMaxX, pY + 14);
-      ctx.lineTo(poolMinX, pY + 14);
+      ctx.lineTo(poolMaxX, pY + 18);
+      ctx.lineTo(poolMinX, pY + 18);
       ctx.closePath();
       ctx.fill();
-      // Bright red rim along top
-      ctx.strokeStyle = "rgba(255, 0, 0, 0.55)";
-      ctx.lineWidth = 1.6;
-      ctx.beginPath();
-      for (var px2 = 0; px2 <= pW; px2 += step) {
-        var ux2 = poolMinX + px2;
-        var uy2 = pY - 1 + Math.sin(px2 * 0.18 + ceT * 1.5) * 2.6
-                         + Math.sin(px2 * 0.07 - ceT) * 1.4;
-        if (px2 === 0) ctx.moveTo(ux2, uy2);
-        else ctx.lineTo(ux2, uy2);
-      }
-      ctx.stroke();
       ctx.restore();
     }
     if ("letterSpacing" in ctx) {
       try { ctx.letterSpacing = "0px"; } catch (e) {}
     }
+    ctx.restore();
   }
 
   // Sprint 8B-Polish-2: subtle title logo at the top of the cinematic.

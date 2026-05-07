@@ -1163,9 +1163,13 @@
           h: cardH
         });
       }
+      // Sprint 8B-Polish-3B-fix: limitar el viewport del strip a ~2.7 cards
+      // para que SIEMPRE haya scroll horizontal demostrable, incluso con
+      // las 3 cards actuales. La 3ra asoma por la derecha invitando a swipe.
+      var maxStripPortrait = Math.round(2.7 * cardW + 2 * cardGap);  // ~259
       UI.cardStrip = {
         x: panelLeft, y: panelTop,
-        w: panelW, h: cardH,
+        w: Math.min(panelW, maxStripPortrait), h: cardH,
         contentW: cardCount * cardW + (cardCount - 1) * cardGap
       };
       var infoY = panelTop + cardH + 6;
@@ -1193,9 +1197,13 @@
           h: cardHL
         });
       }
+      // Sprint 8B-Polish-3B-fix: en landscape también limitar a ~2.7 cards
+      // por ahora (3 cards existentes). En el futuro, cuando haya más,
+      // simplemente extender stripWL al panelW * 0.55 actual.
+      var maxStripLandscape = Math.round(2.7 * cardW + 2 * cardGap);  // ~259
       UI.cardStrip = {
         x: panelLeft, y: panelTop,
-        w: stripWL, h: cardHL,
+        w: Math.min(stripWL, maxStripLandscape), h: cardHL,
         contentW: cardCount * cardW + (cardCount - 1) * cardGap
       };
       var infoXL = panelLeft + stripWL + 8;
@@ -6214,11 +6222,19 @@
       ctx.fillText("Los patógenos han alcanzado el torrente sanguíneo.", VW / 2, subY);
       ctx.strokeText("Comienza la diseminación...", VW / 2, subY + 24);
       ctx.fillText("Comienza la diseminación...", VW / 2, subY + 24);
+      // Stash the bottom of the subtitle so the Continue button positions below.
+      ce._textBottomY = subY + 24 + 12;
     }
-    // T+7+: continue button
+    // T+7+: continue button — Sprint 8B-Polish-3B-fix: posicionado debajo
+    // del subtítulo con margen 36px, con un piso a VH*0.78 si el texto
+    // queda muy arriba.
     if (t >= 7.0) {
       var btnW = 320, btnH = 56;
-      var btn = { x: VW / 2 - btnW / 2, y: VH * 0.72, w: btnW, h: btnH };
+      var btnYFloor = VH * 0.78;
+      var btnY = Math.max(btnYFloor, (ce._textBottomY || 0) + 36);
+      // Si por alguna razón el botón queda fuera del viewport, lo subimos.
+      if (btnY + btnH > VH - 24) btnY = VH - btnH - 24;
+      var btn = { x: VW / 2 - btnW / 2, y: btnY, w: btnW, h: btnH };
       UI.cinematicBtn = btn;
       var bp = 1 + Math.sin(state.time * 3) * 0.03;
       ctx.save();

@@ -4436,10 +4436,19 @@
       ctx.translate(-e.x, -e.y);
     }
     drawShadow(e.x, e.y + rad * 0.85, rad * 0.85 * scale, rad * 0.22 * scale);
+    // Sprint 8C-1: dispatch por id real primero (los 6 patógenos
+    // regulares con morfología microbiológica). Fallback al baseKind
+    // antiguo para bosses y aliases legacy.
     var kind = def.baseKind || def.bossKind || def.id;
-    if (kind === "bacteria") drawBacteria(e, rad * scale, expression, blink);
-    else if (kind === "virus") drawVirus(e, rad * scale, expression, blink);
-    else if (kind === "hongo") drawHongo(e, rad * scale, expression, blink);
+    if      (def.id === "ecoli")        drawEcoli(e, rad * scale, expression, blink);
+    else if (def.id === "spneumoniae")  drawSpneumoniae(e, rad * scale, expression, blink);
+    else if (def.id === "saureus")      drawSaureus(e, rad * scale, expression, blink);
+    else if (def.id === "influenza")    drawInfluenza(e, rad * scale, expression, blink);
+    else if (def.id === "vih")          drawVih(e, rad * scale, expression, blink);
+    else if (def.id === "candida")      drawCandida(e, rad * scale, expression, blink);
+    else if (kind === "bacteria")       drawBacteria(e, rad * scale, expression, blink);
+    else if (kind === "virus")          drawVirus(e, rad * scale, expression, blink);
+    else if (kind === "hongo")          drawHongo(e, rad * scale, expression, blink);
     else if (kind === "primordial" || def.id === "boss") drawBoss(e, rad * scale, expression, blink);
     ctx.restore();
     // Shield overlay (drawn on top of body but under HP bar).
@@ -4725,6 +4734,439 @@
     }
     if (expression === "dying" || expression === "hurt") drawAnimeMouth(0, bh * 0.30, bw * 0.55, bh * 0.40, "open");
     else drawAnimeMouth(0, bh * 0.30, bw * 0.65, bh * 0.30, "wicked");
+    ctx.restore();
+  }
+
+  // ---- Sprint 8C-1: morfologías microbiológicas reales ------------------
+  // Cada uno mantiene la signatura (e, rad, expression, blink), respeta
+  // hitFlash, y usa los helpers existentes para la cara kawaii.
+
+  function drawEcoli(e, rad, expression, blink) {
+    // Bacilo gram-negativo: cápsula horizontal alargada con flagelos peritricos.
+    var hit = e.hitFlash > 0;
+    var t = state.time;
+    ctx.save();
+    ctx.translate(e.x, e.y);
+    var breathe = 1 + Math.sin(t * 1.6 + e.wobble) * 0.04;
+    var rx = rad * 1.45 * breathe;
+    var ry = rad * 0.58 * (2 - breathe);
+    // Flagelos peritricos (6 saliendo en distintas direcciones, ondulando).
+    ctx.strokeStyle = "#7A8A5A";
+    ctx.lineWidth = Math.max(1.0, 1.5 * U);
+    ctx.lineCap = "round";
+    var flagN = 6;
+    for (var f = 0; f < flagN; f++) {
+      var fa = (f / flagN) * Math.PI * 2 + Math.sin(t * 0.8) * 0.1;
+      var ox = Math.cos(fa) * rx * 0.92;
+      var oy = Math.sin(fa) * ry * 0.92;
+      var len = 13 * U;
+      var dx = Math.cos(fa) * len;
+      var dy = Math.sin(fa) * len;
+      // Onda lateral (perpendicular)
+      var perpX = -Math.sin(fa);
+      var perpY = Math.cos(fa);
+      var wave = Math.sin(t * 4 + f * 1.3 + e.wobble) * 3 * U;
+      var c1x = ox + dx * 0.4 + perpX * wave;
+      var c1y = oy + dy * 0.4 + perpY * wave;
+      var c2x = ox + dx * 0.75 - perpX * wave;
+      var c2y = oy + dy * 0.75 - perpY * wave;
+      ctx.beginPath();
+      ctx.moveTo(ox, oy);
+      ctx.bezierCurveTo(c1x, c1y, c2x, c2y, ox + dx, oy + dy);
+      ctx.stroke();
+    }
+    // Cuerpo (cápsula bacilar)
+    var grad = ctx.createRadialGradient(-rx * 0.35, -ry * 0.4, ry * 0.2, 0, 0, rx);
+    grad.addColorStop(0, "#DCE89C");
+    grad.addColorStop(0.55, "#B8D050");
+    grad.addColorStop(1, "#6B8030");
+    ctx.fillStyle = hit ? "#ffffff" : grad;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "#6B8030";
+    ctx.lineWidth = Math.max(1.0, 1.3 * U);
+    ctx.stroke();
+    // Highlight arriba-izquierda
+    ctx.fillStyle = "rgba(255,255,255,0.32)";
+    ctx.beginPath();
+    ctx.ellipse(-rx * 0.4, -ry * 0.45, rx * 0.35, ry * 0.22, -0.3, 0, Math.PI * 2);
+    ctx.fill();
+    // Cara
+    var eyeR = ry * 0.42;
+    var faceY = -ry * 0.10;
+    var gap = rx * 0.28;
+    if (expression === "dying") drawXEyes(0, faceY, eyeR, gap);
+    else if (expression === "hurt") drawHurtEyes(0, faceY, eyeR, gap);
+    else if (blink) drawClosedEyes(0, faceY, eyeR, gap);
+    else drawAnimeEyes(0, faceY, eyeR, gap, 0, 0, ry * 0.15, ry * 0.08, "angry");
+    if (expression === "dying") drawAnimeMouth(0, ry * 0.45, rx * 0.40, ry * 0.45, "open");
+    else if (expression === "hurt") drawAnimeMouth(0, ry * 0.45, rx * 0.32, ry * 0.40, "open");
+    else drawAnimeMouth(0, ry * 0.45, rx * 0.34, ry * 0.30, "fanged");
+    ctx.restore();
+  }
+
+  function drawSpneumoniae(e, rad, expression, blink) {
+    // Diplococo encapsulado: 2 cocos pegados verticalmente con extremos lanceolados.
+    var hit = e.hitFlash > 0;
+    var t = state.time;
+    ctx.save();
+    ctx.translate(e.x, e.y);
+    var breathe = 1 + Math.sin(t * 1.6 + e.wobble) * 0.04;
+    var coR = rad * 0.78 * breathe;
+    var offY = coR * 0.85;
+    function drawCocoLanceolado(cy, isTop) {
+      // Coco con un extremo "afilado" hacia el polo externo (lanceolado).
+      var grad = ctx.createRadialGradient(-coR * 0.35, cy - coR * 0.4, coR * 0.2, 0, cy, coR);
+      grad.addColorStop(0, "#FFE57A");
+      grad.addColorStop(0.55, "#F0D050");
+      grad.addColorStop(1, "#C0A030");
+      ctx.fillStyle = hit ? "#ffffff" : grad;
+      ctx.beginPath();
+      // Forma "lanza" usando bezier: lados curvos + punta afinada arriba/abajo.
+      var tipY = isTop ? cy - coR * 1.15 : cy + coR * 1.15;
+      var baseY = isTop ? cy + coR * 0.55 : cy - coR * 0.55;
+      ctx.moveTo(-coR, cy);
+      ctx.bezierCurveTo(-coR, isTop ? cy - coR * 0.7 : cy + coR * 0.7,
+                        -coR * 0.5, tipY, 0, tipY);
+      ctx.bezierCurveTo(coR * 0.5, tipY,
+                        coR, isTop ? cy - coR * 0.7 : cy + coR * 0.7, coR, cy);
+      ctx.bezierCurveTo(coR, baseY, -coR, baseY, -coR, cy);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = "#C0A030";
+      ctx.lineWidth = Math.max(1.0, 1.3 * U);
+      ctx.stroke();
+      // Highlight
+      ctx.fillStyle = "rgba(255,255,255,0.32)";
+      ctx.beginPath();
+      ctx.ellipse(-coR * 0.35, cy - coR * 0.35, coR * 0.32, coR * 0.18, -0.3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    drawCocoLanceolado(-offY, true);
+    drawCocoLanceolado( offY, false);
+    // UNA cara en el coco superior.
+    var eyeR = coR * 0.30;
+    var faceY = -offY - coR * 0.10;
+    var gap = coR * 0.32;
+    if (expression === "dying") drawXEyes(0, faceY, eyeR, gap);
+    else if (expression === "hurt") drawHurtEyes(0, faceY, eyeR, gap);
+    else if (blink) drawClosedEyes(0, faceY, eyeR, gap);
+    else drawAnimeEyes(0, faceY, eyeR, gap, 0, 0, coR * 0.10, coR * 0.06, "angry");
+    if (expression === "dying") drawAnimeMouth(0, -offY + coR * 0.30, coR * 0.55, coR * 0.45, "open");
+    else if (expression === "hurt") drawAnimeMouth(0, -offY + coR * 0.30, coR * 0.45, coR * 0.40, "open");
+    else drawAnimeMouth(0, -offY + coR * 0.30, coR * 0.50, coR * 0.30, "smirk");
+    ctx.restore();
+  }
+
+  function drawSaureus(e, rad, expression, blink) {
+    // Coco en racimo tipo uvas: 1 grande central + 5-6 más pequeños alrededor.
+    var hit = e.hitFlash > 0;
+    var t = state.time;
+    ctx.save();
+    ctx.translate(e.x, e.y);
+    var breathe = 1 + Math.sin(t * 1.5 + e.wobble) * 0.04;
+    var bigR = rad * 0.70 * breathe;
+    // Racimo irregular (offsets fijos para parecer "uvas" pero sin simetría).
+    var cluster = [
+      { x: -bigR * 0.95, y: -bigR * 0.45, r: bigR * 0.55 },
+      { x:  bigR * 1.00, y: -bigR * 0.25, r: bigR * 0.50 },
+      { x: -bigR * 0.55, y:  bigR * 0.95, r: bigR * 0.60 },
+      { x:  bigR * 0.65, y:  bigR * 0.85, r: bigR * 0.52 },
+      { x: -bigR * 1.10, y:  bigR * 0.40, r: bigR * 0.45 },
+      { x:  bigR * 0.30, y: -bigR * 1.10, r: bigR * 0.48 }
+    ];
+    function drawCoco(cx, cy, r) {
+      var grad = ctx.createRadialGradient(cx - r * 0.4, cy - r * 0.4, r * 0.2, cx, cy, r);
+      grad.addColorStop(0, "#F4D77A");
+      grad.addColorStop(0.55, "#DAA520");
+      grad.addColorStop(1, "#8B6914");
+      ctx.fillStyle = hit ? "#ffffff" : grad;
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "#8B6914";
+      ctx.lineWidth = Math.max(0.9, 1.2 * U);
+      ctx.stroke();
+      // Highlight blanco arriba-izquierda
+      ctx.fillStyle = "rgba(255,255,255,0.40)";
+      ctx.beginPath();
+      ctx.arc(cx - r * 0.35, cy - r * 0.35, r * 0.30, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // Pequeños primero (atrás), grande al frente.
+    for (var i = 0; i < cluster.length; i++) drawCoco(cluster[i].x, cluster[i].y, cluster[i].r);
+    drawCoco(0, 0, bigR);
+    // Puntos verdes esparcidos (biofilm sutil dentro del cuerpo).
+    ctx.fillStyle = "rgba(107, 142, 35, 0.55)";
+    var dots = 5;
+    for (var d = 0; d < dots; d++) {
+      var da = d * 1.7 + e.wobble;
+      var dr = bigR * 0.85;
+      ctx.beginPath();
+      ctx.arc(Math.cos(da) * dr * 0.6, Math.sin(da) * dr * 0.6, 1.4 * U, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // UNA cara en el coco central grande.
+    var eyeR = bigR * 0.30;
+    var faceY = -bigR * 0.08;
+    var gap = bigR * 0.32;
+    if (expression === "dying") drawXEyes(0, faceY, eyeR, gap);
+    else if (expression === "hurt") drawHurtEyes(0, faceY, eyeR, gap);
+    else if (blink) drawClosedEyes(0, faceY, eyeR, gap);
+    else drawAnimeEyes(0, faceY, eyeR, gap, 0, 0, bigR * 0.12, bigR * 0.06, "evil");
+    if (expression === "dying") drawAnimeMouth(0, bigR * 0.32, bigR * 0.55, bigR * 0.45, "open");
+    else if (expression === "hurt") drawAnimeMouth(0, bigR * 0.32, bigR * 0.45, bigR * 0.40, "open");
+    else drawAnimeMouth(0, bigR * 0.32, bigR * 0.50, bigR * 0.28, "wicked");
+    ctx.restore();
+  }
+
+  function drawInfluenza(e, rad, expression, blink) {
+    // Cápside hexagonal regular con espículas HA/NA (cabeza tipo champiñón).
+    var hit = e.hitFlash > 0;
+    var t = state.time;
+    ctx.save();
+    ctx.translate(e.x, e.y);
+    var spin = t * 0.4;
+    var breathe = 1 + Math.sin(t * 1.8 + e.wobble) * 0.04;
+    var capR = rad * 1.05 * breathe;
+    // Espículas HA/NA (9) - tallo + cabecita Y/T.
+    var spikeN = 9;
+    ctx.lineCap = "round";
+    for (var s = 0; s < spikeN; s++) {
+      var a = (s / spikeN) * Math.PI * 2 + spin;
+      var pulse = 1 + Math.sin(t * 2 + s) * 0.05;
+      var bx = Math.cos(a) * capR * 0.92;
+      var by = Math.sin(a) * capR * 0.92;
+      var len = 7 * U * pulse;
+      var ex = Math.cos(a) * (capR + len);
+      var ey = Math.sin(a) * (capR + len);
+      ctx.strokeStyle = "#8A78B0";
+      ctx.lineWidth = Math.max(1.0, 1.4 * U);
+      ctx.beginPath();
+      ctx.moveTo(bx, by);
+      ctx.lineTo(ex, ey);
+      ctx.stroke();
+      // Cabeza (champiñón / T)
+      ctx.fillStyle = "#A89AC8";
+      ctx.beginPath();
+      ctx.arc(ex, ey, 2.2 * U, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "#483B66";
+      ctx.lineWidth = Math.max(0.6, 0.8 * U);
+      ctx.stroke();
+    }
+    // Hexágono regular (cápside icosaédrica)
+    ctx.beginPath();
+    for (var k = 0; k < 6; k++) {
+      var ka = k * Math.PI / 3 - Math.PI / 2;
+      var kx = Math.cos(ka) * capR;
+      var ky = Math.sin(ka) * capR;
+      if (k === 0) ctx.moveTo(kx, ky); else ctx.lineTo(kx, ky);
+    }
+    ctx.closePath();
+    var grad = ctx.createRadialGradient(-capR * 0.35, -capR * 0.35, capR * 0.2, 0, 0, capR);
+    grad.addColorStop(0, "#8E7FB8");
+    grad.addColorStop(0.55, "#6B5B95");
+    grad.addColorStop(1, "#483B66");
+    ctx.fillStyle = hit ? "#ffffff" : grad;
+    ctx.fill();
+    ctx.strokeStyle = "#483B66";
+    ctx.lineWidth = Math.max(1.0, 1.3 * U);
+    ctx.stroke();
+    // Highlight
+    ctx.fillStyle = "rgba(255,255,255,0.28)";
+    ctx.beginPath();
+    ctx.ellipse(-capR * 0.35, -capR * 0.35, capR * 0.32, capR * 0.18, -0.3, 0, Math.PI * 2);
+    ctx.fill();
+    // Cara
+    var eyeR = capR * 0.30;
+    var faceY = -capR * 0.12;
+    var gap = capR * 0.30;
+    if (expression === "dying") drawXEyes(0, faceY, eyeR, gap);
+    else if (expression === "hurt") drawHurtEyes(0, faceY, eyeR, gap);
+    else if (blink) drawClosedEyes(0, faceY, eyeR, gap);
+    else drawAnimeEyes(0, faceY, eyeR, gap, 0, 0, capR * 0.10, capR * 0.05, "evil");
+    if (expression === "dying") drawAnimeMouth(0, capR * 0.30, capR * 0.50, capR * 0.40, "open");
+    else if (expression === "hurt") drawAnimeMouth(0, capR * 0.30, capR * 0.40, capR * 0.35, "open");
+    else drawAnimeMouth(0, capR * 0.30, capR * 0.50, capR * 0.28, "smirk");
+    ctx.restore();
+  }
+
+  function drawVih(e, rad, expression, blink) {
+    // Cápside cónica truncada (trapecio invertido) + gp120 prominentes tipo champiñón.
+    var hit = e.hitFlash > 0;
+    var t = state.time;
+    ctx.save();
+    ctx.translate(e.x, e.y);
+    var breathe = 1 + Math.sin(t * 1.5 + e.wobble) * 0.04;
+    var capR = rad * 0.95 * breathe;
+    // Halo azul difuso
+    var haloPulse = 0.5 + 0.5 * Math.sin(t * 2);
+    var haloGrad = ctx.createRadialGradient(0, 0, capR * 0.7, 0, 0, capR * 1.6);
+    haloGrad.addColorStop(0, "rgba(74, 144, 226, " + (0.18 + haloPulse * 0.10) + ")");
+    haloGrad.addColorStop(1, "rgba(74, 144, 226, 0)");
+    ctx.fillStyle = haloGrad;
+    ctx.beginPath();
+    ctx.arc(0, 0, capR * 1.6, 0, Math.PI * 2);
+    ctx.fill();
+    // Espículas gp120 (7) tipo champiñón: tallo delgado + cabeza redonda gorda.
+    var spikeN = 7;
+    var spin = t * 0.3;
+    for (var s = 0; s < spikeN; s++) {
+      var a = (s / spikeN) * Math.PI * 2 + spin;
+      var bx = Math.cos(a) * capR * 0.95;
+      var by = Math.sin(a) * capR * 0.95;
+      var len = 8 * U;
+      var midX = Math.cos(a) * (capR + len * 0.6);
+      var midY = Math.sin(a) * (capR + len * 0.6);
+      var headX = Math.cos(a) * (capR + len);
+      var headY = Math.sin(a) * (capR + len);
+      // Tallo
+      ctx.strokeStyle = "#4A90E2";
+      ctx.lineWidth = Math.max(1.1, 1.4 * U);
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.moveTo(bx, by);
+      ctx.lineTo(midX, midY);
+      ctx.stroke();
+      // Cabeza redonda (gp120)
+      ctx.fillStyle = "#4A90E2";
+      ctx.beginPath();
+      ctx.arc(headX, headY, 3.0 * U, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "#2868B0";
+      ctx.lineWidth = Math.max(0.6, 0.8 * U);
+      ctx.stroke();
+      // Highlight blanco en la cabeza
+      ctx.fillStyle = "rgba(255,255,255,0.65)";
+      ctx.beginPath();
+      ctx.arc(headX - 0.9 * U, headY - 0.9 * U, 1.1 * U, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // Hexágono exterior (envoltura)
+    ctx.beginPath();
+    for (var k = 0; k < 6; k++) {
+      var ka = k * Math.PI / 3 - Math.PI / 2;
+      var kx = Math.cos(ka) * capR;
+      var ky = Math.sin(ka) * capR;
+      if (k === 0) ctx.moveTo(kx, ky); else ctx.lineTo(kx, ky);
+    }
+    ctx.closePath();
+    var grad = ctx.createRadialGradient(-capR * 0.35, -capR * 0.35, capR * 0.2, 0, 0, capR);
+    grad.addColorStop(0, "#9540C5");
+    grad.addColorStop(0.55, "#6A1B9A");
+    grad.addColorStop(1, "#4A1264");
+    ctx.fillStyle = hit ? "#ffffff" : grad;
+    ctx.fill();
+    ctx.strokeStyle = "#4A1264";
+    ctx.lineWidth = Math.max(1.0, 1.3 * U);
+    ctx.stroke();
+    // Cápside cónica truncada interior (trapecio invertido) en #4B0082.
+    if (!hit) {
+      ctx.fillStyle = "#4B0082";
+      ctx.beginPath();
+      ctx.moveTo(-capR * 0.50, -capR * 0.45);
+      ctx.lineTo( capR * 0.50, -capR * 0.45);
+      ctx.lineTo( capR * 0.30,  capR * 0.55);
+      ctx.lineTo(-capR * 0.30,  capR * 0.55);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = "rgba(255,255,255,0.18)";
+      ctx.lineWidth = Math.max(0.8, 1 * U);
+      ctx.stroke();
+    }
+    // Cara
+    var eyeR = capR * 0.26;
+    var faceY = -capR * 0.18;
+    var gap = capR * 0.26;
+    if (expression === "dying") drawXEyes(0, faceY, eyeR, gap, "#ff5577");
+    else if (expression === "hurt") drawHurtEyes(0, faceY, eyeR, gap);
+    else if (blink) drawClosedEyes(0, faceY, eyeR, gap);
+    else drawAnimeEyes(0, faceY, eyeR, gap, 0, 0, capR * 0.10, capR * 0.06, "evil");
+    if (expression === "dying") drawAnimeMouth(0, capR * 0.30, capR * 0.45, capR * 0.40, "open");
+    else if (expression === "hurt") drawAnimeMouth(0, capR * 0.30, capR * 0.38, capR * 0.32, "open");
+    else drawAnimeMouth(0, capR * 0.30, capR * 0.42, capR * 0.25, "smirk");
+    ctx.restore();
+  }
+
+  function drawCandida(e, rad, expression, blink) {
+    // Levadura ovalada vertical con pseudohifas serpenteantes segmentadas.
+    var hit = e.hitFlash > 0;
+    var t = state.time;
+    ctx.save();
+    ctx.translate(e.x, e.y);
+    var breathe = 1 + Math.sin(t * 1.5 + e.wobble) * 0.04;
+    var bw = rad * 0.85 * breathe;
+    var bh = rad * 1.20 * (2 - breathe);
+    // Pseudohifas (3) saliendo desde la base — segmentadas como salchichas.
+    var hyphae = [
+      { angle:  Math.PI * 0.55, segs: 4 },
+      { angle:  Math.PI * 0.40, segs: 3 },
+      { angle:  Math.PI * 0.65, segs: 4 }
+    ];
+    for (var hi = 0; hi < hyphae.length; hi++) {
+      var h = hyphae[hi];
+      var ox = Math.cos(h.angle) * bw * 0.6;
+      var oy = Math.sin(h.angle) * bh * 0.8;
+      var dirX = Math.cos(h.angle);
+      var dirY = Math.sin(h.angle);
+      var perpX = -dirY;
+      var perpY = dirX;
+      var segLen = 6 * U;
+      var segR = 3.2 * U;
+      var px = ox, py = oy;
+      for (var sg = 0; sg < h.segs; sg++) {
+        var wave = Math.sin(t * 2.5 + hi * 1.7 + sg * 0.9 + e.wobble) * 2.5 * U;
+        var nx = ox + dirX * segLen * (sg + 1) + perpX * wave;
+        var ny = oy + dirY * segLen * (sg + 1) + perpY * wave;
+        var midX = (px + nx) / 2;
+        var midY = (py + ny) / 2;
+        // Salchicha: óvalo orientado al segmento
+        var ang = Math.atan2(ny - py, nx - px);
+        var grad = ctx.createRadialGradient(midX - segR * 0.3, midY - segR * 0.3, segR * 0.2,
+                                             midX, midY, segR);
+        grad.addColorStop(0, "#D8EFA8");
+        grad.addColorStop(0.6, "#C0E090");
+        grad.addColorStop(1, "#6B8E47");
+        ctx.fillStyle = hit ? "#ffffff" : grad;
+        ctx.beginPath();
+        ctx.ellipse(midX, midY, segLen * 0.55, segR, ang, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = "#6B8E47";
+        ctx.lineWidth = Math.max(0.9, 1.1 * U);
+        ctx.stroke();
+        px = nx; py = ny;
+      }
+    }
+    // Cuerpo (levadura ovalada vertical)
+    var grad = ctx.createRadialGradient(-bw * 0.35, -bh * 0.40, bh * 0.2, 0, 0, bh);
+    grad.addColorStop(0, "#D8EFA8");
+    grad.addColorStop(0.55, "#A8D070");
+    grad.addColorStop(1, "#6B8E47");
+    ctx.fillStyle = hit ? "#ffffff" : grad;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, bw, bh, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "#6B8E47";
+    ctx.lineWidth = Math.max(1.0, 1.3 * U);
+    ctx.stroke();
+    // Highlight arriba-izquierda
+    ctx.fillStyle = "rgba(255,255,255,0.32)";
+    ctx.beginPath();
+    ctx.ellipse(-bw * 0.35, -bh * 0.40, bw * 0.32, bh * 0.20, -0.3, 0, Math.PI * 2);
+    ctx.fill();
+    // Cara
+    var eyeR = bw * 0.28;
+    var faceY = -bh * 0.10;
+    var gap = bw * 0.32;
+    if (expression === "dying") drawXEyes(0, faceY, eyeR, gap);
+    else if (expression === "hurt") drawHurtEyes(0, faceY, eyeR, gap);
+    else if (blink) drawClosedEyes(0, faceY, eyeR, gap);
+    else drawAnimeEyes(0, faceY, eyeR, gap, 0, 0, bh * 0.08, bh * 0.06, "angry");
+    if (expression === "dying") drawAnimeMouth(0, bh * 0.30, bw * 0.55, bh * 0.40, "open");
+    else if (expression === "hurt") drawAnimeMouth(0, bh * 0.30, bw * 0.45, bh * 0.35, "open");
+    else drawAnimeMouth(0, bh * 0.30, bw * 0.55, bh * 0.28, "wicked");
     ctx.restore();
   }
 

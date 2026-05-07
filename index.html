@@ -1056,6 +1056,8 @@
       pathInflammation: [],             // marks where enemies recently passed
       bossActive: null,                 // ref to current boss enemy (if alive)
       showIntro: true,                  // first-load comic intro screen
+      panelScroll: 0,                   // horizontal scroll offset (Sprint 8B-3B)
+      panelDragPending: null,           // tap-vs-drag tracker
       inflammation: null,                // active inflammation pulse
       nextInflammationAt: 8,             // first inflammation pulse
       activeTooltip: null,               // {defId, timer, isFirst}
@@ -1144,21 +1146,28 @@
     var panelRight = VW - safeRight - 8;
     var panelW = panelRight - panelLeft;
 
+    // Sprint 8B-Polish-3B: cards 90px ancho en una fila scrolleable
+    // horizontal. UI.cards guarda posiciones en CONTENT-SPACE (sin scroll).
+    // El render aplica scroll y clipping; el hit-test traduce con panelScroll.
+    var cardW = 90;
+    var cardGap = 8;
+    var cardCount = 3;  // future-proof: agregar más cards solo extiende el array
     if (isPortrait) {
-      // Portrait: full-width row of 3 cards + bottom row for info & action buttons.
-      var cardCount = 3;
-      var cardGap = 8;
-      var cardW = (panelW - cardGap * (cardCount - 1)) / cardCount;
-      var cardH = Math.min(Math.max(panelInner * 0.50, 80), 100);
+      var cardH = Math.min(Math.max(panelInner * 0.55, 84), 104);
       UI.cards = [];
       for (var i = 0; i < cardCount; i++) {
         UI.cards.push({
-          x: panelLeft + i * (cardW + cardGap),
+          contentX: i * (cardW + cardGap),
           y: panelTop,
           w: cardW,
           h: cardH
         });
       }
+      UI.cardStrip = {
+        x: panelLeft, y: panelTop,
+        w: panelW, h: cardH,
+        contentW: cardCount * cardW + (cardCount - 1) * cardGap
+      };
       var infoY = panelTop + cardH + 6;
       var infoH = panelInner - cardH - 6;
       UI.infoX = panelLeft;
@@ -1173,20 +1182,23 @@
       UI.sellBtn = { x: panelLeft, y: actionY, w: sellW, h: actionH };
       UI.upgradeBtn = { x: panelLeft + sellW + 8, y: actionY, w: panelW - sellW - 8, h: actionH };
     } else {
-      var cardCountL = 3;
-      var cardGapL = 6;
-      var cardWL = Math.max(70, Math.min(108, (panelW * 0.5 - cardGapL * (cardCountL - 1)) / cardCountL));
       var cardHL = Math.max(96, Math.min(panelInner, 116));
+      var stripWL = Math.min(panelW * 0.55, cardCount * cardW + (cardCount - 1) * cardGap + 24);
       UI.cards = [];
-      for (var k = 0; k < cardCountL; k++) {
+      for (var k = 0; k < cardCount; k++) {
         UI.cards.push({
-          x: panelLeft + k * (cardWL + cardGapL),
+          contentX: k * (cardW + cardGap),
           y: panelTop,
-          w: cardWL,
+          w: cardW,
           h: cardHL
         });
       }
-      var infoXL = panelLeft + cardCountL * (cardWL + cardGapL) + 8;
+      UI.cardStrip = {
+        x: panelLeft, y: panelTop,
+        w: stripWL, h: cardHL,
+        contentW: cardCount * cardW + (cardCount - 1) * cardGap
+      };
+      var infoXL = panelLeft + stripWL + 8;
       var infoWL = Math.max(140, panelRight - infoXL);
       UI.infoX = infoXL;
       UI.infoW = infoWL;
@@ -1197,6 +1209,11 @@
       var sellWL = Math.min(150, Math.max(80, infoWL * 0.42));
       UI.sellBtn = { x: infoXL, y: panelTop + cardHL - 36, w: sellWL, h: 36 };
       UI.upgradeBtn = { x: infoXL + sellWL + 8, y: panelTop + cardHL - 36, w: infoWL - sellWL - 8, h: 36 };
+    }
+    // Clamp scroll to current content bounds.
+    var maxScroll = Math.max(0, (UI.cardStrip.contentW + 16) - UI.cardStrip.w);
+    if (state && typeof state.panelScroll === "number") {
+      state.panelScroll = Math.max(0, Math.min(maxScroll, state.panelScroll));
     }
 
     var modalW = Math.min(340, VW - 32);
@@ -3192,8 +3209,17 @@
     }
     // Panel
     if (y >= FIELD_BOTTOM) {
+      // Sprint 8B-3B: cards en content space; convertir a viewport con scroll.
       for (var i = 0; i < UI.cards.length; i++) {
-        if (inRect(x, y, UI.cards[i])) {
+        var ccard = UI.cards[i];
+        var viewRect = {
+          x: UI.cardStrip.x + ccard.contentX - (state.panelScroll || 0),
+          y: ccard.y, w: ccard.w, h: ccard.h
+        };
+        // Solo si la card está visible dentro del strip.
+        if (viewRect.x + viewRect.w < UI.cardStrip.x) continue;
+        if (viewRect.x > UI.cardStrip.x + UI.cardStrip.w) continue;
+        if (inRect(x, y, viewRect)) {
           var typeId = TOWER_LIST[i];
           if (state.atp >= TOWER_DEFS[typeId].cost) {
             var prev = state.selectedToBuild;
@@ -3325,26 +3351,71 @@
   function flashFail() { state.lastPlaceFailedAt = state.time; }
   function showMsg(text) { state.msg = text; state.msgTimer = 1.6; }
 
+  // Sprint 8B-Polish-3B: tap-vs-drag para el card-strip scrolleable.
+  // Si el pointerdown cae dentro del strip, se difiere el handleClick a
+  // pointerup para distinguir tap (totalDx <6) de drag (scroll).
+  var TAP_DRAG_THRESHOLD = 6;
+  function pointInCardStrip(x, y) {
+    var s = UI.cardStrip;
+    if (!s) return false;
+    return x >= s.x && x <= s.x + s.w && y >= s.y && y <= s.y + s.h;
+  }
   function onPointerDown(evt) {
     evt.preventDefault();
     ensureAudio();
     var p = canvasPosFromEvent(evt);
     state.pointer.x = p.x; state.pointer.y = p.y; state.pointer.isOver = true;
+    if (pointInCardStrip(p.x, p.y) && !state.showIntro && !state.cinematicEnd && !state.confirmRestart) {
+      state.panelDragPending = {
+        startX: p.x, startY: p.y,
+        startScroll: state.panelScroll || 0,
+        dragged: false
+      };
+      return;
+    }
     handleClick(p.x, p.y);
   }
   function onPointerMove(evt) {
     var p = canvasPosFromEvent(evt);
     state.pointer.x = p.x; state.pointer.y = p.y; state.pointer.isOver = true;
+    if (state.panelDragPending) {
+      var dp = state.panelDragPending;
+      var dx = p.x - dp.startX;
+      if (!dp.dragged && Math.abs(dx) > TAP_DRAG_THRESHOLD) {
+        dp.dragged = true;
+      }
+      if (dp.dragged && UI.cardStrip) {
+        var maxScroll = Math.max(0, (UI.cardStrip.contentW + 16) - UI.cardStrip.w);
+        state.panelScroll = Math.max(0, Math.min(maxScroll, dp.startScroll - dx));
+      }
+      return;
+    }
     // While building, follow finger/cursor with the range hint inside the field.
     if (state.selectedToBuild && p.y >= FIELD_TOP && p.y < FIELD_BOTTOM) {
       var def = TOWER_DEFS[state.selectedToBuild];
       setRangeHint(p.x, p.y, def.levels[0].range * U, def.color, "build");
     }
   }
-  function onPointerLeave() { state.pointer.isOver = false; }
+  function onPointerUp(evt) {
+    if (state.panelDragPending) {
+      var dp = state.panelDragPending;
+      state.panelDragPending = null;
+      // Si el usuario no movió lo suficiente, tratamos como tap usando la
+      // posición original de pointerdown.
+      if (!dp.dragged) {
+        handleClick(dp.startX, dp.startY);
+      }
+    }
+  }
+  function onPointerLeave() {
+    state.pointer.isOver = false;
+    if (state.panelDragPending) state.panelDragPending = null;
+  }
 
   canvas.addEventListener("pointerdown", onPointerDown);
   canvas.addEventListener("pointermove", onPointerMove);
+  canvas.addEventListener("pointerup", onPointerUp);
+  canvas.addEventListener("pointercancel", onPointerUp);
   canvas.addEventListener("pointerleave", onPointerLeave);
   canvas.addEventListener("contextmenu", function (e) { e.preventDefault(); });
   function selectBuildType(typeId) {
@@ -5151,55 +5222,92 @@
     ctx.fillStyle = "#2a1a22";
     ctx.fillRect(0, FIELD_BOTTOM, VW, VH - FIELD_BOTTOM);
 
-    for (var i = 0; i < TOWER_LIST.length; i++) {
-      var typeId = TOWER_LIST[i];
-      var def = TOWER_DEFS[typeId];
-      var card = UI.cards[i];
-      var canAfford = state.atp >= def.cost;
-      var isSelected = state.selectedToBuild === typeId;
-      var lift = isSelected ? 4 : 0;
-      var scale = isSelected ? 1.05 : 1.0;
-      var cw = card.w * scale, ch = card.h * scale;
-      var cardX = card.x - (cw - card.w) / 2;
-      var cardY = card.y - lift - (ch - card.h) / 2;
+    // Sprint 8B-3B: cards en strip horizontal scrolleable. Clipping al
+    // viewport del strip y traslación por panelScroll.
+    var strip = UI.cardStrip;
+    var scroll = state.panelScroll || 0;
+    if (strip) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(strip.x, strip.y - 6, strip.w, strip.h + 12);
+      ctx.clip();
+      for (var i = 0; i < TOWER_LIST.length; i++) {
+        var typeId = TOWER_LIST[i];
+        var def = TOWER_DEFS[typeId];
+        var card = UI.cards[i];
+        if (!card) continue;
+        var cardViewX = strip.x + card.contentX - scroll;
+        // Skip if completely off-screen (small perf win when content grows).
+        if (cardViewX + card.w < strip.x - 4) continue;
+        if (cardViewX > strip.x + strip.w + 4) continue;
+        var canAfford = state.atp >= def.cost;
+        var isSelected = state.selectedToBuild === typeId;
+        var lift = isSelected ? 4 : 0;
+        var sc = isSelected ? 1.05 : 1.0;
+        var cw = card.w * sc, ch = card.h * sc;
+        var cardX = cardViewX - (cw - card.w) / 2;
+        var cardY = card.y - lift - (ch - card.h) / 2;
 
-      if (isSelected) {
-        ctx.shadowColor = "rgba(0, 0, 0, 0.45)";
-        ctx.shadowBlur = 8;
-        ctx.shadowOffsetY = 4;
+        if (isSelected) {
+          ctx.shadowColor = "rgba(0, 0, 0, 0.45)";
+          ctx.shadowBlur = 8;
+          ctx.shadowOffsetY = 4;
+        }
+        ctx.fillStyle = isSelected ? "#3a2538" : "#1f1219";
+        roundRect(cardX, cardY, cw, ch, 8);
+        ctx.fill();
+        ctx.shadowColor = "transparent";
+        ctx.shadowBlur = 0;
+        ctx.shadowOffsetY = 0;
+        ctx.strokeStyle = isSelected ? def.color : "rgba(255,255,255,0.08)";
+        ctx.lineWidth = isSelected ? 3 : 1.5;
+        roundRect(cardX, cardY, cw, ch, 8);
+        ctx.stroke();
+
+        var cx = cardX + cw / 2;
+        var iconY = cardY + ch * 0.30;
+        var showDesc = card.w >= 120;  // 90px no muestra desc
+        drawCardIcon(typeId, cx, iconY, Math.min(20, cw * 0.22) * (canAfford ? 1 : 0.6), canAfford);
+
+        ctx.fillStyle = canAfford ? "#fff" : "rgba(255,255,255,0.45)";
+        var fs1 = Math.max(10, Math.min(12, cw * 0.13));
+        ctx.font = "bold " + fs1 + "px sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "top";
+        // Use shortName (e.g. "Linf-B") for compact 90px cards.
+        var nameStr = (cw < 110 && def.shortName) ? def.shortName : def.name;
+        ctx.fillText(nameStr, cx, cardY + ch * 0.56);
+
+        if (showDesc) {
+          ctx.font = Math.max(9, Math.min(11, cw * 0.10)) + "px sans-serif";
+          ctx.fillStyle = "rgba(255,255,255,0.55)";
+          ctx.fillText(def.desc, cx, cardY + ch * 0.70);
+        }
+
+        ctx.font = "bold " + Math.max(11, Math.min(13, cw * 0.13)) + "px sans-serif";
+        ctx.fillStyle = canAfford ? "#f5d76e" : "#d9534f";
+        ctx.fillText("⚡ " + def.cost, cx, cardY + ch * (showDesc ? 0.84 : 0.78));
       }
-      ctx.fillStyle = isSelected ? "#3a2538" : "#1f1219";
-      roundRect(cardX, cardY, cw, ch, 8);
-      ctx.fill();
-      ctx.shadowColor = "transparent";
-      ctx.shadowBlur = 0;
-      ctx.shadowOffsetY = 0;
-      ctx.strokeStyle = isSelected ? def.color : "rgba(255,255,255,0.08)";
-      ctx.lineWidth = isSelected ? 3 : 1.5;
-      roundRect(cardX, cardY, cw, ch, 8);
-      ctx.stroke();
-
-      var cx = cardX + cw / 2;
-      var iconY = cardY + ch * 0.30;
-      var showDesc = card.w >= 120;
-      drawCardIcon(typeId, cx, iconY, Math.min(20, cw * 0.20) * (canAfford ? 1 : 0.6), canAfford);
-
-      ctx.fillStyle = canAfford ? "#fff" : "rgba(255,255,255,0.45)";
-      var fs1 = Math.max(10, Math.min(13, cw * 0.14));
-      ctx.font = "bold " + fs1 + "px sans-serif";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "top";
-      ctx.fillText(def.name, cx, cardY + ch * (showDesc ? 0.55 : 0.58));
-
-      if (showDesc) {
-        ctx.font = Math.max(9, Math.min(11, cw * 0.10)) + "px sans-serif";
-        ctx.fillStyle = "rgba(255,255,255,0.55)";
-        ctx.fillText(def.desc, cx, cardY + ch * 0.70);
+      ctx.restore();
+      // Edge-fade indicators when there's hidden content.
+      var maxScroll = Math.max(0, (strip.contentW + 16) - strip.w);
+      if (maxScroll > 0) {
+        var fadeW = 18;
+        if (scroll > 2) {
+          var lg = ctx.createLinearGradient(strip.x, 0, strip.x + fadeW, 0);
+          lg.addColorStop(0, "rgba(42, 26, 34, 0.95)");
+          lg.addColorStop(1, "rgba(42, 26, 34, 0)");
+          ctx.fillStyle = lg;
+          ctx.fillRect(strip.x, strip.y - 6, fadeW, strip.h + 12);
+        }
+        if (scroll < maxScroll - 2) {
+          var rg = ctx.createLinearGradient(strip.x + strip.w - fadeW, 0, strip.x + strip.w, 0);
+          rg.addColorStop(0, "rgba(42, 26, 34, 0)");
+          rg.addColorStop(1, "rgba(42, 26, 34, 0.95)");
+          ctx.fillStyle = rg;
+          ctx.fillRect(strip.x + strip.w - fadeW, strip.y - 6, fadeW, strip.h + 12);
+        }
       }
-
-      ctx.font = "bold " + Math.max(11, Math.min(13, cw * 0.13)) + "px sans-serif";
-      ctx.fillStyle = canAfford ? "#f5d76e" : "#d9534f";
-      ctx.fillText("⚡ " + def.cost, cx, cardY + ch * (showDesc ? 0.84 : 0.80));
     }
 
     var infoX = UI.infoX, infoY = UI.infoY;
@@ -5736,20 +5844,22 @@
   // Sprint 8B-Polish-2: per-letter melt drips + blood pool.
   // Cache deterministic per-letter metadata so the irregular shapes don't
   // jitter every frame.
-  var TERROR_DRIPS = null;
-  function ensureTerrorDrips(text) {
-    if (TERROR_DRIPS && TERROR_DRIPS.text === text) return TERROR_DRIPS;
+  // Map keyed by text so each line caches its own deterministic drip metadata.
+  var TERROR_DRIPS = {};
+  function ensureTerrorDrips(text, capMaxLen) {
+    if (TERROR_DRIPS[text]) return TERROR_DRIPS[text];
     var letters = [];
     for (var i = 0; i < text.length; i++) {
       var ch = text.charAt(i);
       if (ch === " ") { letters.push(null); continue; }
+      var max = 40 + Math.random() * 50;          // 40-90px
+      if (capMaxLen) max = Math.min(max, capMaxLen);
       letters.push({
-        maxLen: 40 + Math.random() * 50,            // 40-90px per spec
-        growTime: 1.5 + Math.random() * 1.0,         // 1.5-2.5s to reach max
-        startDelay: 0.5 + Math.random() * 0.4,       // staggered start ~0.5s
-        jitter1: Math.random() * 4 + 1,              // bezier mid noise (1-5)
-        jitter2: Math.random() * 3 + 0.5,            // bezier shoulder noise
-        // Detached drops cycling every 3-4s.
+        maxLen: max,
+        growTime: 1.5 + Math.random() * 1.0,       // 1.5-2.5s
+        startDelay: 0.5 + Math.random() * 0.4,
+        jitter1: Math.random() * 4 + 1,
+        jitter2: Math.random() * 3 + 0.5,
         fallDrops: [
           { delay: 1.8 + Math.random() * 1.5, speed: 90 + Math.random() * 50 },
           { delay: 3.4 + Math.random() * 1.5, speed: 90 + Math.random() * 50 },
@@ -5757,8 +5867,8 @@
         ]
       });
     }
-    TERROR_DRIPS = { text: text, letters: letters };
-    return TERROR_DRIPS;
+    TERROR_DRIPS[text] = { text: text, letters: letters };
+    return TERROR_DRIPS[text];
   }
 
   // Sprint 8B-Polish-3A: organic teardrop drip per spec.
@@ -5807,84 +5917,43 @@
     ctx.restore();
   }
 
-  // Centered, auto-fit horror title using the strict stroke+fill pattern.
-  function drawTerrorTitle(text, cx, cy, time) {
-    var padding = 24;
-    var maxW = VW - padding * 2;
-    var fs = Math.min(VW * 0.14, 72);
-    fs = Math.max(28, fs);
-    var fontStack = "'Impact', 'Arial Black', 'Helvetica Neue', sans-serif";
-    while (fs > 28) {
-      ctx.font = "900 " + fs + "px " + fontStack;
-      if (ctx.measureText(text).width <= maxW) break;
-      fs -= 2;
-    }
-    ctx.save();
-    // ---- 1. Setup compartido ------------------------------------------
-    ctx.font = "900 " + fs + "px " + fontStack;
-    if ("letterSpacing" in ctx) {
-      try { ctx.letterSpacing = (fs * 0.05) + "px"; } catch (e) {}
-    }
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.lineJoin = "round";
-    var upper = text.toUpperCase();
-    var ce = state.cinematicEnd;
-    var ceT = ce ? ce.t : time;
-    // ---- 2. Pulsing red glow (8..16) ---------------------------------
-    var pulseSlow = 0.5 + 0.5 * Math.sin(ceT * (Math.PI * 2 / 1.5));
-    ctx.shadowColor = "rgba(255, 0, 0, " + (0.55 + pulseSlow * 0.30) + ")";
-    ctx.shadowBlur = 8 + pulseSlow * 8;
-    // ---- 3. Stroke negro (UNA SOLA VEZ, mismas cx/cy) ----------------
-    ctx.lineWidth = 6;
-    ctx.strokeStyle = "#000000";
-    ctx.strokeText(upper, cx, cy);
-    // ---- 4. Fill rojo (UNA SOLA VEZ, mismas cx/cy) -------------------
-    ctx.fillStyle = "#8B0000";
-    ctx.fillText(upper, cx, cy);
-    // ---- 5. Quitar sombra antes de los chorros -----------------------
-    ctx.shadowBlur = 0;
-    ctx.shadowColor = "transparent";
-    // ---- 6. textAlign="left" SOLO para medir letras (no re-render del título)
-    ctx.textAlign = "left";
-    var totalW = ctx.measureText(upper).width;
+  // Renders one line's drips + optional pool. Assumes ctx is set to
+  // textAlign="left" (caller's job), so measureText returns the actual width.
+  // Returns the bottom-most drip y reached, plus pool bounds, so the caller
+  // can stack lines.
+  function drawTitleDrips(text, cx, baseY, fs, ceT, capMaxLen) {
+    var drips = ensureTerrorDrips(text, capMaxLen);
+    var totalW = ctx.measureText(text).width;
     var leftEdge = cx - totalW / 2;
-    var letterBaseY = cy + fs * 0.35;
-    // ---- 7. Loop letras: solo chorros, ningún fillText/strokeText del título.
-    var drips = ensureTerrorDrips(upper);
     var cursorX = leftEdge;
-    var maxDripBottomY = letterBaseY;
-    var poolMinX = Infinity, poolMaxX = -Infinity;
-    for (var i = 0; i < upper.length; i++) {
-      var ch = upper.charAt(i);
+    var maxBottomY = baseY;
+    var minPoolX = Infinity, maxPoolX = -Infinity;
+    for (var i = 0; i < text.length; i++) {
+      var ch = text.charAt(i);
       var lw = ctx.measureText(ch).width;
       if (ch !== " ") {
         var meta = drips.letters[i];
         if (meta) {
           var t01 = Math.max(0, Math.min(1, (ceT - meta.startDelay) / meta.growTime));
-          // easeOutCubic
           var ease = 1 - Math.pow(1 - t01, 3);
           var len = meta.maxLen * ease;
           if (len > 1) {
-            drawMeltDrip(cursorX + lw / 2, letterBaseY, lw * 0.80, len,
-                         meta.jitter1, meta.jitter2);
-            poolMinX = Math.min(poolMinX, cursorX + lw * 0.05);
-            poolMaxX = Math.max(poolMaxX, cursorX + lw * 0.95);
-            maxDripBottomY = Math.max(maxDripBottomY, letterBaseY + len);
+            drawMeltDrip(cursorX + lw / 2, baseY, lw * 0.80, len, meta.jitter1, meta.jitter2);
+            minPoolX = Math.min(minPoolX, cursorX + lw * 0.05);
+            maxPoolX = Math.max(maxPoolX, cursorX + lw * 0.95);
+            maxBottomY = Math.max(maxBottomY, baseY + len);
           }
-          // Falling drops at staggered times after maxLen reached.
           for (var dq = 0; dq < meta.fallDrops.length; dq++) {
             var fd = meta.fallDrops[dq];
             var elapsed = ceT - fd.delay;
             if (elapsed > 0 && elapsed < 1.8) {
-              var fy = letterBaseY + meta.maxLen + elapsed * fd.speed
+              var fy = baseY + meta.maxLen + elapsed * fd.speed
                        + 0.5 * 220 * elapsed * elapsed;
               var fa = Math.max(0, 1 - elapsed / 1.5);
               ctx.fillStyle = "rgba(180, 20, 20, " + fa + ")";
               ctx.beginPath();
               ctx.ellipse(cursorX + lw / 2, fy, 3.4, 4.6, 0, 0, Math.PI * 2);
               ctx.fill();
-              // Tiny splash dots when about to fade.
               if (elapsed > 1.0) {
                 var splashY = fy + 4;
                 ctx.fillStyle = "rgba(140, 10, 10, " + fa * 0.7 + ")";
@@ -5901,39 +5970,115 @@
       }
       cursorX += lw;
     }
-    // ---- 8. Charco inferior ondulado (Beziers) -----------------------
-    if (poolMaxX > poolMinX && maxDripBottomY > letterBaseY + 30) {
-      var pY = maxDripBottomY + 6;
-      var pW = poolMaxX - poolMinX;
-      ctx.save();
-      var poolGrad = ctx.createLinearGradient(0, pY, 0, pY + 18);
-      poolGrad.addColorStop(0, "#5A0000");
-      poolGrad.addColorStop(1, "#2A0000");
-      ctx.fillStyle = poolGrad;
-      ctx.beginPath();
-      ctx.moveTo(poolMinX, pY + 8);
-      // Top edge: chained quadratic curves with animated y offset.
-      var step = Math.max(18, pW / 14);
-      var prevX = poolMinX, prevY = pY + 8;
-      for (var seg = 1; seg * step <= pW + step; seg++) {
-        var nx = poolMinX + Math.min(seg * step, pW);
-        var ph = (nx - poolMinX) * 0.04 + ceT * 1.2;
-        var ny = pY + Math.sin(ph) * 4 + Math.sin(ph * 0.6 + 1.2) * 2.5;
-        var cpX = (prevX + nx) / 2;
-        var cpY = (prevY + ny) / 2 - 3;
-        ctx.quadraticCurveTo(cpX, cpY, nx, ny);
-        prevX = nx; prevY = ny;
-      }
-      ctx.lineTo(poolMaxX, pY + 18);
-      ctx.lineTo(poolMinX, pY + 18);
-      ctx.closePath();
-      ctx.fill();
-      ctx.restore();
+    return { maxBottomY: maxBottomY, minX: minPoolX, maxX: maxPoolX };
+  }
+
+  function drawBloodPool(minX, maxX, topY, ceT) {
+    if (maxX <= minX) return;
+    var pY = topY + 6;
+    var pW = maxX - minX;
+    ctx.save();
+    var poolGrad = ctx.createLinearGradient(0, pY, 0, pY + 18);
+    poolGrad.addColorStop(0, "#5A0000");
+    poolGrad.addColorStop(1, "#2A0000");
+    ctx.fillStyle = poolGrad;
+    ctx.beginPath();
+    ctx.moveTo(minX, pY + 8);
+    var step = Math.max(18, pW / 14);
+    var prevX = minX, prevY = pY + 8;
+    for (var seg = 1; seg * step <= pW + step; seg++) {
+      var nx = minX + Math.min(seg * step, pW);
+      var ph = (nx - minX) * 0.04 + ceT * 1.2;
+      var ny = pY + Math.sin(ph) * 4 + Math.sin(ph * 0.6 + 1.2) * 2.5;
+      var cpX = (prevX + nx) / 2;
+      var cpY = (prevY + ny) / 2 - 3;
+      ctx.quadraticCurveTo(cpX, cpY, nx, ny);
+      prevX = nx; prevY = ny;
+    }
+    ctx.lineTo(maxX, pY + 18);
+    ctx.lineTo(minX, pY + 18);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // Sprint 8B-Polish-3B: two-line horror title with drips per line.
+  // Strict pattern: ONE save/restore. ONE strokeText + ONE fillText per line
+  // with textAlign="center" and matching cx,cy. Then textAlign="left" SOLO
+  // para medir letras; loop solo dibuja paths de chorros, nunca re-dibuja
+  // las líneas. Charco al final debajo de la última línea.
+  function drawTerrorTitleTwoLines(line1, line2, cx, cyCenter, time) {
+    var padding = 24;
+    var maxW = VW - padding * 2;
+    var fontStack = "'Impact', 'Arial Black', 'Helvetica Neue', sans-serif";
+    var fs = Math.min(VW * 0.14, 72);
+    fs = Math.max(28, fs);
+    // Auto-fit: el bottleneck es la línea más larga.
+    while (fs > 28) {
+      ctx.font = "900 " + fs + "px " + fontStack;
+      var w1 = ctx.measureText(line1).width;
+      var w2 = ctx.measureText(line2).width;
+      if (Math.max(w1, w2) <= maxW) break;
+      fs -= 2;
+    }
+    var lineHeight = fs * 1.7;        // 1.7x — deja espacio para chorros
+    var dripCap = lineHeight * 0.55;  // ~55% del gap para los chorros L1
+    ctx.save();
+    // ---- 1. Setup compartido ------------------------------------------
+    ctx.font = "900 " + fs + "px " + fontStack;
+    if ("letterSpacing" in ctx) {
+      try { ctx.letterSpacing = (fs * 0.05) + "px"; } catch (e) {}
+    }
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.lineJoin = "round";
+    var u1 = line1.toUpperCase();
+    var u2 = line2.toUpperCase();
+    var ce = state.cinematicEnd;
+    var ceT = ce ? ce.t : time;
+    // Posicionamiento centrado del bloque vertical.
+    var cyLine1 = cyCenter - lineHeight / 2;
+    var cyLine2 = cyCenter + lineHeight / 2;
+    // ---- 2. Pulsing red glow (8..16) ---------------------------------
+    var pulseSlow = 0.5 + 0.5 * Math.sin(ceT * (Math.PI * 2 / 1.5));
+    ctx.shadowColor = "rgba(255, 0, 0, " + (0.55 + pulseSlow * 0.30) + ")";
+    ctx.shadowBlur = 8 + pulseSlow * 8;
+    ctx.lineWidth = 6;
+    ctx.strokeStyle = "#000000";
+    // ---- 3. Línea 1: stroke + fill (UNA SOLA VEZ cada uno) -----------
+    ctx.strokeText(u1, cx, cyLine1);
+    ctx.fillStyle = "#8B0000";
+    ctx.fillText(u1, cx, cyLine1);
+    // ---- 4. Línea 2: stroke + fill (UNA SOLA VEZ cada uno) -----------
+    ctx.strokeStyle = "#000000";
+    ctx.strokeText(u2, cx, cyLine2);
+    ctx.fillStyle = "#8B0000";
+    ctx.fillText(u2, cx, cyLine2);
+    // ---- 5. Quitar sombra antes de los chorros -----------------------
+    ctx.shadowBlur = 0;
+    ctx.shadowColor = "transparent";
+    // ---- 6. textAlign="left" SOLO para medir letras ------------------
+    ctx.textAlign = "left";
+    // ---- 7. Chorros línea 1 (capped a dripCap) -----------------------
+    var baseY1 = cyLine1 + fs * 0.35;
+    drawTitleDrips(u1, cx, baseY1, fs, ceT, dripCap);
+    // ---- 8. Chorros línea 2 (longitud completa) ----------------------
+    var baseY2 = cyLine2 + fs * 0.35;
+    var bounds2 = drawTitleDrips(u2, cx, baseY2, fs, ceT, null);
+    // ---- 9. Charco inferior debajo de los chorros de la línea 2 ------
+    if (bounds2 && bounds2.maxBottomY > baseY2 + 30) {
+      drawBloodPool(bounds2.minX, bounds2.maxX, bounds2.maxBottomY, ceT);
     }
     if ("letterSpacing" in ctx) {
       try { ctx.letterSpacing = "0px"; } catch (e) {}
     }
     ctx.restore();
+    return { bottomY: bounds2 ? bounds2.maxBottomY + 30 : cyLine2 + lineHeight };
+  }
+
+  // Backwards-compat single-line wrapper for any straggler callers.
+  function drawTerrorTitle(text, cx, cy, time) {
+    return drawTerrorTitleTwoLines(text, "", cx, cy, time);
   }
 
   // Sprint 8B-Polish-2: subtle title logo at the top of the cinematic.
@@ -6015,21 +6160,23 @@
       ctx.fillStyle = "rgba(20, 10, 10, " + (dt2 * 0.50) + ")";
       ctx.fillRect(0, 0, VW, FIELD_TOP + FIELD_H * 0.15);
     }
-    // T+5.5..7: text fade in (Sprint 8B: estilo terror Impact + goteo)
+    // T+5.5..7: text fade in (Sprint 8B-Polish-3B: dos renglones con chorros)
     if (t >= 5.5) {
       var tt = Math.min(1, (t - 5.5) / 1.0);
       ctx.globalAlpha = tt;
-      drawTerrorTitle("INFECCIÓN ESTABLECIDA", VW / 2, VH * 0.42, t);
+      var titleResult = drawTerrorTitleTwoLines("INFECCIÓN", "ESTABLECIDA",
+                                                VW / 2, VH * 0.45, t);
+      var subY = (titleResult ? titleResult.bottomY : VH * 0.45 + 80) + 14;
       ctx.font = "italic 16px Georgia, serif";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.lineWidth = 3;
       ctx.strokeStyle = "rgba(0, 0, 0, 0.85)";
-      ctx.strokeText("Los patógenos han alcanzado el torrente sanguíneo.", VW / 2, VH * 0.42 + 100);
+      ctx.strokeText("Los patógenos han alcanzado el torrente sanguíneo.", VW / 2, subY);
       ctx.fillStyle = "#FF6B6B";
-      ctx.fillText("Los patógenos han alcanzado el torrente sanguíneo.", VW / 2, VH * 0.42 + 100);
-      ctx.strokeText("Comienza la diseminación...", VW / 2, VH * 0.42 + 124);
-      ctx.fillText("Comienza la diseminación...", VW / 2, VH * 0.42 + 124);
+      ctx.fillText("Los patógenos han alcanzado el torrente sanguíneo.", VW / 2, subY);
+      ctx.strokeText("Comienza la diseminación...", VW / 2, subY + 24);
+      ctx.fillText("Comienza la diseminación...", VW / 2, subY + 24);
     }
     // T+7+: continue button
     if (t >= 7.0) {

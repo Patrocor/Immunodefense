@@ -339,10 +339,10 @@
     // que el campo use TODO el alto. Portrait: dock angosto (~27% del ancho);
     // landscape: dock fijo cómodo. Incluye safeRight para no quedar bajo el
     // notch/esquina redondeada del lado derecho.
-    // Dock ~13% más compacto que antes (cartas y cajones más chicos).
+    // Dock más compacto (cartas y cajones aún más chicos: -10% adicional).
     SIDE_INNER = isPortrait
-      ? Math.round(Math.max(80, Math.min(101, VW * 0.235)))
-      : Math.round(Math.max(94, Math.min(131, VW * 0.139)));
+      ? Math.round(Math.max(72, Math.min(91, VW * 0.212)))
+      : Math.round(Math.max(85, Math.min(118, VW * 0.125)));
     SIDE_W = SIDE_INNER + safeRight;
     HUD_H = Math.round(hudBase + safeTop);
     PANEL_H = 0;  // legacy: ya no hay franja inferior
@@ -391,8 +391,8 @@
   // más peligrosos (S. aureus, Pseudomonas, jefes) tienen MAYOR rango y se
   // distinguen de los débiles. En px diseño; multiplicar por U al usar.
   function enemyAuraRadiusPx(def) {
-    // +20% sobre el rango previo (base + 2*ataque).
-    return (ATTACK_RADIUS_BASE + (def.attack || 0) * 2) * 1.2 * U;
+    // Rango = (base + 2*ataque) con +20% y otro +15% acumulado (1.2*1.15=1.38).
+    return (ATTACK_RADIUS_BASE + (def.attack || 0) * 2) * 1.38 * U;
   }
 
   function layoutDrip() {
@@ -6952,33 +6952,25 @@
 
   function drawWaveBanner() {
     if (state.waveBannerTimer <= 0 || !state.waveBannerText) return;
-    var t = state.waveBannerTimer / 1.2;
-    var alpha;
-    if (t > 0.75) alpha = (1 - t) / 0.25;
-    else if (t < 0.20) alpha = t / 0.20;
-    else alpha = 1;
-    alpha = Math.max(0, Math.min(1, alpha));
-    // Subtle dim of the field area only
+    // Texto chico que cruza de izquierda a derecha por la zona superior, sin
+    // oscurecer el campo ni tapar el centro.
+    var dur = 1.4;
+    var p = 1 - Math.max(0, Math.min(1, state.waveBannerTimer / dur)); // 0->1
     ctx.save();
-    ctx.fillStyle = "rgba(20, 12, 18, " + (alpha * 0.18) + ")";
-    ctx.fillRect(0, FIELD_TOP, VW, FIELD_BOTTOM - FIELD_TOP);
-    ctx.globalAlpha = alpha * 0.92;
-    var fs = Math.min(VW * 0.10, VH * 0.085, 52);
+    var fs = Math.min(VW * 0.055, 24);
     ctx.font = "700 " + fs + "px Fredoka, sans-serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    var by = FIELD_TOP + (FIELD_BOTTOM - FIELD_TOP) * 0.45;
-    ctx.fillStyle = "rgba(0, 0, 0, 0.30)";
-    ctx.fillText(state.waveBannerText, VW / 2 + 1, by + 2);
+    var tw = ctx.measureText(state.waveBannerText).width;
+    var cx = -tw / 2 - 20 + p * (VW + tw + 40);     // entra por la izq, sale por la der
+    var by = FIELD_TOP + (FIELD_BOTTOM - FIELD_TOP) * 0.18;
+    var alpha = Math.max(0, Math.min(1, Math.min(p / 0.12, (1 - p) / 0.12)));
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = "rgba(0, 0, 0, 0.35)";
+    ctx.fillText(state.waveBannerText, cx + 1, by + 1);
     ctx.fillStyle = "#fffcf0";
-    ctx.fillText(state.waveBannerText, VW / 2, by);
-    // Thin gold underline
-    ctx.strokeStyle = "rgba(245, 215, 110, " + alpha * 0.7 + ")";
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.moveTo(VW / 2 - fs * 1.2, by + fs * 0.55);
-    ctx.lineTo(VW / 2 + fs * 1.2, by + fs * 0.55);
-    ctx.stroke();
+    ctx.fillText(state.waveBannerText, cx, by);
+    ctx.globalAlpha = 1;
     ctx.restore();
   }
 
@@ -7103,16 +7095,16 @@
     var def = ENEMY_DEFS[tt.defId];
     if (!def) { state.activeTooltip = null; return; }
     // Sprint 8A: lateral right-side sticky note. No backdrop, no button.
-    // Ficha compacta: solo la primera frase de la descripción, alto dinámico.
-    var W = Math.min(190, VW - 32);
-    var previewSize = 15 * U;
+    // Ficha MUY compacta: nombre + 1 oración corta, chica, que no estorbe.
+    var W = Math.min(158, VW - 28);
+    var previewSize = 12 * U;
     var rawDesc = (def.tooltip || "");
     var shortDesc = rawDesc.split(/\.\s/)[0] || "";
-    if (shortDesc.length > 105) shortDesc = shortDesc.slice(0, 102) + "…";
+    if (shortDesc.length > 78) shortDesc = shortDesc.slice(0, 75) + "…";
     else if (shortDesc && !/[.…!?]$/.test(shortDesc)) shortDesc += ".";
-    var ttDescLines = wrapText(shortDesc, W - 24, 11).slice(0, 3);
-    var H = 12 + (tt.isFirst ? 16 : 0) + (previewSize * 2 + 10) + 20 + 6 + 16 +
-            ttDescLines.length * 14 + 12;
+    var ttDescLines = wrapText(shortDesc, W - 22, 10).slice(0, 2);
+    var H = 10 + (tt.isFirst ? 14 : 0) + (previewSize * 2 + 8) + 17 + 5 + 14 +
+            ttDescLines.length * 13 + 10;
     H = Math.min(H, FIELD_BOTTOM - FIELD_TOP - 24);
     var marginRight = 8;
     var anchorX = VW - marginRight - W;
@@ -7155,61 +7147,61 @@
     ctx.arc(x, y + 22, 5, 0, Math.PI * 2);
     ctx.fill();
     // Lab notebook header (only first tooltip of the session).
-    var contentY = y + 12;
+    var contentY = y + 10;
     if (tt.isFirst) {
-      ctx.font = "bold 9px Fredoka, sans-serif";
+      ctx.font = "bold 8px Fredoka, sans-serif";
       ctx.fillStyle = "#1565C0";
       ctx.textAlign = "center";
       ctx.textBaseline = "top";
-      ctx.fillText("🔬  NUEVO PATÓGENO", x + W / 2, contentY);
-      contentY += 16;
+      ctx.fillText("🔬 NUEVO PATÓGENO", x + W / 2, contentY);
+      contentY += 14;
     }
     // Sprite preview
-    drawTooltipSprite(def, x + W / 2, contentY + previewSize + 5, previewSize);
-    contentY += previewSize * 2 + 10;
+    drawTooltipSprite(def, x + W / 2, contentY + previewSize + 4, previewSize);
+    contentY += previewSize * 2 + 8;
     // Name (italic bold serif)
-    ctx.font = "italic bold 13px Georgia, serif";
+    ctx.font = "italic bold 12px Georgia, serif";
     ctx.fillStyle = "#B22222";
     ctx.textAlign = "center";
     ctx.textBaseline = "top";
     var nm = def.name;
-    if (ctx.measureText(nm).width > W - 24) {
-      ctx.font = "italic bold 11px Georgia, serif";
+    if (ctx.measureText(nm).width > W - 18) {
+      ctx.font = "italic bold 10px Georgia, serif";
     }
     ctx.fillText(nm, x + W / 2, contentY);
-    contentY += 20;
+    contentY += 17;
     // Thin separator
     ctx.strokeStyle = "rgba(80, 60, 60, 0.30)";
     ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.moveTo(x + 16, contentY);
-    ctx.lineTo(x + W - 16, contentY);
+    ctx.moveTo(x + 14, contentY);
+    ctx.lineTo(x + W - 14, contentY);
     ctx.stroke();
-    contentY += 6;
-    // Shield info if any
+    contentY += 5;
+    // Shield info if any (compacto)
     if (def.shield) {
       var shieldLabel, shieldColor;
       if (def.shield.type === "capsula") { shieldLabel = "🟡 Cápsula"; shieldColor = "#C8B068"; }
-      else if (def.shield.type === "spike") { shieldLabel = "🔵 Spike (solo Linf-T)"; shieldColor = "#3F8AC8"; }
-      else { shieldLabel = "🟢 Pared celular"; shieldColor = "#7CA850"; }
-      ctx.font = "bold 11px Fredoka, sans-serif";
+      else if (def.shield.type === "spike") { shieldLabel = "🔵 Spike"; shieldColor = "#3F8AC8"; }
+      else { shieldLabel = "🟢 Pared"; shieldColor = "#7CA850"; }
+      ctx.font = "bold 10px Fredoka, sans-serif";
       ctx.fillStyle = shieldColor;
-      ctx.fillText(shieldLabel + " · " + def.shield.maxHP + " hits", x + W / 2, contentY);
-      contentY += 16;
+      ctx.fillText(shieldLabel + " ·" + def.shield.maxHP, x + W / 2, contentY);
+      contentY += 14;
     } else {
-      ctx.font = "italic 11px Fredoka, sans-serif";
+      ctx.font = "italic 10px Fredoka, sans-serif";
       ctx.fillStyle = "rgba(80, 60, 60, 0.65)";
       ctx.fillText("Sin escudo", x + W / 2, contentY);
-      contentY += 16;
+      contentY += 14;
     }
-    // Descripción compacta (solo la primera frase, precalculada).
-    ctx.font = "11px Georgia, serif";
+    // Descripción: una sola oración corta.
+    ctx.font = "10px Georgia, serif";
     ctx.fillStyle = "#2C2A28";
     ctx.textAlign = "left";
-    var ly = contentY + 2;
+    var ly = contentY + 1;
     for (var i = 0; i < ttDescLines.length; i++) {
-      ctx.fillText(ttDescLines[i], x + 12, ly);
-      ly += 14;
+      ctx.fillText(ttDescLines[i], x + 11, ly);
+      ly += 13;
     }
     ctx.restore();
   }

@@ -413,7 +413,10 @@
   // tenga 5 curvas amplias entre 22% y 88% del alto del campo.
   var CONFLUENCE_POS = { x: 0.50, y: 0.22 };
   var VESSEL_POS = { x: 0.80, y: 0.88 };
-  var TORRENT_ABSORB_TRIGGER = 0.88;
+  // El germen recorre casi todo el camino antes de ser absorbido por el vaso.
+  // (Antes 0.88: con la serpentina nueva, más larga, eso lo hacía entrar
+  // saltándose ~12-15% del recorrido.) 0.97 deja solo un breve floreo final.
+  var TORRENT_ABSORB_TRIGGER = 0.97;
 
   // Legacy single-path arrays (no longer rendered, kept to avoid undefined refs).
   var PATH_LANDSCAPE_BASE = [];

@@ -6258,19 +6258,24 @@
 
     var leftX = safeLeft + 12;
     if (isPortrait) {
-      // Compact single-line stats: no labels, tiny gap, fits beside buttons.
+      // Stats en una línea con layout MEDIDO (sin offsets fijos) para que no
+      // se solapen sin importar el ancho de la fuente o de los números.
       var midY = safeTop + (HUD_H - safeTop) / 2;
       ctx.textBaseline = "middle";
       ctx.textAlign = "left";
-      ctx.font = "bold 14px Fredoka, sans-serif";
+      var cx = leftX;
+      ctx.font = "700 15px Fredoka, sans-serif";
       ctx.fillStyle = "#f5d76e";
-      ctx.fillText("⚡ " + state.atp, leftX, midY);
-      ctx.font = 'italic 12px Georgia, serif';
-      ctx.fillStyle = "rgba(220, 200, 200, 0.85)";
-      ctx.fillText("FASE 1", leftX + 64, midY);
-      ctx.font = "bold 13px Fredoka, sans-serif";
+      var atpStr = "⚡ " + state.atp;
+      ctx.fillText(atpStr, cx, midY);
+      cx += ctx.measureText(atpStr).width + 14;
+      ctx.font = "600 12px Fredoka, sans-serif";
+      ctx.fillStyle = "rgba(220, 200, 200, 0.9)";
+      ctx.fillText("FASE 1", cx, midY);
+      cx += ctx.measureText("FASE 1").width + 14;
+      ctx.font = "700 13px Fredoka, sans-serif";
       ctx.fillStyle = "#e0e0e0";
-      ctx.fillText("⌖ " + state.waveIdx, leftX + 116, midY);
+      ctx.fillText("⌖ " + state.waveIdx, cx, midY);
     } else {
       var statsY = safeTop + 8;
       var fontStat = Math.max(14, Math.min(20, VW * 0.018));
@@ -6629,7 +6634,7 @@
     ctx.fillRect(0, FIELD_TOP, VW, FIELD_BOTTOM - FIELD_TOP);
     ctx.globalAlpha = alpha * 0.92;
     var fs = Math.min(VW * 0.10, VH * 0.085, 52);
-    ctx.font = "600 " + fs + 'px Georgia, "Times New Roman", serif';
+    ctx.font = "700 " + fs + "px Fredoka, sans-serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     var by = FIELD_TOP + (FIELD_BOTTOM - FIELD_TOP) * 0.45;

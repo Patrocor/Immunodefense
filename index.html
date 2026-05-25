@@ -1063,6 +1063,8 @@
       spawnElapsed: 0,
       towers: [],
       enemies: [],
+      guardians: [],
+      guardianTimer: 28,
       projectiles: [],
       effects: [],
       damageNumbers: [],
@@ -1874,6 +1876,187 @@
     if (type === "spike") return "rgba(100, 181, 246, 0.85)";
     if (type === "wall")  return "rgba(197, 225, 165, 0.85)";
     return "rgba(255, 245, 157, 0.85)";  // capsula
+  }
+
+  // -------- GUARDIAN: Neutrófilo de refuerzo ------------------------------
+  var GUARDIAN_INTERVAL = 28;     // s entre apariciones
+  var GUARDIAN_MAX = 2;           // vivos a la vez
+  var GUARDIAN_HP = 80;
+  var GUARDIAN_BITE_DMG = 30;
+  var GUARDIAN_BITE_CD = 0.8;
+  var GUARDIAN_BITE_RANGE = 30;   // px diseño (* U)
+  var GUARDIAN_SPEED = 70;        // px diseño/s (* U)
+  var GUARDIAN_CRIT = 0.30;       // huye al 30% de vida
+
+  function spawnGuardian() {
+    if (!PATH.confluence) return;
+    var fromLeft = Math.random() < 0.5;
+    var x = fromLeft ? FIELD_LEFT - 20 * U : FIELD_RIGHT + 20 * U;
+    var y = FIELD_TOP + FIELD_H * (0.35 + Math.random() * 0.4);
+    state.guardians.push({
+      x: x, y: y, vx: 0, vy: 0,
+      hp: GUARDIAN_HP, maxHp: GUARDIAN_HP,
+      state: "roaming", alpha: 1, scale: 1,
+      biteCd: 0, wobble: Math.random() * Math.PI * 2,
+      blinkTimer: 0, nextBlink: state.time + 2 + Math.random() * 3,
+      tearTimer: 0, hitFlash: 0, attackAnim: 0
+    });
+    showMsg("¡Neutrófilo al rescate!");
+  }
+
+  function updateGuardians(dt) {
+    // Aparición periódica (tras oleada 2).
+    state.guardianTimer -= dt;
+    if (state.guardianTimer <= 0) {
+      state.guardianTimer = GUARDIAN_INTERVAL;
+      if (state.waveIdx >= 2 && state.guardians.length < GUARDIAN_MAX) spawnGuardian();
+    }
+    var speed = GUARDIAN_SPEED * U;
+    for (var i = 0; i < state.guardians.length; i++) {
+      var g = state.guardians[i];
+      g.wobble += dt * 5;
+      if (g.biteCd > 0) g.biteCd -= dt;
+      if (g.hitFlash > 0) g.hitFlash -= dt;
+      if (g.attackAnim > 0) g.attackAnim -= dt;
+      if (g.blinkTimer > 0) g.blinkTimer -= dt;
+      else if (state.time >= g.nextBlink) { g.blinkTimer = 0.1; g.nextBlink = state.time + 2 + Math.random() * 3; }
+
+      if (g.state === "fleeing") {
+        // Huye llorando hacia el borde y se desvanece.
+        var fdx = g.targetX - g.x, fdy = g.targetY - g.y;
+        var fd = Math.hypot(fdx, fdy) || 1;
+        g.x += (fdx / fd) * speed * 1.8 * dt;
+        g.y += (fdy / fd) * speed * 1.8 * dt;
+        g.alpha -= dt / 2;
+        g.scale = Math.max(0.4, g.scale - dt * 0.35);
+        g.tearTimer -= dt;
+        if (g.tearTimer <= 0) {
+          g.tearTimer = 0.18;
+          var tang = Math.PI * 0.5 + (Math.random() - 0.5) * 1.2;
+          pushEffect({ kind: "particle", x: g.x, y: g.y + 4 * U,
+            vx: Math.cos(tang) * 30 * U * (Math.random() < 0.5 ? -1 : 1),
+            vy: -Math.abs(Math.sin(tang)) * 40 * U,
+            life: 0.5, max: 0.6, color: "rgba(120, 200, 255, 0.9)" });
+        }
+        if (g.alpha <= 0) { g.dead = true; }
+        continue;
+      }
+
+      // Roaming: recibe daño de gérmenes agresivos cercanos (misma aura).
+      for (var ei = 0; ei < state.enemies.length; ei++) {
+        var en = state.enemies[ei];
+        if (en.dead || !en.def.attack) continue;
+        if (en.state !== "walking" && en.state !== "blocked") continue;
+        if (Math.hypot(en.x - g.x, en.y - g.y) < enemyAuraRadiusPx(en.def)) {
+          g.hp -= en.def.attack * ATTACK_MULT * dt;
+          g.hitFlash = 0.16;
+        }
+      }
+      if (g.hp <= g.maxHp * GUARDIAN_CRIT) {
+        // ¡Pánico! Huye llorando al borde más cercano.
+        g.state = "fleeing";
+        var leftDist = g.x - FIELD_LEFT, rightDist = FIELD_RIGHT - g.x;
+        g.targetX = (leftDist < rightDist) ? FIELD_LEFT - 60 * U : FIELD_RIGHT + 60 * U;
+        g.targetY = g.y - 30 * U;
+        sfx("playerHurt");
+        showMsg("¡El neutrófilo huye llorando!");
+        continue;
+      }
+
+      // Busca el germen "walking" más cercano y se acerca a morderlo.
+      var target = null, bestD = Infinity;
+      for (var ti = 0; ti < state.enemies.length; ti++) {
+        var t = state.enemies[ti];
+        if (t.dead || t.dying || t.absorbing || t.state !== "walking") continue;
+        var d = Math.hypot(t.x - g.x, t.y - g.y);
+        if (d < bestD) { bestD = d; target = t; }
+      }
+      if (target) {
+        var biteR = GUARDIAN_BITE_RANGE * U;
+        if (bestD > biteR) {
+          var dx = target.x - g.x, dy = target.y - g.y, dd = Math.hypot(dx, dy) || 1;
+          g.x += (dx / dd) * speed * dt;
+          g.y += (dy / dd) * speed * dt;
+        } else if (g.biteCd <= 0) {
+          damageEnemy(target, GUARDIAN_BITE_DMG, "neutrofilo");
+          g.biteCd = GUARDIAN_BITE_CD;
+          g.attackAnim = 0.2;
+          pushEffect({ kind: "melee", x1: g.x, y1: g.y, x2: target.x, y2: target.y, life: 0.18, max: 0.18, color: "#fff" });
+        }
+      } else {
+        // Sin objetivo: deriva suave hacia el centro del campo.
+        var cx = FIELD_LEFT + FIELD_W * 0.5, cy = FIELD_TOP + FIELD_H * 0.55;
+        g.x += (cx - g.x) * 0.4 * dt;
+        g.y += (cy - g.y) * 0.4 * dt;
+      }
+    }
+    state.guardians = state.guardians.filter(function (g) { return !g.dead; });
+  }
+
+  function drawGuardians() {
+    if (!state.guardians) return;
+    for (var i = 0; i < state.guardians.length; i++) drawGuardian(state.guardians[i]);
+  }
+
+  function drawGuardian(g) {
+    var fleeing = g.state === "fleeing";
+    var R = 17 * U * g.scale * (1 + Math.sin(g.wobble) * 0.04);
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, g.alpha);
+    drawShadow(g.x, g.y + 15 * U * g.scale, 15 * U * g.scale, 4 * U * g.scale);
+    // Glow tenue.
+    var gl = ctx.createRadialGradient(g.x, g.y, R * 0.4, g.x, g.y, R * 1.8);
+    gl.addColorStop(0, "rgba(255, 240, 180, 0.28)");
+    gl.addColorStop(1, "rgba(255, 240, 180, 0)");
+    ctx.fillStyle = gl;
+    ctx.beginPath(); ctx.arc(g.x, g.y, R * 1.8, 0, Math.PI * 2); ctx.fill();
+    ctx.translate(g.x, g.y);
+    // Cuerpo (célula clara).
+    var body = ctx.createRadialGradient(-R * 0.3, -R * 0.35, R * 0.2, 0, 0, R);
+    body.addColorStop(0, "#fffdf5");
+    body.addColorStop(0.7, "#f5e9d8");
+    body.addColorStop(1, "#d9c3a8");
+    ctx.fillStyle = g.hitFlash > 0 ? "#ffd0d0" : body;
+    ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = "#c2a98a"; ctx.lineWidth = 1.4 * U; ctx.stroke();
+    // Núcleo multilobulado (3-4 lóbulos morados) — rasgo del neutrófilo.
+    ctx.fillStyle = "rgba(150, 110, 180, 0.55)";
+    var lobes = 4;
+    for (var l = 0; l < lobes; l++) {
+      var la = l * Math.PI * 2 / lobes + g.wobble * 0.3;
+      var lr = R * 0.32;
+      ctx.beginPath();
+      ctx.arc(Math.cos(la) * R * 0.34, Math.sin(la) * R * 0.34 + R * 0.1, lr, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // Cara.
+    var eyeR = R * 0.26, gap = R * 0.34, faceY = -R * 0.12;
+    if (fleeing) {
+      drawHurtEyes(0, faceY, eyeR, gap);
+      drawAnimeMouth(0, R * 0.42, R * 0.5, R * 0.5, "open");   // boca de llanto
+      // Lagrimones bajo los ojos.
+      ctx.fillStyle = "rgba(120, 200, 255, 0.9)";
+      var ty = faceY + eyeR + (Math.sin(g.wobble * 2) * 0.5 + 0.5) * R * 0.3;
+      ctx.beginPath(); ctx.arc(-gap, ty, R * 0.12, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(gap, ty, R * 0.12, 0, Math.PI * 2); ctx.fill();
+    } else if (g.blinkTimer > 0) {
+      drawClosedEyes(0, faceY, eyeR, gap);
+      drawAnimeMouth(0, R * 0.4, R * 0.4, R * 0.28, "smile");
+    } else {
+      drawAnimeEyes(0, faceY, eyeR, gap, 0, 0, R * 0.12, R * 0.05, "happy");
+      drawAnimeMouth(0, R * 0.4, R * 0.4, R * 0.28, (g.attackAnim > 0) ? "fanged" : "smile");
+    }
+    ctx.restore();
+    // Barra de vida si está dañado.
+    if (g.hp < g.maxHp - 0.5 && g.alpha > 0.2) {
+      var bw = 26 * U, bh = 4 * U, bx = g.x - bw / 2, by = g.y + 18 * U;
+      var ratio = Math.max(0, Math.min(1, g.hp / g.maxHp));
+      ctx.globalAlpha = g.alpha;
+      ctx.fillStyle = "rgba(0,0,0,0.5)"; ctx.fillRect(bx - 1, by - 1, bw + 2, bh + 2);
+      ctx.fillStyle = ratio > 0.5 ? "#5ad15a" : ratio > 0.3 ? "#e8c84a" : "#d9534f";
+      ctx.fillRect(bx, by, bw * ratio, bh);
+    }
+    ctx.globalAlpha = 1;
   }
 
   // -------- PROJECTILES ---------------------------------------------------
@@ -3623,8 +3806,10 @@
       ctx.fillRect(x, ya, w, yb - ya);
     }
     // Dermis: rosa cálido. Hipodermis: amarillo grasa pálido.
-    band(0.15, 0.52, "rgba(228,140,128,0.26)", "rgba(224,128,116,0.16)");
-    band(0.52, 0.82, "rgba(245,222,138,0.30)", "rgba(240,206,120,0.18)");
+    // Latido sutil del entorno (~1 Hz), como un corazón lejano.
+    var hb = 1 + 0.10 * Math.sin((state.time || 0) * 1.1);
+    band(0.15, 0.52, "rgba(228,140,128," + (0.26 * hb).toFixed(3) + ")", "rgba(224,128,116," + (0.16 * hb).toFixed(3) + ")");
+    band(0.52, 0.82, "rgba(245,222,138," + (0.30 * hb).toFixed(3) + ")", "rgba(240,206,120," + (0.18 * hb).toFixed(3) + ")");
     // Etiquetas tenues de capa en el margen izquierdo.
     ctx.save();
     ctx.fillStyle = "rgba(120, 70, 70, 0.30)";
@@ -4330,6 +4515,13 @@
     }
   }
 
+  function colorAlpha(hex, a) {
+    var h = ("" + hex).replace("#", "");
+    if (h.length < 6) return "rgba(255,255,255," + a + ")";
+    var r = parseInt(h.substr(0, 2), 16), g = parseInt(h.substr(2, 2), 16), b = parseInt(h.substr(4, 2), 16);
+    return "rgba(" + r + "," + g + "," + b + "," + a + ")";
+  }
+
   function drawTower(t) {
     var stats = towerStats(t);
     var idle = Math.sin(state.time * Math.PI + (t.idlePhase || 0));
@@ -4339,7 +4531,17 @@
     var blink = (t.blinkTimer || 0) > 0;
     var expression = levelup ? "levelup" : attacking ? "attacking" : "idle";
     if (levelup) pulse *= 1.10;
-    drawShadow(t.x, t.y + 18 * U, 18 * U, 5 * U);
+    drawShadow(t.x, t.y + 18 * U, 19 * U, 6 * U);
+    // Glow/aura pulsante (Parte A: más vivo) — resalta la célula sobre el tejido.
+    var glowP = 0.5 + 0.5 * Math.sin(state.time * 2 + (t.idlePhase || 0));
+    var glowR = 30 * U * pulse;
+    var gg = ctx.createRadialGradient(t.x, t.y, glowR * 0.35, t.x, t.y, glowR);
+    gg.addColorStop(0, colorAlpha(t.def.color, 0.20 + 0.10 * glowP));
+    gg.addColorStop(1, colorAlpha(t.def.color, 0));
+    ctx.fillStyle = gg;
+    ctx.beginPath();
+    ctx.arc(t.x, t.y, glowR, 0, Math.PI * 2);
+    ctx.fill();
     if (t.muzzleFlash > 0) {
       ctx.fillStyle = "rgba(255, 245, 200, 0.45)";
       ctx.beginPath();
@@ -5978,10 +6180,19 @@
     if (!state.ambient || !state.ambient.length) return;
     for (var i = 0; i < state.ambient.length; i++) {
       var a = state.ambient[i];
-      var pulse = 0.7 + 0.3 * Math.sin(a.phase);
-      ctx.fillStyle = "rgba(231, 100, 110, " + (a.alpha * pulse) + ")";
+      var pulse = 0.7 + 0.3 * Math.sin(state.time * 1.5 + a.phase);
+      // Deriva suave (flotan en el plasma) — movimiento lissajous determinista.
+      var fx = a.x + Math.sin(state.time * 0.25 + a.phase) * 12 * U;
+      var fy = a.y + Math.cos(state.time * 0.2 + a.phase * 1.3) * 10 * U;
+      var rr = a.r * (0.85 + 0.25 * Math.sin(state.time * 1.1 + a.phase));
+      ctx.fillStyle = "rgba(231, 120, 130, " + (a.alpha * pulse) + ")";
       ctx.beginPath();
-      ctx.arc(a.x, a.y, a.r, 0, Math.PI * 2);
+      ctx.arc(fx, fy, rr, 0, Math.PI * 2);
+      ctx.fill();
+      // Brillo interior tenue para que se sientan "vivas".
+      ctx.fillStyle = "rgba(255, 235, 235, " + (a.alpha * pulse * 0.5) + ")";
+      ctx.beginPath();
+      ctx.arc(fx - rr * 0.25, fy - rr * 0.25, rr * 0.4, 0, Math.PI * 2);
       ctx.fill();
     }
   }
@@ -7328,6 +7539,7 @@
     }
     // Towers on top of everything in the field.
     for (var i = 0; i < state.towers.length; i++) drawTower(state.towers[i]);
+    drawGuardians();
     drawLymphDrop();
     for (var k = 0; k < state.projectiles.length; k++) drawProjectile(state.projectiles[k]);
     for (var m = 0; m < state.effects.length; m++) drawEffect(state.effects[m]);
@@ -7431,6 +7643,7 @@
       updateWave(dt);
       updateEnemies(dt);
       updateTowers(dt);
+      updateGuardians(dt);
       updateProjectiles(dt);
     }
     if (state.cinematicEnd) updateCinematic(dt);

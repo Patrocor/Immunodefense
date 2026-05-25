@@ -447,7 +447,7 @@
 
   // Build cubic Beziers from anchor points. PATH_GEOMETRIC=true -> segmentos
   // RECTOS (esquinas marcadas en ángulo); si no, Catmull-Rom suavizado.
-  var PATH_GEOMETRIC = true;
+  var PATH_GEOMETRIC = false;   // curvas suaves (orgánicas), no ángulos rígidos
   function buildBezierPath(anchors) {
     var n = anchors.length;
     var beziers = [];

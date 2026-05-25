@@ -360,9 +360,7 @@
   var DRIP_WINDOW = 3.0;
 
   // -------- COMBAT: gérmenes atacan torres --------------------------------
-  var TOWER_EXHAUST_TIME = 5;   // s inactiva tras agotarse, luego revive
-  var TOWER_HEAL_DELAY = 3;     // s sin recibir daño antes de autocurarse
-  var TOWER_HEAL_RATE = 1 / 8;  // fracción de maxHp curada por segundo
+  // Sin recuperación: el daño es permanente; a 0 de vida la torre muere.
   var ATTACK_RADIUS_BASE = 46;  // px diseño; * U en uso
 
   function layoutDrip() {
@@ -1668,12 +1666,12 @@
         var aura = ATTACK_RADIUS_BASE * U;
         for (var ti = 0; ti < state.towers.length; ti++) {
           var tw = state.towers[ti];
-          if (tw.exhaust > 0) continue;
           if (Math.hypot(tw.x - e.x, tw.y - e.y) < aura) {
-            tw.hp -= e.def.attack * dt;
-            tw.hitFlash = 0.14;
-            tw.lastAttackedAt = state.time;
-            e.toxinTimer = 0.2;
+            var admg = e.def.attack * dt;
+            tw.hp -= admg;
+            tw.hitFlash = 0.16;
+            tw.dmgAccum = (tw.dmgAccum || 0) + admg;
+            e.toxinTimer = 0.22;
             e.toxinX = tw.x; e.toxinY = tw.y;
           }
         }
@@ -1701,9 +1699,9 @@
       placedAt: state.time,
       maxHp: def.levels[0].hp,
       hp: def.levels[0].hp,
-      exhaust: 0,
       hitFlash: 0,
-      lastAttackedAt: -999
+      dmgAccum: 0,
+      dmgNumTimer: 0
     });
     pushEffect({ kind: "place", x: x, y: y, life: 0.6, max: 0.6, color: def.color });
     pushEffect({ kind: "placeFlash", x: x, y: y, life: 0.25, max: 0.25 });
@@ -1726,16 +1724,30 @@
       if (t.cooldown > 0) t.cooldown -= dt;
       if (t.muzzleFlash > 0) t.muzzleFlash -= dt;
       if (t.hitFlash > 0) t.hitFlash -= dt;
-      // Combate: agotamiento (vida a 0) -> inactiva, luego revive completa.
-      if (t.exhaust > 0) {
-        t.exhaust -= dt;
-        if (t.exhaust <= 0) { t.exhaust = 0; t.hp = t.maxHp; }
-        continue;  // agotada: no dispara
+      // Número de daño flotante: pop periódico del daño acumulado del aura.
+      if ((t.dmgAccum || 0) > 0) {
+        t.dmgNumTimer = (t.dmgNumTimer || 0) - dt;
+        if (t.dmgNumTimer <= 0) {
+          pushDamageNumber(t.x + (Math.random() - 0.5) * 10 * U, t.y - 24 * U,
+            "-" + Math.max(1, Math.round(t.dmgAccum)), "#ff5252");
+          t.dmgAccum = 0;
+          t.dmgNumTimer = 0.4;
+        }
       }
-      if (t.hp <= 0) { t.exhaust = TOWER_EXHAUST_TIME; continue; }
-      // Autocuración cuando no la atacan hace un rato.
-      if (t.hp < t.maxHp && (state.time - (t.lastAttackedAt || -999)) > TOWER_HEAL_DELAY) {
-        t.hp = Math.min(t.maxHp, t.hp + t.maxHp * TOWER_HEAL_RATE * dt);
+      // Sin recuperación: a 0 de vida la torre muere y desaparece.
+      if (t.hp <= 0) {
+        for (var pk = 0; pk < 12; pk++) {
+          var pa = Math.random() * Math.PI * 2, ps = (20 + Math.random() * 40) * U;
+          pushEffect({ kind: "particle", x: t.x, y: t.y,
+            vx: Math.cos(pa) * ps, vy: Math.sin(pa) * ps - 10 * U,
+            life: 0.5, max: 0.6, color: t.def.color });
+        }
+        pushEffect({ kind: "placeFlash", x: t.x, y: t.y, life: 0.3, max: 0.3 });
+        showMsg(t.def.name + " destruido por la infección");
+        sfx("sell");
+        if (state.selectedTower === t) { state.selectedTower = null; clearRangeHint(); }
+        state.towers.splice(i, 1); i--;
+        continue;
       }
       if (t.cooldown > 0) continue;
       var stats = towerStats(t);
@@ -3429,10 +3441,11 @@
     state.atp -= cost;
     t.level += 1;
     t.levelupAnim = 0.5;
-    // Mejorar sube la vida máxima y cura por completo (refuerzo inmune).
-    t.maxHp = t.def.levels[t.level].hp;
-    t.hp = t.maxHp;
-    t.exhaust = 0;
+    // Mejorar sube la vida máxima y suma esa diferencia a la vida actual,
+    // pero NO cura el daño ya recibido (sin recuperación).
+    var newMax = t.def.levels[t.level].hp;
+    t.hp += (newMax - t.maxHp);
+    t.maxHp = newMax;
     sfx("upgrade");
     showMsg(t.def.name + " mejorado a Nv " + (t.level + 1));
   }
@@ -4326,9 +4339,13 @@
       ctx.arc(t.x, t.y, 28 * U, 0, Math.PI * 2);
       ctx.fill();
     }
-    var exhausted = (t.exhaust || 0) > 0;
+    // Sacudida cuando la golpean (feedback de daño).
+    var hf = (t.hitFlash || 0);
+    var shakeAmp = hf > 0 ? (hf / 0.16) * 3 * U : 0;
     ctx.save();
-    if (exhausted) ctx.globalAlpha = 0.38;   // agotada: apagada
+    if (shakeAmp > 0) {
+      ctx.translate((Math.random() - 0.5) * shakeAmp, (Math.random() - 0.5) * shakeAmp);
+    }
     if (t.def.id === "macrofago") drawMacrofago(t, pulse, expression, blink);
     else if (t.def.id === "linfocitoB") drawLinfocitoB(t, pulse, expression, blink);
     else drawLinfocitoT(t, pulse, expression, blink);
@@ -4353,34 +4370,24 @@
       ctx.fill();
     }
     ctx.restore();
-    // --- Combate: destello de daño, barra de vida, agotamiento ---
-    if ((t.hitFlash || 0) > 0) {
-      ctx.fillStyle = "rgba(220, 50, 50, " + (0.5 * (t.hitFlash / 0.14)) + ")";
+    // --- Combate: destello de daño rojo al recibir golpe ---
+    if (hf > 0) {
+      ctx.fillStyle = "rgba(230, 40, 40, " + (0.55 * (hf / 0.16)) + ")";
       ctx.beginPath();
-      ctx.arc(t.x, t.y, 22 * U, 0, Math.PI * 2);
+      ctx.arc(t.x, t.y, 23 * U, 0, Math.PI * 2);
       ctx.fill();
     }
-    if (t.hp < t.maxHp - 0.5 || exhausted) {
-      var bw = 30 * U, bh = 4 * U;
-      var bx = t.x - bw / 2, by = t.y + 22 * U;
-      var ratio = Math.max(0, Math.min(1, t.hp / t.maxHp));
-      ctx.fillStyle = "rgba(0,0,0,0.45)";
-      ctx.fillRect(bx - 1, by - 1, bw + 2, bh + 2);
-      var hpCol = exhausted ? "#888" : ratio > 0.5 ? "#5ad15a" : ratio > 0.25 ? "#e8c84a" : "#d9534f";
-      ctx.fillStyle = hpCol;
-      ctx.fillRect(bx, by, bw * ratio, bh);
-    }
-    if (exhausted) {
-      // Indicador de recuperación: anillo punteado pulsante.
-      var er = 24 * U + Math.sin(state.time * 6) * 2 * U;
-      ctx.strokeStyle = "rgba(255,255,255,0.5)";
-      ctx.lineWidth = 1.5;
-      ctx.setLineDash([4 * U, 4 * U]);
-      ctx.beginPath();
-      ctx.arc(t.x, t.y, er, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.setLineDash([]);
-    }
+    // Barra de vida SIEMPRE visible (el daño es permanente y debe verse).
+    var bw = 32 * U, bh = 5 * U;
+    var bx = t.x - bw / 2, by = t.y + 23 * U;
+    var ratio = Math.max(0, Math.min(1, t.hp / t.maxHp));
+    ctx.fillStyle = "rgba(0,0,0,0.5)";
+    ctx.fillRect(bx - 1, by - 1, bw + 2, bh + 2);
+    ctx.fillStyle = "rgba(255,255,255,0.12)";
+    ctx.fillRect(bx, by, bw, bh);
+    var hpCol = ratio > 0.5 ? "#5ad15a" : ratio > 0.25 ? "#e8c84a" : "#d9534f";
+    ctx.fillStyle = hpCol;
+    ctx.fillRect(bx, by, bw * ratio, bh);
   }
 
   function drawMacrofago(t, pulse, expression, blink) {
@@ -4535,23 +4542,34 @@
   function drawEnemy(e) {
     var def = e.def;
     var rad = def.radius * U;
-    // Toxina: tendón rojizo del germen a la torre que está dañando.
+    // Toxina: chorro verdoso del germen a la torre que está dañando (ataque).
     if ((e.toxinTimer || 0) > 0 && e.toxinX != null) {
-      var ta = e.toxinTimer / 0.2;
+      var ta = e.toxinTimer / 0.22;
       ctx.save();
-      ctx.strokeStyle = "rgba(120, 200, 80, " + (0.55 * ta) + ")";
-      ctx.lineWidth = 2.5 * U;
       ctx.lineCap = "round";
-      var mx = (e.x + e.toxinX) / 2 + (Math.random() - 0.5) * 6 * U;
-      var my = (e.y + e.toxinY) / 2 + (Math.random() - 0.5) * 6 * U;
+      // Halo ancho tenue + núcleo brillante para que el ataque se note.
+      ctx.strokeStyle = "rgba(120, 210, 70, " + (0.30 * ta) + ")";
+      ctx.lineWidth = 6 * U;
+      var mx = (e.x + e.toxinX) / 2 + (Math.random() - 0.5) * 8 * U;
+      var my = (e.y + e.toxinY) / 2 + (Math.random() - 0.5) * 8 * U;
       ctx.beginPath();
       ctx.moveTo(e.x, e.y);
       ctx.quadraticCurveTo(mx, my, e.toxinX, e.toxinY);
       ctx.stroke();
-      ctx.fillStyle = "rgba(140, 210, 90, " + (0.5 * ta) + ")";
+      ctx.strokeStyle = "rgba(180, 240, 110, " + (0.85 * ta) + ")";
+      ctx.lineWidth = 2.5 * U;
       ctx.beginPath();
-      ctx.arc(e.toxinX, e.toxinY, 4 * U, 0, Math.PI * 2);
-      ctx.fill();
+      ctx.moveTo(e.x, e.y);
+      ctx.quadraticCurveTo(mx, my, e.toxinX, e.toxinY);
+      ctx.stroke();
+      // Salpicaduras tóxicas en el punto de impacto.
+      for (var sp = 0; sp < 3; sp++) {
+        var spa = Math.random() * Math.PI * 2, spr = Math.random() * 7 * U;
+        ctx.fillStyle = "rgba(150, 230, 90, " + (0.7 * ta) + ")";
+        ctx.beginPath();
+        ctx.arc(e.toxinX + Math.cos(spa) * spr, e.toxinY + Math.sin(spa) * spr, 2.2 * U, 0, Math.PI * 2);
+        ctx.fill();
+      }
       ctx.restore();
     }
     var expression = e.dying ? "dying"

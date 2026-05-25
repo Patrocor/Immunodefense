@@ -339,9 +339,10 @@
     // que el campo use TODO el alto. Portrait: dock angosto (~27% del ancho);
     // landscape: dock fijo cómodo. Incluye safeRight para no quedar bajo el
     // notch/esquina redondeada del lado derecho.
+    // Dock ~13% más compacto que antes (cartas y cajones más chicos).
     SIDE_INNER = isPortrait
-      ? Math.round(Math.max(92, Math.min(116, VW * 0.27)))
-      : Math.round(Math.max(108, Math.min(150, VW * 0.16)));
+      ? Math.round(Math.max(80, Math.min(101, VW * 0.235)))
+      : Math.round(Math.max(94, Math.min(131, VW * 0.139)));
     SIDE_W = SIDE_INNER + safeRight;
     HUD_H = Math.round(hudBase + safeTop);
     PANEL_H = 0;  // legacy: ya no hay franja inferior
@@ -395,10 +396,10 @@
   }
 
   function layoutDrip() {
-    // Nódulo linfático: en el hueco entre el barrido 1 (y~0.30) y el 2 (y~0.50)
-    // de la serpentina, centrado y lejos de los conectores verticales.
-    DRIP.x = FIELD_LEFT + FIELD_W * 0.50;
-    DRIP.y = FIELD_TOP + FIELD_H * 0.38;
+    // Nódulo linfático: a la derecha, entre epidermis y dermis (~y0.17),
+    // casi junto a los cajones de los personajes (borde derecho del campo).
+    DRIP.x = FIELD_LEFT + FIELD_W * 0.84;
+    DRIP.y = FIELD_TOP + FIELD_H * 0.17;
     DRIP.w = 44 * U;   // long axis radius (reducido para no invadir el camino)
     DRIP.h = 27 * U;   // short axis radius
     DRIP.mouthY = DRIP.y + DRIP.h * 0.85;
@@ -2153,10 +2154,11 @@
   // -------- MEDICAMENTO ---------------------------------------------------
   function layoutMed() {
     // Sanguíneo: barra HORIZONTAL de 4 bloques, debajo del vaso (zona inferior).
-    var bw = Math.min(FIELD_W * 0.5, 220);
-    var bh = Math.max(14, 16 * U);
+    // Más grande para el tacto con el dedo.
+    var bw = Math.min(FIELD_W * 0.66, 280);
+    var bh = Math.max(34, 38 * U);
     var bx = FIELD_LEFT + FIELD_W * 0.50 - bw / 2;   // centrado bajo el vaso
-    var by = FIELD_TOP + FIELD_H * 0.95 - bh;
+    var by = FIELD_BOTTOM - bh - 8 * U;              // pegado al borde inferior
     UI.medVial = { x: bx, y: by, w: bw, h: bh };
     // Tópico: bloque pequeño en la esquina superior izquierda.
     var tw = Math.max(20, 24 * U), th = Math.max(34, 42 * U);

@@ -386,27 +386,30 @@
   }
 
   function layoutDrip() {
-    // Nódulo linfático: en el corredor superior de la espiral (entre el brazo
-    // externo y~0.10 y el medio y~0.28), centrado y lejos de los brazos
-    // verticales, para no superponerse con el camino.
-    DRIP.x = FIELD_LEFT + FIELD_W * 0.50;
-    DRIP.y = FIELD_TOP + FIELD_H * 0.19;
+    // Nódulo linfático: en el espacio interior derecho de la espiral (bajo el
+    // brazo interno-superior y~0.30, a la derecha del interno-izq x~0.30),
+    // lejos del camino.
+    DRIP.x = FIELD_LEFT + FIELD_W * 0.65;
+    DRIP.y = FIELD_TOP + FIELD_H * 0.48;
     DRIP.w = 44 * U;   // long axis radius (reducido para no invadir el camino)
     DRIP.h = 27 * U;   // short axis radius
     DRIP.mouthY = DRIP.y + DRIP.h * 0.85;
   }
 
-  // -------- PATH (1 entrada -> espiral rectangular -> vaso al centro) ----
-  // Una sola herida/entrada en el borde inferior-izquierdo. La confluencia
-  // coincide con la herida (rama degenerada): el recorrido es la espiral.
+  // -------- PATH (2 entradas arriba -> espiral rectangular -> vaso abajo) -
+  // Dos heridas en las esquinas superiores. La 2ª (índice 1) se abre cuando
+  // la infestación llega al 40%. Ambas confluyen y recorren la misma espiral
+  // que desciende hasta el vaso, ubicado en el punto más bajo del trazado.
   var WOUND_POS_PORTRAIT = [
-    { x: 0.14, y: 0.90 }
+    { x: 0.16, y: 0.10 },   // entrada 1 (sup-izq), activa desde el inicio
+    { x: 0.84, y: 0.10 }    // entrada 2 (sup-der), se abre al 40% de infestación
   ];
   var WOUND_POS_LANDSCAPE = [
-    { x: 0.14, y: 0.90 }
+    { x: 0.16, y: 0.10 },
+    { x: 0.84, y: 0.10 }
   ];
-  var CONFLUENCE_POS = { x: 0.14, y: 0.90 };
-  var VESSEL_POS = { x: 0.58, y: 0.46 };   // vaso en el centro de la espiral
+  var CONFLUENCE_POS = { x: 0.50, y: 0.16 };
+  var VESSEL_POS = { x: 0.62, y: 0.74 };   // punto más bajo del trazado
   // El germen recorre casi todo el camino antes de ser absorbido por el vaso.
   // (Antes 0.88: con la serpentina nueva, más larga, eso lo hacía entrar
   // saltándose ~12-15% del recorrido.) 0.97 deja solo un breve floreo final.
@@ -492,9 +495,10 @@
     PATH.exit = vesselPx;
     // Wounds in pixels with phase offsets so palpitation doesn't sync.
     PATH.wounds = [];
+    var secondOpen = (typeof state !== "undefined" && state && state.secondEntryOpen);
     for (var w = 0; w < woundsNorm.length; w++) {
       var wp = toPx(woundsNorm[w]);
-      PATH.wounds.push({ x: wp.x, y: wp.y, phase: w * 0.4 });
+      PATH.wounds.push({ x: wp.x, y: wp.y, phase: w * 0.4, active: (w === 0) || secondOpen });
     }
     // Una rama por herida (ahora 1). Con confluencia = herida, la rama es
     // degenerada (longitud ~0): el recorrido real es la espiral del main.
@@ -512,17 +516,14 @@
     // centro. Brazos a 0.14/0.86 (externos), 0.30/0.70 (medios), 0.46 (interno);
     // los huecos (~0.16-0.18) dejan corredores para colocar torres.
     var mainAnchorsNorm = [
-      { x: CONFLUENCE_POS.x, y: CONFLUENCE_POS.y }, // 0.14,0.90 entrada
-      { x: 0.14, y: 0.10 },                          // sube borde izquierdo
-      { x: 0.86, y: 0.10 },                          // cruza arriba
-      { x: 0.86, y: 0.90 },                          // baja borde derecho
-      { x: 0.30, y: 0.90 },                          // cruza abajo (inset)
-      { x: 0.30, y: 0.28 },                          // sube interno-izq
-      { x: 0.70, y: 0.28 },                          // cruza interno-arriba
-      { x: 0.70, y: 0.72 },                          // baja interno-der
-      { x: 0.46, y: 0.72 },                          // cruza interno-abajo
-      { x: 0.46, y: 0.46 },                          // sube al núcleo
-      { x: VESSEL_POS.x, y: VESSEL_POS.y }           // 0.58,0.46 vaso (centro)
+      { x: CONFLUENCE_POS.x, y: CONFLUENCE_POS.y }, // 0.50,0.16 confluencia (arriba)
+      { x: 0.14, y: 0.16 },                          // a la izquierda
+      { x: 0.14, y: 0.90 },                          // baja borde izquierdo
+      { x: 0.86, y: 0.90 },                          // cruza abajo
+      { x: 0.86, y: 0.30 },                          // sube borde derecho
+      { x: 0.30, y: 0.30 },                          // cruza interno-arriba
+      { x: 0.30, y: 0.74 },                          // baja interno-izq
+      { x: VESSEL_POS.x, y: VESSEL_POS.y }           // 0.62,0.74 vaso (abajo)
     ];
     var mainAnchorsPx = mainAnchorsNorm.map(toPx);
     PATH.main = buildBezierPath(mainAnchorsPx);
@@ -1091,6 +1092,7 @@
       medChoosing: false,
       medApplying: false,
       gasFx: null,
+      secondEntryOpen: false,
       projectiles: [],
       effects: [],
       damageNumbers: [],
@@ -1331,8 +1333,11 @@
     var diff = getDifficulty();
     var hp = def.hp * hpMult * diff.hp;
     if (def.isBoss) state.bossActive = null;  // reset; will be set after push
-    // Pick one of the 3 wounds at random.
-    var heridaIdx = Math.floor(Math.random() * (PATH.wounds.length || 1));
+    // Elegir una herida ACTIVA al azar (la 2ª recién cuenta tras abrirse).
+    var activeIdx = [];
+    for (var wi = 0; wi < PATH.wounds.length; wi++) if (PATH.wounds[wi].active) activeIdx.push(wi);
+    if (!activeIdx.length) activeIdx = [0];
+    var heridaIdx = activeIdx[Math.floor(Math.random() * activeIdx.length)];
     var wound = PATH.wounds[heridaIdx] || { x: VW * 0.5, y: FIELD_TOP + 20 * U };
     // Initial OUTSIDE state: hover above the skin band briefly.
     var outX = wound.x + (Math.random() - 0.5) * 80 * U;
@@ -1421,8 +1426,24 @@
     }
   }
 
+  // Segunda entrada: se abre al alcanzar el 40% de infestación.
+  function updateSecondEntry() {
+    if (state.secondEntryOpen) return;
+    if (state.viralLoad / Math.max(1, state.viralThreshold) < 0.40) return;
+    state.secondEntryOpen = true;
+    if (PATH.wounds[1]) {
+      PATH.wounds[1].active = true;
+      PATH.wounds[1].openAnim = 0.8;   // estallido de apertura
+      spawnEffect("escape", PATH.wounds[1].x, PATH.wounds[1].y);
+    }
+    triggerShake(0.4, 6);
+    sfx("playerHurt");
+    showMsg("¡Se abrió una SEGUNDA herida!");
+  }
+
   // Auto-spawn ticker — every frame outside an active wave, drain countdown.
   function updateWaveScheduler(dt) {
+    updateSecondEntry();
     if (state.cinematicEnd || state.confirmRestart || state.showIntro) return;
     if (state.waveActive) return;
     if (state.nextWaveAt > 0) {
@@ -4329,15 +4350,41 @@
     ctx.stroke();
   }
 
+  function drawCrackingWound(x, y, p) {
+    // Barrera intacta que se agrieta a medida que p (0->1) sube hacia el 40%.
+    ctx.save();
+    var R = 15 * U;
+    ctx.fillStyle = "rgba(185, 125, 112, 0.55)";
+    ctx.beginPath(); ctx.arc(x, y, R, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = "rgba(150, 30, 30, " + (0.35 + 0.5 * p) + ")";
+    ctx.lineWidth = (1 + 2 * p) * U;
+    ctx.lineCap = "round";
+    for (var i = 0; i < 5; i++) {
+      var a = i * Math.PI * 2 / 5 + 0.3;
+      var len = R * (0.35 + 0.75 * p);
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + Math.cos(a) * len, y + Math.sin(a) * len);
+      ctx.stroke();
+    }
+    ctx.fillStyle = "rgba(205, 45, 45, " + (0.12 + 0.42 * p) + ")";
+    ctx.beginPath(); ctx.arc(x, y, R * 0.4 * (0.5 + p), 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  }
+
   function drawWound() {
     if (!PATH.wounds || !PATH.wounds.length) return;
+    var crackP = Math.min(1, (state.viralLoad / Math.max(1, state.viralThreshold)) / 0.40);
     for (var w = 0; w < PATH.wounds.length; w++) {
       var wd = PATH.wounds[w];
-      drawSingleWound(wd.x, wd.y, wd.phase || 0);
+      if (wd.active) drawSingleWound(wd.x, wd.y, wd.phase || 0);
+      else drawCrackingWound(wd.x, wd.y, crackP);
     }
-    // Occasional escaping droplet from a random wound.
+    // Occasional escaping droplet from a random ACTIVE wound.
     if (Math.random() < 0.05 && WOUND_DROPLETS.length < 8) {
-      var pickIdx = Math.floor(Math.random() * PATH.wounds.length);
+      var actIdx = [];
+      for (var ai = 0; ai < PATH.wounds.length; ai++) if (PATH.wounds[ai].active) actIdx.push(ai);
+      var pickIdx = actIdx.length ? actIdx[Math.floor(Math.random() * actIdx.length)] : 0;
       var pick = PATH.wounds[pickIdx];
       var ang = Math.random() * Math.PI * 2;
       WOUND_DROPLETS.push({

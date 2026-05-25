@@ -360,16 +360,13 @@
   var DRIP_WINDOW = 3.0;
 
   function layoutDrip() {
-    // Lymph node bean position: well inside the body zone, away from path/wounds.
-    if (isPortrait) {
-      DRIP.x = FIELD_LEFT + FIELD_W * 0.12;
-      DRIP.y = FIELD_TOP + FIELD_H * 0.30;
-    } else {
-      DRIP.x = FIELD_LEFT + FIELD_W * 0.12;
-      DRIP.y = FIELD_TOP + FIELD_H * 0.30;
-    }
-    DRIP.w = 56 * U;   // long axis radius
-    DRIP.h = 34 * U;   // short axis radius
+    // Nódulo linfático: alojado en el hueco libre entre el barrido 1 (y~0.32)
+    // y el barrido 2 (y~0.54) de la serpentina, pegado al margen izquierdo
+    // para no superponerse con ningún tramo del camino.
+    DRIP.x = FIELD_LEFT + FIELD_W * 0.10;
+    DRIP.y = FIELD_TOP + FIELD_H * 0.44;
+    DRIP.w = 44 * U;   // long axis radius (reducido para no invadir el camino)
+    DRIP.h = 27 * U;   // short axis radius
     DRIP.mouthY = DRIP.y + DRIP.h * 0.85;
   }
 

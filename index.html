@@ -478,16 +478,21 @@
       ];
       PATH.branches.push(buildBezierPath(anchors));
     }
-    // Fase 1 piel: serpentina de 3 barridos horizontales que descienden por
-    // las capas (epidermis->dermis->hipodermis->vaso). Extremos en 0.16/0.84
-    // dejan canales verticales libres en los márgenes para colocar torres.
+    // Fase 1 piel: serpentina de 3 barridos HORIZONTALES planos que bajan por
+    // las capas (epidermis->dermis->hipodermis->vaso). Pares de anclas a la
+    // misma altura producen tramos rectos; las bajadas son los conectores
+    // verticales en los extremos. Esto da el aspecto de "circuito serpenteado"
+    // (no una S diagonal). Extremos 0.16/0.84: margenes libres para torres.
+    var L = 0.16, R = 0.84;
     var mainAnchorsNorm = [
-      { x: CONFLUENCE_POS.x, y: CONFLUENCE_POS.y }, // y=0.22
-      { x: 0.16, y: 0.32 },
-      { x: 0.84, y: 0.44 },                          // barrido 1 (izq->der)
-      { x: 0.16, y: 0.58 },                          // barrido 2 (der->izq)
-      { x: 0.84, y: 0.70 },                          // barrido 3 (izq->der)
-      { x: VESSEL_POS.x, y: VESSEL_POS.y }          // y=0.88
+      { x: CONFLUENCE_POS.x, y: CONFLUENCE_POS.y }, // y=0.22 confluencia
+      { x: L, y: 0.30 },                             // baja a la izquierda
+      { x: R, y: 0.34 },                             // ── barrido 1 (izq->der)
+      { x: R, y: 0.50 },                             // baja por la derecha
+      { x: L, y: 0.54 },                             // ── barrido 2 (der->izq)
+      { x: L, y: 0.70 },                             // baja por la izquierda
+      { x: R, y: 0.74 },                             // ── barrido 3 (izq->der)
+      { x: VESSEL_POS.x, y: VESSEL_POS.y }          // y=0.88 vaso
     ];
     var mainAnchorsPx = mainAnchorsNorm.map(toPx);
     PATH.main = buildBezierPath(mainAnchorsPx);

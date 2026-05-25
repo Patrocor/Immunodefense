@@ -9,7 +9,7 @@ Prototipo jugable en HTML5 + Canvas 2D. Vanilla JS, sin dependencias, un
 
 ## Jugar
 
-- Online (GitHub Pages): https://patrocor.github.io/App-recetas/
+- Online (GitHub Pages): https://patrocor.github.io/Immunodefense/
 - Local: clona el repo y abre `index.html` directamente en el navegador.
 
 ## Cómo jugar

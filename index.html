@@ -361,7 +361,8 @@
 
   // -------- COMBAT: gérmenes atacan torres --------------------------------
   // Sin recuperación: el daño es permanente; a 0 de vida la torre muere.
-  var ATTACK_RADIUS_BASE = 46;  // px diseño; * U en uso
+  var ATTACK_RADIUS_BASE = 46;  // px diseño; * U en uso (radio del aura/"radar")
+  var ATTACK_MULT = 1.15;       // +15% al daño de todos los gérmenes
 
   function layoutDrip() {
     // Nódulo linfático: alojado en el hueco libre entre el barrido 1 (y~0.32)
@@ -1667,7 +1668,7 @@
         for (var ti = 0; ti < state.towers.length; ti++) {
           var tw = state.towers[ti];
           if (Math.hypot(tw.x - e.x, tw.y - e.y) < aura) {
-            var admg = e.def.attack * dt;
+            var admg = e.def.attack * ATTACK_MULT * dt;
             tw.hp -= admg;
             tw.hitFlash = 0.16;
             tw.dmgAccum = (tw.dmgAccum || 0) + admg;
@@ -4542,6 +4543,27 @@
   function drawEnemy(e) {
     var def = e.def;
     var rad = def.radius * U;
+    // "Radar" de daño: anillo del radio de aura alrededor de los gérmenes que
+    // atacan mientras transitan, para que se vea su zona de daño.
+    if (def.attack > 0 && !e.dying && !e.absorbing &&
+        (e.state === "walking" || e.state === "blocked")) {
+      var auraR = ATTACK_RADIUS_BASE * U;
+      var rp = 0.5 + 0.5 * Math.sin(state.time * 3.5 + (e.wobble || 0));
+      ctx.save();
+      // Disco tenue + anillo pulsante (zona de daño).
+      ctx.fillStyle = "rgba(150, 220, 90, " + (0.05 + 0.05 * rp) + ")";
+      ctx.beginPath();
+      ctx.arc(e.x, e.y, auraR, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "rgba(150, 220, 90, " + (0.18 + 0.16 * rp) + ")";
+      ctx.lineWidth = 1.4 * U;
+      ctx.setLineDash([5 * U, 5 * U]);
+      ctx.beginPath();
+      ctx.arc(e.x, e.y, auraR, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.restore();
+    }
     // Toxina: chorro verdoso del germen a la torre que está dañando (ataque).
     if ((e.toxinTimer || 0) > 0 && e.toxinX != null) {
       var ta = e.toxinTimer / 0.22;

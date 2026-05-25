@@ -276,6 +276,8 @@
   var VW = 0, VH = 0, dpr = 1;
   var safeTop = 0, safeBottom = 0, safeLeft = 0, safeRight = 0;
   var HUD_H = 64, PANEL_H = 150;
+  var SIDE_W = 100;       // dock lateral derecho (incluye safeRight)
+  var SIDE_INNER = 100;   // ancho útil del dock (sin safeRight)
   var FIELD_TOP = 0, FIELD_BOTTOM = 0, FIELD_LEFT = 0, FIELD_RIGHT = 0;
   var FIELD_W = 0, FIELD_H = 0;
   var U = 1; // pixel scale unit (smaller of field width/height vs design 500)
@@ -330,18 +332,20 @@
 
   function layout() {
     var hudBase = Math.max(48, Math.min(72, VH * 0.075));
-    // Sprint 8B: reduce panel height so the field can absorb the previously
-    // wasted strip below it. Portrait drops from 200-250 to 140-170; landscape
-    // from 120-180 to 96-130.
-    var panelBase = isPortrait
-      ? Math.max(140, Math.min(170, VH * 0.22))
-      : Math.max(96, Math.min(130, VH * 0.16));
+    // Dock lateral derecho: las cartas viven en una columna a la derecha para
+    // que el campo use TODO el alto. Portrait: dock angosto (~27% del ancho);
+    // landscape: dock fijo cómodo. Incluye safeRight para no quedar bajo el
+    // notch/esquina redondeada del lado derecho.
+    SIDE_INNER = isPortrait
+      ? Math.round(Math.max(92, Math.min(116, VW * 0.27)))
+      : Math.round(Math.max(108, Math.min(150, VW * 0.16)));
+    SIDE_W = SIDE_INNER + safeRight;
     HUD_H = Math.round(hudBase + safeTop);
-    PANEL_H = Math.round(panelBase + safeBottom);
+    PANEL_H = 0;  // legacy: ya no hay franja inferior
     FIELD_TOP = HUD_H;
-    FIELD_BOTTOM = VH - PANEL_H;
+    FIELD_BOTTOM = VH - safeBottom;
     FIELD_LEFT = safeLeft;
-    FIELD_RIGHT = VW - safeRight;
+    FIELD_RIGHT = VW - SIDE_W;
     FIELD_W = FIELD_RIGHT - FIELD_LEFT;
     FIELD_H = FIELD_BOTTOM - FIELD_TOP;
     U = Math.max(0.4, Math.min(FIELD_W, FIELD_H) / 500);
@@ -1140,86 +1144,60 @@
     var nwW = Math.min(220, Math.max(110, nwMaxByStats));
     UI.nextWaveBtn = { x: UI.muteBtn.x - nwW - 8, y: topY, w: nwW, h: btnH };
 
-    var panelTop = VH - PANEL_H + 8;
-    var panelInner = PANEL_H - 16 - safeBottom;
-    var panelLeft = safeLeft + 8;
-    var panelRight = VW - safeRight - 8;
-    var panelW = panelRight - panelLeft;
+    // Dock lateral derecho. UI.cards guarda posiciones en CONTENT-SPACE
+    // vertical (contentY); el render aplica scroll vertical y clipping, y el
+    // hit-test traduce con panelScroll. Con 3 cartas que caben, maxScroll=0.
+    var dockLeft = FIELD_RIGHT;
+    var dockPad = 8;
+    var contentX = dockLeft + dockPad;
+    var contentRight = VW - safeRight - dockPad;
+    var contentW = Math.max(60, contentRight - contentX);
+    var dockTop = FIELD_TOP + dockPad;
+    var dockBottom = VH - safeBottom - dockPad;
 
-    // Sprint 8B-Polish-3B: cards 90px ancho en una fila scrolleable
-    // horizontal. UI.cards guarda posiciones en CONTENT-SPACE (sin scroll).
-    // El render aplica scroll y clipping; el hit-test traduce con panelScroll.
-    var cardW = 90;
     var cardGap = 8;
     var cardCount = 3;  // future-proof: agregar más cards solo extiende el array
-    if (isPortrait) {
-      var cardH = Math.min(Math.max(panelInner * 0.55, 84), 104);
-      UI.cards = [];
-      for (var i = 0; i < cardCount; i++) {
-        UI.cards.push({
-          contentX: i * (cardW + cardGap),
-          y: panelTop,
-          w: cardW,
-          h: cardH
-        });
-      }
-      // Sprint 8B-Polish-3B-fix: limitar el viewport del strip a ~2.7 cards
-      // para que SIEMPRE haya scroll horizontal demostrable, incluso con
-      // las 3 cards actuales. La 3ra asoma por la derecha invitando a swipe.
-      var maxStripPortrait = Math.round(2.7 * cardW + 2 * cardGap);  // ~259
-      UI.cardStrip = {
-        x: panelLeft, y: panelTop,
-        w: Math.min(panelW, maxStripPortrait), h: cardH,
-        contentW: cardCount * cardW + (cardCount - 1) * cardGap
-      };
-      var infoY = panelTop + cardH + 6;
-      var infoH = panelInner - cardH - 6;
-      UI.infoX = panelLeft;
-      UI.infoY = infoY;
-      UI.infoW = panelW;
-      UI.infoH = infoH;
-      var actionH = Math.min(38, Math.max(32, infoH * 0.55));
-      var actionY = infoY + infoH - actionH;
-      var deselectW = Math.min(96, panelW * 0.30);
-      UI.deselectBtn = { x: panelLeft + panelW - deselectW, y: infoY, w: deselectW, h: 22 };
-      var sellW = Math.max(96, panelW * 0.42);
-      UI.sellBtn = { x: panelLeft, y: actionY, w: sellW, h: actionH };
-      UI.upgradeBtn = { x: panelLeft + sellW + 8, y: actionY, w: panelW - sellW - 8, h: actionH };
-    } else {
-      var cardHL = Math.max(96, Math.min(panelInner, 116));
-      var stripWL = Math.min(panelW * 0.55, cardCount * cardW + (cardCount - 1) * cardGap + 24);
-      UI.cards = [];
-      for (var k = 0; k < cardCount; k++) {
-        UI.cards.push({
-          contentX: k * (cardW + cardGap),
-          y: panelTop,
-          w: cardW,
-          h: cardHL
-        });
-      }
-      // Sprint 8B-Polish-3B-fix: en landscape también limitar a ~2.7 cards
-      // por ahora (3 cards existentes). En el futuro, cuando haya más,
-      // simplemente extender stripWL al panelW * 0.55 actual.
-      var maxStripLandscape = Math.round(2.7 * cardW + 2 * cardGap);  // ~259
-      UI.cardStrip = {
-        x: panelLeft, y: panelTop,
-        w: Math.min(stripWL, maxStripLandscape), h: cardHL,
-        contentW: cardCount * cardW + (cardCount - 1) * cardGap
-      };
-      var infoXL = panelLeft + stripWL + 8;
-      var infoWL = Math.max(140, panelRight - infoXL);
-      UI.infoX = infoXL;
-      UI.infoW = infoWL;
-      UI.infoY = panelTop;
-      UI.infoH = cardHL;
-      var deselectWL = Math.min(108, infoWL * 0.45);
-      UI.deselectBtn = { x: infoXL + infoWL - deselectWL, y: panelTop, w: deselectWL, h: 26 };
-      var sellWL = Math.min(150, Math.max(80, infoWL * 0.42));
-      UI.sellBtn = { x: infoXL, y: panelTop + cardHL - 36, w: sellWL, h: 36 };
-      UI.upgradeBtn = { x: infoXL + sellWL + 8, y: panelTop + cardHL - 36, w: infoWL - sellWL - 8, h: 36 };
+    var cardW = contentW;
+    var dockH = dockBottom - dockTop;
+
+    // Zona info/acciones anclada al fondo: tamaño por contenido (stats + 2
+    // botones), nunca más de ~52% del dock para que las cartas tengan lugar.
+    var btnH = Math.round(Math.max(32, Math.min(42, contentW * 0.36)));
+    var infoH = Math.min(96 + btnH * 2, Math.round(dockH * 0.52));
+    var infoY = dockBottom - infoH;
+
+    // Cartas: altura natural (algo más altas que anchas); si el alto del dock
+    // aprieta, se encogen para que entren las 3 antes de recurrir al scroll.
+    var stripRegionH = Math.max(0, (infoY - dockPad) - dockTop);
+    var naturalCardH = Math.max(72, Math.min(112, contentW * 1.04));
+    var fitCardH = (stripRegionH - (cardCount - 1) * cardGap) / cardCount;
+    var cardH = Math.round(Math.max(60, Math.min(naturalCardH, fitCardH)));
+
+    UI.cards = [];
+    for (var i = 0; i < cardCount; i++) {
+      UI.cards.push({ contentY: i * (cardH + cardGap), x: contentX, w: cardW, h: cardH });
     }
-    // Clamp scroll to current content bounds.
-    var maxScroll = Math.max(0, (UI.cardStrip.contentW + 16) - UI.cardStrip.w);
+    var contentH = cardCount * cardH + (cardCount - 1) * cardGap;
+
+    UI.cardStrip = {
+      x: contentX, y: dockTop, w: cardW,
+      h: Math.max(cardH, Math.min(stripRegionH, contentH)),
+      contentH: contentH
+    };
+
+    UI.infoX = contentX;
+    UI.infoY = infoY;
+    UI.infoW = contentW;
+    UI.infoH = infoH;
+
+    // Botones apilados verticalmente, ancho completo del dock, al fondo.
+    UI.upgradeBtn = { x: contentX, y: dockBottom - btnH, w: contentW, h: btnH };
+    UI.sellBtn = { x: contentX, y: dockBottom - btnH * 2 - 8, w: contentW, h: btnH };
+    var dsz = 22;
+    UI.deselectBtn = { x: contentRight - dsz, y: infoY, w: dsz, h: dsz };
+
+    // Clamp scroll vertical a los límites de contenido.
+    var maxScroll = Math.max(0, UI.cardStrip.contentH - UI.cardStrip.h);
     if (state && typeof state.panelScroll === "number") {
       state.panelScroll = Math.max(0, Math.min(maxScroll, state.panelScroll));
     }
@@ -1875,8 +1853,8 @@
   function spawnCirculatoryTracer(def) {
     // Visual reinforcement that the absorbed pathogen entered the bloodstream.
     state.circulatory.push({
-      x: PATH.exit ? PATH.exit.x : VW * 0.5,
-      y: (FIELD_BOTTOM + (VH - safeBottom)) * 0.5 + 8 * U,
+      x: PATH.exit ? PATH.exit.x : FIELD_LEFT + FIELD_W * 0.5,
+      y: PATH.exit ? PATH.exit.y + 12 * U : FIELD_BOTTOM - 20 * U,
       vx: (Math.random() - 0.5) * 30 * U,
       vy: 18 * U,
       life: 0.5, max: 0.5,
@@ -1996,7 +1974,7 @@
   // de un flick. Detiene cuando |v| < 5 o al llegar a un borde.
   function updatePanelMomentum(dt) {
     if (!state.panelMomentum || !UI.cardStrip) return;
-    var maxScroll = Math.max(0, (UI.cardStrip.contentW + 16) - UI.cardStrip.w);
+    var maxScroll = Math.max(0, UI.cardStrip.contentH - UI.cardStrip.h);
     state.panelScroll = (state.panelScroll || 0) + state.panelMomentum * dt;
     if (state.panelScroll <= 0) {
       state.panelScroll = 0;
@@ -3236,18 +3214,19 @@
       // Next-wave button removed in Sprint 5 (waves auto-spawn).
       return;
     }
-    // Panel
-    if (y >= FIELD_BOTTOM) {
-      // Sprint 8B-3B: cards en content space; convertir a viewport con scroll.
+    // Dock lateral derecho
+    if (x >= FIELD_RIGHT) {
+      // Cards en content space vertical; convertir a viewport con scroll.
       for (var i = 0; i < UI.cards.length; i++) {
         var ccard = UI.cards[i];
         var viewRect = {
-          x: UI.cardStrip.x + ccard.contentX - (state.panelScroll || 0),
-          y: ccard.y, w: ccard.w, h: ccard.h
+          x: ccard.x,
+          y: UI.cardStrip.y + ccard.contentY - (state.panelScroll || 0),
+          w: ccard.w, h: ccard.h
         };
         // Solo si la card está visible dentro del strip.
-        if (viewRect.x + viewRect.w < UI.cardStrip.x) continue;
-        if (viewRect.x > UI.cardStrip.x + UI.cardStrip.w) continue;
+        if (viewRect.y + viewRect.h < UI.cardStrip.y) continue;
+        if (viewRect.y > UI.cardStrip.y + UI.cardStrip.h) continue;
         if (inRect(x, y, viewRect)) {
           var typeId = TOWER_LIST[i];
           if (state.atp >= TOWER_DEFS[typeId].cost) {
@@ -3401,7 +3380,7 @@
       state.panelDragPending = {
         startX: p.x, startY: p.y,
         startScroll: state.panelScroll || 0,
-        lastX: p.x,
+        lastY: p.y,
         lastT: now,
         velocity: 0,
         dragged: false
@@ -3415,26 +3394,26 @@
     state.pointer.x = p.x; state.pointer.y = p.y; state.pointer.isOver = true;
     if (state.panelDragPending) {
       var dp = state.panelDragPending;
-      var dx = p.x - dp.startX;
-      if (!dp.dragged && Math.abs(dx) > TAP_DRAG_THRESHOLD) {
+      var dy = p.y - dp.startY;
+      if (!dp.dragged && Math.abs(dy) > TAP_DRAG_THRESHOLD) {
         dp.dragged = true;
       }
       if (dp.dragged && UI.cardStrip) {
-        var maxScroll = Math.max(0, (UI.cardStrip.contentW + 16) - UI.cardStrip.w);
-        state.panelScroll = Math.max(0, Math.min(maxScroll, dp.startScroll - dx));
+        var maxScroll = Math.max(0, UI.cardStrip.contentH - UI.cardStrip.h);
+        state.panelScroll = Math.max(0, Math.min(maxScroll, dp.startScroll - dy));
         // Track instantaneous velocity for release momentum (px/s).
         var nowM = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
         var deltaT = Math.max(1, nowM - dp.lastT);
-        var moveDx = p.x - dp.lastX;
-        var instantV = -moveDx / (deltaT / 1000);
+        var moveDy = p.y - dp.lastY;
+        var instantV = -moveDy / (deltaT / 1000);
         dp.velocity = dp.velocity * 0.7 + instantV * 0.3;  // smoothed
-        dp.lastX = p.x;
+        dp.lastY = p.y;
         dp.lastT = nowM;
       }
       return;
     }
     // While building, follow finger/cursor with the range hint inside the field.
-    if (state.selectedToBuild && p.y >= FIELD_TOP && p.y < FIELD_BOTTOM) {
+    if (state.selectedToBuild && p.y >= FIELD_TOP && p.y < FIELD_BOTTOM && p.x < FIELD_RIGHT) {
       var def = TOWER_DEFS[state.selectedToBuild];
       setRangeHint(p.x, p.y, def.levels[0].range * U, def.color, "build");
     }
@@ -6011,129 +5990,123 @@
   }
 
   function drawPanel() {
+    // Dock lateral derecho a alto completo.
+    var dockX = FIELD_RIGHT;
     ctx.fillStyle = "#2a1a22";
-    ctx.fillRect(0, FIELD_BOTTOM, VW, VH - FIELD_BOTTOM);
+    ctx.fillRect(dockX, FIELD_TOP, VW - dockX, FIELD_BOTTOM - FIELD_TOP);
+    ctx.fillStyle = "rgba(255,255,255,0.06)";
+    ctx.fillRect(dockX, FIELD_TOP, 2, FIELD_BOTTOM - FIELD_TOP);
 
-    // Sprint 8B-3B: cards en strip horizontal scrolleable. Clipping al
-    // viewport del strip y traslación por panelScroll.
+    // Cards apiladas en columna, scroll vertical. Clipping al viewport del
+    // strip y traslación por panelScroll (con 3 cards que caben, scroll=0).
     var strip = UI.cardStrip;
     var scroll = state.panelScroll || 0;
     if (strip) {
       ctx.save();
       ctx.beginPath();
-      ctx.rect(strip.x, strip.y - 6, strip.w, strip.h + 12);
+      ctx.rect(strip.x - 6, strip.y, strip.w + 12, strip.h);
       ctx.clip();
       for (var i = 0; i < TOWER_LIST.length; i++) {
         var typeId = TOWER_LIST[i];
         var def = TOWER_DEFS[typeId];
         var card = UI.cards[i];
         if (!card) continue;
-        var cardViewX = strip.x + card.contentX - scroll;
+        var cardViewY = strip.y + card.contentY - scroll;
         // Skip if completely off-screen (small perf win when content grows).
-        if (cardViewX + card.w < strip.x - 4) continue;
-        if (cardViewX > strip.x + strip.w + 4) continue;
+        if (cardViewY + card.h < strip.y - 4) continue;
+        if (cardViewY > strip.y + strip.h + 4) continue;
         var canAfford = state.atp >= def.cost;
         var isSelected = state.selectedToBuild === typeId;
-        var lift = isSelected ? 4 : 0;
-        var sc = isSelected ? 1.05 : 1.0;
+        var sc = isSelected ? 1.04 : 1.0;
         var cw = card.w * sc, ch = card.h * sc;
-        var cardX = cardViewX - (cw - card.w) / 2;
-        var cardY = card.y - lift - (ch - card.h) / 2;
+        var cardX = card.x - (cw - card.w) / 2;
+        var cardY = cardViewY - (ch - card.h) / 2;
 
         if (isSelected) {
           ctx.shadowColor = "rgba(0, 0, 0, 0.45)";
           ctx.shadowBlur = 8;
-          ctx.shadowOffsetY = 4;
+          ctx.shadowOffsetX = -4;
         }
         ctx.fillStyle = isSelected ? "#3a2538" : "#1f1219";
         roundRect(cardX, cardY, cw, ch, 8);
         ctx.fill();
         ctx.shadowColor = "transparent";
         ctx.shadowBlur = 0;
-        ctx.shadowOffsetY = 0;
+        ctx.shadowOffsetX = 0;
         ctx.strokeStyle = isSelected ? def.color : "rgba(255,255,255,0.08)";
         ctx.lineWidth = isSelected ? 3 : 1.5;
         roundRect(cardX, cardY, cw, ch, 8);
         ctx.stroke();
 
         var cx = cardX + cw / 2;
-        var iconY = cardY + ch * 0.32;
-        var showDesc = card.w >= 120;  // 90px nunca muestra desc
-        // Sprint 8B-Polish-3B-fix: sprite ~50-60px design (R=27 -> diam ~54).
-        drawCardIcon(typeId, cx, iconY, Math.min(28, cw * 0.32) * (canAfford ? 1 : 0.6), canAfford);
+        var iconY = cardY + ch * 0.30;
+        drawCardIcon(typeId, cx, iconY, Math.min(26, cw * 0.30) * (canAfford ? 1 : 0.6), canAfford);
 
         ctx.fillStyle = canAfford ? "#fff" : "rgba(255,255,255,0.45)";
-        // Nombre 13-14px (era 10-12).
-        var fs1 = Math.max(12, Math.min(14, cw * 0.16));
+        var fs1 = Math.max(11, Math.min(14, cw * 0.15));
         ctx.font = "bold " + fs1 + "px sans-serif";
         ctx.textAlign = "center";
         ctx.textBaseline = "top";
-        var nameStr = (cw < 110 && def.shortName) ? def.shortName : def.name;
-        ctx.fillText(nameStr, cx, cardY + ch * 0.62);
-
-        if (showDesc) {
-          ctx.font = Math.max(9, Math.min(11, cw * 0.10)) + "px sans-serif";
-          ctx.fillStyle = "rgba(255,255,255,0.55)";
-          ctx.fillText(def.desc, cx, cardY + ch * 0.74);
-        }
+        var nameStr = (cw < 120 && def.shortName) ? def.shortName : def.name;
+        ctx.fillText(nameStr, cx, cardY + ch * 0.60);
 
         ctx.font = "bold " + Math.max(11, Math.min(13, cw * 0.13)) + "px sans-serif";
         ctx.fillStyle = canAfford ? "#f5d76e" : "#d9534f";
-        ctx.fillText("⚡ " + def.cost, cx, cardY + ch * (showDesc ? 0.84 : 0.78));
+        ctx.fillText("⚡ " + def.cost, cx, cardY + ch * 0.80);
       }
       ctx.restore();
-      // Edge-fade indicators when there's hidden content.
-      var maxScroll = Math.max(0, (strip.contentW + 16) - strip.w);
+      // Edge-fade indicators (arriba/abajo) cuando hay contenido oculto.
+      var maxScroll = Math.max(0, strip.contentH - strip.h);
       if (maxScroll > 0) {
-        var fadeW = 18;
+        var fadeH = 16;
         if (scroll > 2) {
-          var lg = ctx.createLinearGradient(strip.x, 0, strip.x + fadeW, 0);
-          lg.addColorStop(0, "rgba(42, 26, 34, 0.95)");
-          lg.addColorStop(1, "rgba(42, 26, 34, 0)");
-          ctx.fillStyle = lg;
-          ctx.fillRect(strip.x, strip.y - 6, fadeW, strip.h + 12);
+          var tg = ctx.createLinearGradient(0, strip.y, 0, strip.y + fadeH);
+          tg.addColorStop(0, "rgba(42, 26, 34, 0.95)");
+          tg.addColorStop(1, "rgba(42, 26, 34, 0)");
+          ctx.fillStyle = tg;
+          ctx.fillRect(strip.x - 6, strip.y, strip.w + 12, fadeH);
         }
         if (scroll < maxScroll - 2) {
-          var rg = ctx.createLinearGradient(strip.x + strip.w - fadeW, 0, strip.x + strip.w, 0);
-          rg.addColorStop(0, "rgba(42, 26, 34, 0)");
-          rg.addColorStop(1, "rgba(42, 26, 34, 0.95)");
-          ctx.fillStyle = rg;
-          ctx.fillRect(strip.x + strip.w - fadeW, strip.y - 6, fadeW, strip.h + 12);
+          var bg = ctx.createLinearGradient(0, strip.y + strip.h - fadeH, 0, strip.y + strip.h);
+          bg.addColorStop(0, "rgba(42, 26, 34, 0)");
+          bg.addColorStop(1, "rgba(42, 26, 34, 0.95)");
+          ctx.fillStyle = bg;
+          ctx.fillRect(strip.x - 6, strip.y + strip.h - fadeH, strip.w + 12, fadeH);
         }
       }
     }
 
-    var infoX = UI.infoX, infoY = UI.infoY;
+    var infoX = UI.infoX, infoY = UI.infoY, infoW = UI.infoW;
     ctx.textAlign = "left";
     ctx.textBaseline = "top";
     if (state.selectedTower) {
       var t = state.selectedTower;
       var stats = towerStats(t);
       ctx.fillStyle = t.def.color;
-      ctx.font = "bold 15px sans-serif";
-      ctx.fillText(t.def.name + "  Nv " + (t.level + 1) + "/3", infoX, infoY + 2);
+      ctx.font = "bold 13px sans-serif";
+      var nm = (t.def.shortName || t.def.name);
+      ctx.fillText(nm, infoX, infoY + 2);
+      ctx.fillStyle = "rgba(255,255,255,0.7)";
+      ctx.font = "11px sans-serif";
+      ctx.fillText("Nivel " + (t.level + 1) + "/3", infoX, infoY + 18);
 
-      ctx.font = "12px sans-serif";
+      ctx.font = "11px sans-serif";
       ctx.fillStyle = "rgba(255,255,255,0.85)";
-      if (isPortrait) {
-        var oneLine = "Dmg " + stats.damage + (stats.splash > 0 ? " (AOE)" : "") +
-          " • R " + stats.range + " • " + stats.fireRate.toFixed(1) + "/s";
-        ctx.fillText(oneLine, infoX, infoY + 22);
-      } else {
-        ctx.fillText("Daño: " + stats.damage + (stats.splash > 0 ? "  AOE: " + stats.splash : ""), infoX, infoY + 24);
-        ctx.fillText("Rango: " + stats.range + "    Cadencia: " + stats.fireRate.toFixed(2) + "/s", infoX, infoY + 40);
-      }
+      ctx.fillText("Dmg " + stats.damage + (stats.splash > 0 ? " AOE" : ""), infoX, infoY + 36);
+      ctx.fillText("Rango " + stats.range, infoX, infoY + 50);
+      ctx.fillText("Cad. " + stats.fireRate.toFixed(1) + "/s", infoX, infoY + 64);
 
-      ctx.fillStyle = "rgba(255,255,255,0.1)";
+      // X deseleccionar (esquina sup-der de la zona info).
+      ctx.fillStyle = "rgba(255,255,255,0.12)";
       roundRect(UI.deselectBtn.x, UI.deselectBtn.y, UI.deselectBtn.w, UI.deselectBtn.h, 6);
       ctx.fill();
-      ctx.fillStyle = "rgba(255,255,255,0.7)";
-      ctx.font = "bold 11px sans-serif";
+      ctx.fillStyle = "rgba(255,255,255,0.8)";
+      ctx.font = "bold 13px sans-serif";
       ctx.textAlign = "center";
-      ctx.fillText(isPortrait ? "X cerrar" : "Deseleccionar",
-        UI.deselectBtn.x + UI.deselectBtn.w / 2,
-        UI.deselectBtn.y + UI.deselectBtn.h / 2 + 4);
+      ctx.textBaseline = "middle";
+      ctx.fillText("✕", UI.deselectBtn.x + UI.deselectBtn.w / 2, UI.deselectBtn.y + UI.deselectBtn.h / 2 + 1);
       ctx.textAlign = "left";
+      ctx.textBaseline = "top";
 
       var sellRefund = Math.floor(t.def.cost * 0.6);
       for (var li = 0; li < t.level; li++) sellRefund += Math.floor(t.def.upgradeCost[li] * 0.5);
@@ -6143,34 +6116,32 @@
         var ucost = t.def.upgradeCost[t.level];
         var canUp = state.atp >= ucost;
         drawButton(UI.upgradeBtn,
-          "Mejorar Nv " + (t.level + 2) + "  ⚡" + ucost,
+          "Mejorar ⚡" + ucost,
           canUp ? "#1f8a4c" : "#3a2530",
           canUp ? "#16632f" : "#22141c",
           canUp);
       } else {
-        drawButton(UI.upgradeBtn, "Nivel maximo", "#5a4250", "#3a2530", false);
+        drawButton(UI.upgradeBtn, "Nivel máx.", "#5a4250", "#3a2530", false);
       }
     } else if (state.selectedToBuild) {
       var def2 = TOWER_DEFS[state.selectedToBuild];
       ctx.fillStyle = def2.color;
-      ctx.font = "bold 15px sans-serif";
-      ctx.fillText(def2.name + " — " + def2.desc, infoX, infoY + 4);
-      ctx.font = "12px sans-serif";
-      ctx.fillStyle = "rgba(255,255,255,0.75)";
-      ctx.fillText("Toca el campo para colocar (⚡ " + def2.cost + ", ATP: " + state.atp + ")", infoX, infoY + 24);
-      if (!isPortrait) {
-        ctx.fillStyle = "rgba(255,255,255,0.5)";
-        ctx.fillText("ESC cancela", infoX, infoY + 42);
-      }
+      ctx.font = "bold 12px sans-serif";
+      ctx.fillText((def2.shortName || def2.name), infoX, infoY + 2);
+      ctx.font = "11px sans-serif";
+      ctx.fillStyle = "rgba(255,255,255,0.8)";
+      ctx.fillText("Toca el campo", infoX, infoY + 20);
+      ctx.fillText("para colocar", infoX, infoY + 34);
+      ctx.fillStyle = "#f5d76e";
+      ctx.font = "bold 12px sans-serif";
+      ctx.fillText("⚡ " + def2.cost, infoX, infoY + 52);
     }
-    // Sprint 8A: removed default-state explainer text. The game is intuitive
-    // by visuals; descriptions only appear when actively building/selecting.
   }
 
   function drawGhost() {
     if (!state.selectedToBuild || !state.pointer.isOver) return;
     var x = state.pointer.x, y = state.pointer.y;
-    if (y < FIELD_TOP || y >= FIELD_BOTTOM) return;
+    if (y < FIELD_TOP || y >= FIELD_BOTTOM || x >= FIELD_RIGHT) return;
     var def = TOWER_DEFS[state.selectedToBuild];
     var stats = def.levels[0];
     var ok = canPlaceTowerAt(x, y) && state.atp >= def.cost;

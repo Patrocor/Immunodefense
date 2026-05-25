@@ -369,13 +369,17 @@
   var ATTACK_MULT = 1.15;       // +15% al daño de todos los gérmenes
   // -------- MEDICAMENTO (poder activo cargable) ---------------------------
   var MED_MAX = 100;
+  var MED_BLOCKS = 4;                 // 4 bloques de llenado (25 c/u)
   var MED_PER_KILL = 7;
   var MED_PER_BOSS = 30;
+  // Ordenados por nivel: bloque 1 = MED_POWERS[0] (más leve) ... bloque 4 =
+  // MED_POWERS[3] = antibiótico (máximo poder). Tocas con N bloques llenos y
+  // se activa el poder de nivel N.
   var MED_POWERS = [
-    { id: "antibiotico", name: "Antibiótico",  color: "#F5C518", desc: "Daño en área a todos" },
-    { id: "paralizante", name: "Gas paralizante", color: "#3FC8E0", desc: "Los detiene ~4s" },
-    { id: "ralentizador", name: "Gas ralentizador", color: "#5B8DEF", desc: "Velocidad ×0.4 ~6s" },
-    { id: "disolvente",  name: "Disolvente de escudos", color: "#E055C8", desc: "Rompe sus escudos" }
+    { id: "ralentizador", name: "Gas ralentizador", short: "Ralentiza", color: "#5B8DEF", desc: "Velocidad ×0.4 ~6s" },
+    { id: "paralizante", name: "Gas paralizante", short: "Paraliza", color: "#3FC8E0", desc: "Los detiene ~4s" },
+    { id: "disolvente",  name: "Disolvente de escudos", short: "Disuelve", color: "#E055C8", desc: "Rompe sus escudos" },
+    { id: "antibiotico", name: "Antibiótico", short: "Antibiótico", color: "#F5C518", desc: "Daño en área (máximo)" }
   ];
   // Radio del aura de daño por germen: escala con su ataque, así los gérmenes
   // más peligrosos (S. aureus, Pseudomonas, jefes) tienen MAYOR rango y se
@@ -1098,7 +1102,6 @@
       guardians: [],
       guardianTimer: 28,
       medCharge: 0,
-      medChoosing: false,
       medApplying: false,
       gasFx: null,
       secondEntryOpen: false,
@@ -2129,20 +2132,23 @@
 
   // -------- MEDICAMENTO ---------------------------------------------------
   function layoutMed() {
-    var w = Math.max(13, 16 * U);
-    var h = (FIELD_BOTTOM - FIELD_TOP) * 0.42;
+    var w = Math.max(15, 18 * U);
+    var h = (FIELD_BOTTOM - FIELD_TOP) * 0.46;
     var x = FIELD_LEFT + 6 * U;
-    var y = FIELD_TOP + (FIELD_BOTTOM - FIELD_TOP) * 0.50;
+    var y = FIELD_TOP + (FIELD_BOTTOM - FIELD_TOP) * 0.48;
     UI.medVial = { x: x, y: y, w: w, h: h };
-    var pw = Math.min(300, VW - 48);
-    var bh = 46, gap = 8, titleH = 34;
-    var ph = titleH + MED_POWERS.length * bh + (MED_POWERS.length - 1) * gap + 14;
-    var px = (VW - pw) / 2, py = Math.max(FIELD_TOP + 8, (VH - ph) / 2);
-    UI.medPanel = { x: px, y: py, w: pw, h: ph };
-    UI.medPowers = [];
-    for (var i = 0; i < MED_POWERS.length; i++) {
-      UI.medPowers.push({ x: px + 12, y: py + titleH + i * (bh + gap), w: pw - 24, h: bh, id: MED_POWERS[i].id });
-    }
+  }
+
+  // Bloques llenos (0..MED_BLOCKS) según la carga acumulada.
+  function medFilledBlocks() {
+    return Math.min(MED_BLOCKS, Math.floor(state.medCharge / (MED_MAX / MED_BLOCKS)));
+  }
+
+  // Activa el poder del nivel N (= bloques llenos). N=4 -> antibiótico máximo.
+  function applyMedicationLevel(level) {
+    if (level < 1) return;
+    level = Math.min(MED_BLOCKS, level);
+    applyMedication(MED_POWERS[level - 1].id);
   }
 
   function applyMedication(id) {
@@ -2172,7 +2178,6 @@
     state.medApplying = false;
     state.gasFx = { color: power ? power.color : "#ffffff", life: 1.5, max: 1.5 };
     state.medCharge = 0;
-    state.medChoosing = false;
     sfx("upgrade");
     showMsg(power ? ("¡" + power.name + "!") : "¡Medicamento!");
   }
@@ -2183,41 +2188,49 @@
 
   function drawMedVial() {
     var v = UI.medVial; if (!v) return;
-    var ratio = Math.max(0, Math.min(1, state.medCharge / MED_MAX));
-    var full = state.medCharge >= MED_MAX;
+    var perBlock = MED_MAX / MED_BLOCKS;
+    var filled = medFilledBlocks();
+    var segH = (v.h - 2) / MED_BLOCKS;
     ctx.save();
-    if (full) ctx.shadowColor = "rgba(124, 240, 160, 0.9)", ctx.shadowBlur = 8 + 8 * (0.5 + 0.5 * Math.sin(state.time * 5));
-    ctx.fillStyle = "rgba(255,255,255,0.10)";
-    roundRect(v.x, v.y, v.w, v.h, v.w * 0.5);
-    ctx.fill();
+    // Glow del bloque listo más alto.
+    if (filled >= 1) {
+      var gp = 0.5 + 0.5 * Math.sin(state.time * 5);
+      ctx.shadowColor = colorAlpha(MED_POWERS[filled - 1].color, 0.9);
+      ctx.shadowBlur = 8 + 8 * gp;
+    }
+    ctx.fillStyle = "rgba(255,255,255,0.08)";
+    roundRect(v.x, v.y, v.w, v.h, 5); ctx.fill();
     ctx.shadowBlur = 0;
+    // 4 bloques de abajo (Nv1) hacia arriba (Nv4 = antibiótico máximo).
+    for (var i = 0; i < MED_BLOCKS; i++) {
+      var segBottom = v.y + v.h - 2 - i * segH;
+      var f = Math.max(0, Math.min(1, (state.medCharge - i * perBlock) / perBlock));
+      var col = MED_POWERS[i].color;
+      if (f > 0) {
+        ctx.fillStyle = colorAlpha(col, 0.35 + 0.55 * f);
+        ctx.fillRect(v.x + 2, segBottom - segH * f + 1, v.w - 4, segH * f - 1);
+      }
+      ctx.strokeStyle = (f >= 1) ? col : "rgba(255,255,255,0.22)";
+      ctx.lineWidth = (f >= 1) ? 2 : 1;
+      roundRect(v.x + 1.5, segBottom - segH + 1, v.w - 3, segH - 2, 3); ctx.stroke();
+    }
     ctx.strokeStyle = "rgba(255,255,255,0.5)"; ctx.lineWidth = 2;
-    roundRect(v.x, v.y, v.w, v.h, v.w * 0.5); ctx.stroke();
-    // Líquido de abajo hacia arriba.
-    ctx.save();
-    roundRect(v.x + 2, v.y + 2, v.w - 4, v.h - 4, (v.w - 4) * 0.5); ctx.clip();
-    var lh = (v.h - 4) * ratio, ly = v.y + v.h - 2 - lh;
-    var grad = ctx.createLinearGradient(0, ly, 0, v.y + v.h);
-    grad.addColorStop(0, full ? "#8af0a8" : "#5bd0e0");
-    grad.addColorStop(1, full ? "#2fb070" : "#2f80a0");
-    ctx.fillStyle = grad;
-    ctx.fillRect(v.x, ly, v.w, lh + 2);
+    roundRect(v.x, v.y, v.w, v.h, 5); ctx.stroke();
+    ctx.fillStyle = "#c0c0c8"; ctx.fillRect(v.x - 1, v.y - 4, v.w + 2, 5);
     ctx.restore();
-    // Tapa.
-    ctx.fillStyle = "#c0c0c8";
-    ctx.fillRect(v.x - 1, v.y - 4, v.w + 2, 5);
-    ctx.restore();
-    // Etiqueta.
+    // Etiqueta: poder que se activaría ahora (toca para usar) o 💊.
     ctx.save();
     ctx.textAlign = "center"; ctx.textBaseline = "bottom";
-    if (full) {
+    if (filled >= 1) {
+      var pw = MED_POWERS[filled - 1];
+      var lp = 0.5 + 0.5 * Math.sin(state.time * 6);
       ctx.font = "700 9px Fredoka, sans-serif";
-      ctx.fillStyle = "rgba(124,240,160," + (0.7 + 0.3 * (0.5 + 0.5 * Math.sin(state.time * 6))) + ")";
-      ctx.fillText("¡LISTO!", v.x + v.w / 2, v.y - 6);
+      ctx.fillStyle = colorAlpha(pw.color, 0.75 + 0.25 * lp);
+      ctx.fillText("▸ " + pw.short, v.x + v.w / 2, v.y - 6);
     } else {
       ctx.font = "9px Fredoka, sans-serif";
       ctx.fillStyle = "rgba(255,255,255,0.55)";
-      ctx.fillText("💊 " + Math.round(ratio * 100) + "%", v.x + v.w / 2, v.y - 6);
+      ctx.fillText("💊", v.x + v.w / 2, v.y - 6);
     }
     ctx.restore();
   }
@@ -2235,33 +2248,6 @@
       var fy = FIELD_TOP + ((i * 89) % 100) / 100 * (FIELD_BOTTOM - FIELD_TOP);
       var r = (24 + 40 * grow + (i % 4) * 7) * U;
       ctx.beginPath(); ctx.arc(fx, fy, r, 0, Math.PI * 2); ctx.fill();
-    }
-    ctx.restore();
-  }
-
-  function drawMedChooser() {
-    if (!state.medChoosing) return;
-    var pnl = UI.medPanel; if (!pnl) return;
-    ctx.save();
-    ctx.fillStyle = "rgba(10,8,12,0.55)";
-    ctx.fillRect(0, 0, VW, VH);
-    ctx.fillStyle = "#2a1a22";
-    roundRect(pnl.x, pnl.y, pnl.w, pnl.h, 12); ctx.fill();
-    ctx.strokeStyle = "rgba(255,255,255,0.18)"; ctx.lineWidth = 1.5;
-    roundRect(pnl.x, pnl.y, pnl.w, pnl.h, 12); ctx.stroke();
-    ctx.fillStyle = "#fff"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
-    ctx.font = "700 15px Fredoka, sans-serif";
-    ctx.fillText("Elige el medicamento", pnl.x + pnl.w / 2, pnl.y + 18);
-    for (var i = 0; i < UI.medPowers.length; i++) {
-      var b = UI.medPowers[i], def = MED_POWERS[i];
-      ctx.fillStyle = "#1f1219"; roundRect(b.x, b.y, b.w, b.h, 8); ctx.fill();
-      ctx.strokeStyle = def.color; ctx.lineWidth = 2; roundRect(b.x, b.y, b.w, b.h, 8); ctx.stroke();
-      ctx.fillStyle = def.color; ctx.beginPath(); ctx.arc(b.x + 20, b.y + b.h / 2, 9, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = "#fff"; ctx.textAlign = "left"; ctx.textBaseline = "middle";
-      ctx.font = "700 13px Fredoka, sans-serif";
-      ctx.fillText(def.name, b.x + 38, b.y + b.h / 2 - 8);
-      ctx.font = "500 11px Fredoka, sans-serif"; ctx.fillStyle = "rgba(255,255,255,0.7)";
-      ctx.fillText(def.desc, b.x + 38, b.y + b.h / 2 + 9);
     }
     ctx.restore();
   }
@@ -3693,20 +3679,12 @@
       if (inRect(x, y, UI.endRestartBtn)) restartFromLevel1();
       return;
     }
-    // Medicamento: selector abierto -> elegir poder o cancelar tocando fuera.
-    if (state.medChoosing) {
-      for (var mi = 0; mi < (UI.medPowers || []).length; mi++) {
-        if (inRect(x, y, UI.medPowers[mi])) { applyMedication(UI.medPowers[mi].id); return; }
-      }
-      state.medChoosing = false;
-      sfx("tick");
-      return;
-    }
-    // Tap al vial lleno -> abrir selector.
-    if (state.medCharge >= MED_MAX && UI.medVial && inRect(x, y, UI.medVial)) {
-      state.medChoosing = true;
-      sfx("tick");
-      return;
+    // Medicamento: tocar el vial activa el poder del nivel = bloques llenos
+    // (1 bloque = más leve ... 4 bloques = antibiótico máximo).
+    if (UI.medVial && inRect(x, y, UI.medVial)) {
+      var lvl = medFilledBlocks();
+      if (lvl >= 1) { applyMedicationLevel(lvl); return; }
+      // sin bloques llenos: no hace nada (deja pasar el toque).
     }
     // Lymphatic drip drop: highest priority so finger taps grant ATP.
     if (tryClickDrip(x, y)) return;
@@ -7844,7 +7822,6 @@
     drawMrsaIntro();
     drawCinematicEnd();
     drawTooltip();
-    drawMedChooser();
     drawIntroScreen();
     drawConfirmModal();
   }

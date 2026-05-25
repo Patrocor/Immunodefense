@@ -396,17 +396,15 @@
     DRIP.mouthY = DRIP.y + DRIP.h * 0.85;
   }
 
-  // -------- PATH (2 entradas arriba -> espiral rectangular -> vaso abajo) -
-  // Dos heridas en las esquinas superiores. La 2ª (índice 1) se abre cuando
-  // la infestación llega al 40%. Ambas confluyen y recorren la misma espiral
-  // que desciende hasta el vaso, ubicado en el punto más bajo del trazado.
+  // -------- PATH (1 entrada arriba -> espiral orgánica -> vaso abajo) -----
+  // Una sola herida arriba-centro. Al superar el 40% de infestación NO se abre
+  // otra entrada: en su lugar se acelera el ingreso y aumenta la cantidad de
+  // gérmenes (ver infestSurge / startNextWave).
   var WOUND_POS_PORTRAIT = [
-    { x: 0.16, y: 0.10 },   // entrada 1 (sup-izq), activa desde el inicio
-    { x: 0.84, y: 0.10 }    // entrada 2 (sup-der), se abre al 40% de infestación
+    { x: 0.50, y: 0.10 }
   ];
   var WOUND_POS_LANDSCAPE = [
-    { x: 0.16, y: 0.10 },
-    { x: 0.84, y: 0.10 }
+    { x: 0.50, y: 0.10 }
   ];
   var CONFLUENCE_POS = { x: 0.50, y: 0.16 };
   var VESSEL_POS = { x: 0.62, y: 0.74 };   // punto más bajo del trazado
@@ -994,6 +992,15 @@
     // 0%->1.0  30%->0.90  60%->0.70  85%->0.55  100%->0.50
     return Math.max(0.50, 1.0 - (inf / 100) * 0.50);
   }
+  // Surge: al superar el 40% de infestación, sube de golpe la presión y sigue
+  // creciendo. <40% -> 1.0; 40% -> 1.3; 100% -> 1.8. Se aplica a la cadencia
+  // de aparición (ingreso más rápido) y a la cantidad de gérmenes por oleada.
+  function infestSurge() {
+    if (!state) return 1.0;
+    var ratio = state.viralLoad / Math.max(1, state.viralThreshold);
+    if (ratio < 0.40) return 1.0;
+    return 1.3 + ((ratio - 0.40) / 0.60) * 0.5;
+  }
   function getInitialAtp() { return 80; }
   function getInitialDripDelay() { return 6; }
   // ---- Wave roster (Sprint 6 explicit table per spec) -------------------
@@ -1093,6 +1100,7 @@
       medApplying: false,
       gasFx: null,
       secondEntryOpen: false,
+      surgeAnnounced: false,
       projectiles: [],
       effects: [],
       damageNumbers: [],
@@ -1312,10 +1320,15 @@
     state.spawnElapsed = 0;
     state.pendingSpawns = [];
     var t = 0;
-    var spawnMult = infestSpawnMult(state.viralLoad);
+    var surge = infestSurge();
+    // Surge acelera la cadencia y multiplica la cantidad de gérmenes (>40%).
+    var spawnMult = infestSpawnMult(state.viralLoad) * surge;
     for (var i = 0; i < wave.groups.length; i++) {
       var g = wave.groups[i];
-      for (var k = 0; k < g.count; k++) {
+      // Los jefes NO se multiplican; los regulares sí cargan más con el surge.
+      var def0 = ENEMY_DEFS[g.type];
+      var count = (def0 && def0.isBoss) ? g.count : Math.round(g.count * surge);
+      for (var k = 0; k < count; k++) {
         state.pendingSpawns.push({ type: g.type, time: t, hpMult: wave.hpMult });
         // Jittered spawn cadence (0.5-1.3s base) divided by infestation rate.
         t += (0.5 + Math.random() * 0.8) / spawnMult;
@@ -1426,24 +1439,20 @@
     }
   }
 
-  // Segunda entrada: se abre al alcanzar el 40% de infestación.
-  function updateSecondEntry() {
-    if (state.secondEntryOpen) return;
+  // Al superar el 40% de infestación, la infección se acelera (más gérmenes y
+  // más rápido). Solo anuncia una vez; el efecto lo aplica infestSurge().
+  function updateInfestationSurge() {
+    if (state.surgeAnnounced) return;
     if (state.viralLoad / Math.max(1, state.viralThreshold) < 0.40) return;
-    state.secondEntryOpen = true;
-    if (PATH.wounds[1]) {
-      PATH.wounds[1].active = true;
-      PATH.wounds[1].openAnim = 0.8;   // estallido de apertura
-      spawnEffect("escape", PATH.wounds[1].x, PATH.wounds[1].y);
-    }
-    triggerShake(0.4, 6);
+    state.surgeAnnounced = true;
+    triggerShake(0.35, 5);
     sfx("playerHurt");
-    showMsg("¡Se abrió una SEGUNDA herida!");
+    showMsg("¡La infección se acelera!");
   }
 
   // Auto-spawn ticker — every frame outside an active wave, drain countdown.
   function updateWaveScheduler(dt) {
-    updateSecondEntry();
+    updateInfestationSurge();
     if (state.cinematicEnd || state.confirmRestart || state.showIntro) return;
     if (state.waveActive) return;
     if (state.nextWaveAt > 0) {

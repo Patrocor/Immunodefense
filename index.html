@@ -427,7 +427,7 @@
     var n = anchors.length;
     var beziers = [];
     var total = 0;
-    var STEPS = 26;
+    var STEPS = 30;
     for (var s = 0; s < n - 1; s++) {
       var p0 = anchors[s];
       var p3 = anchors[s + 1];
@@ -478,15 +478,15 @@
       ];
       PATH.branches.push(buildBezierPath(anchors));
     }
-    // Sprint 8B-Polish-3A: 5 curvas amplias orgánicas (no zigzag agudo).
-    // 6 anchors a 22%, 35%, 48%, 61%, 74%, 88% de la altura, alternando X
-    // entre 30% y 70% para que el camino se sienta como intestino lento.
+    // Fase 1 piel: serpentina de 3 barridos horizontales que descienden por
+    // las capas (epidermis->dermis->hipodermis->vaso). Extremos en 0.16/0.84
+    // dejan canales verticales libres en los márgenes para colocar torres.
     var mainAnchorsNorm = [
       { x: CONFLUENCE_POS.x, y: CONFLUENCE_POS.y }, // y=0.22
-      { x: 0.30, y: 0.35 },
-      { x: 0.70, y: 0.48 },
-      { x: 0.30, y: 0.61 },
-      { x: 0.70, y: 0.74 },
+      { x: 0.16, y: 0.32 },
+      { x: 0.84, y: 0.44 },                          // barrido 1 (izq->der)
+      { x: 0.16, y: 0.58 },                          // barrido 2 (der->izq)
+      { x: 0.84, y: 0.70 },                          // barrido 3 (izq->der)
       { x: VESSEL_POS.x, y: VESSEL_POS.y }          // y=0.88
     ];
     var mainAnchorsPx = mainAnchorsNorm.map(toPx);
@@ -783,6 +783,35 @@
       shield: { type: "wall", maxHP: 4, regenRate: 0, regenDelay: 0 },
       tooltip: "Hongo levadura con pared celular de quitina y β-glucanos. Causa candidiasis. Su pared rígida lo protege parcialmente del ataque inmune."
     },
+    // ---- Patógenos cutáneos (Fase 1 = infección de piel) ---------------
+    sepidermidis: {
+      id: "sepidermidis", name: "Staphylococcus epidermidis", baseKind: "bacteria",
+      color: "#90A4AE", colorDark: "#546E7A", radius: 11,
+      speedMult: 1.3, hp: 120, reward: 6, viralAdd: 4, isBoss: false,
+      shield: null,
+      tooltip: "Coco gram positivo de la flora normal de la piel. Suele ser inofensivo, pero forma biofilm sobre catéteres y prótesis. Rápido y débil: el primer invasor cuando se rompe la barrera cutánea."
+    },
+    hsv: {
+      id: "hsv", name: "Herpes simplex (HSV)", baseKind: "virus",
+      color: "#9575CD", colorDark: "#4527A0", radius: 9,
+      speedMult: 1.55, hp: 130, reward: 9, viralAdd: 6, isBoss: false,
+      shield: null,
+      tooltip: "Virus con envoltura que causa vesículas dolorosas en piel y mucosas (herpes labial/genital). Muy rápido y queda latente en los nervios para reactivarse. Poca vida, pero difícil de atrapar."
+    },
+    cacnes: {
+      id: "cacnes", name: "Cutibacterium acnes", baseKind: "bacteria",
+      color: "#C9A66B", colorDark: "#7a5c33", colorLight: "#E8D2A8", radius: 12,
+      speedMult: 0.7, hp: 280, reward: 12, viralAdd: 6, isBoss: false,
+      shield: { type: "wall", maxHP: 2, regenRate: 0, regenDelay: 0 },
+      tooltip: "Bacilo anaerobio del folículo piloso, responsable del acné. Lento y resistente; su biofilm en el poro lo protege parcialmente del ataque inmune."
+    },
+    pseudomonas: {
+      id: "pseudomonas", name: "Pseudomonas aeruginosa", baseKind: "bacteria",
+      color: "#26A69A", colorDark: "#00695C", colorLight: "#80DEEA", radius: 13,
+      speedMult: 1.0, hp: 360, reward: 16, viralAdd: 7, isBoss: false,
+      shield: { type: "wall", maxHP: 3, regenRate: 3 / 12, regenDelay: 8 },
+      tooltip: "Bacilo gram negativo de heridas húmedas y quemaduras. Produce pus azul-verdoso (piocianina) y biofilm resistente. Foliculitis del 'jacuzzi' y ectima gangrenoso."
+    },
     // ---- Bosses --------------------------------------------------------
     bossPyogenes: {
       id: "bossPyogenes", name: "Streptococcus pyogenes", baseKind: "bacteria",
@@ -811,6 +840,20 @@
       speedMult: 0.6, hp: 2700, reward: 150, viralAdd: 35, isBoss: true,
       shield: { type: "capsula", maxHP: 10, regenRate: 2 / 6, regenDelay: 0, doubleRing: true, mrsaHalo: true },
       tooltip: "Staphylococcus aureus multi-resistente a antibióticos. Una de las amenazas microbiológicas más serias del siglo XXI. Combina cápsula, biofilm y resistencia genética. Su erradicación requiere arsenal completo del sistema inmune."
+    },
+    bossPseudomonas: {
+      id: "bossPseudomonas", name: "Pseudomonas aeruginosa", baseKind: "bacteria",
+      color: "#00ACC1", colorDark: "#00606e", colorLight: "#4DD0E1", radius: 30,
+      speedMult: 0.9, hp: 1400, reward: 65, viralAdd: 18, isBoss: true,
+      shield: { type: "wall", maxHP: 6, regenRate: 6 / 8, regenDelay: 0 },
+      tooltip: "Pseudomonas invasiva: ectima gangrenoso. Coloniza heridas y quemaduras extensas, destruye el tejido y resiste muchos antibióticos. Su biofilm se regenera con rapidez."
+    },
+    bossClostridium: {
+      id: "bossClostridium", name: "Clostridium perfringens", baseKind: "bacteria",
+      color: "#546E7A", colorDark: "#263238", radius: 32,
+      speedMult: 0.55, hp: 1650, reward: 80, viralAdd: 22, isBoss: true,
+      shield: { type: "wall", maxHP: 5, regenRate: 0, regenDelay: 0 },
+      tooltip: "Bacilo anaerobio de la gangrena gaseosa. Sus toxinas necrosan músculo y piel produciendo gas en los tejidos. Avanza lento e implacable; emergencia quirúrgica."
     },
     // ---- Legacy aliases (some old code still references these by name) --
     bacteria: {
@@ -899,7 +942,7 @@
     bossHongo: 22,
     bossPrimordial: 35
   };
-  var BOSS_WAVES = { 3: "bossBacteria", 7: "bossVirus", 12: "bossHongo", 18: "bossPrimordial" };
+  var BOSS_WAVES = { 3: "bossPyogenes", 7: "bossPseudomonas", 12: "bossClostridium", 18: "bossMRSA" };
   // Snowball multipliers as a function of infestation 0-100.
   function infestSpawnMult(inf) {
     // 0%->1.0  30%->1.3  60%->1.6  85%->1.85  100%->2.0
@@ -920,25 +963,26 @@
   // ---- Wave roster (Sprint 6 explicit table per spec) -------------------
   // Each entry is an array of { type, count, interval }. After wave 18 we
   // fall back to a procedural mix so the game keeps escalating.
+  // Fase 1 = infección de piel: solo gérmenes cutáneos. Jefes en 3/7/12/18.
   var WAVE_TABLE = {
-    1:  [["ecoli",4,1.2]],
-    2:  [["ecoli",4,1.1],["influenza",3,0.6]],
-    3:  [["ecoli",5,1.0],["influenza",4,0.6],["bossPyogenes",1,0]],
-    4:  [["ecoli",4,1.0],["influenza",4,0.6],["spneumoniae",2,1.0]],
-    5:  [["ecoli",5,1.0],["influenza",5,0.55],["spneumoniae",3,1.0]],
-    6:  [["ecoli",4,1.0],["influenza",4,0.55],["spneumoniae",3,1.0],["candida",2,0.9]],
-    7:  [["ecoli",5,0.9],["influenza",5,0.55],["spneumoniae",3,1.0],["candida",2,0.9],["bossTuberculosis",1,0]],
-    8:  [["ecoli",5,0.9],["influenza",5,0.5],["spneumoniae",4,1.0],["candida",2,0.9],["saureus",2,1.0]],
-    9:  [["ecoli",5,0.9],["influenza",5,0.5],["spneumoniae",4,1.0],["candida",3,0.9],["saureus",3,1.0]],
-    10: [["ecoli",4,0.9],["influenza",5,0.5],["spneumoniae",4,1.0],["candida",3,0.9],["saureus",3,1.0],["vih",2,0.9]],
-    11: [["ecoli",5,0.85],["influenza",5,0.5],["spneumoniae",4,1.0],["candida",3,0.9],["saureus",3,1.0],["vih",3,0.9]],
-    12: [["ecoli",4,0.85],["influenza",4,0.5],["spneumoniae",4,1.0],["candida",3,0.9],["saureus",3,1.0],["vih",3,0.9],["bossAspergillus",1,0]],
-    13: [["ecoli",5,0.8],["influenza",5,0.5],["spneumoniae",5,1.0],["candida",4,0.9],["saureus",4,1.0],["vih",4,0.9]],
-    14: [["ecoli",5,0.8],["influenza",6,0.5],["spneumoniae",5,1.0],["candida",4,0.9],["saureus",4,1.0],["vih",4,0.9]],
-    15: [["ecoli",6,0.8],["influenza",6,0.5],["spneumoniae",5,1.0],["candida",5,0.9],["saureus",5,1.0],["vih",5,0.9]],
-    16: [["ecoli",6,0.75],["influenza",6,0.45],["spneumoniae",6,1.0],["candida",5,0.9],["saureus",5,1.0],["vih",5,0.9]],
-    17: [["ecoli",7,0.75],["influenza",7,0.45],["spneumoniae",6,1.0],["candida",6,0.9],["saureus",6,1.0],["vih",6,0.9]],
-    18: [["ecoli",5,0.7],["influenza",5,0.45],["spneumoniae",5,1.0],["candida",4,0.9],["saureus",8,1.0],["vih",4,0.9],["bossMRSA",1,0]]
+    1:  [["sepidermidis",5,1.1]],
+    2:  [["sepidermidis",5,1.0],["hsv",3,0.6]],
+    3:  [["sepidermidis",5,1.0],["hsv",4,0.6],["bossPyogenes",1,0]],
+    4:  [["sepidermidis",4,1.0],["hsv",4,0.6],["cacnes",2,1.0]],
+    5:  [["sepidermidis",5,1.0],["hsv",5,0.55],["cacnes",3,1.0]],
+    6:  [["sepidermidis",4,1.0],["hsv",5,0.55],["cacnes",3,1.0],["candida",2,0.9]],
+    7:  [["sepidermidis",4,0.9],["hsv",5,0.55],["cacnes",3,1.0],["pseudomonas",2,0.9],["bossPseudomonas",1,0]],
+    8:  [["sepidermidis",4,0.9],["hsv",6,0.5],["cacnes",3,1.0],["pseudomonas",3,0.9],["candida",2,0.9]],
+    9:  [["hsv",6,0.5],["cacnes",3,1.0],["pseudomonas",3,0.9],["candida",3,0.9],["saureus",2,1.0]],
+    10: [["hsv",6,0.5],["cacnes",3,1.0],["pseudomonas",4,0.9],["candida",3,0.9],["saureus",3,1.0]],
+    11: [["sepidermidis",5,0.85],["hsv",6,0.5],["pseudomonas",4,0.9],["candida",3,0.9],["saureus",3,1.0]],
+    12: [["hsv",6,0.5],["pseudomonas",4,0.9],["candida",4,0.9],["saureus",3,1.0],["bossClostridium",1,0]],
+    13: [["hsv",7,0.5],["cacnes",4,0.95],["pseudomonas",5,0.9],["candida",4,0.9],["saureus",4,1.0]],
+    14: [["hsv",7,0.5],["cacnes",4,0.95],["pseudomonas",5,0.9],["candida",5,0.9],["saureus",4,1.0]],
+    15: [["sepidermidis",6,0.8],["hsv",7,0.5],["pseudomonas",5,0.9],["candida",5,0.9],["saureus",5,1.0]],
+    16: [["hsv",8,0.45],["cacnes",5,0.9],["pseudomonas",6,0.85],["candida",5,0.9],["saureus",5,1.0]],
+    17: [["hsv",8,0.45],["cacnes",5,0.9],["pseudomonas",6,0.85],["candida",6,0.9],["saureus",6,1.0]],
+    18: [["hsv",6,0.45],["pseudomonas",5,0.85],["candida",4,0.9],["saureus",8,1.0],["bossMRSA",1,0]]
   };
   function getWaveDef(waveNum) {
     var diffHp = 1 + (waveNum - 1) * 0.05;
@@ -948,7 +992,7 @@
       // Post-table: scale up the tier 17 mix and rotate boss types every 6 waves.
       var base17 = WAVE_TABLE[17];
       entry = base17.map(function (g) { return [g[0], g[1] + Math.floor((waveNum - 17) / 2), g[2]]; });
-      var bossPool = ["bossPyogenes", "bossTuberculosis", "bossAspergillus", "bossMRSA"];
+      var bossPool = ["bossPyogenes", "bossPseudomonas", "bossClostridium", "bossMRSA"];
       if (waveNum % 6 === 0) {
         entry = entry.concat([[bossPool[(waveNum / 6) % bossPool.length], 1, 0]]);
       }
@@ -3498,6 +3542,34 @@
   }
 
   // -------- SKIN / CIRCULATORY AMBIENT BANDS ---------------------------
+  // Fase 1 piel: bandas teñidas de dermis e hipodermis para que el campo se
+  // lea como un corte de piel (epidermis -> dermis -> hipodermis -> vaso).
+  function drawSkinLayers() {
+    var x = FIELD_LEFT, w = FIELD_W;
+    function band(y0, y1, top, bottom) {
+      var ya = FIELD_TOP + FIELD_H * y0;
+      var yb = FIELD_TOP + FIELD_H * y1;
+      var g = ctx.createLinearGradient(0, ya, 0, yb);
+      g.addColorStop(0, top);
+      g.addColorStop(1, bottom);
+      ctx.fillStyle = g;
+      ctx.fillRect(x, ya, w, yb - ya);
+    }
+    // Dermis: rosa cálido. Hipodermis: amarillo grasa pálido.
+    band(0.15, 0.52, "rgba(228,140,128,0.26)", "rgba(224,128,116,0.16)");
+    band(0.52, 0.82, "rgba(245,222,138,0.30)", "rgba(240,206,120,0.18)");
+    // Etiquetas tenues de capa en el margen izquierdo.
+    ctx.save();
+    ctx.fillStyle = "rgba(120, 70, 70, 0.30)";
+    ctx.font = "bold " + Math.max(8, Math.min(11, FIELD_W * 0.026)) + "px sans-serif";
+    ctx.textAlign = "left";
+    ctx.textBaseline = "middle";
+    ctx.fillText("EPIDERMIS", x + 6 * U, FIELD_TOP + FIELD_H * 0.11);
+    ctx.fillText("DERMIS",    x + 6 * U, FIELD_TOP + FIELD_H * 0.33);
+    ctx.fillText("HIPODERMIS", x + 6 * U, FIELD_TOP + FIELD_H * 0.67);
+    ctx.restore();
+  }
+
   function drawSkinZone() {
     // Skin band reduced per Sprint 4A: 7-15% of field height.
     var skinTop = FIELD_TOP + FIELD_H * 0.07;
@@ -4425,11 +4497,16 @@
     else if (def.id === "influenza")    drawInfluenza(e, rad * scale, expression, blink);
     else if (def.id === "vih")          drawVih(e, rad * scale, expression, blink);
     else if (def.id === "candida")      drawCandida(e, rad * scale, expression, blink);
+    // Fase 1 piel: bacilos cutáneos reusan drawEcoli (recoloreado por def).
+    else if (def.id === "cacnes")       drawEcoli(e, rad * scale, expression, blink);
+    else if (def.id === "pseudomonas")  drawEcoli(e, rad * scale, expression, blink);
+    else if (def.id === "bossPseudomonas") drawEcoli(e, rad * scale, expression, blink);
     // Sprint 8C-2: bosses con morfología real, antes del fallback genérico.
     else if (def.id === "bossPyogenes")      drawBossPyogenes(e, rad * scale, expression, blink);
     else if (def.id === "bossTuberculosis")  drawBossTuberculosis(e, rad * scale, expression, blink);
     else if (def.id === "bossAspergillus")   drawBossAspergillus(e, rad * scale, expression, blink);
     else if (def.id === "bossMRSA")          drawBossMRSA(e, rad * scale, expression, blink);
+    else if (def.id === "bossClostridium")   drawBoss(e, rad * scale, expression, blink);
     else if (kind === "bacteria")       drawBacteria(e, rad * scale, expression, blink);
     else if (kind === "virus")          drawVirus(e, rad * scale, expression, blink);
     else if (kind === "hongo")          drawHongo(e, rad * scale, expression, blink);
@@ -4734,8 +4811,12 @@
     var breathe = 1 + Math.sin(t * 1.6 + e.wobble) * 0.04;
     var rx = rad * 1.45 * breathe;
     var ry = rad * 0.58 * (2 - breathe);
+    // Paleta del def (recoloreo de bacilos reusados); verdes E.coli por default.
+    var rodLight = e.def.colorLight || "#DCE89C";
+    var rodMid   = e.def.color     || "#B8D050";
+    var rodDark  = e.def.colorDark || "#6B8030";
     // Flagelos peritricos (6 saliendo en distintas direcciones, ondulando).
-    ctx.strokeStyle = "#7A8A5A";
+    ctx.strokeStyle = rodDark;
     ctx.lineWidth = Math.max(1.0, 1.5 * U);
     ctx.lineCap = "round";
     var flagN = 6;
@@ -4761,14 +4842,14 @@
     }
     // Cuerpo (cápsula bacilar)
     var grad = ctx.createRadialGradient(-rx * 0.35, -ry * 0.4, ry * 0.2, 0, 0, rx);
-    grad.addColorStop(0, "#DCE89C");
-    grad.addColorStop(0.55, "#B8D050");
-    grad.addColorStop(1, "#6B8030");
+    grad.addColorStop(0, rodLight);
+    grad.addColorStop(0.55, rodMid);
+    grad.addColorStop(1, rodDark);
     ctx.fillStyle = hit ? "#ffffff" : grad;
     ctx.beginPath();
     ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
     ctx.fill();
-    ctx.strokeStyle = "#6B8030";
+    ctx.strokeStyle = rodDark;
     ctx.lineWidth = Math.max(1.0, 1.3 * U);
     ctx.stroke();
     // Highlight arriba-izquierda
@@ -7071,6 +7152,7 @@
     clearCanvas();
     drawExteriorZone();      // 0-7%: green outdoor band
     drawSkinZone();          // 7-15%: thinner skin band
+    drawSkinLayers();        // 15-82%: dermis + hipodermis teñidas
     drawCirculatoryZone();   // 85-100%: blood vessels area
     drawAmbient();
     drawMitosis();

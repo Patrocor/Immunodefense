@@ -359,6 +359,12 @@
   var DRIP_REWARD = 25;
   var DRIP_WINDOW = 3.0;
 
+  // -------- COMBAT: gérmenes atacan torres --------------------------------
+  var TOWER_EXHAUST_TIME = 5;   // s inactiva tras agotarse, luego revive
+  var TOWER_HEAL_DELAY = 3;     // s sin recibir daño antes de autocurarse
+  var TOWER_HEAL_RATE = 1 / 8;  // fracción de maxHp curada por segundo
+  var ATTACK_RADIUS_BASE = 46;  // px diseño; * U en uso
+
   function layoutDrip() {
     // Nódulo linfático: alojado en el hueco libre entre el barrido 1 (y~0.32)
     // y el barrido 2 (y~0.54) de la serpentina, pegado al margen izquierdo
@@ -702,9 +708,9 @@
       cost: 50,
       desc: "Cuerpo a cuerpo",
       levels: [
-        { range:  90, damage: 25, fireRate: 1.0, projectileSpeed:   0, splash:  0 },
-        { range: 100, damage: 45, fireRate: 1.2, projectileSpeed:   0, splash:  0 },
-        { range: 110, damage: 75, fireRate: 1.4, projectileSpeed:   0, splash:  0 }
+        { range:  90, damage: 25, fireRate: 1.0, projectileSpeed:   0, splash:  0, hp: 120 },
+        { range: 100, damage: 45, fireRate: 1.2, projectileSpeed:   0, splash:  0, hp: 160 },
+        { range: 110, damage: 75, fireRate: 1.4, projectileSpeed:   0, splash:  0, hp: 210 }
       ],
       upgradeCost: [60, 110]
     },
@@ -716,9 +722,9 @@
       cost: 75,
       desc: "Anticuerpos a distancia",
       levels: [
-        { range: 180, damage: 15, fireRate: 1.5, projectileSpeed: 380, splash: 0 },
-        { range: 210, damage: 24, fireRate: 1.8, projectileSpeed: 430, splash: 0 },
-        { range: 240, damage: 38, fireRate: 2.2, projectileSpeed: 480, splash: 0 }
+        { range: 180, damage: 15, fireRate: 1.5, projectileSpeed: 380, splash: 0, hp: 70 },
+        { range: 210, damage: 24, fireRate: 1.8, projectileSpeed: 430, splash: 0, hp: 90 },
+        { range: 240, damage: 38, fireRate: 2.2, projectileSpeed: 480, splash: 0, hp: 120 }
       ],
       upgradeCost: [85, 140]
     },
@@ -730,9 +736,9 @@
       cost: 110,
       desc: "Citotoxico (area)",
       levels: [
-        { range: 110, damage:  40, fireRate: 0.7, projectileSpeed: 320, splash: 55 },
-        { range: 125, damage:  65, fireRate: 0.85, projectileSpeed: 360, splash: 65 },
-        { range: 140, damage: 100, fireRate: 1.0, projectileSpeed: 400, splash: 75 }
+        { range: 110, damage:  40, fireRate: 0.7, projectileSpeed: 320, splash: 55, hp: 90 },
+        { range: 125, damage:  65, fireRate: 0.85, projectileSpeed: 360, splash: 65, hp: 120 },
+        { range: 140, damage: 100, fireRate: 1.0, projectileSpeed: 400, splash: 75, hp: 150 }
       ],
       upgradeCost: [120, 200]
     }
@@ -760,7 +766,7 @@
     saureus: {
       id: "saureus", name: "Staphylococcus aureus", baseKind: "bacteria",
       color: "#F9A825", colorDark: "#9c6e0a", radius: 14,
-      speedMult: 0.7, hp: 525, reward: 18, viralAdd: 8, isBoss: false,
+      speedMult: 0.7, hp: 525, reward: 18, viralAdd: 8, attack: 12, isBoss: false,
       shield: { type: "capsula", maxHP: 5, regenRate: 0, regenDelay: 0, doubleRing: true },
       tooltip: "Bacteria con cápsula y capacidad de formar biofilm protector. Causa infecciones cutáneas, neumonía y septicemia. Algunas cepas (MRSA) son resistentes a antibióticos."
     },
@@ -781,7 +787,7 @@
     candida: {
       id: "candida", name: "Candida albicans", baseKind: "hongo",
       color: "#EC407A", colorDark: "#7a1d3e", radius: 12,
-      speedMult: 0.9, hp: 375, reward: 15, viralAdd: 8, isBoss: false,
+      speedMult: 0.9, hp: 375, reward: 15, viralAdd: 8, attack: 6, isBoss: false,
       shield: { type: "wall", maxHP: 4, regenRate: 0, regenDelay: 0 },
       tooltip: "Hongo levadura con pared celular de quitina y β-glucanos. Causa candidiasis. Su pared rígida lo protege parcialmente del ataque inmune."
     },
@@ -803,14 +809,14 @@
     cacnes: {
       id: "cacnes", name: "Cutibacterium acnes", baseKind: "bacteria",
       color: "#C9A66B", colorDark: "#7a5c33", colorLight: "#E8D2A8", radius: 12,
-      speedMult: 0.7, hp: 280, reward: 12, viralAdd: 6, isBoss: false,
+      speedMult: 0.7, hp: 280, reward: 12, viralAdd: 6, attack: 4, isBoss: false,
       shield: { type: "wall", maxHP: 2, regenRate: 0, regenDelay: 0 },
       tooltip: "Bacilo anaerobio del folículo piloso, responsable del acné. Lento y resistente; su biofilm en el poro lo protege parcialmente del ataque inmune."
     },
     pseudomonas: {
       id: "pseudomonas", name: "Pseudomonas aeruginosa", baseKind: "bacteria",
       color: "#26A69A", colorDark: "#00695C", colorLight: "#80DEEA", radius: 13,
-      speedMult: 1.0, hp: 360, reward: 16, viralAdd: 7, isBoss: false,
+      speedMult: 1.0, hp: 360, reward: 16, viralAdd: 7, attack: 10, isBoss: false,
       shield: { type: "wall", maxHP: 3, regenRate: 3 / 12, regenDelay: 8 },
       tooltip: "Bacilo gram negativo de heridas húmedas y quemaduras. Produce pus azul-verdoso (piocianina) y biofilm resistente. Foliculitis del 'jacuzzi' y ectima gangrenoso."
     },
@@ -818,7 +824,7 @@
     bossPyogenes: {
       id: "bossPyogenes", name: "Streptococcus pyogenes", baseKind: "bacteria",
       color: "#C62828", colorDark: "#5a0d0d", radius: 32,
-      speedMult: 0.8, hp: 1050, reward: 50, viralAdd: 15, isBoss: true,
+      speedMult: 0.8, hp: 1050, reward: 50, viralAdd: 15, attack: 25, isBoss: true,
       shield: { type: "capsula", maxHP: 6, regenRate: 6 / 8, regenDelay: 0 },
       tooltip: "La 'bacteria carnívora'. Causa fascitis necrotizante y faringitis severa. Su cápsula y exotoxinas la hacen muy peligrosa."
     },
@@ -839,21 +845,21 @@
     bossMRSA: {
       id: "bossMRSA", name: "MRSA", baseKind: "bacteria",
       color: "#424242", colorDark: "#1a1a1a", radius: 38,
-      speedMult: 0.6, hp: 2700, reward: 150, viralAdd: 35, isBoss: true,
+      speedMult: 0.6, hp: 2700, reward: 150, viralAdd: 35, attack: 35, isBoss: true,
       shield: { type: "capsula", maxHP: 10, regenRate: 2 / 6, regenDelay: 0, doubleRing: true, mrsaHalo: true },
       tooltip: "Staphylococcus aureus multi-resistente a antibióticos. Una de las amenazas microbiológicas más serias del siglo XXI. Combina cápsula, biofilm y resistencia genética. Su erradicación requiere arsenal completo del sistema inmune."
     },
     bossPseudomonas: {
       id: "bossPseudomonas", name: "Pseudomonas aeruginosa", baseKind: "bacteria",
       color: "#00ACC1", colorDark: "#00606e", colorLight: "#4DD0E1", radius: 30,
-      speedMult: 0.9, hp: 1400, reward: 65, viralAdd: 18, isBoss: true,
+      speedMult: 0.9, hp: 1400, reward: 65, viralAdd: 18, attack: 22, isBoss: true,
       shield: { type: "wall", maxHP: 6, regenRate: 6 / 8, regenDelay: 0 },
       tooltip: "Pseudomonas invasiva: ectima gangrenoso. Coloniza heridas y quemaduras extensas, destruye el tejido y resiste muchos antibióticos. Su biofilm se regenera con rapidez."
     },
     bossClostridium: {
       id: "bossClostridium", name: "Clostridium perfringens", baseKind: "bacteria",
       color: "#546E7A", colorDark: "#263238", radius: 32,
-      speedMult: 0.55, hp: 1650, reward: 80, viralAdd: 22, isBoss: true,
+      speedMult: 0.55, hp: 1650, reward: 80, viralAdd: 22, attack: 28, isBoss: true,
       shield: { type: "wall", maxHP: 5, regenRate: 0, regenDelay: 0 },
       tooltip: "Bacilo anaerobio de la gangrena gaseosa. Sus toxinas necrosan músculo y piel produciendo gas en los tejidos. Avanza lento e implacable; emergencia quirúrgica."
     },
@@ -1654,6 +1660,24 @@
           e.y = p.y;
         }
       }
+      // Combate: gérmenes agresivos dañan torres dentro del aura al pasar
+      // (sin detenerse). Solo en el camino y si no están siendo absorbidos.
+      if (e.toxinTimer > 0) e.toxinTimer -= dt;
+      if (e.def.attack > 0 && !e.absorbing &&
+          (e.state === "walking" || e.state === "blocked")) {
+        var aura = ATTACK_RADIUS_BASE * U;
+        for (var ti = 0; ti < state.towers.length; ti++) {
+          var tw = state.towers[ti];
+          if (tw.exhaust > 0) continue;
+          if (Math.hypot(tw.x - e.x, tw.y - e.y) < aura) {
+            tw.hp -= e.def.attack * dt;
+            tw.hitFlash = 0.14;
+            tw.lastAttackedAt = state.time;
+            e.toxinTimer = 0.2;
+            e.toxinX = tw.x; e.toxinY = tw.y;
+          }
+        }
+      }
     }
     state.enemies = state.enemies.filter(function (e) { return !e.dead; });
   }
@@ -1674,7 +1698,12 @@
       idlePhase: Math.random() * Math.PI * 2,
       blinkTimer: 0,
       nextBlink: state.time + 2 + Math.random() * 3,
-      placedAt: state.time
+      placedAt: state.time,
+      maxHp: def.levels[0].hp,
+      hp: def.levels[0].hp,
+      exhaust: 0,
+      hitFlash: 0,
+      lastAttackedAt: -999
     });
     pushEffect({ kind: "place", x: x, y: y, life: 0.6, max: 0.6, color: def.color });
     pushEffect({ kind: "placeFlash", x: x, y: y, life: 0.25, max: 0.25 });
@@ -1696,6 +1725,18 @@
       if (t.levelupAnim > 0) t.levelupAnim -= dt;
       if (t.cooldown > 0) t.cooldown -= dt;
       if (t.muzzleFlash > 0) t.muzzleFlash -= dt;
+      if (t.hitFlash > 0) t.hitFlash -= dt;
+      // Combate: agotamiento (vida a 0) -> inactiva, luego revive completa.
+      if (t.exhaust > 0) {
+        t.exhaust -= dt;
+        if (t.exhaust <= 0) { t.exhaust = 0; t.hp = t.maxHp; }
+        continue;  // agotada: no dispara
+      }
+      if (t.hp <= 0) { t.exhaust = TOWER_EXHAUST_TIME; continue; }
+      // Autocuración cuando no la atacan hace un rato.
+      if (t.hp < t.maxHp && (state.time - (t.lastAttackedAt || -999)) > TOWER_HEAL_DELAY) {
+        t.hp = Math.min(t.maxHp, t.hp + t.maxHp * TOWER_HEAL_RATE * dt);
+      }
       if (t.cooldown > 0) continue;
       var stats = towerStats(t);
       var rangePx = stats.range * U;
@@ -3388,6 +3429,10 @@
     state.atp -= cost;
     t.level += 1;
     t.levelupAnim = 0.5;
+    // Mejorar sube la vida máxima y cura por completo (refuerzo inmune).
+    t.maxHp = t.def.levels[t.level].hp;
+    t.hp = t.maxHp;
+    t.exhaust = 0;
     sfx("upgrade");
     showMsg(t.def.name + " mejorado a Nv " + (t.level + 1));
   }
@@ -4281,6 +4326,9 @@
       ctx.arc(t.x, t.y, 28 * U, 0, Math.PI * 2);
       ctx.fill();
     }
+    var exhausted = (t.exhaust || 0) > 0;
+    ctx.save();
+    if (exhausted) ctx.globalAlpha = 0.38;   // agotada: apagada
     if (t.def.id === "macrofago") drawMacrofago(t, pulse, expression, blink);
     else if (t.def.id === "linfocitoB") drawLinfocitoB(t, pulse, expression, blink);
     else drawLinfocitoT(t, pulse, expression, blink);
@@ -4303,6 +4351,35 @@
       ctx.beginPath();
       ctx.arc(t.x - 6 * U + i * 6 * U, pipsY, 2.2 * U, 0, Math.PI * 2);
       ctx.fill();
+    }
+    ctx.restore();
+    // --- Combate: destello de daño, barra de vida, agotamiento ---
+    if ((t.hitFlash || 0) > 0) {
+      ctx.fillStyle = "rgba(220, 50, 50, " + (0.5 * (t.hitFlash / 0.14)) + ")";
+      ctx.beginPath();
+      ctx.arc(t.x, t.y, 22 * U, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    if (t.hp < t.maxHp - 0.5 || exhausted) {
+      var bw = 30 * U, bh = 4 * U;
+      var bx = t.x - bw / 2, by = t.y + 22 * U;
+      var ratio = Math.max(0, Math.min(1, t.hp / t.maxHp));
+      ctx.fillStyle = "rgba(0,0,0,0.45)";
+      ctx.fillRect(bx - 1, by - 1, bw + 2, bh + 2);
+      var hpCol = exhausted ? "#888" : ratio > 0.5 ? "#5ad15a" : ratio > 0.25 ? "#e8c84a" : "#d9534f";
+      ctx.fillStyle = hpCol;
+      ctx.fillRect(bx, by, bw * ratio, bh);
+    }
+    if (exhausted) {
+      // Indicador de recuperación: anillo punteado pulsante.
+      var er = 24 * U + Math.sin(state.time * 6) * 2 * U;
+      ctx.strokeStyle = "rgba(255,255,255,0.5)";
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([4 * U, 4 * U]);
+      ctx.beginPath();
+      ctx.arc(t.x, t.y, er, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
     }
   }
 
@@ -4458,6 +4535,25 @@
   function drawEnemy(e) {
     var def = e.def;
     var rad = def.radius * U;
+    // Toxina: tendón rojizo del germen a la torre que está dañando.
+    if ((e.toxinTimer || 0) > 0 && e.toxinX != null) {
+      var ta = e.toxinTimer / 0.2;
+      ctx.save();
+      ctx.strokeStyle = "rgba(120, 200, 80, " + (0.55 * ta) + ")";
+      ctx.lineWidth = 2.5 * U;
+      ctx.lineCap = "round";
+      var mx = (e.x + e.toxinX) / 2 + (Math.random() - 0.5) * 6 * U;
+      var my = (e.y + e.toxinY) / 2 + (Math.random() - 0.5) * 6 * U;
+      ctx.beginPath();
+      ctx.moveTo(e.x, e.y);
+      ctx.quadraticCurveTo(mx, my, e.toxinX, e.toxinY);
+      ctx.stroke();
+      ctx.fillStyle = "rgba(140, 210, 90, " + (0.5 * ta) + ")";
+      ctx.beginPath();
+      ctx.arc(e.toxinX, e.toxinY, 4 * U, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
     var expression = e.dying ? "dying"
       : e.hurtTimer > 0 ? "hurt"
       : (e.def.isBoss && e.enraged) ? "enraged"

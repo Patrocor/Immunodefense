@@ -361,8 +361,14 @@
 
   // -------- COMBAT: gérmenes atacan torres --------------------------------
   // Sin recuperación: el daño es permanente; a 0 de vida la torre muere.
-  var ATTACK_RADIUS_BASE = 46;  // px diseño; * U en uso (radio del aura/"radar")
+  var ATTACK_RADIUS_BASE = 40;  // px diseño base del aura/"radar"
   var ATTACK_MULT = 1.15;       // +15% al daño de todos los gérmenes
+  // Radio del aura de daño por germen: escala con su ataque, así los gérmenes
+  // más peligrosos (S. aureus, Pseudomonas, jefes) tienen MAYOR rango y se
+  // distinguen de los débiles. En px diseño; multiplicar por U al usar.
+  function enemyAuraRadiusPx(def) {
+    return (ATTACK_RADIUS_BASE + (def.attack || 0) * 2) * U;
+  }
 
   function layoutDrip() {
     // Nódulo linfático: alojado en el hueco libre entre el barrido 1 (y~0.32)
@@ -1664,7 +1670,7 @@
       if (e.toxinTimer > 0) e.toxinTimer -= dt;
       if (e.def.attack > 0 && !e.absorbing &&
           (e.state === "walking" || e.state === "blocked")) {
-        var aura = ATTACK_RADIUS_BASE * U;
+        var aura = enemyAuraRadiusPx(e.def);
         for (var ti = 0; ti < state.towers.length; ti++) {
           var tw = state.towers[ti];
           if (Math.hypot(tw.x - e.x, tw.y - e.y) < aura) {
@@ -4547,16 +4553,20 @@
     // atacan mientras transitan, para que se vea su zona de daño.
     if (def.attack > 0 && !e.dying && !e.absorbing &&
         (e.state === "walking" || e.state === "blocked")) {
-      var auraR = ATTACK_RADIUS_BASE * U;
+      var auraR = enemyAuraRadiusPx(def);
       var rp = 0.5 + 0.5 * Math.sin(state.time * 3.5 + (e.wobble || 0));
+      // Color por peligrosidad: verde (leve) -> naranja -> rojo (alto/jefe).
+      var dThreat = Math.min(1, def.attack / 30);
+      var rR = Math.round(120 + 135 * dThreat);
+      var rG = Math.round(220 - 150 * dThreat);
+      var rB = 70;
       ctx.save();
-      // Disco tenue + anillo pulsante (zona de daño).
-      ctx.fillStyle = "rgba(150, 220, 90, " + (0.05 + 0.05 * rp) + ")";
+      ctx.fillStyle = "rgba(" + rR + "," + rG + "," + rB + "," + (0.05 + 0.06 * rp) + ")";
       ctx.beginPath();
       ctx.arc(e.x, e.y, auraR, 0, Math.PI * 2);
       ctx.fill();
-      ctx.strokeStyle = "rgba(150, 220, 90, " + (0.18 + 0.16 * rp) + ")";
-      ctx.lineWidth = 1.4 * U;
+      ctx.strokeStyle = "rgba(" + rR + "," + rG + "," + rB + "," + (0.20 + 0.20 * rp) + ")";
+      ctx.lineWidth = (1.2 + 1.2 * dThreat) * U;
       ctx.setLineDash([5 * U, 5 * U]);
       ctx.beginPath();
       ctx.arc(e.x, e.y, auraR, 0, Math.PI * 2);

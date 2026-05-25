@@ -1413,19 +1413,20 @@
   // Sprint 7: intermediate stragglers spawn every 4-7s during the wave gap
   // so dead air between oleadas keeps slight tension. Only regular pathogens
   // — never a boss.
+  // Fase 1 piel: solo gérmenes cutáneos (todos con ataque/radar).
   var INTERMEDIATE_POOL_BY_WAVE = [
-    null,                                     // wave 0 (pre-first), no spawns
-    ["ecoli"],                                // wave 1
-    ["ecoli"],                                // wave 2
-    ["ecoli", "influenza"],                   // wave 3
-    ["ecoli", "influenza"],                   // 4
-    ["ecoli", "influenza"],                   // 5
-    ["ecoli", "influenza", "spneumoniae"],    // 6
-    ["ecoli", "influenza", "spneumoniae"],    // 7
-    ["ecoli", "influenza", "spneumoniae"],    // 8
-    ["ecoli", "influenza", "spneumoniae"]     // 9
+    null,                                          // wave 0 (pre-first), no spawns
+    ["sepidermidis"],                              // wave 1
+    ["sepidermidis", "hsv"],                       // wave 2
+    ["sepidermidis", "hsv"],                        // wave 3
+    ["sepidermidis", "hsv", "cacnes"],             // 4
+    ["sepidermidis", "hsv", "cacnes"],             // 5
+    ["sepidermidis", "hsv", "cacnes", "candida"],  // 6
+    ["hsv", "cacnes", "candida", "pseudomonas"],   // 7
+    ["hsv", "cacnes", "candida", "pseudomonas"],   // 8
+    ["hsv", "candida", "pseudomonas", "saureus"]   // 9
   ];
-  var INTERMEDIATE_POOL_LATE = ["ecoli", "influenza", "spneumoniae", "saureus", "candida", "vih"];
+  var INTERMEDIATE_POOL_LATE = ["sepidermidis", "hsv", "cacnes", "candida", "pseudomonas", "saureus"];
   function pickIntermediateType() {
     var w = Math.max(0, state.waveIdx | 0);
     var pool = w < INTERMEDIATE_POOL_BY_WAVE.length

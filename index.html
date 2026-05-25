@@ -7,6 +7,9 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#1a0e12">
 <title>ImmunoDefense</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html, body {
@@ -14,7 +17,7 @@
     width: 100%; height: 100%;
     overflow: hidden;
     background: #1a0e12;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Fredoka, sans-serif;
     color: #fff;
     user-select: none;
     -webkit-user-select: none;
@@ -2899,7 +2902,7 @@
       ctx.save();
       ctx.globalAlpha = alpha;
       var fs = Math.max(11, 13 * U);
-      ctx.font = "bold " + fs + "px sans-serif";
+      ctx.font = "bold " + fs + "px Fredoka, sans-serif";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       var ty = b.y - 32 * U - (1.5 - b.textTimer) * 14 * U;
@@ -3815,7 +3818,7 @@
     // Etiquetas tenues de capa en el margen izquierdo.
     ctx.save();
     ctx.fillStyle = "rgba(120, 70, 70, 0.30)";
-    ctx.font = "bold " + Math.max(8, Math.min(11, FIELD_W * 0.026)) + "px sans-serif";
+    ctx.font = "bold " + Math.max(8, Math.min(11, FIELD_W * 0.026)) + "px Fredoka, sans-serif";
     ctx.textAlign = "left";
     ctx.textBaseline = "middle";
     ctx.fillText("EPIDERMIS", x + 6 * U, FIELD_TOP + FIELD_H * 0.11);
@@ -6067,7 +6070,7 @@
     } else if (ef.kind === "dmgText") {
       ctx.globalAlpha = alpha;
       var fs = Math.max(11, 13 * U);
-      ctx.font = "bold " + fs + "px sans-serif";
+      ctx.font = "bold " + fs + "px Fredoka, sans-serif";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.lineWidth = 3;
@@ -6079,7 +6082,7 @@
     } else if (ef.kind === "atpText") {
       ctx.globalAlpha = alpha;
       var fs2 = Math.max(12, 14 * U);
-      ctx.font = "bold " + fs2 + "px sans-serif";
+      ctx.font = "bold " + fs2 + "px Fredoka, sans-serif";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.lineWidth = 3;
@@ -6238,7 +6241,7 @@
     }
     // Inline text
     var label = getViralLabel(ratio) + "  " + Math.floor(state.viralLoad) + " / " + state.viralThreshold;
-    ctx.font = "bold " + Math.max(10, Math.min(12, barH * 0.85)) + "px sans-serif";
+    ctx.font = "bold " + Math.max(10, Math.min(12, barH * 0.85)) + "px Fredoka, sans-serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillStyle = "rgba(0,0,0,0.55)";
@@ -6259,13 +6262,13 @@
       var midY = safeTop + (HUD_H - safeTop) / 2;
       ctx.textBaseline = "middle";
       ctx.textAlign = "left";
-      ctx.font = "bold 14px sans-serif";
+      ctx.font = "bold 14px Fredoka, sans-serif";
       ctx.fillStyle = "#f5d76e";
       ctx.fillText("⚡ " + state.atp, leftX, midY);
       ctx.font = 'italic 12px Georgia, serif';
       ctx.fillStyle = "rgba(220, 200, 200, 0.85)";
       ctx.fillText("FASE 1", leftX + 64, midY);
-      ctx.font = "bold 13px sans-serif";
+      ctx.font = "bold 13px Fredoka, sans-serif";
       ctx.fillStyle = "#e0e0e0";
       ctx.fillText("⌖ " + state.waveIdx, leftX + 116, midY);
     } else {
@@ -6300,7 +6303,7 @@
       roundRect(nb.x, nb.y, nb.w, nb.h, 8);
       ctx.stroke();
       ctx.fillStyle = "#ffd6c4";
-      ctx.font = "bold " + Math.max(11, Math.min(13, nb.h * 0.36)) + "px sans-serif";
+      ctx.font = "bold " + Math.max(11, Math.min(13, nb.h * 0.36)) + "px Fredoka, sans-serif";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.fillText(statusText, nb.x + nb.w / 2, nb.y + nb.h / 2);
@@ -6391,12 +6394,12 @@
 
   function drawHudStat(label, value, x, y, color, fontStat, fontLabel) {
     ctx.fillStyle = "rgba(255,255,255,0.55)";
-    ctx.font = fontLabel + "px sans-serif";
+    ctx.font = fontLabel + "px Fredoka, sans-serif";
     ctx.textAlign = "left";
     ctx.textBaseline = "top";
     ctx.fillText(label, x, y);
     ctx.fillStyle = color;
-    ctx.font = "bold " + fontStat + "px sans-serif";
+    ctx.font = "bold " + fontStat + "px Fredoka, sans-serif";
     ctx.fillText(value, x, y + fontLabel + 4);
   }
 
@@ -6410,7 +6413,7 @@
     ctx.stroke();
     ctx.fillStyle = enabled ? "#fff" : "rgba(255,255,255,0.55)";
     var fs = Math.max(11, Math.min(14, r.h * 0.36));
-    ctx.font = "bold " + fs + "px sans-serif";
+    ctx.font = "bold " + fs + "px Fredoka, sans-serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillText(text, r.x + r.w / 2, r.y + r.h / 2);
@@ -6486,13 +6489,13 @@
 
         ctx.fillStyle = canAfford ? "#fff" : "rgba(255,255,255,0.45)";
         var fs1 = Math.max(11, Math.min(14, cw * 0.15));
-        ctx.font = "bold " + fs1 + "px sans-serif";
+        ctx.font = "bold " + fs1 + "px Fredoka, sans-serif";
         ctx.textAlign = "center";
         ctx.textBaseline = "top";
         var nameStr = (cw < 120 && def.shortName) ? def.shortName : def.name;
         ctx.fillText(nameStr, cx, cardY + ch * 0.60);
 
-        ctx.font = "bold " + Math.max(11, Math.min(13, cw * 0.13)) + "px sans-serif";
+        ctx.font = "bold " + Math.max(11, Math.min(13, cw * 0.13)) + "px Fredoka, sans-serif";
         ctx.fillStyle = canAfford ? "#f5d76e" : "#d9534f";
         ctx.fillText("⚡ " + def.cost, cx, cardY + ch * 0.80);
       }
@@ -6525,14 +6528,14 @@
       var t = state.selectedTower;
       var stats = towerStats(t);
       ctx.fillStyle = t.def.color;
-      ctx.font = "bold 13px sans-serif";
+      ctx.font = "bold 13px Fredoka, sans-serif";
       var nm = (t.def.shortName || t.def.name);
       ctx.fillText(nm, infoX, infoY + 2);
       ctx.fillStyle = "rgba(255,255,255,0.7)";
-      ctx.font = "11px sans-serif";
+      ctx.font = "11px Fredoka, sans-serif";
       ctx.fillText("Nivel " + (t.level + 1) + "/3", infoX, infoY + 18);
 
-      ctx.font = "11px sans-serif";
+      ctx.font = "11px Fredoka, sans-serif";
       ctx.fillStyle = "rgba(255,255,255,0.85)";
       ctx.fillText("Dmg " + stats.damage + (stats.splash > 0 ? " AOE" : ""), infoX, infoY + 36);
       ctx.fillText("Rango " + stats.range, infoX, infoY + 50);
@@ -6543,7 +6546,7 @@
       roundRect(UI.deselectBtn.x, UI.deselectBtn.y, UI.deselectBtn.w, UI.deselectBtn.h, 6);
       ctx.fill();
       ctx.fillStyle = "rgba(255,255,255,0.8)";
-      ctx.font = "bold 13px sans-serif";
+      ctx.font = "bold 13px Fredoka, sans-serif";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.fillText("✕", UI.deselectBtn.x + UI.deselectBtn.w / 2, UI.deselectBtn.y + UI.deselectBtn.h / 2 + 1);
@@ -6568,14 +6571,14 @@
     } else if (state.selectedToBuild) {
       var def2 = TOWER_DEFS[state.selectedToBuild];
       ctx.fillStyle = def2.color;
-      ctx.font = "bold 12px sans-serif";
+      ctx.font = "bold 12px Fredoka, sans-serif";
       ctx.fillText((def2.shortName || def2.name), infoX, infoY + 2);
-      ctx.font = "11px sans-serif";
+      ctx.font = "11px Fredoka, sans-serif";
       ctx.fillStyle = "rgba(255,255,255,0.8)";
       ctx.fillText("Toca el campo", infoX, infoY + 20);
       ctx.fillText("para colocar", infoX, infoY + 34);
       ctx.fillStyle = "#f5d76e";
-      ctx.font = "bold 12px sans-serif";
+      ctx.font = "bold 12px Fredoka, sans-serif";
       ctx.fillText("⚡ " + def2.cost, infoX, infoY + 52);
     }
   }
@@ -6647,7 +6650,7 @@
   function drawMessage() {
     if (state.msgTimer > 0 && state.msg) {
       var alpha = Math.min(1, state.msgTimer / 0.4);
-      ctx.font = "bold 16px sans-serif";
+      ctx.font = "bold 16px Fredoka, sans-serif";
       var w = ctx.measureText(state.msg).width + 32;
       var x = VW / 2 - w / 2;
       ctx.fillStyle = "rgba(0,0,0,0.55)";
@@ -6675,11 +6678,11 @@
     roundRect(UI.modal.x, UI.modal.y, UI.modal.w, UI.modal.h, 12);
     ctx.stroke();
     ctx.fillStyle = "#fff";
-    ctx.font = "bold 18px sans-serif";
+    ctx.font = "bold 18px Fredoka, sans-serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillText("¿Reiniciar partida?", UI.modal.x + UI.modal.w / 2, UI.modal.y + 44);
-    ctx.font = "13px sans-serif";
+    ctx.font = "13px Fredoka, sans-serif";
     ctx.fillStyle = "rgba(255,255,255,0.7)";
     ctx.fillText("Perderas el progreso actual.", UI.modal.x + UI.modal.w / 2, UI.modal.y + 80);
     drawButton(UI.modalYes, "Si, reiniciar", "#7a3a3a", "#552020", true);
@@ -6720,7 +6723,7 @@
 
     var sx = VW / 2;
     var sy = VH * 0.28 + titleFs * 1.6;
-    ctx.font = 'bold 15px sans-serif';
+    ctx.font = 'bold 15px Fredoka, sans-serif';
     ctx.fillStyle = "#f5e7e7";
     var stats = state.finalScreen ? [
       "Niveles superados: " + state.currentLevel + " / " + MAX_LEVEL,
@@ -6750,7 +6753,7 @@
     roundRect(btn.x, btn.y, btn.w, btn.h, 8);
     ctx.stroke();
     ctx.fillStyle = "#fff";
-    ctx.font = 'bold 16px sans-serif';
+    ctx.font = 'bold 16px Fredoka, sans-serif';
     ctx.fillText(
       state.finalScreen ? "Reiniciar simulación" : "Continuar al Nivel " + (state.currentLevel + 1),
       btn.x + btn.w / 2, btn.y + btn.h / 2
@@ -6819,7 +6822,7 @@
     // Lab notebook header (only first tooltip of the session).
     var contentY = y + 12;
     if (tt.isFirst) {
-      ctx.font = "bold 9px sans-serif";
+      ctx.font = "bold 9px Fredoka, sans-serif";
       ctx.fillStyle = "#1565C0";
       ctx.textAlign = "center";
       ctx.textBaseline = "top";
@@ -6854,12 +6857,12 @@
       if (def.shield.type === "capsula") { shieldLabel = "🟡 Cápsula"; shieldColor = "#C8B068"; }
       else if (def.shield.type === "spike") { shieldLabel = "🔵 Spike (solo Linf-T)"; shieldColor = "#3F8AC8"; }
       else { shieldLabel = "🟢 Pared celular"; shieldColor = "#7CA850"; }
-      ctx.font = "bold 11px sans-serif";
+      ctx.font = "bold 11px Fredoka, sans-serif";
       ctx.fillStyle = shieldColor;
       ctx.fillText(shieldLabel + " · " + def.shield.maxHP + " hits", x + W / 2, contentY);
       contentY += 16;
     } else {
-      ctx.font = "italic 11px sans-serif";
+      ctx.font = "italic 11px Fredoka, sans-serif";
       ctx.fillStyle = "rgba(80, 60, 60, 0.65)";
       ctx.fillText("Sin escudo", x + W / 2, contentY);
       contentY += 16;
@@ -6955,7 +6958,7 @@
     ctx.font = "italic 14px Georgia, serif";
     ctx.fillStyle = "#FFCDD2";
     ctx.fillText("Staphylococcus aureus resistente a meticilina", bx + bw / 2, by + 60);
-    ctx.font = "11px sans-serif";
+    ctx.font = "11px Fredoka, sans-serif";
     ctx.fillStyle = "#F0E68C";
     ctx.fillText("Multi-resistente. Arsenal completo requerido.", bx + bw / 2, by + 84);
     ctx.restore();
@@ -7036,7 +7039,7 @@
     ctx.lineWidth = 3;
     ctx.strokeRect(-btn.w / 2, -btn.h / 2, btn.w, btn.h);
     ctx.fillStyle = "#1a1a22";
-    ctx.font = "bold 18px sans-serif";
+    ctx.font = "bold 18px Fredoka, sans-serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillText("COMENZAR", 0, 0);
@@ -7221,7 +7224,7 @@
   function drawTerrorTitleTwoLines(line1, line2, cx, cyCenter, time) {
     var padding = 24;
     var maxW = VW - padding * 2;
-    var fontStack = "'Impact', 'Arial Black', 'Helvetica Neue', sans-serif";
+    var fontStack = "'Impact', 'Arial Black', 'Helvetica Neue', Fredoka, sans-serif";
     var fs = Math.min(VW * 0.14, 72);
     fs = Math.max(28, fs);
     // Auto-fit: el bottleneck es la línea más larga.
@@ -7303,13 +7306,13 @@
     ctx.textAlign = "center";
     ctx.textBaseline = "top";
     ctx.fillStyle = "rgba(255, 255, 255, " + alpha + ")";
-    ctx.font = "300 20px 'Helvetica Neue', Arial, sans-serif";
+    ctx.font = "300 20px 'Helvetica Neue', Arial, Fredoka, sans-serif";
     if ("letterSpacing" in ctx) {
       try { ctx.letterSpacing = "4px"; } catch (e) {}
     }
     ctx.fillText("IMMUNODEFENSE", VW / 2, 24);
     ctx.fillStyle = "rgba(255, 255, 255, " + (alpha * 0.65) + ")";
-    ctx.font = "300 12px 'Helvetica Neue', Arial, sans-serif";
+    ctx.font = "300 12px 'Helvetica Neue', Arial, Fredoka, sans-serif";
     if ("letterSpacing" in ctx) {
       try { ctx.letterSpacing = "3px"; } catch (e) {}
     }
@@ -7412,7 +7415,7 @@
       ctx.lineWidth = 3;
       ctx.strokeRect(-btn.w / 2, -btn.h / 2, btn.w, btn.h);
       ctx.fillStyle = "#1a1a22";
-      ctx.font = "bold 16px sans-serif";
+      ctx.font = "bold 16px Fredoka, sans-serif";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.fillText("▶ CONTINUAR A FASE 2 (Próximamente)", 0, 0);
@@ -7452,7 +7455,7 @@
     // Stats list
     var sx = VW / 2;
     var sy = VH * 0.35 + titleFs * 1.65;
-    ctx.font = 'bold ' + Math.max(14, 16) + 'px sans-serif';
+    ctx.font = 'bold ' + Math.max(14, 16) + 'px Fredoka, sans-serif';
     var statsColor = state.victory ? "#2C3E50" : "#f5e7e7";
     ctx.fillStyle = statsColor;
     var stats = [
@@ -7477,7 +7480,7 @@
       roundRect(btn.x, btn.y, btn.w, btn.h, 8);
       ctx.stroke();
       ctx.fillStyle = "#fff";
-      ctx.font = 'bold 15px sans-serif';
+      ctx.font = 'bold 15px Fredoka, sans-serif';
       ctx.textBaseline = "middle";
       ctx.fillText("Jugar de nuevo", btn.x + btn.w / 2, btn.y + btn.h / 2);
     } else {
@@ -7489,7 +7492,7 @@
       roundRect(btn.x, btn.y, btn.w, btn.h, 8);
       ctx.stroke();
       ctx.fillStyle = "#fff";
-      ctx.font = 'bold 15px sans-serif';
+      ctx.font = 'bold 15px Fredoka, sans-serif';
       ctx.textBaseline = "middle";
       ctx.fillText("Reintentar", btn.x + btn.w / 2, btn.y + btn.h / 2);
     }
@@ -7578,7 +7581,7 @@
     if (!state.damageNumbers.length) return;
     var fs = Math.max(16, 18 * U);
     ctx.save();
-    ctx.font = "bold " + fs + "px sans-serif";
+    ctx.font = "bold " + fs + "px Fredoka, sans-serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.lineWidth = 4;

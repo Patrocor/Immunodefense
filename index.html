@@ -386,11 +386,10 @@
   }
 
   function layoutDrip() {
-    // Nódulo linfático: en el espacio interior derecho de la espiral (bajo el
-    // brazo interno-superior y~0.30, a la derecha del interno-izq x~0.30),
-    // lejos del camino.
-    DRIP.x = FIELD_LEFT + FIELD_W * 0.65;
-    DRIP.y = FIELD_TOP + FIELD_H * 0.48;
+    // Nódulo linfático: en el hueco entre el barrido 1 (y~0.30) y el 2 (y~0.50)
+    // de la serpentina, centrado y lejos de los conectores verticales.
+    DRIP.x = FIELD_LEFT + FIELD_W * 0.50;
+    DRIP.y = FIELD_TOP + FIELD_H * 0.38;
     DRIP.w = 44 * U;   // long axis radius (reducido para no invadir el camino)
     DRIP.h = 27 * U;   // short axis radius
     DRIP.mouthY = DRIP.y + DRIP.h * 0.85;
@@ -407,7 +406,7 @@
     { x: 0.50, y: 0.10 }
   ];
   var CONFLUENCE_POS = { x: 0.50, y: 0.16 };
-  var VESSEL_POS = { x: 0.62, y: 0.74 };   // punto más bajo del trazado
+  var VESSEL_POS = { x: 0.50, y: 0.88 };   // vaso al fondo (zona circulatoria)
   // El germen recorre casi todo el camino antes de ser absorbido por el vaso.
   // (Antes 0.88: con la serpentina nueva, más larga, eso lo hacía entrar
   // saltándose ~12-15% del recorrido.) 0.97 deja solo un breve floreo final.
@@ -513,15 +512,18 @@
     // Espiral rectangular (ángulos rectos) desde la entrada hacia el vaso al
     // centro. Brazos a 0.14/0.86 (externos), 0.30/0.70 (medios), 0.46 (interno);
     // los huecos (~0.16-0.18) dejan corredores para colocar torres.
+    // Serpentina orgánica: 1 entrada arriba que baja en 3 barridos
+    // horizontales hasta el vaso al fondo. Curvas suaves (PATH_GEOMETRIC=false).
+    var L = 0.16, R = 0.84;
     var mainAnchorsNorm = [
-      { x: CONFLUENCE_POS.x, y: CONFLUENCE_POS.y }, // 0.50,0.16 confluencia (arriba)
-      { x: 0.14, y: 0.16 },                          // a la izquierda
-      { x: 0.14, y: 0.90 },                          // baja borde izquierdo
-      { x: 0.86, y: 0.90 },                          // cruza abajo
-      { x: 0.86, y: 0.30 },                          // sube borde derecho
-      { x: 0.30, y: 0.30 },                          // cruza interno-arriba
-      { x: 0.30, y: 0.74 },                          // baja interno-izq
-      { x: VESSEL_POS.x, y: VESSEL_POS.y }           // 0.62,0.74 vaso (abajo)
+      { x: CONFLUENCE_POS.x, y: CONFLUENCE_POS.y }, // 0.50,0.16 entrada (arriba)
+      { x: L, y: 0.26 },                             // baja a la izquierda
+      { x: R, y: 0.30 },                             // ── barrido 1 (izq→der)
+      { x: R, y: 0.46 },                             // baja por la derecha
+      { x: L, y: 0.50 },                             // ── barrido 2 (der→izq)
+      { x: L, y: 0.66 },                             // baja por la izquierda
+      { x: R, y: 0.70 },                             // ── barrido 3 (izq→der)
+      { x: VESSEL_POS.x, y: VESSEL_POS.y }           // 0.50,0.88 vaso (fondo)
     ];
     var mainAnchorsPx = mainAnchorsNorm.map(toPx);
     PATH.main = buildBezierPath(mainAnchorsPx);

@@ -367,7 +367,8 @@
   // más peligrosos (S. aureus, Pseudomonas, jefes) tienen MAYOR rango y se
   // distinguen de los débiles. En px diseño; multiplicar por U al usar.
   function enemyAuraRadiusPx(def) {
-    return (ATTACK_RADIUS_BASE + (def.attack || 0) * 2) * U;
+    // +20% sobre el rango previo (base + 2*ataque).
+    return (ATTACK_RADIUS_BASE + (def.attack || 0) * 2) * 1.2 * U;
   }
 
   function layoutDrip() {
@@ -6763,8 +6764,17 @@
     var def = ENEMY_DEFS[tt.defId];
     if (!def) { state.activeTooltip = null; return; }
     // Sprint 8A: lateral right-side sticky note. No backdrop, no button.
-    var W = Math.min(220, VW - 32);
-    var H = Math.min(260, FIELD_BOTTOM - FIELD_TOP - 24);
+    // Ficha compacta: solo la primera frase de la descripción, alto dinámico.
+    var W = Math.min(190, VW - 32);
+    var previewSize = 15 * U;
+    var rawDesc = (def.tooltip || "");
+    var shortDesc = rawDesc.split(/\.\s/)[0] || "";
+    if (shortDesc.length > 105) shortDesc = shortDesc.slice(0, 102) + "…";
+    else if (shortDesc && !/[.…!?]$/.test(shortDesc)) shortDesc += ".";
+    var ttDescLines = wrapText(shortDesc, W - 24, 11).slice(0, 3);
+    var H = 12 + (tt.isFirst ? 16 : 0) + (previewSize * 2 + 10) + 20 + 6 + 16 +
+            ttDescLines.length * 14 + 12;
+    H = Math.min(H, FIELD_BOTTOM - FIELD_TOP - 24);
     var marginRight = 8;
     var anchorX = VW - marginRight - W;
     var anchorY = FIELD_TOP + (FIELD_BOTTOM - FIELD_TOP) / 2 - H / 2;
@@ -6806,31 +6816,29 @@
     ctx.arc(x, y + 22, 5, 0, Math.PI * 2);
     ctx.fill();
     // Lab notebook header (only first tooltip of the session).
-    var contentY = y + 14;
+    var contentY = y + 12;
     if (tt.isFirst) {
-      ctx.font = "bold 10px sans-serif";
+      ctx.font = "bold 9px sans-serif";
       ctx.fillStyle = "#1565C0";
       ctx.textAlign = "center";
       ctx.textBaseline = "top";
       ctx.fillText("🔬  NUEVO PATÓGENO", x + W / 2, contentY);
-      contentY += 18;
+      contentY += 16;
     }
-    // Sprite preview (1.8x scale per spec)
-    var previewSize = 18 * U;
-    drawTooltipSprite(def, x + W / 2, contentY + previewSize + 6, previewSize);
-    contentY += previewSize * 2 + 14;
+    // Sprite preview
+    drawTooltipSprite(def, x + W / 2, contentY + previewSize + 5, previewSize);
+    contentY += previewSize * 2 + 10;
     // Name (italic bold serif)
-    ctx.font = "italic bold 14px Georgia, serif";
+    ctx.font = "italic bold 13px Georgia, serif";
     ctx.fillStyle = "#B22222";
     ctx.textAlign = "center";
     ctx.textBaseline = "top";
     var nm = def.name;
-    // Auto-shrink if too wide
     if (ctx.measureText(nm).width > W - 24) {
-      ctx.font = "italic bold 12px Georgia, serif";
+      ctx.font = "italic bold 11px Georgia, serif";
     }
     ctx.fillText(nm, x + W / 2, contentY);
-    contentY += 22;
+    contentY += 20;
     // Thin separator
     ctx.strokeStyle = "rgba(80, 60, 60, 0.30)";
     ctx.lineWidth = 1;
@@ -6855,15 +6863,13 @@
       ctx.fillText("Sin escudo", x + W / 2, contentY);
       contentY += 16;
     }
-    // Description (wrapped)
-    ctx.font = "12px Georgia, serif";
+    // Descripción compacta (solo la primera frase, precalculada).
+    ctx.font = "11px Georgia, serif";
     ctx.fillStyle = "#2C2A28";
     ctx.textAlign = "left";
-    var descLines = wrapText(def.tooltip || "", W - 24, 12);
-    var ly = contentY + 4;
-    var maxLines = Math.floor((y + H - 12 - ly) / 14);
-    for (var i = 0; i < descLines.length && i < maxLines; i++) {
-      ctx.fillText(descLines[i], x + 12, ly);
+    var ly = contentY + 2;
+    for (var i = 0; i < ttDescLines.length; i++) {
+      ctx.fillText(ttDescLines[i], x + 12, ly);
       ly += 14;
     }
     ctx.restore();

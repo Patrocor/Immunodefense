@@ -6967,23 +6967,81 @@
 
   function drawAmbient() {
     if (!state.ambient || !state.ambient.length) return;
+    // Células de fondo: glóbulos rojos (discos bicóncavos) y algún glóbulo
+    // blanco, derivando lento por el plasma. Vida de fondo, detrás del camino.
     for (var i = 0; i < state.ambient.length; i++) {
       var a = state.ambient[i];
-      var pulse = 0.7 + 0.3 * Math.sin(state.time * 1.5 + a.phase);
-      // Deriva suave (flotan en el plasma) — movimiento lissajous determinista.
-      var fx = a.x + Math.sin(state.time * 0.25 + a.phase) * 12 * U;
-      var fy = a.y + Math.cos(state.time * 0.2 + a.phase * 1.3) * 10 * U;
-      var rr = a.r * (0.85 + 0.25 * Math.sin(state.time * 1.1 + a.phase));
-      ctx.fillStyle = "rgba(231, 120, 130, " + (a.alpha * pulse) + ")";
-      ctx.beginPath();
-      ctx.arc(fx, fy, rr, 0, Math.PI * 2);
-      ctx.fill();
-      // Brillo interior tenue para que se sientan "vivas".
-      ctx.fillStyle = "rgba(255, 235, 235, " + (a.alpha * pulse * 0.5) + ")";
-      ctx.beginPath();
-      ctx.arc(fx - rr * 0.25, fy - rr * 0.25, rr * 0.4, 0, Math.PI * 2);
-      ctx.fill();
+      var fx = a.x + Math.sin(state.time * 0.22 + a.phase) * 14 * U;
+      var fy = a.y + Math.cos(state.time * 0.18 + a.phase * 1.3) * 11 * U;
+      var rr = a.r * 1.5;
+      ctx.save();
+      ctx.translate(fx, fy);
+      ctx.rotate(a.phase + state.time * 0.1);
+      if (i % 5 === 0) {
+        // Glóbulo blanco: pálido y lumpy con núcleo.
+        ctx.fillStyle = "rgba(244, 240, 250, 0.42)";
+        ctx.beginPath(); ctx.arc(0, 0, rr * 1.15, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = "rgba(180, 160, 205, 0.35)";
+        ctx.beginPath(); ctx.arc(rr * 0.25, 0, rr * 0.45, 0, Math.PI * 2); ctx.fill();
+      } else {
+        // Glóbulo rojo: disco con hundimiento central (bicóncavo).
+        ctx.fillStyle = "rgba(198, 58, 58, 0.30)";
+        ctx.beginPath(); ctx.ellipse(0, 0, rr, rr * 0.9, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = "rgba(150, 28, 28, 0.28)";
+        ctx.beginPath(); ctx.arc(0, 0, rr * 0.45, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = "rgba(120, 20, 20, 0.18)"; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.ellipse(0, 0, rr, rr * 0.9, 0, 0, Math.PI * 2); ctx.stroke();
+      }
+      ctx.restore();
     }
+  }
+
+  // Plasma fluyendo: blobs de luz que recorren el camino hacia el vaso (corriente).
+  function drawPlasmaFlow() {
+    if (!PATH.main || !PATH.main.length) return;
+    var total = PATH.main.length, n = 10, speed = 85 * U;
+    ctx.save();
+    for (var i = 0; i < n; i++) {
+      var d = (state.time * speed + i * (total / n)) % total;
+      var p = sampleBeziers(PATH.main.beziers, d);
+      var tw = 0.5 + 0.5 * Math.sin(state.time * 2 + i * 1.3);
+      ctx.fillStyle = "rgba(255, 244, 228, " + (0.08 + 0.12 * tw) + ")";
+      ctx.beginPath(); ctx.arc(p.x, p.y, (2.5 + tw * 2.5) * U, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  // Latido del organismo (~63 bpm) 0..1 con forma de pulso.
+  function heartbeat() {
+    return Math.pow(0.5 + 0.5 * Math.sin(state.time * (Math.PI * 2 / 0.95)), 6);
+  }
+
+  // Atmósfera: vignette + glow cálido + enrojecimiento por infestación.
+  function drawAtmosphere() {
+    var ft = FIELD_TOP, fh = FIELD_BOTTOM - FIELD_TOP;
+    var cx = FIELD_LEFT + FIELD_W * 0.5, cy = ft + fh * 0.5;
+    var beat = heartbeat();
+    var vr = Math.min(1, state.viralLoad / Math.max(1, state.viralThreshold));
+    var maxR = Math.max(FIELD_W, fh) * 0.72;
+    ctx.save();
+    // Vignette (bordes oscuros) con leve pulso.
+    var vg = ctx.createRadialGradient(cx, cy, maxR * 0.55, cx, cy, maxR);
+    vg.addColorStop(0, "rgba(0,0,0,0)");
+    vg.addColorStop(1, "rgba(18, 6, 10, " + (0.32 + beat * 0.05) + ")");
+    ctx.fillStyle = vg;
+    ctx.fillRect(FIELD_LEFT, ft, FIELD_W, fh);
+    // Glow cálido central tenue.
+    var wg = ctx.createRadialGradient(cx, cy, 0, cx, cy, maxR * 0.6);
+    wg.addColorStop(0, "rgba(255, 222, 180, 0.06)");
+    wg.addColorStop(1, "rgba(255, 222, 180, 0)");
+    ctx.fillStyle = wg;
+    ctx.fillRect(FIELD_LEFT, ft, FIELD_W, fh);
+    // Organismo enfermándose: wash rojo que crece con la infestación + latido.
+    if (vr > 0.04) {
+      ctx.fillStyle = "rgba(168, 18, 18, " + (vr * 0.22 * (0.85 + beat * 0.18)) + ")";
+      ctx.fillRect(FIELD_LEFT, ft, FIELD_W, fh);
+    }
+    ctx.restore();
   }
 
   function getViralColor(ratio) {
@@ -8307,6 +8365,7 @@
     drawTissue();
     drawInflammation();
     drawPath();              // path strokes (3 branches + main)
+    drawPlasmaFlow();        // corriente de plasma fluyendo por el camino
     drawWound();             // 3 wound sprites
     drawLymphNode();
     drawRestos();
@@ -8338,6 +8397,7 @@
     drawGas();
     drawGhost();
     drawDamageNumbers();
+    drawAtmosphere();        // vignette + glow + enrojecimiento por infestación
     // Sprint 8B: durante la cinemática se oculta el HUD y el panel para
     // que el canvas se sienta fullscreen.
     if (!state.cinematicEnd) {

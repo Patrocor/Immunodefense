@@ -804,7 +804,7 @@
     saureus: {
       id: "saureus", name: "Staphylococcus aureus", baseKind: "bacteria",
       color: "#F9A825", colorDark: "#9c6e0a", radius: 14,
-      speedMult: 0.7, hp: 525, reward: 18, viralAdd: 8, attack: 12, isBoss: false,
+      speedMult: 0.7, hp: 525, reward: 18, viralAdd: 8, attack: 12, power: { type: "burst", range: 135, cooldown: 4, dmg: 13, slowFire: 3 }, isBoss: false,
       shield: { type: "capsula", maxHP: 5, regenRate: 0, regenDelay: 0, doubleRing: true },
       tooltip: "Bacteria con cápsula y capacidad de formar biofilm protector. Causa infecciones cutáneas, neumonía y septicemia. Algunas cepas (MRSA) son resistentes a antibióticos."
     },
@@ -825,7 +825,7 @@
     candida: {
       id: "candida", name: "Candida albicans", baseKind: "hongo",
       color: "#EC407A", colorDark: "#7a1d3e", radius: 12,
-      speedMult: 0.9, hp: 375, reward: 15, viralAdd: 8, attack: 6, isBoss: false,
+      speedMult: 0.9, hp: 375, reward: 15, viralAdd: 8, attack: 6, power: { type: "catapult", range: 150, cooldown: 5, dmg: 32 }, isBoss: false,
       shield: { type: "wall", maxHP: 4, regenRate: 0, regenDelay: 0 },
       tooltip: "Hongo levadura con pared celular de quitina y β-glucanos. Causa candidiasis. Su pared rígida lo protege parcialmente del ataque inmune."
     },
@@ -854,7 +854,7 @@
     pseudomonas: {
       id: "pseudomonas", name: "Pseudomonas aeruginosa", baseKind: "bacteria",
       color: "#26A69A", colorDark: "#00695C", colorLight: "#80DEEA", radius: 13,
-      speedMult: 1.0, hp: 360, reward: 16, viralAdd: 7, attack: 10, isBoss: false,
+      speedMult: 1.0, hp: 360, reward: 16, viralAdd: 7, attack: 10, power: { type: "spray", range: 115, cooldown: 5, stun: 2.4, dmg: 16 }, isBoss: false,
       shield: { type: "wall", maxHP: 3, regenRate: 3 / 12, regenDelay: 8 },
       tooltip: "Bacilo gram negativo de heridas húmedas y quemaduras. Produce pus azul-verdoso (piocianina) y biofilm resistente. Foliculitis del 'jacuzzi' y ectima gangrenoso."
     },
@@ -862,7 +862,7 @@
     bossPyogenes: {
       id: "bossPyogenes", name: "Streptococcus pyogenes", baseKind: "bacteria",
       color: "#C62828", colorDark: "#5a0d0d", radius: 32,
-      speedMult: 0.8, hp: 1050, reward: 50, viralAdd: 15, attack: 25, isBoss: true,
+      speedMult: 0.8, hp: 1050, reward: 50, viralAdd: 15, attack: 25, power: { type: "burst", range: 165, cooldown: 3, dmg: 24, slowFire: 3 }, isBoss: true,
       shield: { type: "capsula", maxHP: 6, regenRate: 6 / 8, regenDelay: 0 },
       tooltip: "La 'bacteria carnívora'. Causa fascitis necrotizante y faringitis severa. Su cápsula y exotoxinas la hacen muy peligrosa."
     },
@@ -883,21 +883,21 @@
     bossMRSA: {
       id: "bossMRSA", name: "MRSA", baseKind: "bacteria",
       color: "#424242", colorDark: "#1a1a1a", radius: 38,
-      speedMult: 0.6, hp: 2700, reward: 150, viralAdd: 35, attack: 35, isBoss: true,
+      speedMult: 0.6, hp: 2700, reward: 150, viralAdd: 35, attack: 35, power: { type: "spray", range: 165, cooldown: 3, stun: 3, dmg: 28 }, isBoss: true,
       shield: { type: "capsula", maxHP: 10, regenRate: 2 / 6, regenDelay: 0, doubleRing: true, mrsaHalo: true },
       tooltip: "Staphylococcus aureus multi-resistente a antibióticos. Una de las amenazas microbiológicas más serias del siglo XXI. Combina cápsula, biofilm y resistencia genética. Su erradicación requiere arsenal completo del sistema inmune."
     },
     bossPseudomonas: {
       id: "bossPseudomonas", name: "Pseudomonas aeruginosa", baseKind: "bacteria",
       color: "#00ACC1", colorDark: "#00606e", colorLight: "#4DD0E1", radius: 30,
-      speedMult: 0.9, hp: 1400, reward: 65, viralAdd: 18, attack: 22, isBoss: true,
+      speedMult: 0.9, hp: 1400, reward: 65, viralAdd: 18, attack: 22, power: { type: "devour", range: 130, cooldown: 11, pull: 1.5 }, isBoss: true,
       shield: { type: "wall", maxHP: 6, regenRate: 6 / 8, regenDelay: 0 },
       tooltip: "Pseudomonas invasiva: ectima gangrenoso. Coloniza heridas y quemaduras extensas, destruye el tejido y resiste muchos antibióticos. Su biofilm se regenera con rapidez."
     },
     bossClostridium: {
       id: "bossClostridium", name: "Clostridium perfringens", baseKind: "bacteria",
       color: "#546E7A", colorDark: "#263238", radius: 32,
-      speedMult: 0.55, hp: 1650, reward: 80, viralAdd: 22, attack: 28, isBoss: true,
+      speedMult: 0.55, hp: 1650, reward: 80, viralAdd: 22, attack: 28, power: { type: "devour", range: 120, cooldown: 13, pull: 1.8 }, isBoss: true,
       shield: { type: "wall", maxHP: 5, regenRate: 0, regenDelay: 0 },
       tooltip: "Bacilo anaerobio de la gangrena gaseosa. Sus toxinas necrosan músculo y piel produciendo gas en los tejidos. Avanza lento e implacable; emergencia quirúrgica."
     },
@@ -1105,6 +1105,7 @@
       spawnElapsed: 0,
       towers: [],
       enemies: [],
+      germShots: [],
       guardians: [],
       guardianTimer: 28,
       medCharge: 0,
@@ -1378,6 +1379,8 @@
       state: "outside",   // outside -> falling -> entering -> walking -> absorbing
       outsideTimer: 1.0 + Math.random() * 1.0,  // 1-2s in exterior
       progress: 0,
+      powerCd: def.power ? (def.power.cooldown * (0.5 + Math.random() * 0.6)) : 0,
+      devourTarget: null,
       x: outX, y: outY,
       vx: (Math.random() - 0.5) * 16 * U,
       vy: 0,
@@ -1664,7 +1667,7 @@
       // BLOCKED by a coagulation barricade: stop advancing along the path.
       // Position still resolves via pathPos at the held progress so the
       // sprite stays put on the path with a small shake jitter.
-      if (e.state !== "blocked") {
+      if (e.state !== "blocked" && !e.devourTarget) {   // se detiene al devorar
         e.progress += pxSpeed * medFactor * dt;
       }
       e.wobble += dt * 6;
@@ -1772,6 +1775,25 @@
         }
       }
       if (e.acidFlash > 0) e.acidFlash -= dt;
+      // Poder especial: spray/catapulta/dardo o devorar a una torre cercana.
+      if (e.def.power && !e.dying && !e.absorbing &&
+          (e.state === "walking" || e.state === "blocked")) {
+        if (e.devourTarget) {
+          updateDevour(e, dt);
+        } else {
+          if (e.powerCd > 0) e.powerCd -= dt;
+          if (e.powerCd <= 0 && state.towers.length) {
+            var pr = e.def.power.range * U, tgt = null, bd = Infinity;
+            for (var pi = 0; pi < state.towers.length; pi++) {
+              var tw2 = state.towers[pi];
+              if (tw2.devouredBy) continue;
+              var dd2 = Math.hypot(tw2.x - e.x, tw2.y - e.y);
+              if (dd2 < pr && dd2 < bd) { bd = dd2; tgt = tw2; }
+            }
+            if (tgt) { fireGermPower(e, tgt); e.powerCd = e.def.power.cooldown; }
+          }
+        }
+      }
     }
     state.enemies = state.enemies.filter(function (e) { return !e.dead; });
   }
@@ -1797,7 +1819,10 @@
       hp: def.levels[0].hp,
       hitFlash: 0,
       dmgAccum: 0,
-      dmgNumTimer: 0
+      dmgNumTimer: 0,
+      stunTimer: 0,
+      slowFireTimer: 0,
+      devouredBy: null
     });
     pushEffect({ kind: "place", x: x, y: y, life: 0.6, max: 0.6, color: def.color });
     pushEffect({ kind: "placeFlash", x: x, y: y, life: 0.25, max: 0.25 });
@@ -1847,6 +1872,10 @@
         state.towers.splice(i, 1); i--;
         continue;
       }
+      // Poderes de gérmenes: paralización (no dispara) y cadencia lenta.
+      if (t.stunTimer > 0) t.stunTimer -= dt;
+      if (t.slowFireTimer > 0) t.slowFireTimer -= dt;
+      if (t.stunTimer > 0 || t.devouredBy) continue;   // paralizada / siendo devorada
       if (t.cooldown > 0) continue;
       var stats = towerStats(t);
       var rangePx = stats.range * U;
@@ -1862,7 +1891,7 @@
       }
       if (target) {
         fireTower(t, target);
-        t.cooldown = 1 / stats.fireRate;
+        t.cooldown = (1 / stats.fireRate) * (t.slowFireTimer > 0 ? 2 : 1);
         t.muzzleFlash = 0.08;
         t.attackAnim = 0.20;
         if (t.def.id === "macrofago") sfx("macroAttack");
@@ -2329,6 +2358,93 @@
       ctx.beginPath(); ctx.arc(fx, fy, r, 0, Math.PI * 2); ctx.fill();
     }
     ctx.restore();
+  }
+
+  // -------- PODERES DE GÉRMENES (ataques especiales a torres) -------------
+  function fireGermPower(e, tw) {
+    var p = e.def.power;
+    if (p.type === "devour") {
+      e.devourTarget = tw; tw.devouredBy = e;
+      e.devourT = 0; e.devourStartX = tw.x; e.devourStartY = tw.y;
+      showMsg("¡" + (e.def.shortName || e.def.name) + " atrapó una célula!");
+      sfx("playerHurt");
+    } else {
+      state.germShots.push({
+        type: p.type, x: e.x, y: e.y, tx: tw.x, ty: tw.y, target: tw,
+        color: e.def.color, t: 0,
+        dmg: p.dmg || 0, stun: p.stun || 0, slowFire: p.slowFire || 0, dead: false
+      });
+    }
+  }
+
+  function updateDevour(e, dt) {
+    var tw = e.devourTarget;
+    if (!tw || state.towers.indexOf(tw) === -1) { e.devourTarget = null; return; }
+    var pull = e.def.power.pull || 1.5;
+    e.devourT += dt;
+    var k = Math.min(1, e.devourT / pull);
+    tw.x = e.devourStartX + (e.x - e.devourStartX) * k;
+    tw.y = e.devourStartY + (e.y - e.devourStartY) * k;
+    if (k >= 1) {
+      state.medCharge = Math.min(MED_MAX, state.medCharge + MED_PER_TOWER_DEATH);
+      for (var pk = 0; pk < 10; pk++) {
+        var pa = Math.random() * Math.PI * 2, ps = (20 + Math.random() * 30) * U;
+        pushEffect({ kind: "particle", x: tw.x, y: tw.y, vx: Math.cos(pa) * ps, vy: Math.sin(pa) * ps, life: 0.5, max: 0.6, color: tw.def.color });
+      }
+      showMsg("¡" + (e.def.shortName || e.def.name) + " devoró una célula!");
+      sfx("sell");
+      if (state.selectedTower === tw) { state.selectedTower = null; clearRangeHint(); }
+      var idx = state.towers.indexOf(tw); if (idx >= 0) state.towers.splice(idx, 1);
+      e.devourTarget = null;
+    }
+  }
+
+  function shotDur(type) { return type === "burst" ? 0.25 : (type === "catapult" ? 0.7 : 0.42); }
+
+  function updateGermShots(dt) {
+    for (var i = 0; i < state.germShots.length; i++) {
+      var s = state.germShots[i];
+      s.t += dt;
+      if (s.t >= shotDur(s.type)) {
+        var tw = s.target;
+        if (tw && state.towers.indexOf(tw) !== -1 && !tw.devouredBy) {
+          if (s.dmg) { tw.hp -= s.dmg; tw.hitFlash = 0.18; tw.dmgAccum = (tw.dmgAccum || 0) + s.dmg; }
+          if (s.stun) tw.stunTimer = Math.max(tw.stunTimer || 0, s.stun);
+          if (s.slowFire) tw.slowFireTimer = Math.max(tw.slowFireTimer || 0, s.slowFire);
+          pushEffect({ kind: "placeFlash", x: tw.x, y: tw.y, life: 0.2, max: 0.2 });
+        }
+        s.dead = true;
+      }
+    }
+    state.germShots = state.germShots.filter(function (s) { return !s.dead; });
+  }
+
+  function drawGermShots() {
+    for (var i = 0; i < state.germShots.length; i++) {
+      var s = state.germShots[i];
+      var k = Math.min(1, s.t / shotDur(s.type));
+      var x = s.x + (s.tx - s.x) * k, y = s.y + (s.ty - s.y) * k;
+      if (s.type === "catapult") {
+        y -= Math.sin(k * Math.PI) * 42 * U;
+        ctx.fillStyle = s.color;
+        ctx.beginPath(); ctx.arc(x, y, 6 * U, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = "rgba(0,0,0,0.3)"; ctx.lineWidth = 1; ctx.stroke();
+      } else if (s.type === "burst") {
+        var k0 = Math.max(0, k - 0.18);
+        ctx.strokeStyle = s.color; ctx.lineWidth = 3 * U; ctx.lineCap = "round";
+        ctx.beginPath();
+        ctx.moveTo(s.x + (s.tx - s.x) * k0, s.y + (s.ty - s.y) * k0);
+        ctx.lineTo(x, y); ctx.stroke();
+      } else { // spray
+        for (var d = 0; d < 5; d++) {
+          var dk = k * (0.65 + (d % 3) * 0.17);
+          var px = s.x + (s.tx - s.x) * dk + (Math.random() - 0.5) * 12 * U;
+          var py = s.y + (s.ty - s.y) * dk + (Math.random() - 0.5) * 12 * U;
+          ctx.fillStyle = colorAlpha(s.color, 0.7);
+          ctx.beginPath(); ctx.arc(px, py, 3 * U, 0, Math.PI * 2); ctx.fill();
+        }
+      }
+    }
   }
 
   // -------- PROJECTILES ---------------------------------------------------
@@ -4906,6 +5022,19 @@
     var hpCol = ratio > 0.5 ? "#5ad15a" : ratio > 0.25 ? "#e8c84a" : "#d9534f";
     ctx.fillStyle = hpCol;
     ctx.fillRect(bx, by, bw * ratio, bh);
+    // Estados por poderes de gérmenes: paralizada (amarillo) / cadencia lenta (azul).
+    if ((t.stunTimer || 0) > 0) {
+      var sp = 0.5 + 0.5 * Math.sin(state.time * 10);
+      ctx.strokeStyle = "rgba(245, 215, 90, " + (0.5 + 0.4 * sp) + ")";
+      ctx.lineWidth = 2 * U;
+      ctx.beginPath(); ctx.arc(t.x, t.y, 22 * U, 0, Math.PI * 2); ctx.stroke();
+      ctx.fillStyle = "rgba(245,215,90,0.9)";
+      ctx.font = "bold 11px Fredoka, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "bottom";
+      ctx.fillText("✦", t.x, t.y - 24 * U);
+    } else if ((t.slowFireTimer || 0) > 0) {
+      ctx.fillStyle = "rgba(90, 150, 240, 0.30)";
+      ctx.beginPath(); ctx.arc(t.x, t.y, 20 * U, 0, Math.PI * 2); ctx.fill();
+    }
   }
 
   function drawMacrofago(t, pulse, expression, blink) {
@@ -5109,6 +5238,26 @@
       ctx.arc(e.x, e.y, auraR, 0, Math.PI * 2);
       ctx.stroke();
       ctx.setLineDash([]);
+      ctx.restore();
+    }
+    // Devorar: flagelo/seudópodo ondulante del germen a la torre atrapada.
+    if (e.devourTarget) {
+      var tw = e.devourTarget;
+      ctx.save();
+      ctx.strokeStyle = colorAlpha(def.colorDark || def.color || "#a33", 0.9);
+      ctx.lineWidth = 4 * U; ctx.lineCap = "round";
+      var segs = 6;
+      ctx.beginPath(); ctx.moveTo(e.x, e.y);
+      for (var dq = 1; dq <= segs; dq++) {
+        var q = dq / segs;
+        var lx = e.x + (tw.x - e.x) * q;
+        var ly = e.y + (tw.y - e.y) * q;
+        var nx = -(tw.y - e.y), ny = (tw.x - e.x);
+        var nl = Math.hypot(nx, ny) || 1; nx /= nl; ny /= nl;
+        var wob = Math.sin(state.time * 10 + dq) * 5 * U * Math.sin(q * Math.PI);
+        ctx.lineTo(lx + nx * wob, ly + ny * wob);
+      }
+      ctx.stroke();
       ctx.restore();
     }
     // Toxina: chorro verdoso del germen a la torre que está dañando (ataque).
@@ -7891,6 +8040,7 @@
     drawMedVial();
     drawTopical();
     for (var k = 0; k < state.projectiles.length; k++) drawProjectile(state.projectiles[k]);
+    drawGermShots();
     for (var m = 0; m < state.effects.length; m++) drawEffect(state.effects[m]);
     drawAcid();
     drawGas();
@@ -7995,6 +8145,7 @@
       updateEnemies(dt);
       updateTowers(dt);
       updateGuardians(dt);
+      updateGermShots(dt);
       updateProjectiles(dt);
       updateMed(dt);
     }

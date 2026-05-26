@@ -5009,11 +5009,12 @@
       ctx.strokeStyle = "#1a1a22";
       ctx.lineWidth = Math.max(1.4, 1.6 * U);
       ctx.lineCap = "round";
+      // Cejas enojadas: extremo INTERNO hacia abajo (al centro), externo arriba.
       ctx.beginPath();
-      ctx.moveTo(lx - eyeR * 0.9, cy - eyeR - browLift + (browAngle));
-      ctx.lineTo(lx + eyeR * 0.6, cy - eyeR - browLift - (browAngle));
-      ctx.moveTo(rx - eyeR * 0.6, cy - eyeR - browLift - (browAngle));
-      ctx.lineTo(rx + eyeR * 0.9, cy - eyeR - browLift + (browAngle));
+      ctx.moveTo(lx - eyeR * 0.9, cy - eyeR - browLift - (browAngle));
+      ctx.lineTo(lx + eyeR * 0.6, cy - eyeR - browLift + (browAngle));
+      ctx.moveTo(rx - eyeR * 0.6, cy - eyeR - browLift + (browAngle));
+      ctx.lineTo(rx + eyeR * 0.9, cy - eyeR - browLift - (browAngle));
       ctx.stroke();
     }
   }

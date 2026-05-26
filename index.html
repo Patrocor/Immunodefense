@@ -3478,17 +3478,25 @@
       var alpha = Math.min(1, b.textTimer / 0.4);
       ctx.save();
       ctx.globalAlpha = alpha;
-      var fs = Math.max(11, 13 * U);
+      var fs = Math.max(9, 10 * U);          // más pequeño
       ctx.font = "bold " + fs + "px Fredoka, sans-serif";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      var ty = b.y - 32 * U - (1.5 - b.textTimer) * 14 * U;
+      var label = "TAPÓN DE FIBRINA";
+      var tw = ctx.measureText(label).width;
+      // Clamp dentro del campo para que SIEMPRE se vea (aunque el tapón esté
+      // pegado a un borde del camino).
+      var margin = 6;
+      var tx = Math.max(FIELD_LEFT + margin + tw / 2,
+                Math.min(FIELD_RIGHT - margin - tw / 2, b.x));
+      var ty = b.y - 30 * U - (1.5 - b.textTimer) * 14 * U;
+      ty = Math.max(FIELD_TOP + 10 * U, ty);
       ctx.lineWidth = 3;
       ctx.lineJoin = "round";
       ctx.strokeStyle = "rgba(60, 50, 0, 0.85)";
-      ctx.strokeText("TAPÓN DE FIBRINA", b.x, ty);
+      ctx.strokeText(label, tx, ty);
       ctx.fillStyle = "#FFE680";
-      ctx.fillText("TAPÓN DE FIBRINA", b.x, ty);
+      ctx.fillText(label, tx, ty);
       ctx.restore();
     }
   }

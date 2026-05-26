@@ -738,11 +738,11 @@
   // -------- DEFINITIONS ---------------------------------------------------
   // Distances/speeds in design pixels; multiplied by U at use.
   var TOWER_DEFS = {
-    macrofago: {
-      id: "macrofago",
-      name: "Macrofago",
-      color: "#4A90E2",
-      colorDark: "#2767a8",
+    neutrofilo: {
+      id: "neutrofilo",
+      name: "Neutrofilo",
+      color: "#B79CE0",
+      colorDark: "#7E5FB0",
       cost: 55,
       desc: "Cuerpo a cuerpo",
       levels: [
@@ -781,7 +781,7 @@
       upgradeCost: [120, 200]
     }
   };
-  var TOWER_LIST = ["macrofago", "linfocitoB", "linfocitoT"];
+  var TOWER_LIST = ["neutrofilo", "linfocitoB", "linfocitoT"];
 
   // BASE_SPEED in design px/s; multiplied by U each frame for actual movement.
   var BASE_SPEED = 60;
@@ -1671,7 +1671,7 @@
       // BLOCKED by a coagulation barricade: stop advancing along the path.
       // Position still resolves via pathPos at the held progress so the
       // sprite stays put on the path with a small shake jitter.
-      if (e.state !== "blocked" && !e.devourTarget) {   // se detiene al devorar
+      if (e.state !== "blocked" && !e.devourTarget && !e.beingEngulfed) {
         e.progress += pxSpeed * medFactor * dt;
       }
       e.wobble += dt * 6;
@@ -1912,7 +1912,7 @@
         t.cooldown = (1 / stats.fireRate) * (t.slowFireTimer > 0 ? 2 : 1);
         t.muzzleFlash = 0.08;
         t.attackAnim = 0.20;
-        if (t.def.id === "macrofago") sfx("macroAttack");
+        if (t.def.id === "neutrofilo") sfx("macroAttack");
         else if (t.def.id === "linfocitoB") sfx("linfBAttack");
         else sfx("linfTAttack");
       }
@@ -2017,7 +2017,7 @@
     return "rgba(255, 245, 157, 0.85)";  // capsula
   }
 
-  // -------- GUARDIAN: Neutrófilo de refuerzo ------------------------------
+  // -------- MACRÓFAGO autónomo (ronda, muerde y FAGOCITA) -----------------
   var GUARDIAN_INTERVAL = 28;     // s entre apariciones
   var GUARDIAN_MAX = 2;           // vivos a la vez
   var GUARDIAN_HP = 80;
@@ -2025,7 +2025,44 @@
   var GUARDIAN_BITE_CD = 0.8;
   var GUARDIAN_BITE_RANGE = 30;   // px diseño (* U)
   var GUARDIAN_SPEED = 70;        // px diseño/s (* U)
-  var GUARDIAN_CRIT = 0.30;       // huye al 30% de vida
+  var GUARDIAN_CRIT = 0.30;       // se retira al 30% de vida
+  var ENGULF_SEEK = 150;          // px diseño: detecta germen vulnerable
+  var ENGULF_RANGE = 26;          // px diseño: distancia para empezar a engullir
+  var ENGULF_TIME = 0.9;          // s que tarda la fagocitosis
+
+  // Fagocitosis: el macrófago se traga a un germen detenido/ralentizado.
+  function updateGuardianEngulf(g, dt) {
+    var e = g.engulfTarget;
+    if (!e || e.dead || e.dying || state.enemies.indexOf(e) === -1) {
+      if (e) e.beingEngulfed = false;
+      g.engulfTarget = null; g.mouthOpen = 0; return;
+    }
+    g.engulfT += dt;
+    var k = Math.min(1, g.engulfT / ENGULF_TIME);
+    g.mouthOpen = Math.sin(Math.min(1, k * 1.2) * Math.PI * 0.5);  // abre rápido
+    // El macrófago se posa sobre el germen; el germen se encoge hacia su boca.
+    var mouthX = g.x, mouthY = g.y + 8 * U * g.scale;
+    e.engulfScale = Math.max(0.05, 1 - k);
+    e.x = g.engulfSx + (mouthX - g.engulfSx) * k;
+    e.y = g.engulfSy + (mouthY - g.engulfSy) * k;
+    if (k >= 1) {
+      // ¡Fagocitado! El germen desaparece dentro del macrófago.
+      e.beingEngulfed = false;
+      e.engulfScale = null;
+      if (!e.dying) {
+        e.dead = true;
+        state.atp += e.def.reward; state.pathogensDefeated += 1; META.totalPathogensDefeated += 1;
+        pushEffect({ kind: "atpText", x: g.x, y: g.y - 22 * U, vy: -36 * U,
+          text: "+" + e.def.reward + " ATP", life: 0.8, max: 0.8 });
+      }
+      for (var pk = 0; pk < 10; pk++) {
+        var pa = Math.random() * Math.PI * 2, ps = (15 + Math.random() * 30) * U;
+        pushEffect({ kind: "particle", x: g.x, y: g.y, vx: Math.cos(pa) * ps, vy: Math.sin(pa) * ps - 8 * U, life: 0.4, max: 0.5, color: e.def.color });
+      }
+      g.swallow = 0.5; g.mouthOpen = 0; g.engulfTarget = null;
+      sfx("sell");
+    }
+  }
 
   function spawnGuardian() {
     if (!PATH.confluence) return;
@@ -2038,9 +2075,10 @@
       state: "roaming", alpha: 1, scale: 1,
       biteCd: 0, wobble: Math.random() * Math.PI * 2,
       blinkTimer: 0, nextBlink: state.time + 2 + Math.random() * 3,
-      tearTimer: 0, hitFlash: 0, attackAnim: 0
+      tearTimer: 0, hitFlash: 0, attackAnim: 0,
+      mouthOpen: 0, swallow: 0, engulfTarget: null, engulfT: 0
     });
-    showMsg("¡Neutrófilo al rescate!");
+    showMsg("¡Macrófago al rescate!");
   }
 
   function updateGuardians(dt) {
@@ -2057,6 +2095,7 @@
       if (g.biteCd > 0) g.biteCd -= dt;
       if (g.hitFlash > 0) g.hitFlash -= dt;
       if (g.attackAnim > 0) g.attackAnim -= dt;
+      if (g.swallow > 0) g.swallow -= dt;
       if (g.blinkTimer > 0) g.blinkTimer -= dt;
       else if (state.time >= g.nextBlink) { g.blinkTimer = 0.1; g.nextBlink = state.time + 2 + Math.random() * 3; }
 
@@ -2092,13 +2131,41 @@
         }
       }
       if (g.hp <= g.maxHp * GUARDIAN_CRIT) {
-        // ¡Pánico! Huye llorando al borde más cercano.
-        g.state = "fleeing";
+        // ¡Pánico! Se retira (llorando) al borde más cercano.
+        g.state = "fleeing"; g.engulfTarget = null;
         var leftDist = g.x - FIELD_LEFT, rightDist = FIELD_RIGHT - g.x;
         g.targetX = (leftDist < rightDist) ? FIELD_LEFT - 60 * U : FIELD_RIGHT + 60 * U;
         g.targetY = g.y - 30 * U;
         sfx("playerHurt");
-        showMsg("¡El neutrófilo huye llorando!");
+        showMsg("¡El macrófago se retira!");
+        continue;
+      }
+
+      // Fagocitosis en curso (engullendo un germen detenido).
+      if (g.engulfTarget) { updateGuardianEngulf(g, dt); continue; }
+      if (g.mouthOpen > 0) g.mouthOpen = Math.max(0, g.mouthOpen - dt * 3);
+
+      // PRIORIDAD: germen VULNERABLE cercano (lento/paralizado/atascado) -> engullir.
+      var vuln = null, vd = Infinity;
+      for (var vi = 0; vi < state.enemies.length; vi++) {
+        var ve = state.enemies[vi];
+        if (ve.dead || ve.dying || ve.absorbing || ve.beingEngulfed) continue;
+        if (ve.state !== "walking" && ve.state !== "blocked") continue;
+        var vulnerable = (ve.slowTimer > 0) || (ve.stunTimer > 0) || (ve.state === "blocked");
+        if (!vulnerable) continue;
+        var vdd = Math.hypot(ve.x - g.x, ve.y - g.y);
+        if (vdd < vd) { vd = vdd; vuln = ve; }
+      }
+      if (vuln && vd < ENGULF_SEEK * U) {
+        if (vd > ENGULF_RANGE * U) {
+          var vdx = vuln.x - g.x, vdy = vuln.y - g.y, vdl = Math.hypot(vdx, vdy) || 1;
+          g.x += (vdx / vdl) * speed * 1.2 * dt;   // se lanza un poco más rápido
+          g.y += (vdy / vdl) * speed * 1.2 * dt;
+        } else {
+          g.engulfTarget = vuln; vuln.beingEngulfed = true;
+          g.engulfT = 0; g.engulfSx = vuln.x; g.engulfSy = vuln.y;
+          sfx("macroAttack");
+        }
         continue;
       }
 
@@ -2139,51 +2206,64 @@
 
   function drawGuardian(g) {
     var fleeing = g.state === "fleeing";
-    var R = 17 * U * g.scale * (1 + Math.sin(g.wobble) * 0.04);
+    var maw = g.mouthOpen || 0;                 // 0..1 al engullir
+    var swallow = g.swallow || 0;
+    var R = 18 * U * g.scale * (1 + Math.sin(g.wobble) * 0.05 + swallow * 0.5);
+    var COL = "#4A90E2", COLD = "#2767a8";       // azul macrófago
     ctx.save();
     ctx.globalAlpha = Math.max(0, g.alpha);
     drawShadow(g.x, g.y + 15 * U * g.scale, 15 * U * g.scale, 4 * U * g.scale);
-    // Glow tenue.
     var gl = ctx.createRadialGradient(g.x, g.y, R * 0.4, g.x, g.y, R * 1.8);
-    gl.addColorStop(0, "rgba(255, 240, 180, 0.28)");
-    gl.addColorStop(1, "rgba(255, 240, 180, 0)");
+    gl.addColorStop(0, "rgba(120, 190, 255, 0.28)");
+    gl.addColorStop(1, "rgba(120, 190, 255, 0)");
     ctx.fillStyle = gl;
     ctx.beginPath(); ctx.arc(g.x, g.y, R * 1.8, 0, Math.PI * 2); ctx.fill();
     ctx.translate(g.x, g.y);
-    // Cuerpo (célula clara).
-    var body = ctx.createRadialGradient(-R * 0.3, -R * 0.35, R * 0.2, 0, 0, R);
-    body.addColorStop(0, "#fffdf5");
-    body.addColorStop(0.7, "#f5e9d8");
-    body.addColorStop(1, "#d9c3a8");
-    ctx.fillStyle = g.hitFlash > 0 ? "#ffd0d0" : body;
-    ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = "#c2a98a"; ctx.lineWidth = 1.4 * U; ctx.stroke();
-    // Núcleo multilobulado (3-4 lóbulos morados) — rasgo del neutrófilo.
-    ctx.fillStyle = "rgba(150, 110, 180, 0.55)";
-    var lobes = 4;
-    for (var l = 0; l < lobes; l++) {
-      var la = l * Math.PI * 2 / lobes + g.wobble * 0.3;
-      var lr = R * 0.32;
+    // Pseudópodos (macrófago).
+    ctx.fillStyle = COL;
+    for (var pb = 0; pb < 6; pb++) {
+      var pa = pb * Math.PI * 2 / 6 + state.time * 0.6;
+      var br = R * (0.30 + Math.sin(state.time * 2 + pb) * 0.06);
       ctx.beginPath();
-      ctx.arc(Math.cos(la) * R * 0.34, Math.sin(la) * R * 0.34 + R * 0.1, lr, 0, Math.PI * 2);
+      ctx.arc(Math.cos(pa) * R * 0.95, Math.sin(pa) * R * 0.95, br, 0, Math.PI * 2);
       ctx.fill();
     }
-    // Cara.
-    var eyeR = R * 0.26, gap = R * 0.34, faceY = -R * 0.12;
-    if (fleeing) {
+    // Cuerpo azul.
+    var body = ctx.createRadialGradient(-R * 0.3, -R * 0.3, R * 0.2, 0, 0, R);
+    body.addColorStop(0, "#a7d0f6");
+    body.addColorStop(0.6, COL);
+    body.addColorStop(1, COLD);
+    ctx.fillStyle = g.hitFlash > 0 ? "#ffd0d0" : body;
+    ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = COLD; ctx.lineWidth = 1.5 * U; ctx.stroke();
+    var eyeR = R * 0.24, gap = R * 0.34, faceY = -R * 0.14;
+    if (maw > 0.05) {
+      // ¡Fagocitando! Ojos apretados de esfuerzo + BOCA enorme abierta.
+      drawFocusedEyes(0, faceY, eyeR, gap, R * 0.18, R * 0.06);
+      ctx.fillStyle = "rgba(15, 25, 45, 0.92)";
+      ctx.beginPath();
+      ctx.ellipse(0, R * 0.28, R * (0.35 + 0.55 * maw), R * (0.25 + 0.6 * maw), 0, 0, Math.PI * 2);
+      ctx.fill();
+      // lengua/borde
+      ctx.strokeStyle = "#ff9bb0"; ctx.lineWidth = 2 * U;
+      ctx.beginPath(); ctx.ellipse(0, R * 0.28, R * (0.35 + 0.55 * maw), R * (0.25 + 0.6 * maw), 0, 0, Math.PI * 2); ctx.stroke();
+    } else if (fleeing) {
       drawHurtEyes(0, faceY, eyeR, gap);
-      drawAnimeMouth(0, R * 0.42, R * 0.5, R * 0.5, "open");   // boca de llanto
-      // Lagrimones bajo los ojos.
+      drawAnimeMouth(0, R * 0.42, R * 0.5, R * 0.5, "open");
       ctx.fillStyle = "rgba(120, 200, 255, 0.9)";
       var ty = faceY + eyeR + (Math.sin(g.wobble * 2) * 0.5 + 0.5) * R * 0.3;
       ctx.beginPath(); ctx.arc(-gap, ty, R * 0.12, 0, Math.PI * 2); ctx.fill();
       ctx.beginPath(); ctx.arc(gap, ty, R * 0.12, 0, Math.PI * 2); ctx.fill();
+    } else if (swallow > 0) {
+      // Tragó: ojos felices + boca cerrada satisfecha.
+      drawSparkleEyes(0, faceY, eyeR, gap);
+      drawAnimeMouth(0, R * 0.34, R * 0.4, R * 0.18, "smile");
     } else if (g.blinkTimer > 0) {
       drawClosedEyes(0, faceY, eyeR, gap);
-      drawAnimeMouth(0, R * 0.4, R * 0.4, R * 0.28, "smile");
+      drawAnimeMouth(0, R * 0.36, R * 0.42, R * 0.24, "smile");
     } else {
-      drawAnimeEyes(0, faceY, eyeR, gap, 0, 0, R * 0.12, R * 0.05, "happy");
-      drawAnimeMouth(0, R * 0.4, R * 0.4, R * 0.28, (g.attackAnim > 0) ? "fanged" : "smile");
+      drawAnimeEyes(0, faceY, eyeR, gap, 0, 0, R * 0.12, R * 0.05, "fierce");
+      drawAnimeMouth(0, R * 0.36, R * 0.42, R * 0.24, (g.attackAnim > 0) ? "fanged" : "serious");
     }
     ctx.restore();
     // Barra de vida si está dañado.
@@ -4215,7 +4295,7 @@
     } else if (e.key === "Escape") {
       if (state.confirmRestart) state.confirmRestart = false;
       else { state.selectedToBuild = null; state.selectedTower = null; clearRangeHint(); }
-    } else if (e.key === "1") { selectBuildType("macrofago");
+    } else if (e.key === "1") { selectBuildType("neutrofilo");
     } else if (e.key === "2") { selectBuildType("linfocitoB");
     } else if (e.key === "3") { selectBuildType("linfocitoT");
     } else if (e.key === "m" || e.key === "M") {
@@ -5039,7 +5119,7 @@
     if (shakeAmp > 0) {
       ctx.translate((Math.random() - 0.5) * shakeAmp, (Math.random() - 0.5) * shakeAmp);
     }
-    if (t.def.id === "macrofago") drawMacrofago(t, pulse, expression, blink);
+    if (t.def.id === "neutrofilo") drawNeutrofilo(t, pulse, expression, blink);
     else if (t.def.id === "linfocitoB") drawLinfocitoB(t, pulse, expression, blink);
     else drawLinfocitoT(t, pulse, expression, blink);
     // Level-up sparkles
@@ -5094,6 +5174,37 @@
       ctx.fillStyle = "rgba(90, 150, 240, 0.30)";
       ctx.beginPath(); ctx.arc(t.x, t.y, 20 * U, 0, Math.PI * 2); ctx.fill();
     }
+  }
+
+  function drawNeutrofilo(t, pulse, expression, blink) {
+    // Célula clara con núcleo multilobulado morado (neutrófilo) + carita.
+    var x = t.x, y = t.y;
+    var R = 19 * U * pulse;
+    ctx.save();
+    ctx.translate(x, y);
+    var nbody = ctx.createRadialGradient(-R * 0.3, -R * 0.35, R * 0.2, 0, 0, R);
+    nbody.addColorStop(0, "#fffdf6");
+    nbody.addColorStop(0.7, "#f3ecf9");
+    nbody.addColorStop(1, "#d8c8ee");
+    ctx.fillStyle = nbody;
+    ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = t.def.colorDark; ctx.lineWidth = Math.max(1.2, 1.5 * U); ctx.stroke();
+    ctx.fillStyle = "rgba(126, 95, 176, 0.50)";
+    for (var nl = 0; nl < 4; nl++) {
+      var nla = nl * Math.PI * 2 / 4 + state.time * 0.4;
+      ctx.beginPath();
+      ctx.arc(Math.cos(nla) * R * 0.34, Math.sin(nla) * R * 0.34 + R * 0.08, R * 0.30, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    var neR = R * 0.20, ngap = R * 0.30, nfy = -R * 0.10;
+    if (blink) drawClosedEyes(0, nfy, neR, ngap);
+    else if (expression === "levelup") drawSparkleEyes(0, nfy, neR, ngap);
+    else if (expression === "attacking") drawFocusedEyes(0, nfy, neR, ngap, R * 0.14, R * 0.05);
+    else drawAnimeEyes(0, nfy, neR, ngap, 0, 0, R * 0.10, R * 0.08, "fierce");
+    if (expression === "levelup") drawAnimeMouth(0, R * 0.30, R * 0.5, R * 0.30, "smile");
+    else if (expression === "attacking") drawAnimeMouth(0, R * 0.30, R * 0.5, R * 0.5, "fanged");
+    else drawAnimeMouth(0, R * 0.32, R * 0.38, R * 0.20, "serious");
+    ctx.restore();
   }
 
   function drawMacrofago(t, pulse, expression, blink) {
@@ -5249,6 +5360,7 @@
     var def = e.def;
     var rad = def.radius * U;
     if (e.swallowAnim > 0) rad *= 1 + 0.35 * (e.swallowAnim / 0.45);   // se hincha al tragar
+    if (e.engulfScale != null) rad *= e.engulfScale;                    // encogido al ser fagocitado
     // Estado por medicamento: paralizado (escarcha cian) o lento (tinte azul).
     if (e.stunTimer > 0) {
       ctx.save();
@@ -7193,7 +7305,7 @@
     ctx.save();
     ctx.globalAlpha = ok ? 0.85 : 0.55;
     var fakeTower = { x: x, y: y, def: def, level: 0, idlePhase: 0, attackAnim: 0, muzzleFlash: 0 };
-    if (def.id === "macrofago") drawMacrofago(fakeTower, 1, "idle", false);
+    if (def.id === "neutrofilo") drawNeutrofilo(fakeTower, 1, "idle", false);
     else if (def.id === "linfocitoB") drawLinfocitoB(fakeTower, 1, "idle", false);
     else drawLinfocitoT(fakeTower, 1, "idle", false);
     ctx.globalAlpha = 1;
@@ -7743,28 +7855,13 @@
             minPoolX = Math.min(minPoolX, cursorX + lw * 0.05);
             maxPoolX = Math.max(maxPoolX, cursorX + lw * 0.95);
             maxBottomY = Math.max(maxBottomY, baseY + len);
-          }
-          for (var dq = 0; dq < meta.fallDrops.length; dq++) {
-            var fd = meta.fallDrops[dq];
-            var elapsed = ceT - fd.delay;
-            if (elapsed > 0 && elapsed < 1.8) {
-              var fy = baseY + meta.maxLen + elapsed * fd.speed
-                       + 0.5 * 220 * elapsed * elapsed;
-              var fa = Math.max(0, 1 - elapsed / 1.5);
-              ctx.fillStyle = "rgba(180, 20, 20, " + fa + ")";
+            // Gota redonda colgando de la punta del chorro (cuando ya creció).
+            if (t01 > 0.85) {
+              var bob = Math.sin(ceT * 3 + meta.jitter1 * 6) * 2;
+              ctx.fillStyle = "#7a0000";
               ctx.beginPath();
-              ctx.ellipse(cursorX + lw / 2, fy, 3.4, 4.6, 0, 0, Math.PI * 2);
+              ctx.ellipse(cursorX + lw / 2, baseY + len + 2, 3.2, 4.4 + bob * 0.3, 0, 0, Math.PI * 2);
               ctx.fill();
-              if (elapsed > 1.0) {
-                var splashY = fy + 4;
-                ctx.fillStyle = "rgba(140, 10, 10, " + fa * 0.7 + ")";
-                for (var sp = 0; sp < 4; sp++) {
-                  var sx = cursorX + lw / 2 + (Math.cos(sp + dq) * 6 + (sp - 2) * 2);
-                  ctx.beginPath();
-                  ctx.arc(sx, splashY, 1.2, 0, Math.PI * 2);
-                  ctx.fill();
-                }
-              }
             }
           }
         }

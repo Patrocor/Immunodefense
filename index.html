@@ -7630,11 +7630,15 @@
     var previewSize = 17 * U;
     var rawDesc = (def.tooltip || "");
     var shortDesc = rawDesc.split(/\.\s/)[0] || "";
-    if (shortDesc.length > 80) shortDesc = shortDesc.slice(0, 77) + "…";
-    else if (shortDesc && !/[.…!?]$/.test(shortDesc)) shortDesc += ".";
+    if (shortDesc && !/[.…!?]$/.test(shortDesc)) shortDesc += ".";
     // Nombre en 1-2 líneas (género / especie) para que no se apriete ni desborde.
     var ttNameLines = wrapText(def.name, W - 26, 13).slice(0, 2);
-    var ttDescLines = wrapText(shortDesc, W - 26, 10).slice(0, 2);
+    // Descripción: hasta 3 líneas (la tarjeta crece); si sobra, recorta con "…".
+    var ttDescLines = wrapText(shortDesc, W - 26, 10);
+    if (ttDescLines.length > 3) {
+      ttDescLines = ttDescLines.slice(0, 3);
+      ttDescLines[2] = ttDescLines[2].replace(/\s*\S*$/, "") + "…";
+    }
     // Filas de altura fija -> distribución pareja y alto exacto.
     var ttPad = 11;
     var ttRows = [];

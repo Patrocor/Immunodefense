@@ -7618,15 +7618,29 @@
     if (!def) { state.activeTooltip = null; return; }
     // Sprint 8A: lateral right-side sticky note. No backdrop, no button.
     // Ficha MUY compacta: nombre + 1 oración corta, chica, que no estorbe.
-    var W = Math.min(158, VW - 28);
-    var previewSize = 12 * U;
+    var W = Math.min(166, VW - 28);
+    var previewSize = 16 * U;
     var rawDesc = (def.tooltip || "");
     var shortDesc = rawDesc.split(/\.\s/)[0] || "";
-    if (shortDesc.length > 78) shortDesc = shortDesc.slice(0, 75) + "…";
+    if (shortDesc.length > 80) shortDesc = shortDesc.slice(0, 77) + "…";
     else if (shortDesc && !/[.…!?]$/.test(shortDesc)) shortDesc += ".";
-    var ttDescLines = wrapText(shortDesc, W - 22, 10).slice(0, 2);
-    var H = 10 + (tt.isFirst ? 14 : 0) + (previewSize * 2 + 8) + 17 + 5 + 14 +
-            ttDescLines.length * 13 + 10;
+    var ttDescLines = wrapText(shortDesc, W - 24, 10).slice(0, 2);
+    // Filas de altura fija -> distribución pareja y alto exacto.
+    var ttPad = 12;
+    var ttRows = [];
+    if (tt.isFirst) ttRows.push("header");
+    ttRows.push("sprite", "name", "sep", "shield");
+    for (var di = 0; di < ttDescLines.length; di++) ttRows.push("desc" + di);
+    function ttRowH(r) {
+      if (r === "header") return 16;
+      if (r === "sprite") return previewSize * 2 + 12;
+      if (r === "name") return 20;
+      if (r === "sep") return 10;
+      if (r === "shield") return 17;
+      return 14;  // desc
+    }
+    var H = ttPad * 2;
+    for (var rh0 = 0; rh0 < ttRows.length; rh0++) H += ttRowH(ttRows[rh0]);
     H = Math.min(H, FIELD_BOTTOM - FIELD_TOP - 24);
     var marginRight = 8;
     var anchorX = VW - marginRight - W;
@@ -7668,62 +7682,47 @@
     ctx.beginPath();
     ctx.arc(x, y + 22, 5, 0, Math.PI * 2);
     ctx.fill();
-    // Lab notebook header (only first tooltip of the session).
-    var contentY = y + 10;
-    if (tt.isFirst) {
-      ctx.font = "bold 8px Fredoka, sans-serif";
-      ctx.fillStyle = "#1565C0";
+    // Dibujo por filas: cada fila centrada en su franja (baseline middle).
+    var cyc = y + ttPad;
+    for (var r2 = 0; r2 < ttRows.length; r2++) {
+      var r = ttRows[r2], rh = ttRowH(r), midY = cyc + rh / 2;
       ctx.textAlign = "center";
-      ctx.textBaseline = "top";
-      ctx.fillText("🔬 NUEVO PATÓGENO", x + W / 2, contentY);
-      contentY += 14;
-    }
-    // Sprite preview
-    drawTooltipSprite(def, x + W / 2, contentY + previewSize + 4, previewSize);
-    contentY += previewSize * 2 + 8;
-    // Name (italic bold serif)
-    ctx.font = "italic bold 12px Georgia, serif";
-    ctx.fillStyle = "#B22222";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "top";
-    var nm = def.name;
-    if (ctx.measureText(nm).width > W - 18) {
-      ctx.font = "italic bold 10px Georgia, serif";
-    }
-    ctx.fillText(nm, x + W / 2, contentY);
-    contentY += 17;
-    // Thin separator
-    ctx.strokeStyle = "rgba(80, 60, 60, 0.30)";
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(x + 14, contentY);
-    ctx.lineTo(x + W - 14, contentY);
-    ctx.stroke();
-    contentY += 5;
-    // Shield info if any (compacto)
-    if (def.shield) {
-      var shieldLabel, shieldColor;
-      if (def.shield.type === "capsula") { shieldLabel = "🟡 Cápsula"; shieldColor = "#C8B068"; }
-      else if (def.shield.type === "spike") { shieldLabel = "🔵 Spike"; shieldColor = "#3F8AC8"; }
-      else { shieldLabel = "🟢 Pared"; shieldColor = "#7CA850"; }
-      ctx.font = "bold 10px Fredoka, sans-serif";
-      ctx.fillStyle = shieldColor;
-      ctx.fillText(shieldLabel + " ·" + def.shield.maxHP, x + W / 2, contentY);
-      contentY += 14;
-    } else {
-      ctx.font = "italic 10px Fredoka, sans-serif";
-      ctx.fillStyle = "rgba(80, 60, 60, 0.65)";
-      ctx.fillText("Sin escudo", x + W / 2, contentY);
-      contentY += 14;
-    }
-    // Descripción: una sola oración corta.
-    ctx.font = "10px Georgia, serif";
-    ctx.fillStyle = "#2C2A28";
-    ctx.textAlign = "left";
-    var ly = contentY + 1;
-    for (var i = 0; i < ttDescLines.length; i++) {
-      ctx.fillText(ttDescLines[i], x + 11, ly);
-      ly += 13;
+      ctx.textBaseline = "middle";
+      if (r === "header") {
+        ctx.font = "bold 8px Fredoka, sans-serif";
+        ctx.fillStyle = "#1565C0";
+        ctx.fillText("🔬 NUEVO PATÓGENO", x + W / 2, midY);
+      } else if (r === "sprite") {
+        drawTooltipSprite(def, x + W / 2, midY, previewSize);
+      } else if (r === "name") {
+        var fns = 13;
+        ctx.font = "italic bold " + fns + "px Georgia, serif";
+        while (fns > 9 && ctx.measureText(def.name).width > W - 20) {
+          fns--; ctx.font = "italic bold " + fns + "px Georgia, serif";
+        }
+        ctx.fillStyle = "#B22222";
+        ctx.fillText(def.name, x + W / 2, midY);
+      } else if (r === "sep") {
+        ctx.strokeStyle = "rgba(80, 60, 60, 0.30)"; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(x + 16, midY); ctx.lineTo(x + W - 16, midY); ctx.stroke();
+      } else if (r === "shield") {
+        var sl, sc;
+        if (def.shield) {
+          if (def.shield.type === "capsula") { sl = "🟡 Cápsula ·" + def.shield.maxHP; sc = "#B8964A"; }
+          else if (def.shield.type === "spike") { sl = "🔵 Spike ·" + def.shield.maxHP; sc = "#3F8AC8"; }
+          else { sl = "🟢 Pared ·" + def.shield.maxHP; sc = "#5E8A3A"; }
+          ctx.font = "bold 11px Fredoka, sans-serif"; ctx.fillStyle = sc;
+        } else {
+          sl = "Sin escudo"; ctx.font = "italic 11px Fredoka, sans-serif";
+          ctx.fillStyle = "rgba(80, 60, 60, 0.6)";
+        }
+        ctx.fillText(sl, x + W / 2, midY);
+      } else {
+        var idx = parseInt(r.slice(4), 10);
+        ctx.font = "10px Georgia, serif"; ctx.fillStyle = "#2C2A28";
+        ctx.fillText(ttDescLines[idx], x + W / 2, midY);
+      }
+      cyc += rh;
     }
     ctx.restore();
   }

@@ -829,6 +829,14 @@
       shield: { type: "wall", maxHP: 4, regenRate: 0, regenDelay: 0 },
       tooltip: "Hongo levadura con pared celular de quitina y β-glucanos. Causa candidiasis. Su pared rígida lo protege parcialmente del ataque inmune."
     },
+    dermatofito: {
+      id: "dermatofito", name: "Trichophyton rubrum", shortName: "Dermatofito", baseKind: "hongo",
+      color: "#9CA85A", colorDark: "#5E6A2C", radius: 13,
+      speedMult: 0.85, hp: 320, reward: 14, viralAdd: 7, attack: 5, isBoss: false,
+      shield: { type: "wall", maxHP: 2, regenRate: 0, regenDelay: 0 },
+      spore: { interval: 3.2, childHpFrac: 0.2, childSpeedMult: 1.9, maxChildren: 5 },
+      tooltip: "Hongo dermatofito de la tiña (pie de atleta y tiña corporal o 'ringworm'). Mientras avanza suelta esporas hijas que corren más rápido."
+    },
     // ---- Patógenos cutáneos (Fase 1 = infección de piel) ---------------
     sepidermidis: {
       id: "sepidermidis", name: "Staphylococcus epidermidis", baseKind: "bacteria",
@@ -1024,18 +1032,18 @@
     2:  [["sepidermidis",5,1.0],["hsv",3,0.6]],
     3:  [["sepidermidis",5,1.0],["hsv",4,0.6],["bossPyogenes",1,0]],
     4:  [["sepidermidis",4,1.0],["hsv",4,0.6],["cacnes",2,1.0]],
-    5:  [["sepidermidis",5,1.0],["hsv",5,0.55],["cacnes",3,1.0]],
+    5:  [["sepidermidis",5,1.0],["hsv",5,0.55],["cacnes",3,1.0],["dermatofito",1,1.0]],
     6:  [["sepidermidis",4,1.0],["hsv",5,0.55],["cacnes",3,1.0],["candida",2,0.9]],
     7:  [["sepidermidis",4,0.9],["hsv",5,0.55],["cacnes",3,1.0],["pseudomonas",2,0.9],["bossPseudomonas",1,0]],
-    8:  [["sepidermidis",4,0.9],["hsv",6,0.5],["cacnes",3,1.0],["pseudomonas",3,0.9],["candida",2,0.9]],
+    8:  [["sepidermidis",4,0.9],["hsv",6,0.5],["cacnes",3,1.0],["pseudomonas",3,0.9],["candida",2,0.9],["dermatofito",1,1.0]],
     9:  [["hsv",6,0.5],["cacnes",3,1.0],["pseudomonas",3,0.9],["candida",3,0.9],["saureus",2,1.0]],
     10: [["hsv",6,0.5],["cacnes",3,1.0],["pseudomonas",4,0.9],["candida",3,0.9],["saureus",3,1.0]],
     11: [["sepidermidis",5,0.85],["hsv",6,0.5],["pseudomonas",4,0.9],["candida",3,0.9],["saureus",3,1.0]],
     12: [["hsv",6,0.5],["pseudomonas",4,0.9],["candida",4,0.9],["saureus",3,1.0],["bossClostridium",1,0]],
-    13: [["hsv",7,0.5],["cacnes",4,0.95],["pseudomonas",5,0.9],["candida",4,0.9],["saureus",4,1.0]],
+    13: [["hsv",7,0.5],["cacnes",4,0.95],["pseudomonas",5,0.9],["candida",4,0.9],["saureus",4,1.0],["dermatofito",2,1.0]],
     14: [["hsv",7,0.5],["cacnes",4,0.95],["pseudomonas",5,0.9],["candida",5,0.9],["saureus",4,1.0]],
     15: [["sepidermidis",6,0.8],["hsv",7,0.5],["pseudomonas",5,0.9],["candida",5,0.9],["saureus",5,1.0]],
-    16: [["hsv",8,0.45],["cacnes",5,0.9],["pseudomonas",6,0.85],["candida",5,0.9],["saureus",5,1.0]],
+    16: [["hsv",8,0.45],["cacnes",5,0.9],["pseudomonas",6,0.85],["candida",5,0.9],["saureus",5,1.0],["dermatofito",2,1.0]],
     17: [["hsv",8,0.45],["cacnes",5,0.9],["pseudomonas",6,0.85],["candida",6,0.9],["saureus",6,1.0]],
     18: [["hsv",6,0.45],["pseudomonas",5,0.85],["candida",4,0.9],["saureus",8,1.0],["bossMRSA",1,0]]
   };
@@ -1385,6 +1393,11 @@
       devourTarget: null,
       swallowAnim: 0,
       mawOpen: 0,
+      speedBoost: 1,
+      radiusScale: 1,
+      noSpore: false,
+      childCount: 0,
+      childTimer: def.spore ? def.spore.interval * (0.5 + Math.random() * 0.5) : 0,
       x: outX, y: outY,
       vx: (Math.random() - 0.5) * 16 * U,
       vy: 0,
@@ -1418,6 +1431,39 @@
     // Trigger MRSA cinematic banner the moment the boss is queued up.
     if (typeId === "bossMRSA" && !state.mrsaIntro) {
       state.mrsaIntro = { t: 0, duration: 2.5 };
+    }
+  }
+
+  // Esporas hijas del dermatofito: nacen en el camino (en la posición de la
+  // madre), más rápidas, con 20% de la vida de la madre y sin replicarse.
+  function spawnSpore(m) {
+    var sp = m.def.spore || {};
+    var chp = Math.max(1, Math.round(m.maxHp * (sp.childHpFrac || 0.2)));
+    state.enemies.push({
+      def: m.def, hp: chp, maxHp: chp,
+      speedMultLevel: m.speedMultLevel, heridaIdx: m.heridaIdx,
+      state: "walking", outsideTimer: 0,
+      progress: Math.max(0, m.progress - 5 * U),
+      powerCd: 0, powerCharge: 0, powerTarget: null, devourTarget: null,
+      swallowAnim: 0, mawOpen: 0,
+      speedBoost: (sp.childSpeedMult || 1.9), radiusScale: 0.6,
+      noSpore: true, childCount: 0, childTimer: 0,
+      x: m.x, y: m.y, vx: 0, vy: 0, fallRot: 0, fallRotSpd: 0, enteringTimer: 0,
+      wobble: Math.random() * Math.PI * 2, hitFlash: 0, hurtTimer: 0, dyingTimer: 0,
+      dying: false, enraged: false, sporeTimer: Math.random(),
+      blinkTimer: 0, nextBlink: state.time + 2 + Math.random() * 3,
+      absorbing: false, absorbScale: 1, absorbAlpha: 1,
+      absorbStartX: 0, absorbStartY: 0, absorbTargetX: 0, absorbTargetY: 0,
+      absorbStartTime: 0, absorbedRot: 0,
+      shieldHP: 0, shieldRegenTimer: 0, shieldRegenAccum: 0,
+      shieldShatterTimer: 0, shieldHitTimer: 0,
+      tooltipShown: true, dead: false
+    });
+    // Puff de esporas al nacer.
+    for (var s = 0; s < 4; s++) {
+      var a = Math.random() * Math.PI * 2, spd = (15 + Math.random() * 20) * U;
+      pushEffect({ kind: "particle", x: m.x, y: m.y, vx: Math.cos(a) * spd, vy: Math.sin(a) * spd,
+        life: 0.4, max: 0.5, color: m.def.color });
     }
   }
 
@@ -1672,7 +1718,17 @@
       // Position still resolves via pathPos at the held progress so the
       // sprite stays put on the path with a small shake jitter.
       if (e.state !== "blocked" && !e.devourTarget && !e.beingEngulfed) {
-        e.progress += pxSpeed * medFactor * dt;
+        e.progress += pxSpeed * medFactor * (e.speedBoost || 1) * dt;
+      }
+      // Dermatofito: suelta esporas hijas mientras avanza.
+      if (e.def.spore && !e.noSpore && e.state === "walking" &&
+          (e.childCount || 0) < (e.def.spore.maxChildren || 5)) {
+        e.childTimer -= dt;
+        if (e.childTimer <= 0) {
+          e.childTimer = e.def.spore.interval;
+          e.childCount = (e.childCount || 0) + 1;
+          spawnSpore(e);
+        }
       }
       e.wobble += dt * 6;
       // Sprint 7: walking enemies leave inflammation marks every 0.5s.
@@ -5435,7 +5491,7 @@
 
   function drawEnemy(e) {
     var def = e.def;
-    var rad = def.radius * U;
+    var rad = def.radius * U * (e.radiusScale || 1);
     if (e.swallowAnim > 0) rad *= 1 + 0.35 * (e.swallowAnim / 0.45);   // se hincha al tragar
     if (e.engulfScale != null) rad *= e.engulfScale;                    // encogido al ser fagocitado
     // Estado por medicamento: paralizado (escarcha cian) o lento (tinte azul).

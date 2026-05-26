@@ -3473,7 +3473,7 @@
       ctx.restore();
     }
     ctx.restore();
-    // Floating "COAGULACIÓN" text on spawn.
+    // Floating "TAPÓN DE FIBRINA" text on spawn.
     if (b.textTimer > 0) {
       var alpha = Math.min(1, b.textTimer / 0.4);
       ctx.save();
@@ -3486,9 +3486,9 @@
       ctx.lineWidth = 3;
       ctx.lineJoin = "round";
       ctx.strokeStyle = "rgba(60, 50, 0, 0.85)";
-      ctx.strokeText("COAGULACIÓN", b.x, ty);
+      ctx.strokeText("TAPÓN DE FIBRINA", b.x, ty);
       ctx.fillStyle = "#FFE680";
-      ctx.fillText("COAGULACIÓN", b.x, ty);
+      ctx.fillText("TAPÓN DE FIBRINA", b.x, ty);
       ctx.restore();
     }
   }
@@ -7618,24 +7618,28 @@
     if (!def) { state.activeTooltip = null; return; }
     // Sprint 8A: lateral right-side sticky note. No backdrop, no button.
     // Ficha MUY compacta: nombre + 1 oración corta, chica, que no estorbe.
-    var W = Math.min(166, VW - 28);
-    var previewSize = 16 * U;
+    var W = Math.min(180, VW - 24);
+    var previewSize = 17 * U;
     var rawDesc = (def.tooltip || "");
     var shortDesc = rawDesc.split(/\.\s/)[0] || "";
     if (shortDesc.length > 80) shortDesc = shortDesc.slice(0, 77) + "…";
     else if (shortDesc && !/[.…!?]$/.test(shortDesc)) shortDesc += ".";
-    var ttDescLines = wrapText(shortDesc, W - 24, 10).slice(0, 2);
+    // Nombre en 1-2 líneas (género / especie) para que no se apriete ni desborde.
+    var ttNameLines = wrapText(def.name, W - 26, 13).slice(0, 2);
+    var ttDescLines = wrapText(shortDesc, W - 26, 10).slice(0, 2);
     // Filas de altura fija -> distribución pareja y alto exacto.
-    var ttPad = 12;
+    var ttPad = 11;
     var ttRows = [];
     if (tt.isFirst) ttRows.push("header");
-    ttRows.push("sprite", "name", "sep", "shield");
+    ttRows.push("sprite");
+    for (var ni = 0; ni < ttNameLines.length; ni++) ttRows.push("name" + ni);
+    ttRows.push("sep", "shield");
     for (var di = 0; di < ttDescLines.length; di++) ttRows.push("desc" + di);
     function ttRowH(r) {
       if (r === "header") return 16;
-      if (r === "sprite") return previewSize * 2 + 12;
-      if (r === "name") return 20;
-      if (r === "sep") return 10;
+      if (r === "sprite") return previewSize * 2 + 8;
+      if (r.indexOf("name") === 0) return 16;
+      if (r === "sep") return 11;
       if (r === "shield") return 17;
       return 14;  // desc
     }
@@ -7694,14 +7698,15 @@
         ctx.fillText("🔬 NUEVO PATÓGENO", x + W / 2, midY);
       } else if (r === "sprite") {
         drawTooltipSprite(def, x + W / 2, midY, previewSize);
-      } else if (r === "name") {
-        var fns = 13;
+      } else if (r.indexOf("name") === 0) {
+        var nidx = parseInt(r.slice(4), 10);
+        var line = ttNameLines[nidx], fns = 13;
         ctx.font = "italic bold " + fns + "px Georgia, serif";
-        while (fns > 9 && ctx.measureText(def.name).width > W - 20) {
+        while (fns > 9 && ctx.measureText(line).width > W - 18) {
           fns--; ctx.font = "italic bold " + fns + "px Georgia, serif";
         }
         ctx.fillStyle = "#B22222";
-        ctx.fillText(def.name, x + W / 2, midY);
+        ctx.fillText(line, x + W / 2, midY);
       } else if (r === "sep") {
         ctx.strokeStyle = "rgba(80, 60, 60, 0.30)"; ctx.lineWidth = 1;
         ctx.beginPath(); ctx.moveTo(x + 16, midY); ctx.lineTo(x + W - 16, midY); ctx.stroke();

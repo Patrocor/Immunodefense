@@ -831,7 +831,7 @@
     },
     dermatofito: {
       id: "dermatofito", name: "Trichophyton rubrum", shortName: "Dermatofito", baseKind: "hongo",
-      color: "#9CA85A", colorDark: "#5E6A2C", radius: 13,
+      color: "#9CA85A", colorDark: "#5E6A2C", radius: 15,
       speedMult: 0.85, hp: 320, reward: 14, viralAdd: 7, attack: 5, isBoss: false,
       shield: { type: "wall", maxHP: 2, regenRate: 0, regenDelay: 0 },
       spore: { interval: 3.2, childHpFrac: 0.2, childSpeedMult: 1.9, maxChildren: 5 },
@@ -5677,6 +5677,7 @@
     else if (def.id === "influenza")    drawInfluenza(e, rad * scale, expression, blink);
     else if (def.id === "vih")          drawVih(e, rad * scale, expression, blink);
     else if (def.id === "candida")      drawCandida(e, rad * scale, expression, blink);
+    else if (def.id === "dermatofito")  drawDermatofito(e, rad * scale, expression, blink);
     // Fase 1 piel: bacilos cutáneos reusan drawEcoli (recoloreado por def).
     else if (def.id === "cacnes")       drawEcoli(e, rad * scale, expression, blink);
     else if (def.id === "pseudomonas")  drawEcoli(e, rad * scale, expression, blink);
@@ -5975,6 +5976,52 @@
     }
     if (expression === "dying" || expression === "hurt") drawAnimeMouth(0, bh * 0.30, bw * 0.55, bh * 0.40, "open");
     else drawAnimeMouth(0, bh * 0.30, bw * 0.65, bh * 0.30, "wicked");
+    ctx.restore();
+  }
+
+  function drawDermatofito(e, rad, expression, blink) {
+    // Hongo filamentoso (dermatofito): cuerpo alto + hifas con esporas arriba.
+    var hit = e.hitFlash > 0, t = state.time;
+    var col = e.def.color, cold = e.def.colorDark;
+    ctx.save();
+    ctx.translate(e.x, e.y);
+    var breathe = 1 + Math.sin(t * 1.6 + (e.wobble || 0)) * 0.04;
+    var bw = rad * 0.82 * breathe;
+    var bh = rad * 1.30 * (2 - breathe);   // notablemente más alto que ancho
+    // Hifas con esporas saliendo de la parte superior (tipo moho).
+    var nH = 5;
+    for (var h = 0; h < nH; h++) {
+      var hx0 = ((h / (nH - 1)) - 0.5) * bw * 1.3;
+      var ha = -Math.PI / 2 + (h - (nH - 1) / 2) * 0.30 + Math.sin(t * 2 + h) * 0.16;
+      var len = bh * (0.55 + ((h * 7) % 4) / 4 * 0.45);
+      var tx = hx0 + Math.cos(ha) * len, ty = -bh * 0.65 + Math.sin(ha) * len;
+      var mx = hx0 + Math.cos(ha) * len * 0.5, my = -bh * 0.65 + Math.sin(ha) * len * 0.5 - 3 * U;
+      ctx.strokeStyle = cold; ctx.lineWidth = Math.max(1, 1.5 * U); ctx.lineCap = "round";
+      ctx.beginPath(); ctx.moveTo(hx0, -bh * 0.65); ctx.quadraticCurveTo(mx, my, tx, ty); ctx.stroke();
+      ctx.fillStyle = col;
+      ctx.beginPath(); ctx.arc(tx, ty, 2.8 * U, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = cold; ctx.lineWidth = 1; ctx.stroke();
+    }
+    // Cuerpo (óvalo alto).
+    var grad = ctx.createRadialGradient(-bw * 0.3, -bh * 0.3, bh * 0.2, 0, 0, bh);
+    grad.addColorStop(0, "#dde6a6");
+    grad.addColorStop(0.6, col);
+    grad.addColorStop(1, cold);
+    ctx.fillStyle = hit ? "#ffffff" : grad;
+    ctx.beginPath(); ctx.ellipse(0, 0, bw, bh, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = cold; ctx.lineWidth = Math.max(1, 1.3 * U); ctx.stroke();
+    // Septos (tabiques del hongo): líneas horizontales tenues.
+    ctx.strokeStyle = "rgba(94, 106, 44, 0.40)"; ctx.lineWidth = 1;
+    for (var sct = -1; sct <= 1; sct++) {
+      ctx.beginPath(); ctx.moveTo(-bw * 0.7, sct * bh * 0.34); ctx.lineTo(bw * 0.7, sct * bh * 0.34); ctx.stroke();
+    }
+    // Cara malvada.
+    var eyeR = bw * 0.34, faceY = -bh * 0.04, gap = bw * 0.33;
+    if (expression === "dying" || expression === "hurt") drawHurtEyes(0, faceY, eyeR, gap);
+    else if (blink) drawClosedEyes(0, faceY, eyeR, gap);
+    else drawAnimeEyes(0, faceY, eyeR, gap, 0, 0, bh * 0.10, bh * 0.05, "evil");
+    if (expression === "dying" || expression === "hurt") drawAnimeMouth(0, bh * 0.40, bw * 0.5, bh * 0.4, "open");
+    else drawAnimeMouth(0, bh * 0.42, bw * 0.5, bh * 0.28, "fanged");
     ctx.restore();
   }
 
@@ -7831,7 +7878,8 @@
     };
     ctx.save();
     var kind = def.baseKind || def.id;
-    if (kind === "bacteria") drawBacteria(fakeEnemy, R, "idle", false);
+    if (def.id === "dermatofito") drawDermatofito(fakeEnemy, R, "idle", false);
+    else if (kind === "bacteria") drawBacteria(fakeEnemy, R, "idle", false);
     else if (kind === "virus") drawVirus(fakeEnemy, R, "idle", false);
     else if (kind === "hongo") drawHongo(fakeEnemy, R, "idle", false);
     else drawBoss(fakeEnemy, R, "idle", false);

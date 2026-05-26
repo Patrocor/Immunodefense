@@ -1383,6 +1383,8 @@
       powerCharge: 0,
       powerTarget: null,
       devourTarget: null,
+      swallowAnim: 0,
+      mawOpen: 0,
       x: outX, y: outY,
       vx: (Math.random() - 0.5) * 16 * U,
       vy: 0,
@@ -1777,6 +1779,7 @@
         }
       }
       if (e.acidFlash > 0) e.acidFlash -= dt;
+      if (e.swallowAnim > 0) e.swallowAnim -= dt;
       // Poder especial: spray/catapulta/dardo o devorar a una torre cercana.
       if (e.def.power && !e.dying && !e.absorbing &&
           (e.state === "walking" || e.state === "blocked")) {
@@ -2398,14 +2401,23 @@
     var pull = e.def.power.pull || 1.5;
     e.devourT += dt;
     var k = Math.min(1, e.devourT / pull);
-    tw.x = e.devourStartX + (e.x - e.devourStartX) * k;
-    tw.y = e.devourStartY + (e.y - e.devourStartY) * k;
+    var ke = k * k * (3 - 2 * k);          // suaviza el tirón (smoothstep)
+    tw.x = e.devourStartX + (e.x - e.devourStartX) * ke;
+    tw.y = e.devourStartY + (e.y - e.devourStartY) * ke;
+    tw.devourScale = 1 - ke * 0.7;          // se encoge al ser tragada
+    tw.devourShake = 2 + k * 5;             // forcejea cada vez más
+    e.mawOpen = k;                          // la "fauce" se abre con el tirón
     if (k >= 1) {
+      // ¡Mordisco! Tragado: el germen se hincha y estalla en partículas.
+      e.swallowAnim = 0.45;
+      e.mawOpen = 0;
       state.medCharge = Math.min(MED_MAX, state.medCharge + MED_PER_TOWER_DEATH);
-      for (var pk = 0; pk < 10; pk++) {
-        var pa = Math.random() * Math.PI * 2, ps = (20 + Math.random() * 30) * U;
-        pushEffect({ kind: "particle", x: tw.x, y: tw.y, vx: Math.cos(pa) * ps, vy: Math.sin(pa) * ps, life: 0.5, max: 0.6, color: tw.def.color });
+      pushEffect({ kind: "placeFlash", x: e.x, y: e.y, life: 0.3, max: 0.3 });
+      for (var pk = 0; pk < 16; pk++) {
+        var pa = Math.random() * Math.PI * 2, ps = (30 + Math.random() * 55) * U;
+        pushEffect({ kind: "particle", x: tw.x, y: tw.y, vx: Math.cos(pa) * ps, vy: Math.sin(pa) * ps - 10 * U, life: 0.5, max: 0.7, color: tw.def.color });
       }
+      triggerShake(0.25, 5);
       showMsg("¡" + (e.def.shortName || e.def.name) + " devoró una célula!");
       sfx("sell");
       if (state.selectedTower === tw) { state.selectedTower = null; clearRangeHint(); }
@@ -5017,9 +5029,12 @@
       ctx.arc(t.x, t.y, 28 * U, 0, Math.PI * 2);
       ctx.fill();
     }
-    // Sacudida cuando la golpean (feedback de daño).
+    // Sacudida al golpe; al ser devorada forcejea más fuerte y se encoge.
     var hf = (t.hitFlash || 0);
-    var shakeAmp = hf > 0 ? (hf / 0.16) * 3 * U : 0;
+    var devouring = !!t.devouredBy;
+    var shakeAmp = devouring ? (t.devourShake || 4) * U
+                             : (hf > 0 ? (hf / 0.16) * 3 * U : 0);
+    if (devouring && t.devourScale != null) pulse *= t.devourScale;
     ctx.save();
     if (shakeAmp > 0) {
       ctx.translate((Math.random() - 0.5) * shakeAmp, (Math.random() - 0.5) * shakeAmp);
@@ -5233,6 +5248,7 @@
   function drawEnemy(e) {
     var def = e.def;
     var rad = def.radius * U;
+    if (e.swallowAnim > 0) rad *= 1 + 0.35 * (e.swallowAnim / 0.45);   // se hincha al tragar
     // Estado por medicamento: paralizado (escarcha cian) o lento (tinte azul).
     if (e.stunTimer > 0) {
       ctx.save();
@@ -5305,24 +5321,44 @@
       ctx.beginPath(); ctx.arc(e.x, e.y, cr, 0, Math.PI * 2); ctx.stroke();
       ctx.restore();
     }
-    // Devorar: flagelo/seudópodo ondulante del germen a la torre atrapada.
+    // Devorar: seudópodo grueso (cónico) que agarra la torre + fauce abierta.
     if (e.devourTarget) {
       var tw = e.devourTarget;
+      var dvx = tw.x - e.x, dvy = tw.y - e.y;
+      var dl = Math.hypot(dvx, dvy) || 1;
+      var nx = -dvy / dl, ny = dvx / dl;          // normal
+      var segN = 8;
       ctx.save();
-      ctx.strokeStyle = colorAlpha(def.colorDark || def.color || "#a33", 0.9);
-      ctx.lineWidth = 4 * U; ctx.lineCap = "round";
-      var segs = 6;
-      ctx.beginPath(); ctx.moveTo(e.x, e.y);
-      for (var dq = 1; dq <= segs; dq++) {
-        var q = dq / segs;
-        var lx = e.x + (tw.x - e.x) * q;
-        var ly = e.y + (tw.y - e.y) * q;
-        var nx = -(tw.y - e.y), ny = (tw.x - e.x);
-        var nl = Math.hypot(nx, ny) || 1; nx /= nl; ny /= nl;
-        var wob = Math.sin(state.time * 10 + dq) * 5 * U * Math.sin(q * Math.PI);
-        ctx.lineTo(lx + nx * wob, ly + ny * wob);
+      // Pseudópodo relleno: ancho en el germen, fino en la torre, ondulante.
+      ctx.fillStyle = colorAlpha(def.color || "#a33", 0.85);
+      var top = [], bot = [];
+      for (var dq = 0; dq <= segN; dq++) {
+        var q = dq / segN;
+        var wob = Math.sin(state.time * 12 + dq * 0.9) * 6 * U * Math.sin(q * Math.PI);
+        var lx = e.x + dvx * q + nx * wob;
+        var ly = e.y + dvy * q + ny * wob;
+        var hw = (8 * (1 - q) + 2) * U;            // grosor decreciente
+        top.push([lx + nx * hw, ly + ny * hw]);
+        bot.push([lx - nx * hw, ly - ny * hw]);
       }
-      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(top[0][0], top[0][1]);
+      for (var ti2 = 1; ti2 < top.length; ti2++) ctx.lineTo(top[ti2][0], top[ti2][1]);
+      for (var bi2 = bot.length - 1; bi2 >= 0; bi2--) ctx.lineTo(bot[bi2][0], bot[bi2][1]);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = colorAlpha(def.colorDark || "#700", 0.7);
+      ctx.lineWidth = 1.5 * U; ctx.stroke();
+      // Fauce: boca oscura en el germen que se abre con el tirón.
+      var maw = (e.mawOpen || 0);
+      if (maw > 0) {
+        var mawAng = Math.atan2(dvy, dvx);
+        ctx.fillStyle = "rgba(20,0,5,0.85)";
+        ctx.beginPath();
+        ctx.ellipse(e.x + Math.cos(mawAng) * rad * 0.4, e.y + Math.sin(mawAng) * rad * 0.4,
+          rad * 0.7 * maw, rad * 0.5 * maw, mawAng, 0, Math.PI * 2);
+        ctx.fill();
+      }
       ctx.restore();
     }
     // Toxina: chorro verdoso del germen a la torre que está dañando (ataque).
@@ -7808,17 +7844,30 @@
     var pulseSlow = 0.5 + 0.5 * Math.sin(ceT * (Math.PI * 2 / 1.5));
     ctx.shadowColor = "rgba(255, 0, 0, " + (0.55 + pulseSlow * 0.30) + ")";
     ctx.shadowBlur = 8 + pulseSlow * 8;
-    ctx.lineWidth = 6;
+    ctx.lineWidth = 7;
     ctx.strokeStyle = "#000000";
+    // Degradado de sangre: carmesí brillante arriba -> sangre oscura abajo.
+    function bloodGrad(cy) {
+      var g = ctx.createLinearGradient(0, cy - fs * 0.55, 0, cy + fs * 0.55);
+      g.addColorStop(0, "#FF4D4D");
+      g.addColorStop(0.45, "#C41E25");
+      g.addColorStop(1, "#5A0606");
+      return g;
+    }
     // ---- 3. Línea 1: stroke + fill (UNA SOLA VEZ cada uno) -----------
     ctx.strokeText(u1, cx, cyLine1);
-    ctx.fillStyle = "#8B0000";
+    ctx.fillStyle = bloodGrad(cyLine1);
     ctx.fillText(u1, cx, cyLine1);
+    // Brillo especular tenue en el borde superior de las letras.
+    ctx.fillStyle = "rgba(255,255,255,0.12)";
+    ctx.fillText(u1, cx, cyLine1 - fs * 0.04);
     // ---- 4. Línea 2: stroke + fill (UNA SOLA VEZ cada uno) -----------
     ctx.strokeStyle = "#000000";
     ctx.strokeText(u2, cx, cyLine2);
-    ctx.fillStyle = "#8B0000";
+    ctx.fillStyle = bloodGrad(cyLine2);
     ctx.fillText(u2, cx, cyLine2);
+    ctx.fillStyle = "rgba(255,255,255,0.12)";
+    ctx.fillText(u2, cx, cyLine2 - fs * 0.04);
     // ---- 5. Quitar sombra antes de los chorros -----------------------
     ctx.shadowBlur = 0;
     ctx.shadowColor = "transparent";

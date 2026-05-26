@@ -8060,23 +8060,12 @@
     // ---- 5. Quitar sombra antes de los chorros -----------------------
     ctx.shadowBlur = 0;
     ctx.shadowColor = "transparent";
-    // ---- 6. textAlign="left" SOLO para medir letras ------------------
-    ctx.textAlign = "left";
-    // ---- 7. Chorros línea 1 (capped a dripCap) -----------------------
-    var baseY1 = cyLine1 + fs * 0.35;
-    drawTitleDrips(u1, cx, baseY1, fs, ceT, dripCap);
-    // ---- 8. Chorros línea 2 (longitud completa) ----------------------
-    var baseY2 = cyLine2 + fs * 0.35;
-    var bounds2 = drawTitleDrips(u2, cx, baseY2, fs, ceT, null);
-    // ---- 9. Charco inferior debajo de los chorros de la línea 2 ------
-    if (bounds2 && bounds2.maxBottomY > baseY2 + 30) {
-      drawBloodPool(bounds2.minX, bounds2.maxX, bounds2.maxBottomY, ceT);
-    }
+    // Goteo de sangre eliminado: las letras quedan limpias, sin chorros ni charco.
     if ("letterSpacing" in ctx) {
       try { ctx.letterSpacing = "0px"; } catch (e) {}
     }
     ctx.restore();
-    return { bottomY: bounds2 ? bounds2.maxBottomY + 30 : cyLine2 + lineHeight };
+    return { bottomY: cyLine2 + lineHeight * 0.55 };
   }
 
   // Backwards-compat single-line wrapper for any straggler callers.

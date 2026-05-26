@@ -5090,7 +5090,10 @@
     var attacking = (t.attackAnim || 0) > 0;
     var levelup = (t.levelupAnim || 0) > 0;
     var blink = (t.blinkTimer || 0) > 0;
-    var expression = levelup ? "levelup" : attacking ? "attacking" : "idle";
+    // Serios por defecto; tristes solo cuando están por morir (vida crítica
+    // o siendo devorados).
+    var dyingLow = (t.hp / t.maxHp < 0.3) || !!t.devouredBy;
+    var expression = levelup ? "levelup" : (dyingLow ? "dying" : (attacking ? "attacking" : "idle"));
     if (levelup) pulse *= 1.10;
     drawShadow(t.x, t.y + 18 * U, 19 * U, 6 * U);
     // Glow/aura pulsante (Parte A: más vivo) — resalta la célula sobre el tejido.
@@ -5198,10 +5201,12 @@
     }
     var neR = R * 0.20, ngap = R * 0.30, nfy = -R * 0.10;
     if (blink) drawClosedEyes(0, nfy, neR, ngap);
+    else if (expression === "dying") drawHurtEyes(0, nfy, neR, ngap);
     else if (expression === "levelup") drawSparkleEyes(0, nfy, neR, ngap);
     else if (expression === "attacking") drawFocusedEyes(0, nfy, neR, ngap, R * 0.14, R * 0.05);
     else drawAnimeEyes(0, nfy, neR, ngap, 0, 0, R * 0.10, R * 0.08, "fierce");
-    if (expression === "levelup") drawAnimeMouth(0, R * 0.30, R * 0.5, R * 0.30, "smile");
+    if (expression === "dying") drawAnimeMouth(0, R * 0.34, R * 0.42, R * 0.42, "open");
+    else if (expression === "levelup") drawAnimeMouth(0, R * 0.30, R * 0.5, R * 0.30, "smile");
     else if (expression === "attacking") drawAnimeMouth(0, R * 0.30, R * 0.5, R * 0.5, "fanged");
     else drawAnimeMouth(0, R * 0.32, R * 0.38, R * 0.20, "serious");
     ctx.restore();
@@ -5281,10 +5286,13 @@
     // Face — expression-aware
     var eyeR = R * 0.22;
     if (blink) drawClosedEyes(0, -R * 0.10, eyeR, R * 0.32);
+    else if (expression === "dying") drawHurtEyes(0, -R * 0.10, eyeR, R * 0.32);
     else if (expression === "levelup") drawSparkleEyes(0, -R * 0.10, eyeR, R * 0.32);
     else if (expression === "attacking") drawFocusedEyes(0, -R * 0.10, eyeR, R * 0.32, R * 0.10, R * 0.04);
-    else drawAnimeEyes(0, -R * 0.10, eyeR, R * 0.32, 0, 0, 0, 0, "happy");
-    drawAnimeMouth(0, R * 0.32, R * 0.55, R * 0.30, "smile");
+    else drawAnimeEyes(0, -R * 0.10, eyeR, R * 0.32, 0, 0, R * 0.10, R * 0.06, "fierce");
+    if (expression === "dying") drawAnimeMouth(0, R * 0.32, R * 0.5, R * 0.45, "open");
+    else if (expression === "levelup") drawAnimeMouth(0, R * 0.32, R * 0.55, R * 0.30, "smile");
+    else drawAnimeMouth(0, R * 0.32, R * 0.42, R * 0.20, "serious");
     ctx.restore();
   }
 
@@ -5347,10 +5355,12 @@
     // Face — sharper, colder; expression-aware
     var eyeR = R * 0.20;
     if (blink) drawClosedEyes(0, -R * 0.08, eyeR, R * 0.30);
+    else if (expression === "dying") drawHurtEyes(0, -R * 0.08, eyeR, R * 0.30);
     else if (expression === "levelup") drawSparkleEyes(0, -R * 0.08, eyeR, R * 0.30);
     else if (expression === "attacking") drawFocusedEyes(0, -R * 0.08, eyeR, R * 0.30, R * 0.18, R * 0.08);
     else drawAnimeEyes(0, -R * 0.08, eyeR, R * 0.30, 0, 0, R * 0.14, R * 0.05, "fierce");
-    if (expression === "levelup") drawAnimeMouth(0, R * 0.32, R * 0.45, R * 0.25, "smile");
+    if (expression === "dying") drawAnimeMouth(0, R * 0.32, R * 0.5, R * 0.42, "open");
+    else if (expression === "levelup") drawAnimeMouth(0, R * 0.32, R * 0.45, R * 0.25, "smile");
     else if (expression === "attacking") drawAnimeMouth(0, R * 0.32, R * 0.50, R * 0.30, "fanged");
     else drawAnimeMouth(0, R * 0.32, R * 0.40, R * 0.20, "neutral");
     ctx.restore();
@@ -5721,7 +5731,7 @@
     ctx.stroke();
     // Face — expression-aware
     var eyeR = ry * 0.30;
-    if (expression === "dying") drawXEyes(rx * 0.10, -ry * 0.15, eyeR, rx * 0.28);
+    if (expression === "dying") drawHurtEyes(rx * 0.10, -ry * 0.15, eyeR, rx * 0.28);
     else if (expression === "hurt") drawHurtEyes(rx * 0.10, -ry * 0.15, eyeR, rx * 0.28);
     else if (blink) drawClosedEyes(rx * 0.10, -ry * 0.15, eyeR, rx * 0.28);
     else drawAnimeEyes(rx * 0.10, -ry * 0.15, eyeR, rx * 0.28, 0, 0, ry * 0.18, ry * 0.10, "angry");
@@ -5775,7 +5785,7 @@
     ctx.stroke();
     // Face — wide eyes, smirk; expression-aware
     var eyeR = capR * 0.32;
-    if (expression === "dying") drawXEyes(0, -capR * 0.15, eyeR, capR * 0.30);
+    if (expression === "dying") drawHurtEyes(0, -capR * 0.15, eyeR, capR * 0.30);
     else if (expression === "hurt") drawHurtEyes(0, -capR * 0.15, eyeR, capR * 0.30);
     else if (blink) drawClosedEyes(0, -capR * 0.15, eyeR, capR * 0.30);
     else drawAnimeEyes(0, -capR * 0.15, eyeR, capR * 0.30, 0, 0, capR * 0.10, capR * 0.05, "evil");
@@ -5817,7 +5827,7 @@
     ctx.stroke();
     // Face — sleepy evil; expression-aware
     var eyeR = bw * 0.28;
-    if (expression === "dying") drawXEyes(0, -bh * 0.10, eyeR, bw * 0.30);
+    if (expression === "dying") drawHurtEyes(0, -bh * 0.10, eyeR, bw * 0.30);
     else if (expression === "hurt") drawHurtEyes(0, -bh * 0.10, eyeR, bw * 0.30);
     else if (blink) drawClosedEyes(0, -bh * 0.10, eyeR, bw * 0.30);
     else {
@@ -5908,7 +5918,7 @@
     var eyeR = ry * 0.42;
     var faceY = -ry * 0.10;
     var gap = rx * 0.28;
-    if (expression === "dying") drawXEyes(0, faceY, eyeR, gap);
+    if (expression === "dying") drawHurtEyes(0, faceY, eyeR, gap);
     else if (expression === "hurt") drawHurtEyes(0, faceY, eyeR, gap);
     else if (blink) drawClosedEyes(0, faceY, eyeR, gap);
     else drawAnimeEyes(0, faceY, eyeR, gap, 0, 0, ry * 0.15, ry * 0.08, "angry");
@@ -5961,7 +5971,7 @@
     var eyeR = coR * 0.30;
     var faceY = -offY - coR * 0.10;
     var gap = coR * 0.32;
-    if (expression === "dying") drawXEyes(0, faceY, eyeR, gap);
+    if (expression === "dying") drawHurtEyes(0, faceY, eyeR, gap);
     else if (expression === "hurt") drawHurtEyes(0, faceY, eyeR, gap);
     else if (blink) drawClosedEyes(0, faceY, eyeR, gap);
     else drawAnimeEyes(0, faceY, eyeR, gap, 0, 0, coR * 0.10, coR * 0.06, "angry");
@@ -6023,7 +6033,7 @@
     var eyeR = bigR * 0.30;
     var faceY = -bigR * 0.08;
     var gap = bigR * 0.32;
-    if (expression === "dying") drawXEyes(0, faceY, eyeR, gap);
+    if (expression === "dying") drawHurtEyes(0, faceY, eyeR, gap);
     else if (expression === "hurt") drawHurtEyes(0, faceY, eyeR, gap);
     else if (blink) drawClosedEyes(0, faceY, eyeR, gap);
     else drawAnimeEyes(0, faceY, eyeR, gap, 0, 0, bigR * 0.12, bigR * 0.06, "evil");
@@ -6095,7 +6105,7 @@
     var eyeR = capR * 0.30;
     var faceY = -capR * 0.12;
     var gap = capR * 0.30;
-    if (expression === "dying") drawXEyes(0, faceY, eyeR, gap);
+    if (expression === "dying") drawHurtEyes(0, faceY, eyeR, gap);
     else if (expression === "hurt") drawHurtEyes(0, faceY, eyeR, gap);
     else if (blink) drawClosedEyes(0, faceY, eyeR, gap);
     else drawAnimeEyes(0, faceY, eyeR, gap, 0, 0, capR * 0.10, capR * 0.05, "evil");
@@ -6192,7 +6202,7 @@
     var eyeR = capR * 0.26;
     var faceY = -capR * 0.18;
     var gap = capR * 0.26;
-    if (expression === "dying") drawXEyes(0, faceY, eyeR, gap, "#ff5577");
+    if (expression === "dying") drawHurtEyes(0, faceY, eyeR, gap, "#ff5577");
     else if (expression === "hurt") drawHurtEyes(0, faceY, eyeR, gap);
     else if (blink) drawClosedEyes(0, faceY, eyeR, gap);
     else drawAnimeEyes(0, faceY, eyeR, gap, 0, 0, capR * 0.10, capR * 0.06, "evil");
@@ -6272,7 +6282,7 @@
     var eyeR = bw * 0.28;
     var faceY = -bh * 0.10;
     var gap = bw * 0.32;
-    if (expression === "dying") drawXEyes(0, faceY, eyeR, gap);
+    if (expression === "dying") drawHurtEyes(0, faceY, eyeR, gap);
     else if (expression === "hurt") drawHurtEyes(0, faceY, eyeR, gap);
     else if (blink) drawClosedEyes(0, faceY, eyeR, gap);
     else drawAnimeEyes(0, faceY, eyeR, gap, 0, 0, bh * 0.08, bh * 0.06, "angry");
@@ -6326,7 +6336,7 @@
     var eyeR = coR * 0.42;
     var faceY = -coR * 0.10;
     var gap = coR * 0.40;
-    if (expression === "dying") drawXEyes(0, faceY, eyeR, gap);
+    if (expression === "dying") drawHurtEyes(0, faceY, eyeR, gap);
     else if (expression === "hurt") drawHurtEyes(0, faceY, eyeR, gap);
     else if (blink) drawClosedEyes(0, faceY, eyeR, gap);
     else drawAnimeEyes(0, faceY, eyeR, gap, 0, 0, coR * 0.16, coR * 0.08, "fierce");
@@ -6396,7 +6406,7 @@
     var eyeR = ry * 0.55;
     var faceY = -ry * 0.05;
     var gap = rx * 0.22;
-    if (expression === "dying") drawXEyes(0, faceY, eyeR, gap, "#7d1818");
+    if (expression === "dying") drawHurtEyes(0, faceY, eyeR, gap, "#7d1818");
     else if (expression === "hurt") drawHurtEyes(0, faceY, eyeR, gap);
     else if (blink) drawClosedEyes(0, faceY, eyeR, gap);
     else drawAnimeEyes(0, faceY, eyeR, gap, 0, 0, ry * 0.18, ry * 0.10, "fierce");
@@ -6493,7 +6503,7 @@
     var faceY = stalkTopY + stalkH * 0.45;
     var eyeR = stalkW * 0.45;
     var gap = stalkW * 0.50;
-    if (expression === "dying") drawXEyes(sway * 0.5, faceY, eyeR, gap);
+    if (expression === "dying") drawHurtEyes(sway * 0.5, faceY, eyeR, gap);
     else if (expression === "hurt") drawHurtEyes(sway * 0.5, faceY, eyeR, gap);
     else if (blink) drawClosedEyes(sway * 0.5, faceY, eyeR, gap);
     else drawAnimeEyes(sway * 0.5, faceY, eyeR, gap, 0, 0, stalkW * 0.18, stalkW * 0.08, "evil");
@@ -6573,7 +6583,7 @@
     var eyeR = bigR * 0.32;
     var faceY = -bigR * 0.06;
     var gap = bigR * 0.34;
-    if (expression === "dying") drawXEyes(0, faceY, eyeR, gap, "#7d1818");
+    if (expression === "dying") drawHurtEyes(0, faceY, eyeR, gap, "#7d1818");
     else if (expression === "hurt") drawHurtEyes(0, faceY, eyeR, gap);
     else if (blink) drawClosedEyes(0, faceY, eyeR, gap);
     else drawAnimeEyes(0, faceY, eyeR, gap, 0, 0, bigR * 0.16, bigR * 0.08, "evil");
@@ -6628,7 +6638,7 @@
     // Glowing red eyes — expression-aware
     var eyeR = ry * 0.32;
     if (expression === "dying") {
-      drawXEyes(0, -ry * 0.18, eyeR, rx * 0.30, "#7d1818");
+      drawHurtEyes(0, -ry * 0.18, eyeR, rx * 0.30, "#7d1818");
     } else if (expression === "hurt") {
       drawHurtEyes(0, -ry * 0.18, eyeR, rx * 0.30);
     } else {
@@ -6824,6 +6834,17 @@
         ctx.fillStyle = "rgba(255, 240, 180, 0.85)";
         ctx.beginPath();
         ctx.arc(Math.cos(ga) * R * 0.5, Math.sin(ga) * R * 0.5, R * 0.13, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    } else if (typeId === "neutrofilo") {
+      // Igual que el sprite colocado: cuerpo claro + núcleo multilobulado morado.
+      ctx.fillStyle = enabled ? "#f3ecf9" : "#cfc8d6";
+      ctx.beginPath(); ctx.arc(0, 0, R * 0.96, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = "rgba(126, 95, 176, 0.5)";
+      for (var nl = 0; nl < 4; nl++) {
+        var nla = nl * Math.PI / 2;
+        ctx.beginPath();
+        ctx.arc(Math.cos(nla) * R * 0.34, Math.sin(nla) * R * 0.34 + R * 0.08, R * 0.30, 0, Math.PI * 2);
         ctx.fill();
       }
     } else {

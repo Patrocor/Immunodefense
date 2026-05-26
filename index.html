@@ -2214,7 +2214,7 @@
     state.gasFx = { color: "#9be000", life: 1.0, max: 1.0 };
     state.topicalCharge = 0;
     sfx("upgrade");
-    showMsg("¡Ácido tópico sobre el camino!");
+    showMsg("¡Antiséptico sobre el camino!");
   }
 
   function updateMed(dt) {
@@ -2296,7 +2296,7 @@
     ctx.fillStyle = ready
       ? "rgba(182,255,58," + (0.8 + 0.2 * (0.5 + 0.5 * Math.sin(state.time * 6))) + ")"
       : "rgba(255,255,255,0.6)";
-    ctx.fillText(ready ? "▸ Ácido" : "🧴 tópico", v.x + v.w + 5, v.y + 2);
+    ctx.fillText(ready ? "▸ Antiséptico" : "🧴 tópico", v.x + v.w + 5, v.y + 2);
     if (!ready) {
       ctx.fillStyle = "rgba(255,255,255,0.4)";
       ctx.fillText(Math.round(ratio * 100) + "%", v.x + v.w + 5, v.y + 14);

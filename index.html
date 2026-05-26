@@ -803,7 +803,7 @@
     },
     saureus: {
       id: "saureus", name: "Staphylococcus aureus", baseKind: "bacteria",
-      color: "#F9A825", colorDark: "#9c6e0a", radius: 14,
+      color: "#F9A825", colorDark: "#9c6e0a", radius: 27,
       speedMult: 0.7, hp: 525, reward: 18, viralAdd: 8, attack: 12, power: { type: "burst", range: 135, cooldown: 4, dmg: 13, slowFire: 3 }, isBoss: false,
       shield: { type: "capsula", maxHP: 5, regenRate: 0, regenDelay: 0, doubleRing: true },
       tooltip: "Bacteria con cápsula y capacidad de formar biofilm protector. Causa infecciones cutáneas, neumonía y septicemia. Algunas cepas (MRSA) son resistentes a antibióticos."
@@ -824,14 +824,14 @@
     },
     candida: {
       id: "candida", name: "Candida albicans", baseKind: "hongo",
-      color: "#EC407A", colorDark: "#7a1d3e", radius: 12,
+      color: "#EC407A", colorDark: "#7a1d3e", radius: 27,
       speedMult: 0.9, hp: 375, reward: 15, viralAdd: 8, attack: 6, power: { type: "catapult", range: 150, cooldown: 5, dmg: 32 }, isBoss: false,
       shield: { type: "wall", maxHP: 4, regenRate: 0, regenDelay: 0 },
       tooltip: "Hongo levadura con pared celular de quitina y β-glucanos. Causa candidiasis. Su pared rígida lo protege parcialmente del ataque inmune."
     },
     dermatofito: {
       id: "dermatofito", name: "Trichophyton rubrum", shortName: "Dermatofito", baseKind: "hongo",
-      color: "#9CA85A", colorDark: "#5E6A2C", radius: 15,
+      color: "#9CA85A", colorDark: "#5E6A2C", radius: 23,
       speedMult: 0.85, hp: 320, reward: 14, viralAdd: 7, attack: 5, isBoss: false,
       shield: { type: "wall", maxHP: 2, regenRate: 0, regenDelay: 0 },
       spore: { interval: 3.2, childHpFrac: 0.2, childSpeedMult: 1.9, maxChildren: 5 },
@@ -840,28 +840,28 @@
     // ---- Patógenos cutáneos (Fase 1 = infección de piel) ---------------
     sepidermidis: {
       id: "sepidermidis", name: "Staphylococcus epidermidis", baseKind: "bacteria",
-      color: "#90A4AE", colorDark: "#546E7A", radius: 11,
+      color: "#90A4AE", colorDark: "#546E7A", radius: 27,
       speedMult: 1.3, hp: 120, reward: 6, viralAdd: 4, attack: 3, isBoss: false,
       shield: null,
       tooltip: "Coco gram positivo de la flora normal de la piel. Suele ser inofensivo, pero forma biofilm sobre catéteres y prótesis. Rápido y débil: el primer invasor cuando se rompe la barrera cutánea."
     },
     hsv: {
       id: "hsv", name: "Herpes simplex (HSV)", baseKind: "virus",
-      color: "#9575CD", colorDark: "#4527A0", radius: 9,
+      color: "#9575CD", colorDark: "#4527A0", radius: 26,
       speedMult: 1.55, hp: 130, reward: 9, viralAdd: 6, attack: 4, isBoss: false,
       shield: null,
       tooltip: "Virus con envoltura que causa vesículas dolorosas en piel y mucosas (herpes labial/genital). Muy rápido y queda latente en los nervios para reactivarse. Poca vida, pero difícil de atrapar."
     },
     cacnes: {
       id: "cacnes", name: "Cutibacterium acnes", baseKind: "bacteria",
-      color: "#C9A66B", colorDark: "#7a5c33", colorLight: "#E8D2A8", radius: 12,
+      color: "#C9A66B", colorDark: "#7a5c33", colorLight: "#E8D2A8", radius: 20,
       speedMult: 0.7, hp: 280, reward: 12, viralAdd: 6, attack: 4, isBoss: false,
       shield: { type: "wall", maxHP: 2, regenRate: 0, regenDelay: 0 },
       tooltip: "Bacilo anaerobio del folículo piloso, responsable del acné. Lento y resistente; su biofilm en el poro lo protege parcialmente del ataque inmune."
     },
     pseudomonas: {
       id: "pseudomonas", name: "Pseudomonas aeruginosa", baseKind: "bacteria",
-      color: "#26A69A", colorDark: "#00695C", colorLight: "#80DEEA", radius: 13,
+      color: "#26A69A", colorDark: "#00695C", colorLight: "#80DEEA", radius: 20,
       speedMult: 1.0, hp: 360, reward: 16, viralAdd: 7, attack: 10, power: { type: "spray", range: 115, cooldown: 5, stun: 2.4, dmg: 16 }, isBoss: false,
       shield: { type: "wall", maxHP: 3, regenRate: 3 / 12, regenDelay: 8 },
       tooltip: "Bacilo gram negativo de heridas húmedas y quemaduras. Produce pus azul-verdoso (piocianina) y biofilm resistente. Foliculitis del 'jacuzzi' y ectima gangrenoso."

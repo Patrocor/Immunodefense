@@ -1177,6 +1177,8 @@
       pathInflammation: [],             // marks where enemies recently passed
       bossActive: null,                 // ref to current boss enemy (if alive)
       showIntro: true,                  // first-load comic intro screen
+      introScene: 0,
+      introT: 0,
       panelScroll: 0,                   // horizontal scroll offset (Sprint 8B-3B)
       panelDragPending: null,           // tap-vs-drag tracker
       inflammation: null,                // active inflammation pulse
@@ -4099,11 +4101,10 @@
   }
 
   function handleClick(x, y) {
-    // Comic intro screen: COMENZAR closes the overlay.
+    // Comic intro: "Saltar" cierra todo; un tap normal avanza de escena.
     if (state.showIntro) {
-      if (UI.introBtn && inRect(x, y, UI.introBtn)) {
-        state.showIntro = false;
-      }
+      if (UI.introSkip && inRect(x, y, UI.introSkip)) { state.showIntro = false; }
+      else { introAdvance(); }
       return;
     }
     // Sprint 8A: tooltip lateral no se cierra por tap; auto-close 3s.
@@ -4408,7 +4409,7 @@
     if (e.key === " " || e.code === "Space") {
       e.preventDefault();
       ensureAudio();
-      if (state.showIntro) { state.showIntro = false; return; }
+      if (state.showIntro) { introAdvance(); return; }
       if (state.confirmRestart) { state.confirmRestart = false; return; }
       // Waves auto-spawn now; SPACE skips countdown if any.
       if (!state.waveActive && state.nextWaveAt > 0 && !state.cinematicEnd) {
@@ -7934,85 +7935,230 @@
   }
 
   // -------- COMIC INTRO SCREEN ----------------------------------------
+  // -------- INTRO CÓMIC ANIMADA ------------------------------------------
+  var INTRO_DUR = [4.2, 5.4, 3.6, 4.4];   // duración (s) por escena
+  var INTRO_CAPTIONS = [
+    "Jugando en el parque, Tomás se raspó la rodilla.",
+    "El doctor la limpió con antiséptico, le dio antibióticos y la cubrió.",
+    "Pero la curiosidad pudo más... y volvió a abrir la herida.",
+    "Y allí dentro, en lo microscópico, la batalla apenas comienza."
+  ];
+
+  function introAdvance() {
+    state.introScene = (state.introScene || 0) + 1;
+    state.introT = 0;
+    if (state.introScene >= INTRO_DUR.length) { state.showIntro = false; }
+  }
+  function updateIntroComic(dt) {
+    if (!state.showIntro) return;
+    state.introT = (state.introT || 0) + dt;
+    if (state.introT >= INTRO_DUR[state.introScene || 0]) introAdvance();
+  }
+
+  // Personita de cómic (niño/doctor): cabeza, cuerpo, brazos, piernas.
+  function comicPerson(x, footY, s, o) {
+    o = o || {};
+    var headR = 16 * s, hy = footY - 70 * s;
+    var bodyTop = hy + headR * 0.7, bodyBot = footY - 26 * s;
+    ctx.save();
+    ctx.translate(x, footY);
+    if (o.tilt) ctx.rotate(o.tilt);
+    ctx.translate(0, -footY);
+    ctx.lineCap = "round"; ctx.lineJoin = "round";
+    // Piernas
+    ctx.strokeStyle = o.pants || "#39406a"; ctx.lineWidth = 6 * s;
+    ctx.beginPath();
+    ctx.moveTo(-4 * s, bodyBot); ctx.lineTo((o.legL != null ? o.legL : -9) * s, footY);
+    ctx.moveTo(4 * s, bodyBot); ctx.lineTo((o.legR != null ? o.legR : 9) * s, footY);
+    ctx.stroke();
+    // Brazos
+    ctx.strokeStyle = o.shirt || "#4A90E2"; ctx.lineWidth = 6 * s;
+    ctx.beginPath();
+    ctx.moveTo(-10 * s, bodyTop + 8 * s); ctx.lineTo((o.armL != null ? o.armL : -22) * s, (o.armLY != null ? o.armLY : bodyTop + 4 * s));
+    ctx.moveTo(10 * s, bodyTop + 8 * s); ctx.lineTo((o.armR != null ? o.armR : 22) * s, (o.armRY != null ? o.armRY : bodyTop + 4 * s));
+    ctx.stroke();
+    // Cuerpo
+    ctx.fillStyle = o.shirt || "#4A90E2";
+    roundRect(-13 * s, bodyTop, 26 * s, bodyBot - bodyTop, 8 * s); ctx.fill();
+    if (o.coat) { // bata del doctor (overlay claro)
+      ctx.fillStyle = "#f4f6fb";
+      roundRect(-13 * s, bodyTop + 2 * s, 26 * s, bodyBot - bodyTop, 8 * s); ctx.fill();
+      ctx.fillStyle = "#d9534f"; // crucecita
+      ctx.fillRect(-2 * s, bodyTop + 8 * s, 4 * s, 12 * s);
+      ctx.fillRect(-6 * s, bodyTop + 12 * s, 12 * s, 4 * s);
+    }
+    // Cabeza
+    ctx.fillStyle = o.skin || "#f1c9a5";
+    ctx.beginPath(); ctx.arc(0, hy, headR, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = "#1a1a22"; ctx.lineWidth = 1.6; ctx.stroke();
+    // Pelo
+    ctx.fillStyle = o.hair || "#5a3a1a";
+    ctx.beginPath(); ctx.arc(0, hy - headR * 0.35, headR * 0.95, Math.PI, 0); ctx.fill();
+    // Cara (reusa helpers kawaii)
+    var eR = headR * 0.22, gap = headR * 0.34, fy = hy + headR * 0.05;
+    if (o.mood === "hurt") { drawHurtEyes(0, fy, eR, gap); drawAnimeMouth(0, hy + headR * 0.45, headR * 0.5, headR * 0.45, "open"); }
+    else if (o.mood === "curious") { drawAnimeEyes(0, fy, eR * 1.2, gap, 0, eR * 0.2, headR * 0.06, headR * 0.08, "happy"); drawAnimeMouth(0, hy + headR * 0.45, headR * 0.3, headR * 0.18, "neutral"); }
+    else if (o.mood === "calm") { drawAnimeEyes(0, fy, eR, gap, 0, 0, 0, 0, "neutral"); drawAnimeMouth(0, hy + headR * 0.45, headR * 0.35, headR * 0.16, "smile"); }
+    else { drawAnimeEyes(0, fy, eR, gap, 0, 0, 0, 0, "happy"); drawAnimeMouth(0, hy + headR * 0.45, headR * 0.35, headR * 0.16, "smile"); }
+    ctx.restore();
+  }
+
+  function drawWoundOnKnee(x, y, s, openAmt) {
+    ctx.save();
+    ctx.fillStyle = "#c0392b";
+    ctx.beginPath();
+    ctx.ellipse(x, y, 7 * s * (0.6 + openAmt * 0.6), 4 * s, 0.3, 0, Math.PI * 2);
+    ctx.fill();
+    if (openAmt > 0.4) {
+      ctx.fillStyle = "#7a0e0e";
+      ctx.beginPath(); ctx.ellipse(x, y, 4 * s * openAmt, 2 * s, 0.3, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  function introScene0(p) {  // jugando -> se raspa
+    var cx = VW / 2, gy = VH * 0.74, S = 2.4;
+    // cielo + sol + suelo de parque
+    var sun = VW * 0.78, sunY = VH * 0.16;
+    ctx.fillStyle = "#ffe27a"; ctx.beginPath(); ctx.arc(sun, sunY, 30, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "#bfe08a"; ctx.fillRect(0, gy, VW, VH - gy);
+    var fell = p > 0.5;
+    if (!fell) {
+      // corriendo (líneas de velocidad + leve bob)
+      var bob = Math.sin(p * 30) * 5;
+      comicPerson(cx, gy - bob, S, { shirt: "#e0913a", legL: -16, legR: 14, armL: -20, armR: 24, mood: "happy" });
+      ctx.strokeStyle = "rgba(120,120,120,0.45)"; ctx.lineWidth = 3;
+      for (var l = 0; l < 4; l++) { var ly = gy - 130 + l * 30; ctx.beginPath(); ctx.moveTo(cx - 90 - l * 12, ly); ctx.lineTo(cx - 45, ly); ctx.stroke(); }
+    } else {
+      // caído (inclinado) + ¡Ay! + herida
+      comicPerson(cx + 18, gy, S, { tilt: 0.5, shirt: "#e0913a", mood: "hurt", legL: -18, legR: -4 });
+      drawWoundOnKnee(cx - 4, gy - 26 * S, S, 1);
+      var pop = Math.min(1, (p - 0.5) / 0.2);
+      ctx.fillStyle = "#d9534f"; ctx.font = "900 " + (34 + pop * 10) + "px Fredoka, sans-serif";
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText("¡AY!", cx + 95, gy - 230);
+    }
+  }
+
+  function introScene1(p) {  // el doctor: antiséptico, antibiótico, apósito
+    var gy = VH * 0.74;
+    // pared clínica + piso
+    ctx.fillStyle = "#eaf2f4"; ctx.fillRect(0, 0, VW, gy);
+    ctx.fillStyle = "#d6e0e6"; ctx.fillRect(0, gy, VW, VH - gy);
+    // niño sentado (a la izquierda) y doctor (a la derecha), más grandes
+    comicPerson(VW * 0.33, gy, 2.0, { shirt: "#e0913a", mood: p > 0.66 ? "calm" : "hurt", legL: -20, legR: -26 });
+    comicPerson(VW * 0.66, gy, 2.2, { shirt: "#3a7", coat: true, skin: "#e8b890", hair: "#2a2a2a", mood: "calm", armL: -12, armLY: gy - 140 });
+    drawWoundOnKnee(VW * 0.40, gy - 26 * 2.0, 2.0, p > 0.66 ? 0 : 1);
+    // 3 beats con íconos grandes que aparecen
+    var beat = p < 0.33 ? 0 : (p < 0.66 ? 1 : 2);
+    var icons = [["🧴", "Antiséptico", "#7bbf00"], ["💊", "Antibiótico", "#E0A800"], ["🩹", "Apósito", "#d98aa0"]];
+    var ic = icons[beat];
+    var iy = VH * 0.22;
+    // burbuja de cómic detrás del ícono
+    ctx.fillStyle = "rgba(255,255,255,0.85)";
+    ctx.beginPath(); ctx.arc(VW / 2, iy + 6, 46, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = "#1a1a22"; ctx.lineWidth = 2; ctx.stroke();
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.font = "52px serif"; ctx.fillText(ic[0], VW / 2, iy);
+    ctx.fillStyle = ic[2]; ctx.font = "bold 22px Fredoka, sans-serif";
+    ctx.fillText(ic[1], VW / 2, iy + 64);
+    // puntitos de progreso de los 3 pasos
+    for (var d = 0; d < 3; d++) {
+      ctx.fillStyle = d === beat ? "#1a1a22" : "rgba(0,0,0,0.2)";
+      ctx.beginPath(); ctx.arc(VW / 2 - 18 + d * 18, iy + 88, 5, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+
+  function introScene2(p) {  // reabre la herida y se asoma
+    var gy = VH * 0.76, S = 2.6, kx = VW / 2;
+    ctx.fillStyle = "#eaf2f4"; ctx.fillRect(0, 0, VW, gy);
+    ctx.fillStyle = "#d6e0e6"; ctx.fillRect(0, gy, VW, VH - gy);
+    var kneeX = kx + 8, kneeY = gy - 26 * S;
+    // niño inclinado, mirando su rodilla con curiosidad; despega el apósito
+    comicPerson(kx, gy, S, { tilt: 0.22, shirt: "#e0913a", mood: "curious", armR: 28, armRY: gy - 95 });
+    // apósito despegándose
+    ctx.save();
+    ctx.fillStyle = "#d98aa0";
+    ctx.translate(kneeX + 36, kneeY);
+    ctx.rotate(-0.6 * p);
+    roundRect(-2, -8, 22 + 14 * p, 16, 4); ctx.fill();
+    ctx.restore();
+    drawWoundOnKnee(kneeX, kneeY, S, p);
+    // líneas de "asombro/zoom de mirada" alrededor de la herida
+    if (p > 0.4) {
+      ctx.strokeStyle = "rgba(0,0,0,0.14)"; ctx.lineWidth = 2.5;
+      for (var a = 0; a < 10; a++) { var ang = a / 10 * Math.PI * 2; ctx.beginPath(); ctx.moveTo(kneeX + Math.cos(ang) * 46, kneeY + Math.sin(ang) * 46); ctx.lineTo(kneeX + Math.cos(ang) * 70, kneeY + Math.sin(ang) * 70); ctx.stroke(); }
+    }
+  }
+
+  function introScene3(p) {  // ZOOM dentro de la herida -> Fase 1
+    // La herida (roja) crece desde el centro hasta llenar la pantalla,
+    // virando a tejido; al final se revela el campo de juego.
+    var R = (40 + p * p * Math.max(VW, VH) * 1.6);
+    var cx = VW / 2, cy = VH / 2;
+    // tejido de fondo que aparece
+    ctx.fillStyle = "#f3d9cf"; ctx.fillRect(0, 0, VW, VH);
+    var g = ctx.createRadialGradient(cx, cy, R * 0.2, cx, cy, R);
+    g.addColorStop(0, "#7a0e0e");
+    g.addColorStop(0.5, "#b83a2a");
+    g.addColorStop(1, "rgba(184,58,42,0)");
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.fill();
+    // células/gérmenes insinuándose al final
+    if (p > 0.5) {
+      ctx.globalAlpha = (p - 0.5) / 0.5 * 0.6;
+      for (var i = 0; i < 10; i++) {
+        var an = i * 2.4, rr = R * 0.3 + (i % 3) * 18;
+        ctx.fillStyle = i % 2 ? "rgba(160,40,40,0.7)" : "rgba(220,200,120,0.6)";
+        ctx.beginPath(); ctx.arc(cx + Math.cos(an) * rr, cy + Math.sin(an) * rr, 8 + (i % 3) * 4, 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+    }
+  }
+
   function drawIntroScreen() {
     if (!state.showIntro) return;
+    var sc = state.introScene || 0;
+    var t = state.introT || 0;
+    var p = Math.min(1, t / INTRO_DUR[sc]);
     ctx.save();
-    // Cream wash
-    ctx.fillStyle = "rgba(245, 235, 215, 0.95)";
-    ctx.fillRect(0, 0, VW, VH);
-    // Comic vignette
-    var vw = Math.min(560, VW - 32);
-    var vh = Math.min(420, VH - 64);
-    var vx = VW / 2 - vw / 2;
-    var vy = VH / 2 - vh / 2;
-    // Paper shadow
-    ctx.fillStyle = "rgba(0,0,0,0.20)";
-    ctx.fillRect(vx + 6, vy + 6, vw, vh);
-    ctx.fillStyle = "#fbf2e0";
-    ctx.fillRect(vx, vy, vw, vh);
-    ctx.lineWidth = 3;
-    ctx.strokeStyle = "#1a1a22";
-    ctx.strokeRect(vx, vy, vw, vh);
-    // Title
-    ctx.textAlign = "center";
-    ctx.textBaseline = "top";
-    var tFs = Math.min(34, vw * 0.075);
-    ctx.font = "600 " + tFs + 'px Georgia, "Times New Roman", serif';
-    ctx.fillStyle = "#B22222";
-    ctx.fillText("ImmunoDefense", VW / 2, vy + 28);
-    // Subtitle
-    ctx.font = "italic " + Math.max(14, tFs * 0.55) + 'px Georgia, serif';
-    ctx.fillStyle = "#555";
-    ctx.fillText("ACTO I — LA INVASIÓN", VW / 2, vy + 28 + tFs + 4);
-    // Divider
-    ctx.strokeStyle = "rgba(40, 30, 30, 0.45)";
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(vx + 40, vy + 28 + tFs + 36);
-    ctx.lineTo(vx + vw - 40, vy + 28 + tFs + 36);
-    ctx.stroke();
-    // Narrative paragraphs
-    var paraFs = Math.max(13, Math.min(15, vw * 0.030));
-    ctx.font = paraFs + 'px Georgia, serif';
-    ctx.fillStyle = "#2C2A28";
-    ctx.textAlign = "left";
-    var lines = [
-      "Una herida ha abierto la barrera.",
-      "Los patógenos buscan ingresar al torrente sanguíneo.",
-      "",
-      "Tu sistema inmunológico debe contenerlos...",
-      "pero la batalla está predeterminada.",
-      "",
-      "Cada germen que escape acelera lo inevitable."
-    ];
-    var lineY = vy + 28 + tFs + 60;
-    var lh = paraFs + 8;
-    var maxLineW = vw - 56;
-    for (var i = 0; i < lines.length; i++) {
-      var ln = lines[i];
-      // Center align each line manually
-      ctx.textAlign = "center";
-      ctx.fillText(ln, VW / 2, lineY + i * lh);
+    // Fondo papel cómic + viñeta de panel.
+    ctx.fillStyle = "#f3e7cf"; ctx.fillRect(0, 0, VW, VH);
+    // Escena.
+    var fadeIn = Math.min(1, t / 0.35);
+    ctx.globalAlpha = fadeIn;
+    if (sc === 0) introScene0(p);
+    else if (sc === 1) introScene1(p);
+    else if (sc === 2) introScene2(p);
+    else introScene3(p);
+    ctx.globalAlpha = 1;
+    // Caja de texto (no en el zoom avanzado).
+    if (!(sc === 3 && p > 0.7)) {
+      var boxH = 64, boxY = VH - boxH - 14, boxX = 16, boxW = VW - 32;
+      ctx.fillStyle = "rgba(255,252,240,0.95)";
+      roundRect(boxX, boxY, boxW, boxH, 10); ctx.fill();
+      ctx.strokeStyle = "#1a1a22"; ctx.lineWidth = 2.5; roundRect(boxX, boxY, boxW, boxH, 10); ctx.stroke();
+      ctx.fillStyle = "#2C2A28"; ctx.font = "15px Georgia, serif";
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      var cap = INTRO_CAPTIONS[sc], capW = boxW - 28;
+      var capLines = wrapText(cap, capW, 15);
+      for (var ci = 0; ci < capLines.length; ci++) {
+        ctx.fillText(capLines[ci], VW / 2, boxY + boxH / 2 + (ci - (capLines.length - 1) / 2) * 19);
+      }
     }
-    // COMENZAR button
-    var btnW = 200, btnH = 50;
-    var btn = { x: VW / 2 - btnW / 2, y: vy + vh - btnH - 24, w: btnW, h: btnH };
-    UI.introBtn = btn;
-    var pulse = 1 + Math.sin(state.time * 3) * 0.03;
-    ctx.save();
-    ctx.translate(btn.x + btn.w / 2, btn.y + btn.h / 2);
-    ctx.scale(pulse, pulse);
-    ctx.fillStyle = "#fff";
-    ctx.fillRect(-btn.w / 2, -btn.h / 2, btn.w, btn.h);
-    ctx.strokeStyle = "#1a1a22";
-    ctx.lineWidth = 3;
-    ctx.strokeRect(-btn.w / 2, -btn.h / 2, btn.w, btn.h);
-    ctx.fillStyle = "#1a1a22";
-    ctx.font = "bold 18px Fredoka, sans-serif";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText("COMENZAR", 0, 0);
-    ctx.restore();
+    // Puntos de progreso (escenas) arriba.
+    for (var s2 = 0; s2 < INTRO_DUR.length; s2++) {
+      ctx.fillStyle = s2 === sc ? "#B22222" : "rgba(0,0,0,0.2)";
+      ctx.beginPath(); ctx.arc(VW / 2 - 18 + s2 * 12, 20, 4, 0, Math.PI * 2); ctx.fill();
+    }
+    // Botón "Saltar ▸".
+    var sw = 86, sh = 30, sx = VW - sw - 12, sy = 10;
+    UI.introSkip = { x: sx, y: sy, w: sw, h: sh };
+    ctx.fillStyle = "rgba(0,0,0,0.35)"; roundRect(sx, sy, sw, sh, 8); ctx.fill();
+    ctx.fillStyle = "#fff"; ctx.font = "bold 13px Fredoka, sans-serif";
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillText("Saltar ▸", sx + sw / 2, sy + sh / 2);
+    UI.introBtn = null;
     ctx.restore();
   }
 
@@ -8621,6 +8767,7 @@
       updateProjectiles(dt);
       updateMed(dt);
     }
+    if (state.showIntro) updateIntroComic(dt);
     if (state.cinematicEnd) updateCinematic(dt);
     updateEffects(dt);
     if (state.msgTimer > 0) state.msgTimer -= dt;

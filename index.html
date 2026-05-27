@@ -8094,48 +8094,76 @@
 
     ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.lineJoin = "round";
 
-    // Badge superior.
-    ctx.font = "bold " + Math.round(VW * 0.033) + "px Fredoka, sans-serif";
-    ctx.fillStyle = "rgba(255,255,255,0.72)";
-    ctx.fillText("FASE 1 · INFECCIÓN DE PIEL", cx, VH * 0.155);
-
-    // Título (auto-ajustado al ancho).
-    var titleY = VH * 0.29, maxW = VW * 0.88, fs = VW * 0.18;
+    // --- Título estilo "presentación Capcom": slam-in + destello + glint ---
+    var titleY = VH * 0.32, maxW = VW * 0.88, fs = VW * 0.185;
     ctx.font = "900 " + fs + "px Fredoka, sans-serif";
     while (ctx.measureText("ImmunoDefense").width > maxW && fs > 12) {
       fs -= 1; ctx.font = "900 " + fs + "px Fredoka, sans-serif";
     }
+    var tw = ctx.measureText("ImmunoDefense").width;
+    var rev = Math.min(1, tt / 0.5);                 // progreso de entrada
+    var ease = 1 - Math.pow(1 - rev, 3);             // easeOutCubic
+    var slam = 2.7 - 1.7 * ease;                     // escala 2.7 -> 1.0 (golpe)
+    ctx.save();
+    ctx.globalAlpha = Math.min(1, tt / 0.18);
+    ctx.translate(cx, titleY);
+    ctx.scale(slam, slam);
     ctx.save();
     ctx.shadowColor = "rgba(214,31,31,0.95)"; ctx.shadowBlur = 30;
-    ctx.fillStyle = "#fff"; ctx.fillText("ImmunoDefense", cx, titleY);
+    ctx.fillStyle = "#fff"; ctx.fillText("ImmunoDefense", 0, 0);
     ctx.restore();
-    ctx.lineWidth = Math.max(3, VW * 0.011); ctx.strokeStyle = "#3a0a0a";
-    ctx.strokeText("ImmunoDefense", cx, titleY);
-    ctx.fillStyle = "#fff"; ctx.fillText("ImmunoDefense", cx, titleY);
+    ctx.lineWidth = Math.max(3, VW * 0.011) / slam; ctx.strokeStyle = "#3a0a0a";
+    ctx.strokeText("ImmunoDefense", 0, 0);
+    var tg = ctx.createLinearGradient(0, -fs * 0.55, 0, fs * 0.55);
+    tg.addColorStop(0, "#ffffff"); tg.addColorStop(0.5, "#fbe6e0"); tg.addColorStop(1, "#d7aea6");
+    ctx.fillStyle = tg; ctx.fillText("ImmunoDefense", 0, 0);
+    ctx.restore();
 
-    // Lema.
+    // Destello blanco al impactar.
+    var impT = tt - 0.5;
+    if (impT >= 0 && impT < 0.26) {
+      ctx.globalAlpha = (1 - impT / 0.26) * 0.45;
+      ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, VW, VH);
+      ctx.globalAlpha = 1;
+    }
+
+    // Barrido de brillo (glint) que recorre las letras, ya asentado el título.
+    if (rev >= 1) {
+      var period = 3.2, ph = ((tt - 0.5) % period) / period;
+      if (ph < 0.28) {
+        var sp = ph / 0.28;                          // 0..1 a lo ancho
+        var bandX = cx - tw * 0.62 + sp * (tw * 1.24);
+        var band = Math.max(10, tw * 0.09);
+        var grad = ctx.createLinearGradient(bandX - band, titleY - fs * 0.6, bandX + band, titleY + fs * 0.6);
+        grad.addColorStop(0, "rgba(255,255,255,0)");
+        grad.addColorStop(0.5, "rgba(255,255,255,0.95)");
+        grad.addColorStop(1, "rgba(255,255,255,0)");
+        ctx.fillStyle = grad;
+        ctx.fillText("ImmunoDefense", cx, titleY);
+      }
+    }
+
+    // Lema (aparece tras el impacto).
+    ctx.globalAlpha = Math.min(1, Math.max(0, (tt - 0.55) / 0.5));
     ctx.font = "italic " + Math.round(VW * 0.040) + "px Georgia, serif";
     ctx.fillStyle = "rgba(255,235,225,0.92)";
-    ctx.fillText("Tu cuerpo es el campo de batalla", cx, VH * 0.40);
+    ctx.fillText("Tu cuerpo es el campo de batalla", cx, VH * 0.44);
+    ctx.globalAlpha = 1;
 
-    // Botón INICIAR (pulsante).
-    var pulse = 1 + Math.sin(tt * 3) * 0.04;
-    var bw = Math.min(VW * 0.6, 260), bh = 54, by = VH * 0.73;
-    UI.startBtn = { x: cx - bw / 2, y: by, w: bw, h: bh };
+    // Botón INICIAR (normal, sin pulso).
+    var bw = Math.min(VW * 0.62, 270), bh = 56, by = VH * 0.72, bx = cx - bw / 2;
+    UI.startBtn = { x: bx, y: by, w: bw, h: bh };
     ctx.save();
-    ctx.translate(cx, by + bh / 2); ctx.scale(pulse, pulse);
-    ctx.shadowColor = "rgba(214,31,31,0.85)"; ctx.shadowBlur = 22;
-    ctx.fillStyle = "#d61f1f"; roundRect(-bw / 2, -bh / 2, bw, bh, bh / 2); ctx.fill();
-    ctx.shadowBlur = 0;
-    ctx.strokeStyle = "rgba(255,255,255,0.9)"; ctx.lineWidth = 2.5;
-    roundRect(-bw / 2, -bh / 2, bw, bh, bh / 2); ctx.stroke();
-    ctx.fillStyle = "#fff"; ctx.font = "900 " + Math.round(bh * 0.42) + "px Fredoka, sans-serif";
-    ctx.textAlign = "center"; ctx.textBaseline = "middle";
-    ctx.fillText("▶  INICIAR", 0, 0);
+    ctx.shadowColor = "rgba(0,0,0,0.45)"; ctx.shadowBlur = 12; ctx.shadowOffsetY = 3;
+    ctx.fillStyle = "#d61f1f"; roundRect(bx, by, bw, bh, 10); ctx.fill();
     ctx.restore();
+    ctx.strokeStyle = "rgba(255,255,255,0.9)"; ctx.lineWidth = 2.5; roundRect(bx, by, bw, bh, 10); ctx.stroke();
+    ctx.fillStyle = "#fff"; ctx.font = "900 " + Math.round(bh * 0.40) + "px Fredoka, sans-serif";
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillText("INICIAR", cx, by + bh / 2 + 1);
 
     // Pista parpadeante.
-    ctx.globalAlpha = 0.55 + 0.4 * (0.5 + 0.5 * Math.sin(tt * 2.2));
+    ctx.globalAlpha = 0.5 + 0.4 * (0.5 + 0.5 * Math.sin(tt * 2.2));
     ctx.fillStyle = "#fff"; ctx.font = Math.round(VW * 0.032) + "px Fredoka, sans-serif";
     ctx.fillText("o toca en cualquier lugar para empezar", cx, by + bh + VH * 0.05);
     ctx.globalAlpha = 1;

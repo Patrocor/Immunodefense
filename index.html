@@ -826,6 +826,13 @@
     }
   };
   var TOWER_LIST = ["neutrofilo", "linfocitoB", "linfocitoT", "langerhans", "nk", "eosinofilo", "mastocito"];
+  // Cartilla por grupos desplegables (categorías de defensa).
+  var TOWER_GROUPS = [
+    { id: "linea",         label: "Primera línea", towers: ["neutrofilo"] },
+    { id: "distancia",     label: "A distancia",   towers: ["linfocitoB", "linfocitoT"] },
+    { id: "especialistas", label: "Especialistas", towers: ["nk", "eosinofilo"] },
+    { id: "soporte",       label: "Soporte",       towers: ["langerhans", "mastocito"] }
+  ];
 
   // BASE_SPEED in design px/s; multiplied by U each frame for actual movement.
   var BASE_SPEED = 60;
@@ -1174,7 +1181,7 @@
       ambient: [],
       circulatory: [],
       selectedToBuild: null,
-      cartillaOpen: false,              // cartilla de torres desplegable
+      openGroups: { linea: true },      // grupos desplegables de la cartilla
       selectedTower: null,
       pointer: { x: 0, y: 0, isOver: false },
       lastPlaceFailedAt: -10,
@@ -1331,31 +1338,37 @@
     var infoH = Math.min(96 + btnH * 2, Math.round(dockH * 0.52));
     var infoY = dockBottom - infoH;
 
-    // Cartilla DESPLEGABLE: una pestaña arriba abre/cierra la lista de torres
-    // para no saturar el dock con 7 cartas. Cerrada por defecto.
-    var toggleH = 30;
-    UI.cartillaToggle = { x: contentX, y: dockTop, w: contentW, h: toggleH };
-    var stripTop = dockTop + toggleH + cardGap;
+    // Cartilla por GRUPOS DESPLEGABLES: cada categoría (cabecera) se abre/cierra
+    // de forma independiente. Sin abrir, solo se ven las cabeceras (no satura).
+    var stripTop = dockTop;
     var stripRegionH = Math.max(0, (infoY - dockPad) - stripTop);
-    var open = state ? !!state.cartillaOpen : false;
-
+    var headerH = 28, groupSpacing = 6;
+    var cardH = Math.round(Math.max(56, Math.min(92, contentW * 0.92)));
+    var openMap = (state && state.openGroups) ? state.openGroups : { linea: true };
     UI.cards = [];
-    var contentH = 0, cardH = 0;
-    if (open) {
-      var naturalCardH = Math.max(72, Math.min(112, contentW * 1.04));
-      // Mostrar ~3 cartas a la vez; el resto por scroll vertical.
-      var visibleTarget = 3;
-      var fitCardH = (stripRegionH - (visibleTarget - 1) * cardGap) / visibleTarget;
-      cardH = Math.round(Math.max(60, Math.min(naturalCardH, fitCardH)));
-      for (var i = 0; i < cardCount; i++) {
-        UI.cards.push({ contentY: i * (cardH + cardGap), x: contentX, w: cardW, h: cardH });
+    UI.groupHeaders = [];
+    var cyc = 0;
+    for (var gi = 0; gi < TOWER_GROUPS.length; gi++) {
+      var grp = TOWER_GROUPS[gi];
+      var gopen = !!openMap[grp.id];
+      UI.groupHeaders.push({ id: grp.id, label: grp.label, open: gopen,
+        count: grp.towers.length, x: contentX, w: contentW, h: headerH, contentY: cyc });
+      cyc += headerH;
+      if (gopen) {
+        cyc += cardGap;
+        for (var ti = 0; ti < grp.towers.length; ti++) {
+          UI.cards.push({ typeId: grp.towers[ti], x: contentX, w: cardW, h: cardH, contentY: cyc });
+          cyc += cardH;
+          if (ti < grp.towers.length - 1) cyc += cardGap;
+        }
       }
-      contentH = cardCount * cardH + (cardCount - 1) * cardGap;
+      cyc += groupSpacing;
     }
+    var contentH = cyc;
 
     UI.cardStrip = {
       x: contentX, y: stripTop, w: cardW,
-      h: open ? Math.max(cardH, Math.min(stripRegionH, contentH)) : 0,
+      h: Math.min(stripRegionH, contentH),
       contentH: contentH
     };
 
@@ -4272,13 +4285,21 @@
     }
     // Dock lateral derecho
     if (x >= FIELD_RIGHT) {
-      // Pestaña: abre/cierra la cartilla de torres (para no saturar el dock).
-      if (UI.cartillaToggle && inRect(x, y, UI.cartillaToggle)) {
-        state.cartillaOpen = !state.cartillaOpen;
-        state.panelScroll = 0;
-        layoutUI();
-        sfx("tick");
-        return;
+      // Cabeceras de grupo: abren/cierran su categoría (grupos desplegables).
+      if (UI.groupHeaders) {
+        for (var gh = 0; gh < UI.groupHeaders.length; gh++) {
+          var H = UI.groupHeaders[gh];
+          var hy = UI.cardStrip.y + H.contentY - (state.panelScroll || 0);
+          if (hy + H.h < UI.cardStrip.y || hy > UI.cardStrip.y + UI.cardStrip.h) continue;
+          if (inRect(x, y, { x: H.x, y: hy, w: H.w, h: H.h })) {
+            state.openGroups = state.openGroups || {};
+            state.openGroups[H.id] = !state.openGroups[H.id];
+            state.panelScroll = 0;
+            layoutUI();
+            sfx("tick");
+            return;
+          }
+        }
       }
       // Cards en content space vertical; convertir a viewport con scroll.
       for (var i = 0; i < UI.cards.length; i++) {
@@ -4292,7 +4313,7 @@
         if (viewRect.y + viewRect.h < UI.cardStrip.y) continue;
         if (viewRect.y > UI.cardStrip.y + UI.cardStrip.h) continue;
         if (inRect(x, y, viewRect)) {
-          var typeId = TOWER_LIST[i];
+          var typeId = ccard.typeId;
           if (state.atp >= TOWER_DEFS[typeId].cost) {
             var prev = state.selectedToBuild;
             state.selectedToBuild = state.selectedToBuild === typeId ? null : typeId;
@@ -4300,7 +4321,6 @@
             sfx("tick");
             // Show range hint at center of field as initial preview.
             if (state.selectedToBuild) {
-              state.cartillaOpen = false; layoutUI();   // al elegir, cierra la cartilla
               var def = TOWER_DEFS[state.selectedToBuild];
               setRangeHint(
                 FIELD_LEFT + FIELD_W * 0.5,
@@ -7643,22 +7663,8 @@
     ctx.fillStyle = "rgba(255,255,255,0.06)";
     ctx.fillRect(dockX, FIELD_TOP, 2, FIELD_BOTTOM - FIELD_TOP);
 
-    // Pestaña de la cartilla desplegable (abre/cierra la lista de torres).
-    var tg = UI.cartillaToggle;
-    if (tg) {
-      var openNow = !!state.cartillaOpen;
-      ctx.fillStyle = openNow ? "#3a2538" : "#241620";
-      roundRect(tg.x, tg.y, tg.w, tg.h, 7); ctx.fill();
-      ctx.strokeStyle = "rgba(255,255,255,0.14)"; ctx.lineWidth = 1.5;
-      roundRect(tg.x, tg.y, tg.w, tg.h, 7); ctx.stroke();
-      ctx.fillStyle = "#fff";
-      ctx.font = "bold " + Math.max(10, Math.min(13, tg.w * 0.12)) + "px Fredoka, sans-serif";
-      ctx.textAlign = "center"; ctx.textBaseline = "middle";
-      ctx.fillText((openNow ? "▾ " : "▸ ") + "Defensas", tg.x + tg.w / 2, tg.y + tg.h / 2);
-    }
-
-    // Cards apiladas en columna, scroll vertical. Visibles solo con la cartilla
-    // abierta; clipping al viewport del strip y traslación por panelScroll.
+    // Cartilla por grupos: cabeceras desplegables + cartas del grupo abierto.
+    // Todo dentro del strip con scroll vertical y clipping.
     var strip = UI.cardStrip;
     var scroll = state.panelScroll || 0;
     if (strip && strip.h > 0) {
@@ -7666,11 +7672,27 @@
       ctx.beginPath();
       ctx.rect(strip.x - 6, strip.y, strip.w + 12, strip.h);
       ctx.clip();
-      for (var i = 0; i < TOWER_LIST.length; i++) {
-        var typeId = TOWER_LIST[i];
-        var def = TOWER_DEFS[typeId];
+      // Cabeceras de grupo.
+      for (var gh = 0; gh < UI.groupHeaders.length; gh++) {
+        var Hh = UI.groupHeaders[gh];
+        var hy = strip.y + Hh.contentY - scroll;
+        if (hy + Hh.h < strip.y - 4 || hy > strip.y + strip.h + 4) continue;
+        ctx.fillStyle = Hh.open ? "#33212e" : "#241620";
+        roundRect(Hh.x, hy, Hh.w, Hh.h, 6); ctx.fill();
+        ctx.strokeStyle = "rgba(255,255,255,0.12)"; ctx.lineWidth = 1.2;
+        roundRect(Hh.x, hy, Hh.w, Hh.h, 6); ctx.stroke();
+        ctx.fillStyle = "#fff";
+        ctx.font = "bold " + Math.max(10, Math.min(12, Hh.w * 0.105)) + "px Fredoka, sans-serif";
+        ctx.textAlign = "left"; ctx.textBaseline = "middle";
+        ctx.fillText((Hh.open ? "▾ " : "▸ ") + Hh.label, Hh.x + 8, hy + Hh.h / 2);
+        ctx.textAlign = "right"; ctx.fillStyle = "rgba(255,255,255,0.45)";
+        ctx.fillText(String(Hh.count), Hh.x + Hh.w - 8, hy + Hh.h / 2);
+      }
+      // Cartas (solo de los grupos abiertos).
+      for (var i = 0; i < UI.cards.length; i++) {
         var card = UI.cards[i];
-        if (!card) continue;
+        var typeId = card.typeId;
+        var def = TOWER_DEFS[typeId];
         var cardViewY = strip.y + card.contentY - scroll;
         // Skip if completely off-screen (small perf win when content grows).
         if (cardViewY + card.h < strip.y - 4) continue;

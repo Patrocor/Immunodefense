@@ -917,6 +917,39 @@
       shield: { type: "wall", maxHP: 3, regenRate: 3 / 12, regenDelay: 8 },
       tooltip: "Bacilo gram negativo de heridas húmedas y quemaduras. Produce pus azul-verdoso (piocianina) y biofilm resistente. Foliculitis del 'jacuzzi' y ectima gangrenoso."
     },
+    // ---- Lote 2: gérmenes de piel con poderes propios ------------------
+    sarna: {
+      id: "sarna", name: "Sarcoptes scabiei", shortName: "Ácaro sarna", baseKind: "parasito",
+      color: "#8a5a2b", colorDark: "#4d3014", colorLight: "#c79a5e", radius: 24,
+      speedMult: 1.0, hp: 220, reward: 13, viralAdd: 7, attack: 6, isBoss: false,
+      shield: null,
+      burrow: { interval: 5.0, duration: 1.5, speedMult: 1.9 },
+      spore: { interval: 4.5, childHpFrac: 0.2, childSpeedMult: 1.6, maxChildren: 3 },
+      tooltip: "Ácaro que excava galerías en la piel (escabiosis). Se entierra para esquivar el ataque y reaparece adelante; va dejando larvas. El Eosinófilo lo destroza y la Cel. de Langerhans lo delata cuando se esconde."
+    },
+    hpv: {
+      id: "hpv", name: "Virus del papiloma (HPV)", shortName: "HPV", baseKind: "virus",
+      color: "#8a9a5e", colorDark: "#4f5a2c", colorLight: "#c2cf90", radius: 25,
+      speedMult: 0.6, hp: 360, reward: 15, viralAdd: 8, attack: 6, isBoss: false,
+      shield: { type: "wall", maxHP: 4, regenRate: 4 / 9, regenDelay: 3 },
+      tooltip: "Virus de las verrugas. Su coraza de queratina se regenera y amortigua los golpes, así que es muy duro y lento. La Célula NK le rompe el escudo y le hace daño extra."
+    },
+    molluscum: {
+      id: "molluscum", name: "Molluscum contagiosum", shortName: "Molluscum", baseKind: "virus",
+      color: "#e8d6c0", colorDark: "#b89a78", colorLight: "#fbf2e6", radius: 24,
+      speedMult: 1.0, hp: 170, reward: 11, viralAdd: 6, attack: 4, isBoss: false,
+      shield: null,
+      spore: { interval: 3.5, childHpFrac: 0.4, childSpeedMult: 1.0, maxChildren: 3 },
+      tooltip: "Poxvirus muy contagioso, típico en niños: pápulas cerosas con un hoyuelo central. Mientras avanza suelta 'perlas' que germinan en nuevos molluscum. La Célula NK es la indicada."
+    },
+    malassezia: {
+      id: "malassezia", name: "Malassezia", shortName: "Malassezia", baseKind: "hongo",
+      color: "#d8c060", colorDark: "#8a7320", colorLight: "#f0e29a", radius: 24,
+      speedMult: 0.85, hp: 240, reward: 12, viralAdd: 7, attack: 5, isBoss: false,
+      shield: null,
+      greaseAura: { range: 95, slowFire: 1.5 },
+      tooltip: "Levadura grasa de la piel (pitiriasis versicolor y caspa). Suelta una película aceitosa que 'engrasa' a las torres cercanas y les baja la cadencia de disparo. Cae con daño bruto o antiséptico."
+    },
     // ---- Bosses --------------------------------------------------------
     bossPyogenes: {
       id: "bossPyogenes", name: "Streptococcus pyogenes", baseKind: "bacteria",
@@ -1084,17 +1117,17 @@
     3:  [["sepidermidis",5,1.0],["hsv",4,0.6],["bossPyogenes",1,0]],
     4:  [["sepidermidis",4,1.0],["hsv",4,0.6],["cacnes",2,1.0]],
     5:  [["sepidermidis",5,1.0],["hsv",5,0.55],["cacnes",3,1.0],["dermatofito",1,1.0]],
-    6:  [["sepidermidis",4,1.0],["hsv",5,0.55],["cacnes",3,1.0],["candida",2,0.9]],
-    7:  [["sepidermidis",4,0.9],["hsv",5,0.55],["cacnes",3,1.0],["pseudomonas",2,0.9],["bossPseudomonas",1,0]],
-    8:  [["sepidermidis",4,0.9],["hsv",6,0.5],["cacnes",3,1.0],["pseudomonas",3,0.9],["candida",2,0.9],["dermatofito",1,1.0]],
+    6:  [["sepidermidis",4,1.0],["hsv",5,0.55],["cacnes",3,1.0],["candida",2,0.9],["hpv",2,1.0]],
+    7:  [["sepidermidis",4,0.9],["hsv",5,0.55],["cacnes",3,1.0],["pseudomonas",2,0.9],["molluscum",2,0.9],["bossPseudomonas",1,0]],
+    8:  [["sepidermidis",4,0.9],["hsv",6,0.5],["cacnes",3,1.0],["pseudomonas",3,0.9],["malassezia",2,0.9],["sarna",2,1.0]],
     9:  [["hsv",6,0.5],["cacnes",3,1.0],["pseudomonas",3,0.9],["candida",3,0.9],["saureus",2,1.0]],
     10: [["hsv",6,0.5],["cacnes",3,1.0],["pseudomonas",4,0.9],["candida",3,0.9],["saureus",3,1.0]],
     11: [["sepidermidis",5,0.85],["hsv",6,0.5],["pseudomonas",4,0.9],["candida",3,0.9],["saureus",3,1.0]],
-    12: [["hsv",6,0.5],["pseudomonas",4,0.9],["candida",4,0.9],["saureus",3,1.0],["bossClostridium",1,0]],
+    12: [["hsv",6,0.5],["pseudomonas",4,0.9],["candida",4,0.9],["saureus",3,1.0],["sarna",2,1.0],["hpv",2,1.0],["bossClostridium",1,0]],
     13: [["hsv",7,0.5],["cacnes",4,0.95],["pseudomonas",5,0.9],["candida",4,0.9],["saureus",4,1.0],["dermatofito",2,1.0]],
     14: [["hsv",7,0.5],["cacnes",4,0.95],["pseudomonas",5,0.9],["candida",5,0.9],["saureus",4,1.0]],
     15: [["sepidermidis",6,0.8],["hsv",7,0.5],["pseudomonas",5,0.9],["candida",5,0.9],["saureus",5,1.0]],
-    16: [["hsv",8,0.45],["cacnes",5,0.9],["pseudomonas",6,0.85],["candida",5,0.9],["saureus",5,1.0],["dermatofito",2,1.0]],
+    16: [["hsv",8,0.45],["cacnes",5,0.9],["pseudomonas",6,0.85],["candida",5,0.9],["saureus",5,1.0],["dermatofito",2,1.0],["molluscum",2,0.9],["malassezia",2,0.9]],
     17: [["hsv",8,0.45],["cacnes",5,0.9],["pseudomonas",6,0.85],["candida",6,0.9],["saureus",6,1.0]],
     18: [["hsv",6,0.45],["pseudomonas",5,0.85],["candida",4,0.9],["saureus",8,1.0],["bossMRSA",1,0]]
   };
@@ -1468,6 +1501,8 @@
       noSpore: false,
       childCount: 0,
       childTimer: def.spore ? def.spore.interval * (0.5 + Math.random() * 0.5) : 0,
+      burrowTimer: def.burrow ? def.burrow.interval * (0.6 + Math.random() * 0.6) : 0,
+      burrowed: false, surfaceTimer: 0, revealed: false,
       x: outX, y: outY,
       vx: (Math.random() - 0.5) * 16 * U,
       vy: 0,
@@ -1784,12 +1819,31 @@
       if (e.stunTimer > 0) e.stunTimer -= dt;
       if (e.slowTimer > 0) e.slowTimer -= dt;
       if (e.markTimer > 0) { e.markTimer -= dt; if (e.markTimer <= 0) e.revealed = false; }
+      // Sarna: madriguera (se entierra, intocable salvo si está marcada).
+      var burrowFactor = 1;
+      if (e.def.burrow && (e.state === "walking")) {
+        if (e.burrowed) {
+          e.surfaceTimer -= dt;
+          burrowFactor = e.def.burrow.speedMult || 1.9;
+          if (e.surfaceTimer <= 0) {
+            e.burrowed = false;
+            e.burrowTimer = e.def.burrow.interval;
+            for (var dp = 0; dp < 7; dp++) { var da = Math.random() * Math.PI * 2, dsp = (20 + Math.random() * 30) * U; pushEffect({ kind: "particle", x: e.x, y: e.y, vx: Math.cos(da) * dsp, vy: Math.sin(da) * dsp - 6 * U, life: 0.4, max: 0.5, color: e.def.colorDark }); }
+          }
+        } else {
+          e.burrowTimer -= dt;
+          if (e.burrowTimer <= 0) {
+            e.burrowed = true; e.surfaceTimer = e.def.burrow.duration;
+            for (var dp2 = 0; dp2 < 7; dp2++) { var da2 = Math.random() * Math.PI * 2, dsp2 = (20 + Math.random() * 30) * U; pushEffect({ kind: "particle", x: e.x, y: e.y, vx: Math.cos(da2) * dsp2, vy: Math.sin(da2) * dsp2 - 6 * U, life: 0.4, max: 0.5, color: e.def.colorDark }); }
+          }
+        }
+      }
       var medFactor = e.stunTimer > 0 ? 0 : (e.slowTimer > 0 ? 0.4 : 1);
       // BLOCKED by a coagulation barricade: stop advancing along the path.
       // Position still resolves via pathPos at the held progress so the
       // sprite stays put on the path with a small shake jitter.
       if (e.state !== "blocked" && !e.devourTarget && !e.beingEngulfed) {
-        e.progress += pxSpeed * medFactor * (e.speedBoost || 1) * dt;
+        e.progress += pxSpeed * medFactor * (e.speedBoost || 1) * burrowFactor * dt;
       }
       // Dermatofito: suelta esporas hijas mientras avanza.
       if (e.def.spore && !e.noSpore && e.state === "walking" &&
@@ -1890,6 +1944,16 @@
             tw.dmgAccum = (tw.dmgAccum || 0) + admg;
             e.toxinTimer = 0.22;
             e.toxinX = tw.x; e.toxinY = tw.y;
+          }
+        }
+      }
+      // Malassezia: película grasa — baja la cadencia de las torres cercanas.
+      if (e.def.greaseAura && !e.absorbing && (e.state === "walking" || e.state === "blocked")) {
+        var gr = e.def.greaseAura.range * U;
+        for (var gti = 0; gti < state.towers.length; gti++) {
+          var gtw = state.towers[gti];
+          if (Math.hypot(gtw.x - e.x, gtw.y - e.y) < gr) {
+            gtw.slowFireTimer = Math.max(gtw.slowFireTimer || 0, e.def.greaseAura.slowFire);
           }
         }
       }
@@ -2121,6 +2185,8 @@
   // the "only Linfocito T citotoxico can pierce" rule.
   function damageEnemy(e, amount, attackerType) {
     if (e.dead || e.dying) return;
+    // Sarna enterrada: invulnerable salvo que esté marcada (Langerhans).
+    if (e.burrowed && !e.revealed) return;
     var def = e.def;
     // Marca de Langerhans: amplifica TODO el daño recibido mientras dura.
     if ((e.markTimer || 0) > 0 && (e.markBonus || 0) > 0) amount *= (1 + e.markBonus);
@@ -5929,6 +5995,10 @@
     else if (def.id === "vih")          drawVih(e, rad * scale, expression, blink);
     else if (def.id === "candida")      drawCandida(e, rad * scale, expression, blink);
     else if (def.id === "dermatofito")  drawDermatofito(e, rad * scale, expression, blink);
+    else if (def.id === "sarna")        drawSarna(e, rad * scale, expression, blink);
+    else if (def.id === "hpv")          drawHPV(e, rad * scale, expression, blink);
+    else if (def.id === "molluscum")    drawMolluscum(e, rad * scale, expression, blink);
+    else if (def.id === "malassezia")   drawMalassezia(e, rad * scale, expression, blink);
     // Fase 1 piel: bacilos cutáneos reusan drawEcoli (recoloreado por def).
     else if (def.id === "cacnes")       drawEcoli(e, rad * scale, expression, blink);
     else if (def.id === "pseudomonas")  drawEcoli(e, rad * scale, expression, blink);
@@ -6167,6 +6237,103 @@
     if (expression === "dying") drawAnimeMouth(0, capR * 0.30, capR * 0.55, capR * 0.45, "open");
     else if (expression === "hurt") drawAnimeMouth(0, capR * 0.30, capR * 0.45, capR * 0.40, "open");
     else drawAnimeMouth(0, capR * 0.30, capR * 0.55, capR * 0.30, "smirk");
+    ctx.restore();
+  }
+
+  // Cara malvada genérica para gérmenes nuevos (triste solo al morir).
+  function germFace(R, expression, blink, gap) {
+    gap = gap || R * 0.30; var eyeR = R * 0.26, ey = -R * 0.08;
+    if (expression === "dying" || expression === "hurt") drawHurtEyes(0, ey, eyeR, gap);
+    else if (blink) drawClosedEyes(0, ey, eyeR, gap);
+    else drawAnimeEyes(0, ey, eyeR, gap, 0, 0, R * 0.12, R * 0.04, "evil");
+    if (expression === "dying" || expression === "hurt") drawAnimeMouth(0, R * 0.34, R * 0.5, R * 0.42, "open");
+    else drawAnimeMouth(0, R * 0.34, R * 0.5, R * 0.28, "fanged");
+  }
+
+  // SARNA — ácaro ovalado segmentado con 8 patitas; se entierra (madriguera).
+  function drawSarna(e, rad, expression, blink) {
+    var R = rad, w = e.wobble || 0;
+    ctx.save(); ctx.translate(e.x, e.y);
+    if (e.burrowed) {
+      ctx.fillStyle = "rgba(90,60,30,0.55)";
+      ctx.beginPath(); ctx.ellipse(0, R * 0.55, R * 1.15, R * 0.5, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = e.revealed ? 0.6 : 0.22;
+    }
+    ctx.strokeStyle = e.def.colorDark; ctx.lineWidth = Math.max(1.4, 2 * U); ctx.lineCap = "round";
+    for (var i = 0; i < 8; i++) {
+      var side = (i < 4 ? -1 : 1), idx = i % 4, ly = (-0.45 + idx * 0.32) * R, bend = Math.sin(w * 2 + i) * 0.18;
+      ctx.beginPath();
+      ctx.moveTo(side * R * 0.7, ly);
+      ctx.lineTo(side * R * 1.25, ly + R * 0.18 + bend * R);
+      ctx.lineTo(side * R * 1.5, ly + R * 0.45 + bend * R);
+      ctx.stroke();
+    }
+    var grad = ctx.createRadialGradient(-R * 0.3, -R * 0.3, R * 0.2, 0, 0, R * 1.1);
+    grad.addColorStop(0, e.def.colorLight || "#c79a5e"); grad.addColorStop(0.6, e.def.color); grad.addColorStop(1, e.def.colorDark);
+    ctx.fillStyle = (e.hitFlash > 0) ? "#fff" : grad;
+    ctx.beginPath(); ctx.ellipse(0, 0, R * 0.95, R * 1.05, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = e.def.colorDark; ctx.lineWidth = Math.max(1, 1.3 * U); ctx.stroke();
+    ctx.strokeStyle = "rgba(0,0,0,0.18)"; ctx.lineWidth = 1;
+    for (var s = 1; s <= 2; s++) { ctx.beginPath(); ctx.ellipse(0, R * 0.20 * s, R * 0.8, R * 0.26, 0, 0, Math.PI); ctx.stroke(); }
+    germFace(R, expression, blink, R * 0.30);
+    if (e.burrowed && e.revealed) { ctx.strokeStyle = "rgba(63,193,201,0.9)"; ctx.lineWidth = 2 * U; ctx.beginPath(); ctx.arc(0, 0, R * 1.2, 0, Math.PI * 2); ctx.stroke(); }
+    ctx.restore();
+  }
+
+  // HPV — cápside facetada (icosaedro) con bultos de queratina.
+  function drawHPV(e, rad, expression, blink) {
+    var R = rad, faces = 10;
+    ctx.save(); ctx.translate(e.x, e.y);
+    var grad = ctx.createRadialGradient(-R * 0.3, -R * 0.3, R * 0.2, 0, 0, R);
+    grad.addColorStop(0, e.def.colorLight || "#c2cf90"); grad.addColorStop(0.6, e.def.color); grad.addColorStop(1, e.def.colorDark);
+    ctx.fillStyle = (e.hitFlash > 0) ? "#fff" : grad;
+    ctx.beginPath();
+    for (var i = 0; i < faces; i++) { var a = i / faces * Math.PI * 2 - Math.PI / 2, rr = R * (0.92 + 0.1 * ((i % 2) ? 1 : 0)), px = Math.cos(a) * rr, py = Math.sin(a) * rr; if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py); }
+    ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = e.def.colorDark; ctx.lineWidth = Math.max(1.2, 1.6 * U); ctx.stroke();
+    ctx.strokeStyle = "rgba(0,0,0,0.15)"; ctx.lineWidth = 1;
+    for (var j = 0; j < faces; j++) { var a2 = j / faces * Math.PI * 2 - Math.PI / 2; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(Math.cos(a2) * R * 0.9, Math.sin(a2) * R * 0.9); ctx.stroke(); }
+    for (var k = 0; k < 5; k++) { var ka = k * 1.3 + 0.4; ctx.fillStyle = "rgba(220,210,160,0.85)"; ctx.beginPath(); ctx.arc(Math.cos(ka) * R * 0.72, Math.sin(ka) * R * 0.72, R * 0.15, 0, Math.PI * 2); ctx.fill(); }
+    germFace(R, expression, blink, R * 0.30);
+    ctx.restore();
+  }
+
+  // MOLLUSCUM — cúpula nacarada cerosa con hoyuelo central umbilicado.
+  function drawMolluscum(e, rad, expression, blink) {
+    var R = rad;
+    ctx.save(); ctx.translate(e.x, e.y);
+    var grad = ctx.createRadialGradient(-R * 0.3, -R * 0.4, R * 0.2, 0, 0, R * 1.1);
+    grad.addColorStop(0, "#ffffff"); grad.addColorStop(0.5, e.def.colorLight || "#fbf2e6"); grad.addColorStop(1, e.def.color);
+    ctx.fillStyle = (e.hitFlash > 0) ? "#fff" : grad;
+    ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = e.def.colorDark; ctx.lineWidth = Math.max(1.2, 1.5 * U); ctx.stroke();
+    // Hoyuelo central umbilicado (arriba para no chocar con la cara).
+    ctx.fillStyle = "rgba(150,120,90,0.5)"; ctx.beginPath(); ctx.ellipse(0, -R * 0.55, R * 0.2, R * 0.14, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "rgba(255,255,255,0.5)"; ctx.beginPath(); ctx.ellipse(-R * 0.38, -R * 0.4, R * 0.2, R * 0.1, -0.5, 0, Math.PI * 2); ctx.fill();
+    germFace(R, expression, blink, R * 0.30);
+    ctx.restore();
+  }
+
+  // MALASSEZIA — racimo de levaduras redondas con brillo aceitoso y yemas.
+  function drawMalassezia(e, rad, expression, blink) {
+    var R = rad, w = e.wobble || 0;
+    ctx.save(); ctx.translate(e.x, e.y);
+    var ag = ctx.createRadialGradient(0, 0, R * 0.6, 0, 0, R * 1.5);
+    ag.addColorStop(0, "rgba(216,192,96,0.18)"); ag.addColorStop(1, "rgba(216,192,96,0)");
+    ctx.fillStyle = ag; ctx.beginPath(); ctx.arc(0, 0, R * 1.5, 0, Math.PI * 2); ctx.fill();
+    function yeast(cxp, cyp, r) {
+      var grad = ctx.createRadialGradient(cxp - r * 0.3, cyp - r * 0.3, r * 0.2, cxp, cyp, r);
+      grad.addColorStop(0, "#fff7d6"); grad.addColorStop(0.5, e.def.color); grad.addColorStop(1, e.def.colorDark);
+      ctx.fillStyle = (e.hitFlash > 0) ? "#fff" : grad;
+      ctx.beginPath(); ctx.arc(cxp, cyp, r, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = e.def.colorDark; ctx.lineWidth = Math.max(1, 1.2 * U); ctx.stroke();
+    }
+    yeast(-R * 0.5, R * 0.45, R * 0.5);
+    yeast(R * 0.55, R * 0.4, R * 0.42);
+    yeast(R * 0.5, -R * 0.45, R * 0.36 + Math.sin(w) * 1 * U);
+    yeast(0, 0, R * 0.85);
+    ctx.fillStyle = "rgba(255,255,255,0.5)"; ctx.beginPath(); ctx.ellipse(-R * 0.3, -R * 0.35, R * 0.2, R * 0.1, -0.5, 0, Math.PI * 2); ctx.fill();
+    germFace(R * 0.85, expression, blink, R * 0.26);
     ctx.restore();
   }
 
@@ -8163,6 +8330,10 @@
     ctx.save();
     var kind = def.baseKind || def.id;
     if (def.id === "dermatofito") drawDermatofito(fakeEnemy, R, "idle", false);
+    else if (def.id === "sarna") drawSarna(fakeEnemy, R, "idle", false);
+    else if (def.id === "hpv") drawHPV(fakeEnemy, R, "idle", false);
+    else if (def.id === "molluscum") drawMolluscum(fakeEnemy, R, "idle", false);
+    else if (def.id === "malassezia") drawMalassezia(fakeEnemy, R, "idle", false);
     else if (kind === "bacteria") drawBacteria(fakeEnemy, R, "idle", false);
     else if (kind === "virus") drawVirus(fakeEnemy, R, "idle", false);
     else if (kind === "hongo") drawHongo(fakeEnemy, R, "idle", false);

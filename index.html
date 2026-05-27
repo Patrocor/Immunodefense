@@ -7973,6 +7973,10 @@
     ctx.drawImage(img, (VW - w) / 2, (VH - h) / 2 + (oy || 0), w, h);
     return true;
   }
+  function introEase(x) { x = x < 0 ? 0 : (x > 1 ? 1 : x); return x * x * (3 - 2 * x); }
+  var INTRO_TR = 0.85;                          // duración de la transición (s)
+  var INTRO_PRE = [0, 0.06, 0.07, 0.13, 0.18];  // pre-zoom de la escena entrante
+  var INTRO_POUT = [0, 0.05, 0.06, 0.11, 0.16]; // empuje de la escena saliente
 
   function drawIntroScreen() {
     if (!state.showIntro) return;
@@ -7983,14 +7987,21 @@
     var last = INTRO_DUR.length - 1;
     ctx.save();
     ctx.fillStyle = "#140a0a"; ctx.fillRect(0, 0, VW, VH);
-    var zoom = INTRO_Z0[sc] + (INTRO_Z1[sc] - INTRO_Z0[sc]) * p;
-    var oy = -p * VH * 0.03;
-    var fin = Math.min(1, t / 0.5);
-    // Crossfade: la imagen anterior queda debajo mientras entra la nueva.
-    if (sc > 0 && fin < 1) introCover(introImgs[sc - 1], INTRO_Z1[sc - 1], -VH * 0.03);
-    ctx.globalAlpha = fin;
-    introCover(introImgs[sc], zoom, oy);
-    ctx.globalAlpha = 1;
+    var ke = introEase(p);                       // Ken Burns con curva
+    var zoom = INTRO_Z0[sc] + (INTRO_Z1[sc] - INTRO_Z0[sc]) * ke;
+    var oy = -ke * VH * 0.03;
+    var fin = Math.min(1, t / INTRO_TR);
+    // Transición de inmersión: la escena saliente sigue cayendo (escala hacia
+    // adelante) por debajo; la entrante empieza pre-acercada y se asienta.
+    if (sc > 0 && t < INTRO_TR) {
+      var te = introEase(t / INTRO_TR);
+      introCover(introImgs[sc - 1], INTRO_Z1[sc - 1] * (1 + INTRO_POUT[sc] * te), -VH * 0.03);
+      ctx.globalAlpha = te;
+      introCover(introImgs[sc], zoom + INTRO_PRE[sc] * (1 - te), oy);
+      ctx.globalAlpha = 1;
+    } else {
+      introCover(introImgs[sc], zoom, oy);
+    }
 
     // "¡AY!" cómic en la escena del parque.
     if (sc === 0 && p > 0.12) {

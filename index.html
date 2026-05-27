@@ -2199,6 +2199,14 @@
   var ENGULF_RANGE = 26;          // px diseño: distancia para empezar a engullir
   var ENGULF_TIME = 0.9;          // s que tarda la fagocitosis
 
+  // Libera al germen que el macrófago estaba engullendo (al huir/morir): se
+  // restaura su tamaño y vuelve a avanzar (evita que quede chico y atascado).
+  function releaseEngulf(g) {
+    var e = g.engulfTarget;
+    if (e && !e.dead) { e.beingEngulfed = false; e.engulfScale = null; }
+    g.engulfTarget = null; g.mouthOpen = 0;
+  }
+
   // Fagocitosis: el macrófago se traga a un germen detenido/ralentizado.
   function updateGuardianEngulf(g, dt) {
     var e = g.engulfTarget;
@@ -2310,7 +2318,7 @@
       }
       if (g.hp <= g.maxHp * GUARDIAN_CRIT) {
         // ¡Pánico! Se retira (llorando) al borde más cercano.
-        g.state = "fleeing"; g.engulfTarget = null;
+        g.state = "fleeing"; releaseEngulf(g);
         var leftDist = g.x - FIELD_LEFT, rightDist = FIELD_RIGHT - g.x;
         g.targetX = (leftDist < rightDist) ? FIELD_LEFT - 60 * U : FIELD_RIGHT + 60 * U;
         g.targetY = g.y - 30 * U;
@@ -2375,6 +2383,17 @@
       }
     }
     state.guardians = state.guardians.filter(function (g) { return !g.dead; });
+    // Red de seguridad: germen marcado como engullido sin macrófago que lo
+    // sostenga -> liberarlo (restaura tamaño y avance).
+    for (var ri = 0; ri < state.enemies.length; ri++) {
+      var re = state.enemies[ri];
+      if (!re.beingEngulfed) continue;
+      var held = false;
+      for (var rg = 0; rg < state.guardians.length; rg++) {
+        if (state.guardians[rg].engulfTarget === re) { held = true; break; }
+      }
+      if (!held) { re.beingEngulfed = false; re.engulfScale = null; }
+    }
   }
 
   function drawGuardians() {
@@ -5596,8 +5615,8 @@
     ctx.restore();
   }
 
-  // Cara genérica de torre (seria; triste al morir). Usada por las defensas nuevas.
-  function towerFace(R, expression, blink, mood) {
+  // Cara de torre (seria; triste al morir). mood/mouthKind dan personalidad propia.
+  function towerFace(R, expression, blink, mood, mouthKind) {
     var eyeR = R * 0.21, ey = -R * 0.08, gap = R * 0.31;
     if (blink) drawClosedEyes(0, ey, eyeR, gap);
     else if (expression === "dying") drawHurtEyes(0, ey, eyeR, gap);
@@ -5606,73 +5625,80 @@
     else drawAnimeEyes(0, ey, eyeR, gap, 0, 0, R * 0.10, R * 0.05, mood || "fierce");
     if (expression === "dying") drawAnimeMouth(0, R * 0.32, R * 0.5, R * 0.42, "open");
     else if (expression === "levelup") drawAnimeMouth(0, R * 0.32, R * 0.45, R * 0.25, "smile");
-    else drawAnimeMouth(0, R * 0.32, R * 0.40, R * 0.20, "serious");
+    else drawAnimeMouth(0, R * 0.32, R * 0.40, R * 0.20, mouthKind || "serious");
+  }
+  function hexPath(R) {
+    ctx.beginPath();
+    for (var i = 0; i < 6; i++) {
+      var a = i * Math.PI / 3 - Math.PI / 2, px = Math.cos(a) * R, py = Math.sin(a) * R;
+      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
   }
 
+  // LANGERHANS — silueta de ESTRELLA DENDRÍTICA (centinela amable que vigila).
   function drawLangerhans(t, pulse, expression, blink) {
-    var R = 18 * U * pulse;
+    var R = 17 * U * pulse;
     ctx.save(); ctx.translate(t.x, t.y);
-    // Dendritas (proyecciones) que radian lentamente — célula presentadora.
     ctx.strokeStyle = t.def.colorDark; ctx.lineWidth = Math.max(2, 3 * U); ctx.lineCap = "round"; ctx.lineJoin = "round";
-    var dn = 8;
+    var dn = 9;
     for (var i = 0; i < dn; i++) {
       var a = i * Math.PI * 2 / dn + state.time * 0.3;
-      var len = R * (1.25 + 0.12 * Math.sin(state.time * 2 + i));
+      var len = R * (1.35 + 0.16 * Math.sin(state.time * 2 + i));
       ctx.beginPath();
-      ctx.moveTo(Math.cos(a) * R * 0.7, Math.sin(a) * R * 0.7);
+      ctx.moveTo(Math.cos(a) * R * 0.6, Math.sin(a) * R * 0.6);
       ctx.lineTo(Math.cos(a) * len, Math.sin(a) * len);
-      ctx.lineTo(Math.cos(a + 0.2) * (len - R * 0.2), Math.sin(a + 0.2) * (len - R * 0.2));
+      ctx.lineTo(Math.cos(a + 0.24) * (len - R * 0.24), Math.sin(a + 0.24) * (len - R * 0.24));
       ctx.stroke();
     }
     var grad = ctx.createRadialGradient(-R * 0.3, -R * 0.3, R * 0.2, 0, 0, R);
     grad.addColorStop(0, "#d6fbfd"); grad.addColorStop(0.6, t.def.color); grad.addColorStop(1, t.def.colorDark);
     ctx.fillStyle = grad; ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2); ctx.fill();
     ctx.strokeStyle = t.def.colorDark; ctx.lineWidth = Math.max(1.2, 1.5 * U); ctx.stroke();
-    towerFace(R, expression, blink, "fierce");
+    towerFace(R, expression, blink, "happy", "smile");   // centinela amable
     ctx.restore();
   }
 
+  // NK — silueta HEXAGONAL BLINDADA con retícula de caza (cazadora antiviral).
   function drawNK(t, pulse, expression, blink) {
     var R = 18 * U * pulse;
     ctx.save(); ctx.translate(t.x, t.y);
-    // Retícula antiviral girando.
     ctx.strokeStyle = colorAlpha(t.def.color, 0.5); ctx.lineWidth = Math.max(1, 1.4 * U);
     ctx.save(); ctx.rotate(state.time * 0.8);
-    ctx.beginPath(); ctx.arc(0, 0, R * 1.3, 0, Math.PI * 2); ctx.stroke();
-    for (var k = 0; k < 4; k++) { var a = k * Math.PI / 2; ctx.beginPath(); ctx.moveTo(Math.cos(a) * R * 1.05, Math.sin(a) * R * 1.05); ctx.lineTo(Math.cos(a) * R * 1.5, Math.sin(a) * R * 1.5); ctx.stroke(); }
+    ctx.beginPath(); ctx.arc(0, 0, R * 1.35, 0, Math.PI * 2); ctx.stroke();
+    for (var k = 0; k < 4; k++) { var a = k * Math.PI / 2; ctx.beginPath(); ctx.moveTo(Math.cos(a) * R * 1.1, Math.sin(a) * R * 1.1); ctx.lineTo(Math.cos(a) * R * 1.55, Math.sin(a) * R * 1.55); ctx.stroke(); }
     ctx.restore();
     var grad = ctx.createRadialGradient(-R * 0.3, -R * 0.3, R * 0.2, 0, 0, R);
     grad.addColorStop(0, "#ffd9ec"); grad.addColorStop(0.6, t.def.color); grad.addColorStop(1, t.def.colorDark);
-    ctx.fillStyle = grad; ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = t.def.colorDark; ctx.lineWidth = Math.max(1.2, 1.5 * U); ctx.stroke();
-    for (var g = 0; g < 4; g++) { var ga = g * 1.7 + 0.5; ctx.fillStyle = "rgba(255,255,255,0.7)"; ctx.beginPath(); ctx.arc(Math.cos(ga) * R * 0.45, Math.sin(ga) * R * 0.45, R * 0.10, 0, Math.PI * 2); ctx.fill(); }
-    towerFace(R, expression, blink, "fierce");
+    ctx.fillStyle = grad; hexPath(R * 1.04); ctx.fill();
+    ctx.strokeStyle = t.def.colorDark; ctx.lineWidth = Math.max(1.4, 1.8 * U); hexPath(R * 1.04); ctx.stroke();
+    ctx.strokeStyle = colorAlpha(t.def.colorDark, 0.5); ctx.lineWidth = 1; hexPath(R * 0.6); ctx.stroke();
+    towerFace(R, expression, blink, "angry", "fanged");   // cazadora feroz
     ctx.restore();
   }
 
+  // EOSINÓFILO — cuerpo BILOBULADO (cacahuate) repleto de gránulos rojos (agresivo).
   function drawEosinofilo(t, pulse, expression, blink) {
-    var R = 18 * U * pulse;
+    var R = 15 * U * pulse, off = R * 0.55;
     ctx.save(); ctx.translate(t.x, t.y);
-    var grad = ctx.createRadialGradient(-R * 0.3, -R * 0.3, R * 0.2, 0, 0, R);
-    grad.addColorStop(0, "#ffe0cf"); grad.addColorStop(0.6, t.def.color); grad.addColorStop(1, t.def.colorDark);
-    ctx.fillStyle = grad; ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = t.def.colorDark; ctx.lineWidth = Math.max(1.2, 1.5 * U); ctx.stroke();
-    // Núcleo bilobulado característico (dos lóbulos), tenue, en la parte baja.
-    ctx.fillStyle = "rgba(150,40,90,0.28)";
-    ctx.beginPath();
-    ctx.ellipse(-R * 0.32, R * 0.16, R * 0.30, R * 0.22, 0, 0, Math.PI * 2);
-    ctx.ellipse(R * 0.32, R * 0.16, R * 0.30, R * 0.22, 0, 0, Math.PI * 2);
-    ctx.fill();
-    // Gránulos rojizos densos (eosinófilos: gránulos eosinófilos).
-    for (var g = 0; g < 7; g++) { var ga = g * 0.95 + state.time * 0.2; var gd = R * (0.35 + 0.3 * ((g % 3) / 2)); ctx.fillStyle = "rgba(225,90,50,0.8)"; ctx.beginPath(); ctx.arc(Math.cos(ga) * gd, Math.sin(ga) * gd, R * 0.09, 0, Math.PI * 2); ctx.fill(); }
-    towerFace(R, expression, blink, "fierce");
+    function lobe(cxp) {
+      var grad = ctx.createRadialGradient(cxp - R * 0.3, -R * 0.3, R * 0.2, cxp, 0, R);
+      grad.addColorStop(0, "#ffe0cf"); grad.addColorStop(0.6, t.def.color); grad.addColorStop(1, t.def.colorDark);
+      ctx.fillStyle = grad; ctx.beginPath(); ctx.arc(cxp, 0, R, 0, Math.PI * 2); ctx.fill();
+    }
+    lobe(-off); lobe(off);
+    ctx.strokeStyle = t.def.colorDark; ctx.lineWidth = Math.max(1.2, 1.5 * U);
+    ctx.beginPath(); ctx.arc(-off, 0, R, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(off, 0, R, 0, Math.PI * 2); ctx.stroke();
+    for (var g = 0; g < 8; g++) { var ga = g * 0.8 + state.time * 0.2; var lx = (g % 2 ? off : -off); ctx.fillStyle = "rgba(225,90,50,0.85)"; ctx.beginPath(); ctx.arc(lx + Math.cos(ga) * R * 0.45, Math.sin(ga) * R * 0.45, R * 0.13, 0, Math.PI * 2); ctx.fill(); }
+    towerFace(R * 1.15, expression, blink, "fierce", "fanged");
     ctx.restore();
   }
 
+  // MASTOCITO — cuerpo GRUMOSO (borde con bultos) repleto de gránulos (alerta).
   function drawMastocito(t, pulse, expression, blink) {
     var R = 18 * U * pulse;
     ctx.save(); ctx.translate(t.x, t.y);
-    // Puff de histamina (anillo que se expande) cuando actúa.
     if ((t.attackAnim || 0) > 0) {
       var pp = 1 - (t.attackAnim / 0.2);
       ctx.strokeStyle = colorAlpha(t.def.color, 0.5 * (1 - pp)); ctx.lineWidth = 2 * U;
@@ -5680,11 +5706,17 @@
     }
     var grad = ctx.createRadialGradient(-R * 0.3, -R * 0.3, R * 0.2, 0, 0, R);
     grad.addColorStop(0, "#d6e6fb"); grad.addColorStop(0.6, t.def.color); grad.addColorStop(1, t.def.colorDark);
-    ctx.fillStyle = grad; ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = grad;
+    var bumps = 12; ctx.beginPath();
+    for (var i = 0; i <= bumps; i++) {
+      var a = i / bumps * Math.PI * 2, rr = R * (0.92 + ((i % 2) ? 0.13 : 0));
+      var px = Math.cos(a) * rr, py = Math.sin(a) * rr;
+      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.closePath(); ctx.fill();
     ctx.strokeStyle = t.def.colorDark; ctx.lineWidth = Math.max(1.2, 1.5 * U); ctx.stroke();
-    // Gránulos densos (el mastocito está repleto de gránulos).
-    for (var g = 0; g < 10; g++) { var ga = g * 0.66; var gd = R * (0.30 + 0.4 * ((g % 4) / 3)); ctx.fillStyle = "rgba(255,255,255,0.55)"; ctx.beginPath(); ctx.arc(Math.cos(ga) * gd, Math.sin(ga) * gd, R * 0.08, 0, Math.PI * 2); ctx.fill(); }
-    towerFace(R, expression, blink, "fierce");
+    for (var g = 0; g < 12; g++) { var ga = g * 0.66; var gd = R * (0.28 + 0.42 * ((g % 4) / 3)); ctx.fillStyle = "rgba(255,255,255,0.5)"; ctx.beginPath(); ctx.arc(Math.cos(ga) * gd, Math.sin(ga) * gd, R * 0.085, 0, Math.PI * 2); ctx.fill(); }
+    towerFace(R, expression, blink, "neutral", "neutral");   // alerta/tranquilo
     ctx.restore();
   }
 
@@ -7228,6 +7260,18 @@
         ctx.arc(Math.cos(nla) * R * 0.34, Math.sin(nla) * R * 0.34 + R * 0.08, R * 0.30, 0, Math.PI * 2);
         ctx.fill();
       }
+    } else if (typeId === "langerhans") {
+      ctx.strokeStyle = def.colorDark; ctx.lineWidth = Math.max(1.5, R * 0.12); ctx.lineCap = "round";
+      for (var d = 0; d < 8; d++) { var da = d * Math.PI / 4; ctx.beginPath(); ctx.moveTo(Math.cos(da) * R * 0.7, Math.sin(da) * R * 0.7); ctx.lineTo(Math.cos(da) * R * 1.3, Math.sin(da) * R * 1.3); ctx.stroke(); }
+    } else if (typeId === "nk") {
+      ctx.strokeStyle = "rgba(255,255,255,0.85)"; ctx.lineWidth = Math.max(1, R * 0.09);
+      ctx.beginPath();
+      for (var h = 0; h < 6; h++) { var ha = h * Math.PI / 3 - Math.PI / 2, hx = Math.cos(ha) * R * 0.92, hy = Math.sin(ha) * R * 0.92; if (h === 0) ctx.moveTo(hx, hy); else ctx.lineTo(hx, hy); }
+      ctx.closePath(); ctx.stroke();
+    } else if (typeId === "eosinofilo") {
+      for (var ge = 0; ge < 5; ge++) { var gea = ge * 1.3; ctx.fillStyle = "rgba(225,90,50,0.9)"; ctx.beginPath(); ctx.arc(Math.cos(gea) * R * 0.5, Math.sin(gea) * R * 0.5, R * 0.16, 0, Math.PI * 2); ctx.fill(); }
+    } else if (typeId === "mastocito") {
+      for (var gm = 0; gm < 7; gm++) { var gma = gm * 0.9; ctx.fillStyle = "rgba(255,255,255,0.6)"; ctx.beginPath(); ctx.arc(Math.cos(gma) * R * 0.5, Math.sin(gma) * R * 0.5, R * 0.13, 0, Math.PI * 2); ctx.fill(); }
     } else {
       // Macrofago: small bumps
       for (var b = 0; b < 5; b++) {
@@ -7781,6 +7825,11 @@
     var fakeTower = { x: x, y: y, def: def, level: 0, idlePhase: 0, attackAnim: 0, muzzleFlash: 0 };
     if (def.id === "neutrofilo") drawNeutrofilo(fakeTower, 1, "idle", false);
     else if (def.id === "linfocitoB") drawLinfocitoB(fakeTower, 1, "idle", false);
+    else if (def.id === "linfocitoT") drawLinfocitoT(fakeTower, 1, "idle", false);
+    else if (def.id === "langerhans") drawLangerhans(fakeTower, 1, "idle", false);
+    else if (def.id === "nk") drawNK(fakeTower, 1, "idle", false);
+    else if (def.id === "eosinofilo") drawEosinofilo(fakeTower, 1, "idle", false);
+    else if (def.id === "mastocito") drawMastocito(fakeTower, 1, "idle", false);
     else drawLinfocitoT(fakeTower, 1, "idle", false);
     ctx.globalAlpha = 1;
     ctx.restore();

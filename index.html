@@ -779,9 +779,53 @@
         { range: 140, damage: 100, fireRate: 1.0, projectileSpeed: 400, splash: 75, hp: 150 }
       ],
       upgradeCost: [120, 200]
+    },
+    langerhans: {
+      id: "langerhans", name: "Cel. de Langerhans", shortName: "Langerhans",
+      color: "#3FC1C9", colorDark: "#26797f", cost: 70, desc: "Marca antigeno (+dano)",
+      support: "mark",
+      levels: [
+        { range: 120, damage: 0, fireRate: 1.0, projectileSpeed: 0, splash: 0, hp: 90,  markBonus: 0.35, markDur: 3.0 },
+        { range: 140, damage: 0, fireRate: 1.0, projectileSpeed: 0, splash: 0, hp: 115, markBonus: 0.45, markDur: 3.0 },
+        { range: 160, damage: 0, fireRate: 1.0, projectileSpeed: 0, splash: 0, hp: 145, markBonus: 0.55, markDur: 3.5 }
+      ],
+      upgradeCost: [75, 130]
+    },
+    nk: {
+      id: "nk", name: "Celula NK", shortName: "NK",
+      color: "#E84393", colorDark: "#a82d6a", cost: 95, desc: "Antiviral, rompe escudos",
+      bonusVs: { kind: "virus", mult: 2.3 }, breakShield: true,
+      levels: [
+        { range: 170, damage: 22, fireRate: 1.2, projectileSpeed: 430, splash: 0, hp: 95 },
+        { range: 195, damage: 34, fireRate: 1.4, projectileSpeed: 470, splash: 0, hp: 120 },
+        { range: 220, damage: 52, fireRate: 1.7, projectileSpeed: 510, splash: 0, hp: 150 }
+      ],
+      upgradeCost: [100, 165]
+    },
+    eosinofilo: {
+      id: "eosinofilo", name: "Eosinofilo", shortName: "Eosinofilo",
+      color: "#F2774E", colorDark: "#a8401f", cost: 88, desc: "Antiparasito (granulos)",
+      bonusVs: { kind: "parasito", mult: 2.6 },
+      levels: [
+        { range: 150, damage: 28, fireRate: 1.0, projectileSpeed: 380, splash: 30, hp: 90 },
+        { range: 170, damage: 42, fireRate: 1.2, projectileSpeed: 420, splash: 35, hp: 115 },
+        { range: 190, damage: 62, fireRate: 1.4, projectileSpeed: 460, splash: 42, hp: 145 }
+      ],
+      upgradeCost: [95, 150]
+    },
+    mastocito: {
+      id: "mastocito", name: "Mastocito", shortName: "Mastocito",
+      color: "#4F8FE0", colorDark: "#2c5da0", cost: 75, desc: "Histamina (ralentiza)",
+      support: "slow",
+      levels: [
+        { range: 110, damage: 0, fireRate: 1.0, projectileSpeed: 0, splash: 0, hp: 95,  slowDur: 1.2, dotPerSec: 4 },
+        { range: 130, damage: 0, fireRate: 1.0, projectileSpeed: 0, splash: 0, hp: 120, slowDur: 1.2, dotPerSec: 6 },
+        { range: 150, damage: 0, fireRate: 1.0, projectileSpeed: 0, splash: 0, hp: 150, slowDur: 1.4, dotPerSec: 9 }
+      ],
+      upgradeCost: [80, 135]
     }
   };
-  var TOWER_LIST = ["neutrofilo", "linfocitoB", "linfocitoT"];
+  var TOWER_LIST = ["neutrofilo", "linfocitoB", "linfocitoT", "langerhans", "nk", "eosinofilo", "mastocito"];
 
   // BASE_SPEED in design px/s; multiplied by U each frame for actual movement.
   var BASE_SPEED = 60;
@@ -1130,6 +1174,7 @@
       ambient: [],
       circulatory: [],
       selectedToBuild: null,
+      cartillaOpen: false,              // cartilla de torres desplegable
       selectedTower: null,
       pointer: { x: 0, y: 0, isOver: false },
       lastPlaceFailedAt: -10,
@@ -1276,7 +1321,7 @@
     var dockBottom = VH - safeBottom - dockPad;
 
     var cardGap = 8;
-    var cardCount = 3;  // future-proof: agregar más cards solo extiende el array
+    var cardCount = TOWER_LIST.length;   // ahora 7 torres: cartilla desplegable
     var cardW = contentW;
     var dockH = dockBottom - dockTop;
 
@@ -1286,22 +1331,31 @@
     var infoH = Math.min(96 + btnH * 2, Math.round(dockH * 0.52));
     var infoY = dockBottom - infoH;
 
-    // Cartas: altura natural (algo más altas que anchas); si el alto del dock
-    // aprieta, se encogen para que entren las 3 antes de recurrir al scroll.
-    var stripRegionH = Math.max(0, (infoY - dockPad) - dockTop);
-    var naturalCardH = Math.max(72, Math.min(112, contentW * 1.04));
-    var fitCardH = (stripRegionH - (cardCount - 1) * cardGap) / cardCount;
-    var cardH = Math.round(Math.max(60, Math.min(naturalCardH, fitCardH)));
+    // Cartilla DESPLEGABLE: una pestaña arriba abre/cierra la lista de torres
+    // para no saturar el dock con 7 cartas. Cerrada por defecto.
+    var toggleH = 30;
+    UI.cartillaToggle = { x: contentX, y: dockTop, w: contentW, h: toggleH };
+    var stripTop = dockTop + toggleH + cardGap;
+    var stripRegionH = Math.max(0, (infoY - dockPad) - stripTop);
+    var open = state ? !!state.cartillaOpen : false;
 
     UI.cards = [];
-    for (var i = 0; i < cardCount; i++) {
-      UI.cards.push({ contentY: i * (cardH + cardGap), x: contentX, w: cardW, h: cardH });
+    var contentH = 0, cardH = 0;
+    if (open) {
+      var naturalCardH = Math.max(72, Math.min(112, contentW * 1.04));
+      // Mostrar ~3 cartas a la vez; el resto por scroll vertical.
+      var visibleTarget = 3;
+      var fitCardH = (stripRegionH - (visibleTarget - 1) * cardGap) / visibleTarget;
+      cardH = Math.round(Math.max(60, Math.min(naturalCardH, fitCardH)));
+      for (var i = 0; i < cardCount; i++) {
+        UI.cards.push({ contentY: i * (cardH + cardGap), x: contentX, w: cardW, h: cardH });
+      }
+      contentH = cardCount * cardH + (cardCount - 1) * cardGap;
     }
-    var contentH = cardCount * cardH + (cardCount - 1) * cardGap;
 
     UI.cardStrip = {
-      x: contentX, y: dockTop, w: cardW,
-      h: Math.max(cardH, Math.min(stripRegionH, contentH)),
+      x: contentX, y: stripTop, w: cardW,
+      h: open ? Math.max(cardH, Math.min(stripRegionH, contentH)) : 0,
       contentH: contentH
     };
 
@@ -1716,6 +1770,7 @@
       // Medicamento: paralización / ralentización.
       if (e.stunTimer > 0) e.stunTimer -= dt;
       if (e.slowTimer > 0) e.slowTimer -= dt;
+      if (e.markTimer > 0) { e.markTimer -= dt; if (e.markTimer <= 0) e.revealed = false; }
       var medFactor = e.stunTimer > 0 ? 0 : (e.slowTimer > 0 ? 0.4 : 1);
       // BLOCKED by a coagulation barricade: stop advancing along the path.
       // Position still resolves via pathPos at the held progress so the
@@ -1956,10 +2011,31 @@
       if (t.cooldown > 0) continue;
       var stats = towerStats(t);
       var rangePx = stats.range * U;
+      // Torres de SOPORTE: aplican aura a todos los gérmenes en rango (sin
+      // objetivo único). Langerhans marca (+daño y revela); Mastocito ralentiza.
+      if (t.def.support) {
+        var acted = false;
+        for (var sj = 0; sj < state.enemies.length; sj++) {
+          var se = state.enemies[sj];
+          if (se.dead || se.dying || se.absorbing || se.state === "falling" || se.state === "entering") continue;
+          if (Math.hypot(se.x - t.x, se.y - t.y) > rangePx) continue;
+          acted = true;
+          if (t.def.support === "mark") {
+            se.markTimer = stats.markDur; se.markBonus = stats.markBonus; se.revealed = true;
+          } else if (t.def.support === "slow") {
+            se.slowTimer = Math.max(se.slowTimer || 0, stats.slowDur);
+            if ((stats.dotPerSec || 0) > 0) damageEnemy(se, stats.dotPerSec * 0.4, t.def.id);
+          }
+        }
+        if (acted) { t.attackAnim = 0.2; t.muzzleFlash = 0.06; }
+        t.cooldown = 0.4;   // cadencia del tic de aura
+        continue;
+      }
       var target = null, bestProgress = -1;
       for (var j = 0; j < state.enemies.length; j++) {
         var e = state.enemies[j];
         if (e.dead || e.dying || e.absorbing || e.state === "falling" || e.state === "entering") continue;
+        if (e.burrowed && !e.revealed) continue;   // sarna enterrada: intocable salvo si está marcada
         var d = Math.hypot(e.x - t.x, e.y - t.y);
         if (d <= rangePx && e.progress > bestProgress) {
           bestProgress = e.progress;
@@ -1980,14 +2056,17 @@
 
   function fireTower(t, target) {
     var stats = towerStats(t);
+    var dmg = stats.damage;
+    // Bonus de especialista: NK vs virus, Eosinófilo vs parásitos.
+    if (t.def.bonusVs && target.def.baseKind === t.def.bonusVs.kind) dmg *= t.def.bonusVs.mult;
     if (stats.projectileSpeed === 0) {
-      damageEnemy(target, stats.damage, t.def.id);
+      damageEnemy(target, dmg, t.def.id);
       pushEffect({ kind: "melee", x1: t.x, y1: t.y, x2: target.x, y2: target.y, life: 0.18, max: 0.18, color: t.def.color });
     } else {
       state.projectiles.push({
         x: t.x, y: t.y,
         target: target,
-        damage: stats.damage,
+        damage: dmg,
         speedDesign: stats.projectileSpeed,
         splashDesign: stats.splash,
         color: t.def.color,
@@ -2030,6 +2109,8 @@
   function damageEnemy(e, amount, attackerType) {
     if (e.dead || e.dying) return;
     var def = e.def;
+    // Marca de Langerhans: amplifica TODO el daño recibido mientras dura.
+    if ((e.markTimer || 0) > 0 && (e.markBonus || 0) > 0) amount *= (1 + e.markBonus);
     var bodyDamage = amount;
     var dmgLabel = "-" + Math.round(amount);
     var dmgColor = "#FFD93D";
@@ -2042,8 +2123,10 @@
         dmgColor = "#888888";
       } else {
         // Capsula / wall / pierced spike: shield absorbs 70%, body 30%, -1 hit.
-        bodyDamage = amount * 0.30;
-        e.shieldHP = Math.max(0, e.shieldHP - 1);
+        // La Célula NK rompe escudos virales: pasa 60% al cuerpo y -2 al escudo.
+        var pierce = (attackerType === "nk");
+        bodyDamage = amount * (pierce ? 0.60 : 0.30);
+        e.shieldHP = Math.max(0, e.shieldHP - (pierce ? 2 : 1));
         e.shieldRegenTimer = sd.regenDelay || 0;
         e.shieldRegenAccum = 0;
         e.shieldHitTimer = 0.20;
@@ -4170,6 +4253,14 @@
     }
     // Dock lateral derecho
     if (x >= FIELD_RIGHT) {
+      // Pestaña: abre/cierra la cartilla de torres (para no saturar el dock).
+      if (UI.cartillaToggle && inRect(x, y, UI.cartillaToggle)) {
+        state.cartillaOpen = !state.cartillaOpen;
+        state.panelScroll = 0;
+        layoutUI();
+        sfx("tick");
+        return;
+      }
       // Cards en content space vertical; convertir a viewport con scroll.
       for (var i = 0; i < UI.cards.length; i++) {
         var ccard = UI.cards[i];
@@ -4190,6 +4281,7 @@
             sfx("tick");
             // Show range hint at center of field as initial preview.
             if (state.selectedToBuild) {
+              state.cartillaOpen = false; layoutUI();   // al elegir, cierra la cartilla
               var def = TOWER_DEFS[state.selectedToBuild];
               setRangeHint(
                 FIELD_LEFT + FIELD_W * 0.5,
@@ -5257,6 +5349,11 @@
     }
     if (t.def.id === "neutrofilo") drawNeutrofilo(t, pulse, expression, blink);
     else if (t.def.id === "linfocitoB") drawLinfocitoB(t, pulse, expression, blink);
+    else if (t.def.id === "linfocitoT") drawLinfocitoT(t, pulse, expression, blink);
+    else if (t.def.id === "langerhans") drawLangerhans(t, pulse, expression, blink);
+    else if (t.def.id === "nk") drawNK(t, pulse, expression, blink);
+    else if (t.def.id === "eosinofilo") drawEosinofilo(t, pulse, expression, blink);
+    else if (t.def.id === "mastocito") drawMastocito(t, pulse, expression, blink);
     else drawLinfocitoT(t, pulse, expression, blink);
     // Level-up sparkles
     if (levelup) {
@@ -5496,6 +5593,98 @@
     else if (expression === "levelup") drawAnimeMouth(0, R * 0.32, R * 0.45, R * 0.25, "smile");
     else if (expression === "attacking") drawAnimeMouth(0, R * 0.32, R * 0.50, R * 0.30, "fanged");
     else drawAnimeMouth(0, R * 0.32, R * 0.40, R * 0.20, "neutral");
+    ctx.restore();
+  }
+
+  // Cara genérica de torre (seria; triste al morir). Usada por las defensas nuevas.
+  function towerFace(R, expression, blink, mood) {
+    var eyeR = R * 0.21, ey = -R * 0.08, gap = R * 0.31;
+    if (blink) drawClosedEyes(0, ey, eyeR, gap);
+    else if (expression === "dying") drawHurtEyes(0, ey, eyeR, gap);
+    else if (expression === "levelup") drawSparkleEyes(0, ey, eyeR, gap);
+    else if (expression === "attacking") drawFocusedEyes(0, ey, eyeR, gap, R * 0.12, R * 0.05);
+    else drawAnimeEyes(0, ey, eyeR, gap, 0, 0, R * 0.10, R * 0.05, mood || "fierce");
+    if (expression === "dying") drawAnimeMouth(0, R * 0.32, R * 0.5, R * 0.42, "open");
+    else if (expression === "levelup") drawAnimeMouth(0, R * 0.32, R * 0.45, R * 0.25, "smile");
+    else drawAnimeMouth(0, R * 0.32, R * 0.40, R * 0.20, "serious");
+  }
+
+  function drawLangerhans(t, pulse, expression, blink) {
+    var R = 18 * U * pulse;
+    ctx.save(); ctx.translate(t.x, t.y);
+    // Dendritas (proyecciones) que radian lentamente — célula presentadora.
+    ctx.strokeStyle = t.def.colorDark; ctx.lineWidth = Math.max(2, 3 * U); ctx.lineCap = "round"; ctx.lineJoin = "round";
+    var dn = 8;
+    for (var i = 0; i < dn; i++) {
+      var a = i * Math.PI * 2 / dn + state.time * 0.3;
+      var len = R * (1.25 + 0.12 * Math.sin(state.time * 2 + i));
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(a) * R * 0.7, Math.sin(a) * R * 0.7);
+      ctx.lineTo(Math.cos(a) * len, Math.sin(a) * len);
+      ctx.lineTo(Math.cos(a + 0.2) * (len - R * 0.2), Math.sin(a + 0.2) * (len - R * 0.2));
+      ctx.stroke();
+    }
+    var grad = ctx.createRadialGradient(-R * 0.3, -R * 0.3, R * 0.2, 0, 0, R);
+    grad.addColorStop(0, "#d6fbfd"); grad.addColorStop(0.6, t.def.color); grad.addColorStop(1, t.def.colorDark);
+    ctx.fillStyle = grad; ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = t.def.colorDark; ctx.lineWidth = Math.max(1.2, 1.5 * U); ctx.stroke();
+    towerFace(R, expression, blink, "fierce");
+    ctx.restore();
+  }
+
+  function drawNK(t, pulse, expression, blink) {
+    var R = 18 * U * pulse;
+    ctx.save(); ctx.translate(t.x, t.y);
+    // Retícula antiviral girando.
+    ctx.strokeStyle = colorAlpha(t.def.color, 0.5); ctx.lineWidth = Math.max(1, 1.4 * U);
+    ctx.save(); ctx.rotate(state.time * 0.8);
+    ctx.beginPath(); ctx.arc(0, 0, R * 1.3, 0, Math.PI * 2); ctx.stroke();
+    for (var k = 0; k < 4; k++) { var a = k * Math.PI / 2; ctx.beginPath(); ctx.moveTo(Math.cos(a) * R * 1.05, Math.sin(a) * R * 1.05); ctx.lineTo(Math.cos(a) * R * 1.5, Math.sin(a) * R * 1.5); ctx.stroke(); }
+    ctx.restore();
+    var grad = ctx.createRadialGradient(-R * 0.3, -R * 0.3, R * 0.2, 0, 0, R);
+    grad.addColorStop(0, "#ffd9ec"); grad.addColorStop(0.6, t.def.color); grad.addColorStop(1, t.def.colorDark);
+    ctx.fillStyle = grad; ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = t.def.colorDark; ctx.lineWidth = Math.max(1.2, 1.5 * U); ctx.stroke();
+    for (var g = 0; g < 4; g++) { var ga = g * 1.7 + 0.5; ctx.fillStyle = "rgba(255,255,255,0.7)"; ctx.beginPath(); ctx.arc(Math.cos(ga) * R * 0.45, Math.sin(ga) * R * 0.45, R * 0.10, 0, Math.PI * 2); ctx.fill(); }
+    towerFace(R, expression, blink, "fierce");
+    ctx.restore();
+  }
+
+  function drawEosinofilo(t, pulse, expression, blink) {
+    var R = 18 * U * pulse;
+    ctx.save(); ctx.translate(t.x, t.y);
+    var grad = ctx.createRadialGradient(-R * 0.3, -R * 0.3, R * 0.2, 0, 0, R);
+    grad.addColorStop(0, "#ffe0cf"); grad.addColorStop(0.6, t.def.color); grad.addColorStop(1, t.def.colorDark);
+    ctx.fillStyle = grad; ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = t.def.colorDark; ctx.lineWidth = Math.max(1.2, 1.5 * U); ctx.stroke();
+    // Núcleo bilobulado característico (dos lóbulos), tenue, en la parte baja.
+    ctx.fillStyle = "rgba(150,40,90,0.28)";
+    ctx.beginPath();
+    ctx.ellipse(-R * 0.32, R * 0.16, R * 0.30, R * 0.22, 0, 0, Math.PI * 2);
+    ctx.ellipse(R * 0.32, R * 0.16, R * 0.30, R * 0.22, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // Gránulos rojizos densos (eosinófilos: gránulos eosinófilos).
+    for (var g = 0; g < 7; g++) { var ga = g * 0.95 + state.time * 0.2; var gd = R * (0.35 + 0.3 * ((g % 3) / 2)); ctx.fillStyle = "rgba(225,90,50,0.8)"; ctx.beginPath(); ctx.arc(Math.cos(ga) * gd, Math.sin(ga) * gd, R * 0.09, 0, Math.PI * 2); ctx.fill(); }
+    towerFace(R, expression, blink, "fierce");
+    ctx.restore();
+  }
+
+  function drawMastocito(t, pulse, expression, blink) {
+    var R = 18 * U * pulse;
+    ctx.save(); ctx.translate(t.x, t.y);
+    // Puff de histamina (anillo que se expande) cuando actúa.
+    if ((t.attackAnim || 0) > 0) {
+      var pp = 1 - (t.attackAnim / 0.2);
+      ctx.strokeStyle = colorAlpha(t.def.color, 0.5 * (1 - pp)); ctx.lineWidth = 2 * U;
+      ctx.beginPath(); ctx.arc(0, 0, R * (1.1 + pp * 0.8), 0, Math.PI * 2); ctx.stroke();
+    }
+    var grad = ctx.createRadialGradient(-R * 0.3, -R * 0.3, R * 0.2, 0, 0, R);
+    grad.addColorStop(0, "#d6e6fb"); grad.addColorStop(0.6, t.def.color); grad.addColorStop(1, t.def.colorDark);
+    ctx.fillStyle = grad; ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = t.def.colorDark; ctx.lineWidth = Math.max(1.2, 1.5 * U); ctx.stroke();
+    // Gránulos densos (el mastocito está repleto de gránulos).
+    for (var g = 0; g < 10; g++) { var ga = g * 0.66; var gd = R * (0.30 + 0.4 * ((g % 4) / 3)); ctx.fillStyle = "rgba(255,255,255,0.55)"; ctx.beginPath(); ctx.arc(Math.cos(ga) * gd, Math.sin(ga) * gd, R * 0.08, 0, Math.PI * 2); ctx.fill(); }
+    towerFace(R, expression, blink, "fierce");
     ctx.restore();
   }
 
@@ -7410,11 +7599,25 @@
     ctx.fillStyle = "rgba(255,255,255,0.06)";
     ctx.fillRect(dockX, FIELD_TOP, 2, FIELD_BOTTOM - FIELD_TOP);
 
-    // Cards apiladas en columna, scroll vertical. Clipping al viewport del
-    // strip y traslación por panelScroll (con 3 cards que caben, scroll=0).
+    // Pestaña de la cartilla desplegable (abre/cierra la lista de torres).
+    var tg = UI.cartillaToggle;
+    if (tg) {
+      var openNow = !!state.cartillaOpen;
+      ctx.fillStyle = openNow ? "#3a2538" : "#241620";
+      roundRect(tg.x, tg.y, tg.w, tg.h, 7); ctx.fill();
+      ctx.strokeStyle = "rgba(255,255,255,0.14)"; ctx.lineWidth = 1.5;
+      roundRect(tg.x, tg.y, tg.w, tg.h, 7); ctx.stroke();
+      ctx.fillStyle = "#fff";
+      ctx.font = "bold " + Math.max(10, Math.min(13, tg.w * 0.12)) + "px Fredoka, sans-serif";
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText((openNow ? "▾ " : "▸ ") + "Defensas", tg.x + tg.w / 2, tg.y + tg.h / 2);
+    }
+
+    // Cards apiladas en columna, scroll vertical. Visibles solo con la cartilla
+    // abierta; clipping al viewport del strip y traslación por panelScroll.
     var strip = UI.cardStrip;
     var scroll = state.panelScroll || 0;
-    if (strip) {
+    if (strip && strip.h > 0) {
       ctx.save();
       ctx.beginPath();
       ctx.rect(strip.x - 6, strip.y, strip.w + 12, strip.h);

@@ -1176,7 +1176,8 @@
       cinematicEnd: null,               // when infestacion >= 100, becomes object
       pathInflammation: [],             // marks where enemies recently passed
       bossActive: null,                 // ref to current boss enemy (if alive)
-      showIntro: true,                  // first-load comic intro screen
+      showTitle: true,                  // pantalla de título del juego
+      showIntro: true,                  // cómic introductorio (tras el título)
       introScene: 0,
       introT: 0,
       panelScroll: 0,                   // horizontal scroll offset (Sprint 8B-3B)
@@ -4101,6 +4102,13 @@
   }
 
   function handleClick(x, y) {
+    // Pantalla de título: un clic en cualquier lado arranca el cómic.
+    if (state.showTitle) {
+      state.showTitle = false;
+      state.introScene = 0; state.introT = 0;
+      ensureAudio();
+      return;
+    }
     // Comic intro: "Saltar" cierra todo; un tap normal avanza de escena.
     if (state.showIntro) {
       if (UI.introSkip && inRect(x, y, UI.introSkip)) { state.showIntro = false; }
@@ -4409,6 +4417,7 @@
     if (e.key === " " || e.code === "Space") {
       e.preventDefault();
       ensureAudio();
+      if (state.showTitle) { state.showTitle = false; state.introScene = 0; state.introT = 0; return; }
       if (state.showIntro) { introAdvance(); return; }
       if (state.confirmRestart) { state.confirmRestart = false; return; }
       // Waves auto-spawn now; SPACE skips countdown if any.
@@ -7979,7 +7988,7 @@
   var INTRO_POUT = [0, 0.05, 0.06, 0.11, 0.16]; // empuje de la escena saliente
 
   function drawIntroScreen() {
-    if (!state.showIntro) return;
+    if (!state.showIntro || state.showTitle) return;
     var sc = state.introScene || 0;
     var t = state.introT || 0;
     var dur = INTRO_DUR[sc];
@@ -8059,6 +8068,77 @@
       ctx.fillStyle = "#1a0606"; ctx.fillRect(0, 0, VW, VH);
       ctx.globalAlpha = 1;
     }
+    ctx.restore();
+  }
+
+  // -------- PANTALLA DE TÍTULO -----------------------------------------
+  function drawTitleScreen() {
+    if (!state.showTitle) return;
+    var tt = state.time, cx = VW / 2;
+    ctx.save();
+    ctx.fillStyle = "#140a0a"; ctx.fillRect(0, 0, VW, VH);
+    // Fondo: mundo microscópico con deriva lenta (Ken Burns).
+    var bgZoom = 1.10 + Math.sin(tt * 0.25) * 0.02;
+    if (!introCover(introImgs[4], bgZoom, Math.sin(tt * 0.2) * VH * 0.012)) {
+      var bg = ctx.createLinearGradient(0, 0, 0, VH);
+      bg.addColorStop(0, "#3a0d0d"); bg.addColorStop(1, "#1a0606");
+      ctx.fillStyle = bg; ctx.fillRect(0, 0, VW, VH);
+    }
+    // Oscurecido para legibilidad (más fuerte arriba y abajo).
+    var ov = ctx.createLinearGradient(0, 0, 0, VH);
+    ov.addColorStop(0, "rgba(8,3,3,0.80)");
+    ov.addColorStop(0.42, "rgba(8,3,3,0.28)");
+    ov.addColorStop(0.72, "rgba(8,3,3,0.45)");
+    ov.addColorStop(1, "rgba(8,3,3,0.90)");
+    ctx.fillStyle = ov; ctx.fillRect(0, 0, VW, VH);
+
+    ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.lineJoin = "round";
+
+    // Badge superior.
+    ctx.font = "bold " + Math.round(VW * 0.033) + "px Fredoka, sans-serif";
+    ctx.fillStyle = "rgba(255,255,255,0.72)";
+    ctx.fillText("FASE 1 · INFECCIÓN DE PIEL", cx, VH * 0.155);
+
+    // Título (auto-ajustado al ancho).
+    var titleY = VH * 0.29, maxW = VW * 0.88, fs = VW * 0.18;
+    ctx.font = "900 " + fs + "px Fredoka, sans-serif";
+    while (ctx.measureText("ImmunoDefense").width > maxW && fs > 12) {
+      fs -= 1; ctx.font = "900 " + fs + "px Fredoka, sans-serif";
+    }
+    ctx.save();
+    ctx.shadowColor = "rgba(214,31,31,0.95)"; ctx.shadowBlur = 30;
+    ctx.fillStyle = "#fff"; ctx.fillText("ImmunoDefense", cx, titleY);
+    ctx.restore();
+    ctx.lineWidth = Math.max(3, VW * 0.011); ctx.strokeStyle = "#3a0a0a";
+    ctx.strokeText("ImmunoDefense", cx, titleY);
+    ctx.fillStyle = "#fff"; ctx.fillText("ImmunoDefense", cx, titleY);
+
+    // Lema.
+    ctx.font = "italic " + Math.round(VW * 0.040) + "px Georgia, serif";
+    ctx.fillStyle = "rgba(255,235,225,0.92)";
+    ctx.fillText("Tu cuerpo es el campo de batalla", cx, VH * 0.40);
+
+    // Botón INICIAR (pulsante).
+    var pulse = 1 + Math.sin(tt * 3) * 0.04;
+    var bw = Math.min(VW * 0.6, 260), bh = 54, by = VH * 0.73;
+    UI.startBtn = { x: cx - bw / 2, y: by, w: bw, h: bh };
+    ctx.save();
+    ctx.translate(cx, by + bh / 2); ctx.scale(pulse, pulse);
+    ctx.shadowColor = "rgba(214,31,31,0.85)"; ctx.shadowBlur = 22;
+    ctx.fillStyle = "#d61f1f"; roundRect(-bw / 2, -bh / 2, bw, bh, bh / 2); ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = "rgba(255,255,255,0.9)"; ctx.lineWidth = 2.5;
+    roundRect(-bw / 2, -bh / 2, bw, bh, bh / 2); ctx.stroke();
+    ctx.fillStyle = "#fff"; ctx.font = "900 " + Math.round(bh * 0.42) + "px Fredoka, sans-serif";
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillText("▶  INICIAR", 0, 0);
+    ctx.restore();
+
+    // Pista parpadeante.
+    ctx.globalAlpha = 0.55 + 0.4 * (0.5 + 0.5 * Math.sin(tt * 2.2));
+    ctx.fillStyle = "#fff"; ctx.font = Math.round(VW * 0.032) + "px Fredoka, sans-serif";
+    ctx.fillText("o toca en cualquier lugar para empezar", cx, by + bh + VH * 0.05);
+    ctx.globalAlpha = 1;
     ctx.restore();
   }
 
@@ -8583,6 +8663,7 @@
     drawCinematicEnd();
     drawTooltip();
     drawIntroScreen();
+    drawTitleScreen();
     drawConfirmModal();
   }
 
@@ -8656,7 +8737,7 @@
     var dt = Math.min(0.05, (now - lastT) / 1000);
     lastT = now;
     state.time += dt;
-    var paused = state.confirmRestart || state.showIntro || state.cinematicEnd;
+    var paused = state.confirmRestart || state.showTitle || state.showIntro || state.cinematicEnd;
     if (!paused) {
       updateWaveScheduler(dt);
       updateWave(dt);
@@ -8667,7 +8748,7 @@
       updateProjectiles(dt);
       updateMed(dt);
     }
-    if (state.showIntro) updateIntroComic(dt);
+    if (state.showIntro && !state.showTitle) updateIntroComic(dt);
     if (state.cinematicEnd) updateCinematic(dt);
     updateEffects(dt);
     if (state.msgTimer > 0) state.msgTimer -= dt;

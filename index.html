@@ -7892,15 +7892,74 @@
   }
 
   function drawProjectile(p) {
+    var ang = p.target ? Math.atan2(p.target.y - p.y, p.target.x - p.x) : 0;
     if (p.towerId === "linfocitoB") {
-      // Antibody Y projectile with yellow trail
+      // Anticuerpo mini-Y (ametralladora): cuerpo amarillo + halo tenue.
       ctx.fillStyle = "rgba(255, 247, 196, 0.55)";
+      ctx.beginPath(); ctx.arc(p.x, p.y, 5 * U, 0, Math.PI * 2); ctx.fill();
+      drawYShape(p.x, p.y, 4 * U, ang + Math.PI / 2, "#fff7c4", "#2c8049");
+    } else if (p.towerId === "linfocitoT") {
+      // Citotoxina: ESTRELLA violeta de 5 puntas que gira, con glow morado.
+      ctx.save();
+      ctx.translate(p.x, p.y); ctx.rotate(state.time * 5 + ang);
+      ctx.shadowColor = "rgba(147,112,219,0.85)"; ctx.shadowBlur = 12;
+      ctx.fillStyle = "#d6c0f5"; ctx.strokeStyle = "#5d44a0"; ctx.lineWidth = 1.5;
+      var Rs = 7 * U;
       ctx.beginPath();
-      ctx.arc(p.x, p.y, 7 * U, 0, Math.PI * 2);
-      ctx.fill();
-      var ang = p.target ? Math.atan2(p.target.y - p.y, p.target.x - p.x) : 0;
-      drawYShape(p.x, p.y, 5 * U, ang + Math.PI / 2, "#fff7c4", "#2c8049");
+      for (var s5 = 0; s5 < 10; s5++) {
+        var sa = s5 * Math.PI / 5 - Math.PI / 2;
+        var sr = (s5 % 2) ? Rs * 0.45 : Rs;
+        var spx = Math.cos(sa) * sr, spyy = Math.sin(sa) * sr;
+        if (s5 === 0) ctx.moveTo(spx, spyy); else ctx.lineTo(spx, spyy);
+      }
+      ctx.closePath(); ctx.fill(); ctx.stroke();
+      ctx.shadowBlur = 0;
+      ctx.restore();
+    } else if (p.towerId === "nk") {
+      // Perforina: rayo blanco-rosa en zig-zag con punta brillante.
+      var len = 22 * U;
+      var bx = p.x - Math.cos(ang) * len, by = p.y - Math.sin(ang) * len;
+      var perpA = ang + Math.PI / 2;
+      var zig = Math.sin(state.time * 35 + p.x * 0.1) * 6 * U;
+      var midX = (p.x + bx) / 2 + Math.cos(perpA) * zig;
+      var midY = (p.y + by) / 2 + Math.sin(perpA) * zig;
+      ctx.save();
+      ctx.lineCap = "round"; ctx.lineJoin = "round";
+      // Aura ancha del rayo
+      ctx.strokeStyle = "rgba(232,67,147,0.45)"; ctx.lineWidth = 6 * U;
+      ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(midX, midY); ctx.lineTo(p.x, p.y); ctx.stroke();
+      // Núcleo del rayo (blanco brillante)
+      ctx.strokeStyle = "#fff"; ctx.lineWidth = 2.2 * U;
+      ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(midX, midY); ctx.lineTo(p.x, p.y); ctx.stroke();
+      // Punta
+      ctx.shadowColor = "rgba(232,67,147,0.95)"; ctx.shadowBlur = 12;
+      ctx.fillStyle = "#fff";
+      ctx.beginPath(); ctx.arc(p.x, p.y, 4 * U, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = "#E84393";
+      ctx.beginPath(); ctx.arc(p.x, p.y, 2.5 * U, 0, Math.PI * 2); ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.restore();
+    } else if (p.towerId === "eosinofilo") {
+      // Racimo de gránulos rojo-naranja girando + estela.
+      var tx = p.x - Math.cos(ang) * 12 * U, ty = p.y - Math.sin(ang) * 12 * U;
+      ctx.strokeStyle = "rgba(242,119,78,0.55)"; ctx.lineWidth = 3 * U; ctx.lineCap = "round";
+      ctx.beginPath(); ctx.moveTo(tx, ty); ctx.lineTo(p.x, p.y); ctx.stroke();
+      ctx.save();
+      ctx.shadowColor = "rgba(242,119,78,0.85)"; ctx.shadowBlur = 9;
+      var rotG = state.time * 8;
+      for (var g4 = 0; g4 < 5; g4++) {
+        var ga = g4 * (Math.PI * 2 / 5) + rotG;
+        var gd = 4.5 * U;
+        var gxp = p.x + Math.cos(ga) * gd, gyp = p.y + Math.sin(ga) * gd;
+        ctx.fillStyle = (g4 % 2) ? "#e15a32" : "#F2774E";
+        ctx.beginPath(); ctx.arc(gxp, gyp, 2.8 * U, 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.fillStyle = "rgba(225,90,50,0.9)";
+      ctx.beginPath(); ctx.arc(p.x, p.y, 3 * U, 0, Math.PI * 2); ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.restore();
     } else {
+      // Genérico (cualquier futura torre con projectileSpeed).
       ctx.fillStyle = p.color;
       ctx.beginPath();
       ctx.arc(p.x, p.y, (p.splashDesign > 0 ? 6 : 4) * U, 0, Math.PI * 2);
@@ -7946,13 +8005,28 @@
       ctx.stroke();
       ctx.globalAlpha = 1;
     } else if (ef.kind === "melee") {
-      ctx.strokeStyle = ef.color;
+      // ZARPAZO/dentellada: 3 trazos paralelos (garra) + destello en el impacto.
       ctx.globalAlpha = alpha;
-      ctx.lineWidth = 4 * Math.max(1, U * 0.9);
+      var sdx = ef.x2 - ef.x1, sdy = ef.y2 - ef.y1, sd = Math.hypot(sdx, sdy) || 1;
+      var sxN = sdx / sd, syN = sdy / sd;
+      var spxN = -syN, spyN = sxN;
+      ctx.lineCap = "round";
+      // 3 garras paralelas, una más gruesa al centro.
+      for (var sn = -1; sn <= 1; sn++) {
+        var sof = sn * 5 * U;
+        ctx.strokeStyle = ef.color;
+        ctx.lineWidth = (sn === 0 ? 3.5 : 2.5) * Math.max(1, U * 0.9);
+        ctx.beginPath();
+        ctx.moveTo(ef.x1 + spxN * sof, ef.y1 + spyN * sof);
+        ctx.lineTo(ef.x2 + spxN * sof, ef.y2 + spyN * sof);
+        ctx.stroke();
+      }
+      // Destello redondo al impactar (en el extremo).
+      ctx.fillStyle = ef.color;
+      ctx.globalAlpha = alpha * 0.55;
       ctx.beginPath();
-      ctx.moveTo(ef.x1, ef.y1);
-      ctx.lineTo(ef.x2, ef.y2);
-      ctx.stroke();
+      ctx.arc(ef.x2, ef.y2, (7 + (1 - alpha) * 7) * U, 0, Math.PI * 2);
+      ctx.fill();
       ctx.globalAlpha = 1;
     } else if (ef.kind === "escape") {
       ctx.strokeStyle = "#d9534f";

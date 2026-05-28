@@ -923,7 +923,7 @@
       color: "#8a5a2b", colorDark: "#4d3014", colorLight: "#c79a5e", radius: 24,
       speedMult: 1.0, hp: 220, reward: 13, viralAdd: 7, attack: 6, isBoss: false,
       shield: null,
-      burrow: { interval: 5.0, duration: 1.5, speedMult: 1.9 },
+      burrow: { interval: 5.0, duration: 1.5, speedMult: 1.9, surfaceJump: 90 },
       spore: { interval: 4.5, childHpFrac: 0.2, childSpeedMult: 1.6, maxChildren: 3 },
       tooltip: "Ácaro que excava galerías en la piel (escabiosis). Se entierra para esquivar el ataque y reaparece adelante; va dejando larvas. El Eosinófilo lo destroza y la Cel. de Langerhans lo delata cuando se esconde."
     },
@@ -940,7 +940,8 @@
       speedMult: 1.0, hp: 170, reward: 11, viralAdd: 6, attack: 4, isBoss: false,
       shield: null,
       spore: { interval: 3.5, childHpFrac: 0.4, childSpeedMult: 1.0, maxChildren: 3 },
-      tooltip: "Poxvirus muy contagioso, típico en niños: pápulas cerosas con un hoyuelo central. Mientras avanza suelta 'perlas' que germinan en nuevos molluscum. La Célula NK es la indicada."
+      deathSplit: { count: 2, hpFrac: 0.35 },
+      tooltip: "Poxvirus muy contagioso, típico en niños: pápulas cerosas con un hoyuelo central. Suelta 'perlas' que germinan en nuevos molluscum y, al morir, se divide en dos. La Célula NK es la indicada."
     },
     malassezia: {
       id: "malassezia", name: "Malassezia", shortName: "Malassezia", baseKind: "hongo",
@@ -1200,6 +1201,7 @@
       germShots: [],
       guardians: [],
       guardianTimer: 28,
+      slicks: [],                       // charcos aceitosos de Malassezia
       medCharge: 0,
       medApplying: false,
       topicalCharge: 0,
@@ -1552,7 +1554,8 @@
       powerCd: 0, powerCharge: 0, powerTarget: null, devourTarget: null,
       swallowAnim: 0, mawOpen: 0,
       speedBoost: (sp.childSpeedMult || 1.9), radiusScale: 0.6,
-      noSpore: true, childCount: 0, childTimer: 0,
+      noSpore: true, noSplit: true, childCount: 0, childTimer: 0,
+      burrowTimer: 0, burrowed: false, surfaceTimer: 0, revealed: false,
       x: m.x, y: m.y, vx: 0, vy: 0, fallRot: 0, fallRotSpd: 0, enteringTimer: 0,
       wobble: Math.random() * Math.PI * 2, hitFlash: 0, hurtTimer: 0, dyingTimer: 0,
       dying: false, enraged: false, sporeTimer: Math.random(),
@@ -1672,6 +1675,13 @@
 
   // -------- ENEMIES -------------------------------------------------------
   function updateEnemies(dt) {
+    // Charcos aceitosos (Malassezia): se desvanecen con el tiempo.
+    if (state.slicks && state.slicks.length) {
+      for (var si = state.slicks.length - 1; si >= 0; si--) {
+        state.slicks[si].life -= dt;
+        if (state.slicks[si].life <= 0) state.slicks.splice(si, 1);
+      }
+    }
     for (var i = 0; i < state.enemies.length; i++) {
       var e = state.enemies[i];
       if (e.dead) continue;
@@ -1685,8 +1695,8 @@
       if (e.hitFlash > 0) e.hitFlash -= dt;
       if (e.shieldHitTimer > 0) e.shieldHitTimer -= dt;
       if (e.shieldShatterTimer > 0) e.shieldShatterTimer -= dt;
-      // Shield regeneration (off-screen tick)
-      if (e.def.shield && e.shieldHP < e.def.shield.maxHP) {
+      // Shield regeneration (off-screen tick) — HPV furioso ya no regenera.
+      if (e.def.shield && !e.noShieldRegen && e.shieldHP < e.def.shield.maxHP) {
         if (e.shieldRegenTimer > 0) {
           e.shieldRegenTimer -= dt;
         } else if (e.def.shield.regenRate > 0) {
@@ -1828,6 +1838,7 @@
           if (e.surfaceTimer <= 0) {
             e.burrowed = false;
             e.burrowTimer = e.def.burrow.interval;
+            e.progress += (e.def.burrow.surfaceJump || 0) * U;  // salta adelante (esquiva torres)
             for (var dp = 0; dp < 7; dp++) { var da = Math.random() * Math.PI * 2, dsp = (20 + Math.random() * 30) * U; pushEffect({ kind: "particle", x: e.x, y: e.y, vx: Math.cos(da) * dsp, vy: Math.sin(da) * dsp - 6 * U, life: 0.4, max: 0.5, color: e.def.colorDark }); }
           }
         } else {
@@ -1842,8 +1853,17 @@
       // BLOCKED by a coagulation barricade: stop advancing along the path.
       // Position still resolves via pathPos at the held progress so the
       // sprite stays put on the path with a small shake jitter.
+      // HPV furioso: +50% velocidad. Charco de Malassezia: +30% al pasar.
+      var enrageMult = (e.enraged && e.def.id === "hpv") ? 1.5 : 1;
+      var slickFactor = 1;
+      if (state.slicks && state.slicks.length) {
+        for (var sli = 0; sli < state.slicks.length; sli++) {
+          var sk = state.slicks[sli];
+          if (Math.hypot(e.x - sk.x, e.y - sk.y) < sk.r) { slickFactor = 1.3; break; }
+        }
+      }
       if (e.state !== "blocked" && !e.devourTarget && !e.beingEngulfed) {
-        e.progress += pxSpeed * medFactor * (e.speedBoost || 1) * burrowFactor * dt;
+        e.progress += pxSpeed * medFactor * (e.speedBoost || 1) * burrowFactor * enrageMult * slickFactor * dt;
       }
       // Dermatofito: suelta esporas hijas mientras avanza.
       if (e.def.spore && !e.noSpore && e.state === "walking" &&
@@ -1935,10 +1955,11 @@
       if (e.def.attack > 0 && !e.absorbing &&
           (e.state === "walking" || e.state === "blocked")) {
         var aura = enemyAuraRadiusPx(e.def);
+        var atkMult = (e.enraged && e.def.id === "hpv") ? 1.5 : 1;   // HPV furioso pega más
         for (var ti = 0; ti < state.towers.length; ti++) {
           var tw = state.towers[ti];
           if (Math.hypot(tw.x - e.x, tw.y - e.y) < aura) {
-            var admg = e.def.attack * ATTACK_MULT * dt;
+            var admg = e.def.attack * ATTACK_MULT * atkMult * dt;
             tw.hp -= admg;
             tw.hitFlash = 0.16;
             tw.dmgAccum = (tw.dmgAccum || 0) + admg;
@@ -1947,7 +1968,8 @@
           }
         }
       }
-      // Malassezia: película grasa — baja la cadencia de las torres cercanas.
+      // Malassezia: película grasa — baja la cadencia de las torres cercanas
+      // y deja charcos aceitosos que aceleran a los gérmenes que pasan.
       if (e.def.greaseAura && !e.absorbing && (e.state === "walking" || e.state === "blocked")) {
         var gr = e.def.greaseAura.range * U;
         for (var gti = 0; gti < state.towers.length; gti++) {
@@ -1955,6 +1977,11 @@
           if (Math.hypot(gtw.x - e.x, gtw.y - e.y) < gr) {
             gtw.slowFireTimer = Math.max(gtw.slowFireTimer || 0, e.def.greaseAura.slowFire);
           }
+        }
+        e.slickTimer = (e.slickTimer || 0) - dt;
+        if (e.slickTimer <= 0) {
+          e.slickTimer = 0.8;
+          state.slicks.push({ x: e.x, y: e.y, r: 22 * U, life: 3, max: 3 });
         }
       }
       // Tópico: ácido en el camino — DoT a todos los gérmenes mientras dura.
@@ -2211,6 +2238,11 @@
         e.shieldHitTimer = 0.20;
         if (e.shieldHP === 0) {
           e.shieldShatterTimer = 0.45;
+          // HPV: al romper la queratina se ENFURECE (+vel/+daño) y no regenera.
+          if (def.id === "hpv" && !e.enraged) {
+            e.enraged = true; e.noShieldRegen = true;
+            pushDamageNumber(e.x, e.y - def.radius * U - 4, "¡FURIA!", "#ff4d4d");
+          }
           // Burst of capsule particles
           for (var sp = 0; sp < 10; sp++) {
             var sa = Math.random() * Math.PI * 2;
@@ -2248,6 +2280,12 @@
       // la muerte de TUS células (ver updateTowers).
       state.topicalCharge = Math.min(TOPICAL_MAX, state.topicalCharge + (def.isBoss ? TOPICAL_PER_BOSS : TOPICAL_PER_KILL));
       germExplode(e);   // estalla y daña a los personajes cercanos
+      // Molluscum: al morir se DIVIDE en mini-molluscum (salvo que ya sea hijo).
+      if (def.deathSplit && !e.noSplit && !e.absorbing) {
+        for (var ds = 0; ds < (def.deathSplit.count || 2); ds++) {
+          spawnSplit(e, def.deathSplit.hpFrac || 0.35);
+        }
+      }
       pushEffect({
         kind: "atpText",
         x: e.x, y: e.y - def.radius * U - 4,
@@ -2257,6 +2295,34 @@
         color: "#f5d76e"
       });
     }
+  }
+
+  // Hijo de división por muerte (molluscum): nace en el sitio, sin volver a
+  // dividirse ni soltar perlas, con una fracción de la vida y disperso un poco.
+  function spawnSplit(m, hpFrac) {
+    var chp = Math.max(1, Math.round(m.maxHp * hpFrac));
+    var jitter = (Math.random() - 0.5) * 10 * U;
+    state.enemies.push({
+      def: m.def, hp: chp, maxHp: chp,
+      speedMultLevel: m.speedMultLevel, heridaIdx: m.heridaIdx,
+      state: "walking", outsideTimer: 0,
+      progress: Math.max(0, m.progress - 4 * U + jitter),
+      powerCd: 0, powerCharge: 0, powerTarget: null, devourTarget: null,
+      swallowAnim: 0, mawOpen: 0, speedBoost: 1, radiusScale: 0.62,
+      noSpore: true, noSplit: true, childCount: 0, childTimer: 0,
+      burrowTimer: 0, burrowed: false, surfaceTimer: 0, revealed: false,
+      x: m.x, y: m.y, vx: 0, vy: 0, fallRot: 0, fallRotSpd: 0, enteringTimer: 0,
+      wobble: Math.random() * Math.PI * 2, hitFlash: 0, hurtTimer: 0, dyingTimer: 0,
+      dying: false, enraged: false, sporeTimer: Math.random(),
+      blinkTimer: 0, nextBlink: state.time + 2 + Math.random() * 3,
+      absorbing: false, absorbScale: 1, absorbAlpha: 1,
+      absorbStartX: 0, absorbStartY: 0, absorbTargetX: 0, absorbTargetY: 0,
+      absorbStartTime: 0, absorbedRot: 0,
+      shieldHP: 0, shieldRegenTimer: 0, shieldRegenAccum: 0,
+      shieldShatterTimer: 0, shieldHitTimer: 0,
+      tooltipShown: true, dead: false
+    });
+    for (var s = 0; s < 4; s++) { var a = Math.random() * Math.PI * 2, spd = (15 + Math.random() * 20) * U; pushEffect({ kind: "particle", x: m.x, y: m.y, vx: Math.cos(a) * spd, vy: Math.sin(a) * spd, life: 0.3, max: 0.4, color: m.def.color }); }
   }
 
   function shieldGlowColor(type) {
@@ -2725,6 +2791,25 @@
     if (!ready) {
       ctx.fillStyle = "rgba(255,255,255,0.4)";
       ctx.fillText(Math.round(ratio * 100) + "%", v.x + v.w + 5, v.y + 14);
+    }
+    ctx.restore();
+  }
+
+  function drawSlicks() {
+    if (!state.slicks || !state.slicks.length) return;
+    ctx.save();
+    for (var i = 0; i < state.slicks.length; i++) {
+      var sk = state.slicks[i];
+      var a = Math.min(1, sk.life / sk.max);
+      var g = ctx.createRadialGradient(sk.x, sk.y, sk.r * 0.2, sk.x, sk.y, sk.r);
+      g.addColorStop(0, "rgba(216,192,96," + (0.30 * a) + ")");
+      g.addColorStop(0.7, "rgba(160,130,40," + (0.20 * a) + ")");
+      g.addColorStop(1, "rgba(160,130,40,0)");
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.ellipse(sk.x, sk.y, sk.r, sk.r * 0.6, 0, 0, Math.PI * 2); ctx.fill();
+      // brillo aceitoso
+      ctx.fillStyle = "rgba(255,255,255," + (0.18 * a) + ")";
+      ctx.beginPath(); ctx.ellipse(sk.x - sk.r * 0.25, sk.y - sk.r * 0.12, sk.r * 0.3, sk.r * 0.12, -0.4, 0, Math.PI * 2); ctx.fill();
     }
     ctx.restore();
   }
@@ -9090,6 +9175,7 @@
     drawRestos();
     drawCollectors();
     drawBarricada();         // coagulation barricade (under enemies)
+    drawSlicks();            // charcos aceitosos de Malassezia (bajo gérmenes)
     drawRangeHint();
     // Pasada A: enemigos NO absorbing (visualmente bajo el torrente).
     for (var j = 0; j < state.enemies.length; j++) {

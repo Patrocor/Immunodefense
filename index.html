@@ -3648,6 +3648,14 @@
   // played in updateCinematic + drawn in drawCinematicEnd.
   function triggerCinematicEnd() {
     if (state.cinematicEnd) return;
+    // A partir de la ola 18 (boss MRSA), la "infección establecida" deja de
+    // ser un final: es el portal al NIVEL PUENTE. Redirigimos.
+    if (state.waveIdx >= 18 && !state.dissemination) {
+      enterDissemination();
+      return;
+    }
+    // En el nivel puente, la lógica de carril perdido es independiente.
+    if (state.dissemination) return;
     state.cinematicEnd = {
       t: 0,
       buttonShown: false

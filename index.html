@@ -1211,15 +1211,18 @@
     { id: "articulacion", label: "ARTICULACIÓN", scenario: "Artritis séptica",   color: "#8ec5d0", tint: "rgba(142, 197, 208, 0.10)" }
   ];
 
-  // 3 oleadas in crescendo. Calibradas para que sea imposible cubrir los 5
-  // carriles a la vez. Cantidad heavy en S. aureus / MRSA (clásico desde piel).
+  // 3 oleadas in crescendo. La curva es gradual: la primera deja margen
+  // para construir defensa; la última es avalancha. Velocidad ya está al
+  // 50% (ver pxSpeed en updateEnemies).
   var DISSEMINATION_WAVE_TABLE = [
-    // Wave 1: presión moderada, S. aureus dominante por todos los carriles
-    [["saureus",8,0.70],["pseudomonas",4,0.85],["candida",3,0.85]],
-    // Wave 2: más volumen + un boss MRSA en el medio
-    [["saureus",10,0.60],["pseudomonas",5,0.80],["candida",4,0.85],["bossMRSA",1,0]],
-    // Wave 3: avalancha — múltiples bosses, imposible defender los 5
-    [["saureus",14,0.50],["pseudomonas",7,0.70],["candida",6,0.75],["bossMRSA",2,2.0],["bossPyogenes",1,3.0]]
+    // Wave 1: presentación tranquila — pocos gérmenes, mucha separación,
+    // para que el jugador construya su defensa y entienda los carriles.
+    [["saureus",4,1.80],["pseudomonas",2,2.20],["candida",2,2.00]],
+    // Wave 2: presión media — más volumen, primer boss MRSA al final.
+    [["saureus",7,1.30],["pseudomonas",4,1.50],["candida",3,1.40],["bossMRSA",1,0]],
+    // Wave 3: avalancha — bosses dobles, intervalos cortos, imposible
+    // defender los 5 carriles a la vez.
+    [["saureus",12,0.80],["pseudomonas",6,1.00],["candida",5,1.10],["bossMRSA",2,3.0],["bossPyogenes",1,4.0]]
   ];
 
   // Pesos de afinidad germen → carril [corazón, pulmón, sangre, hueso, articulación].
@@ -1630,7 +1633,7 @@
     state.waveActive = false;
     state.pendingSpawns = [];
     state.spawnElapsed = 0;
-    state.nextWaveAt = 5;
+    state.nextWaveAt = 10;   // tiempo para que el jugador asimile el campo
     state.waveCountdownActive = true;
     state.surgeAnnounced = false;
     // Reconstruir PATH con 5 carriles + reposicionar mitocondrias laterales.
@@ -1856,7 +1859,10 @@
       }
       // Auto-schedule next wave: base gap shrinks with wave, infestation
       // multiplier shrinks gap further (snowball).
-      var gapBase = state.dissemination ? 6 : Math.max(2.5, 7.5 - state.waveIdx * 0.4);
+      // En diseminación: pausa larga entre olas (~14-18s) para construir defensa.
+      var gapBase = state.dissemination
+        ? (state.disseminationWaveIdx === 1 ? 18 : 14)
+        : Math.max(2.5, 7.5 - state.waveIdx * 0.4);
       state.nextWaveAt = state.dissemination ? gapBase : (gapBase * infestWaveGapMult(state.viralLoad));
       state.waveCountdownActive = true;
       if (state.dissemination) {
@@ -2080,6 +2086,8 @@
       }
       var pxSpeed = e.def.speedMult * (e.speedMultLevel || 1) * BASE_SPEED * U *
                     infestSpeedMult(state.viralLoad);
+      // Nivel puente: gérmenes a la mitad de velocidad para dar tiempo de luchar.
+      if (state.dissemination) pxSpeed *= 0.5;
       // Medicamento: paralización / ralentización.
       if (e.stunTimer > 0) e.stunTimer -= dt;
       if (e.slowTimer > 0) e.slowTimer -= dt;

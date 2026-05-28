@@ -859,21 +859,7 @@
   // BASE_SPEED in design px/s; multiplied by U each frame for actual movement.
   var BASE_SPEED = 60;
   var ENEMY_DEFS = {
-    // ---- 6 real pathogens (Sprint 6) -------------------------------------
-    ecoli: {
-      id: "ecoli", name: "Escherichia coli", baseKind: "bacteria",
-      color: "#E74C3C", colorDark: "#922a1f", radius: 13,
-      speedMult: 1.2, hp: 225, reward: 8, viralAdd: 5, isBoss: false,
-      shield: null,
-      tooltip: "Bacteria gram negativa rápida y vulnerable. Sin defensa especial. Habita comúnmente el intestino, pero algunas cepas son patógenas."
-    },
-    spneumoniae: {
-      id: "spneumoniae", name: "Streptococcus pneumoniae", baseKind: "bacteria",
-      color: "#F8BBD0", colorDark: "#a47080", radius: 13,
-      speedMult: 0.8, hp: 330, reward: 12, viralAdd: 6, isBoss: false,
-      shield: { type: "capsula", maxHP: 3, regenRate: 3 / 10, regenDelay: 10, doubleRing: false },
-      tooltip: "Bacteria con cápsula polisacárida que bloquea la fagocitosis. Causa neumonía, otitis y meningitis. Su cápsula es su principal factor de virulencia."
-    },
+    // ---- Patógenos cutáneos (Fase 1) -------------------------------------
     saureus: {
       id: "saureus", name: "Staphylococcus aureus", baseKind: "bacteria",
       color: "#F9A825", colorDark: "#9c6e0a", radius: 27,
@@ -982,20 +968,6 @@
       speedMult: 0.8, hp: 1050, reward: 50, viralAdd: 15, attack: 25, power: { type: "burst", range: 165, cooldown: 3, dmg: 24, slowFire: 3 }, isBoss: true,
       shield: { type: "capsula", maxHP: 6, regenRate: 6 / 8, regenDelay: 0 },
       tooltip: "La 'bacteria carnívora'. Causa fascitis necrotizante y faringitis severa. Su cápsula y exotoxinas la hacen muy peligrosa."
-    },
-    bossTuberculosis: {
-      id: "bossTuberculosis", name: "Mycobacterium tuberculosis", baseKind: "bacteria",
-      color: "#6D4C41", colorDark: "#352318", radius: 30,
-      speedMult: 0.5, hp: 1350, reward: 60, viralAdd: 18, isBoss: true,
-      shield: { type: "wall", maxHP: 8, regenRate: 0, regenDelay: 0, waxy: true },
-      tooltip: "Bacteria del agente causal de la tuberculosis. Su pared cerosa de ácidos micólicos la hace extremadamente resistente. Avanza lento pero implacable."
-    },
-    bossAspergillus: {
-      id: "bossAspergillus", name: "Aspergillus fumigatus", baseKind: "hongo",
-      color: "#689F38", colorDark: "#33491a", radius: 33,
-      speedMult: 0.9, hp: 1650, reward: 80, viralAdd: 22, isBoss: true,
-      shield: { type: "wall", maxHP: 5, regenRate: 1 / 5, regenDelay: 0 },
-      tooltip: "Hongo filamentoso con esporas (conidias) que se diseminan por el aire. Causa aspergilosis pulmonar. Sus hifas le permiten invadir tejidos profundos."
     },
     bossMRSA: {
       id: "bossMRSA", name: "MRSA", baseKind: "bacteria",
@@ -1145,16 +1117,16 @@
     6:  [["sepidermidis",4,1.0],["hsv",5,0.55],["cacnes",3,1.0],["candida",2,0.9],["hpv",2,1.0]],
     7:  [["sepidermidis",4,0.9],["hsv",5,0.55],["cacnes",3,1.0],["pseudomonas",2,0.9],["molluscum",2,0.9],["bossPseudomonas",1,0]],
     8:  [["sepidermidis",4,0.9],["hsv",6,0.5],["cacnes",3,1.0],["pseudomonas",3,0.9],["malassezia",2,0.9],["sarna",2,1.0]],
-    9:  [["hsv",6,0.5],["cacnes",3,1.0],["pseudomonas",3,0.9],["candida",3,0.9],["saureus",2,1.0]],
-    10: [["hsv",6,0.5],["cacnes",3,1.0],["pseudomonas",4,0.9],["candida",3,0.9],["saureus",3,1.0]],
-    11: [["sepidermidis",5,0.85],["hsv",6,0.5],["pseudomonas",4,0.9],["candida",3,0.9],["saureus",3,1.0]],
+    9:  [["hsv",6,0.5],["cacnes",3,1.0],["pseudomonas",3,0.9],["candida",3,0.9],["saureus",2,1.0],["hpv",2,1.0]],
+    10: [["hsv",6,0.5],["cacnes",3,1.0],["pseudomonas",4,0.9],["candida",3,0.9],["saureus",3,1.0],["molluscum",2,0.9]],
+    11: [["sepidermidis",5,0.85],["hsv",6,0.5],["pseudomonas",4,0.9],["candida",3,0.9],["saureus",3,1.0],["malassezia",2,0.9]],
     12: [["hsv",6,0.5],["pseudomonas",4,0.9],["candida",4,0.9],["saureus",3,1.0],["sarna",2,1.0],["hpv",2,1.0],["bossClostridium",1,0]],
-    13: [["hsv",7,0.5],["cacnes",4,0.95],["pseudomonas",5,0.9],["candida",4,0.9],["saureus",4,1.0],["dermatofito",2,1.0]],
-    14: [["hsv",7,0.5],["cacnes",4,0.95],["pseudomonas",5,0.9],["candida",5,0.9],["saureus",4,1.0]],
-    15: [["sepidermidis",6,0.8],["hsv",7,0.5],["pseudomonas",5,0.9],["candida",5,0.9],["saureus",5,1.0]],
+    13: [["hsv",7,0.5],["cacnes",4,0.95],["pseudomonas",5,0.9],["candida",4,0.9],["saureus",4,1.0],["dermatofito",2,1.0],["molluscum",2,0.9]],
+    14: [["hsv",7,0.5],["cacnes",4,0.95],["pseudomonas",5,0.9],["candida",5,0.9],["saureus",4,1.0],["malassezia",2,0.9],["sarna",2,1.0]],
+    15: [["sepidermidis",6,0.8],["hsv",7,0.5],["pseudomonas",5,0.9],["candida",5,0.9],["saureus",5,1.0],["hpv",2,1.0],["sarna",2,1.0]],
     16: [["hsv",8,0.45],["cacnes",5,0.9],["pseudomonas",6,0.85],["candida",5,0.9],["saureus",5,1.0],["dermatofito",2,1.0],["molluscum",2,0.9],["malassezia",2,0.9]],
-    17: [["hsv",8,0.45],["cacnes",5,0.9],["pseudomonas",6,0.85],["candida",6,0.9],["saureus",6,1.0]],
-    18: [["hsv",6,0.45],["pseudomonas",5,0.85],["candida",4,0.9],["saureus",8,1.0],["bossMRSA",1,0]]
+    17: [["hsv",8,0.45],["cacnes",5,0.9],["pseudomonas",6,0.85],["candida",6,0.9],["saureus",6,1.0],["sarna",2,1.0],["molluscum",2,0.9],["hpv",2,1.0]],
+    18: [["hsv",6,0.45],["pseudomonas",5,0.85],["candida",4,0.9],["saureus",8,1.0],["hpv",3,1.0],["bossMRSA",1,0]]
   };
   function getWaveDef(waveNum) {
     var diffHp = 1 + (waveNum - 1) * 0.05;
@@ -1687,7 +1659,7 @@
     ["hsv", "cacnes", "candida", "pseudomonas"],   // 8
     ["hsv", "candida", "pseudomonas", "saureus"]   // 9
   ];
-  var INTERMEDIATE_POOL_LATE = ["sepidermidis", "hsv", "cacnes", "candida", "pseudomonas", "saureus"];
+  var INTERMEDIATE_POOL_LATE = ["sepidermidis", "hsv", "cacnes", "candida", "pseudomonas", "saureus", "hpv", "molluscum", "malassezia", "sarna"];
   function pickIntermediateType() {
     var w = Math.max(0, state.waveIdx | 0);
     var pool = w < INTERMEDIATE_POOL_BY_WAVE.length
@@ -6608,9 +6580,7 @@
     // regulares con morfología microbiológica). Fallback al baseKind
     // antiguo para bosses y aliases legacy.
     var kind = def.baseKind || def.bossKind || def.id;
-    if      (def.id === "ecoli")        drawEcoli(e, rad * scale, expression, blink);
-    else if (def.id === "spneumoniae")  drawSpneumoniae(e, rad * scale, expression, blink);
-    else if (def.id === "saureus")      drawSaureus(e, rad * scale, expression, blink);
+    if      (def.id === "saureus")      drawSaureus(e, rad * scale, expression, blink);
     else if (def.id === "influenza")    drawInfluenza(e, rad * scale, expression, blink);
     else if (def.id === "vih")          drawVih(e, rad * scale, expression, blink);
     else if (def.id === "candida")      drawCandida(e, rad * scale, expression, blink);
@@ -6625,8 +6595,6 @@
     else if (def.id === "bossPseudomonas") drawEcoli(e, rad * scale, expression, blink);
     // Sprint 8C-2: bosses con morfología real, antes del fallback genérico.
     else if (def.id === "bossPyogenes")      drawBossPyogenes(e, rad * scale, expression, blink);
-    else if (def.id === "bossTuberculosis")  drawBossTuberculosis(e, rad * scale, expression, blink);
-    else if (def.id === "bossAspergillus")   drawBossAspergillus(e, rad * scale, expression, blink);
     else if (def.id === "bossMRSA")          drawBossMRSA(e, rad * scale, expression, blink);
     else if (def.id === "bossClostridium")   drawBoss(e, rad * scale, expression, blink);
     else if (kind === "bacteria")       drawBacteria(e, rad * scale, expression, blink);

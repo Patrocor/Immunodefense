@@ -493,6 +493,10 @@
   }
 
   function rebuildPath() {
+    if (typeof state !== "undefined" && state && state.dissemination) {
+      rebuildDisseminationPath();
+      return;
+    }
     PATH.orientation = isPortrait ? "portrait" : "landscape";
     var woundsNorm = isPortrait ? WOUND_POS_PORTRAIT : WOUND_POS_LANDSCAPE;
     function toPx(p) {
@@ -555,6 +559,49 @@
     if (state) generateTissue();
   }
 
+  // ============ PATH DEL NIVEL PUENTE (5 carriles paralelos) ============
+  // Cada carril es una línea recta horizontal: spawn a la derecha, puerta de
+  // órgano a la izquierda. No hay tronco compartido (PATH.main vacío).
+  function rebuildDisseminationPath() {
+    PATH.orientation = isPortrait ? "portrait" : "landscape";
+    // 5 carriles equiespaciados verticalmente, con margen arriba/abajo.
+    var laneYs = [0.18, 0.34, 0.50, 0.66, 0.82];
+    var entryXn = 0.94;
+    var exitXn = 0.10;
+    PATH.wounds = [];
+    PATH.branches = [];
+    PATH.totalForBranch = [];
+    PATH.absorbStartForBranch = [];
+    PATH.organDoors = [];
+    PATH.laneYs = laneYs;
+    for (var i = 0; i < 5; i++) {
+      var yPx = FIELD_TOP + laneYs[i] * FIELD_H;
+      var entry = { x: FIELD_LEFT + entryXn * FIELD_W, y: yPx };
+      var exit = { x: FIELD_LEFT + exitXn * FIELD_W, y: yPx };
+      PATH.wounds.push({ x: entry.x, y: entry.y, phase: i * 0.4, active: true });
+      PATH.organDoors.push({ x: exit.x, y: exit.y, organ: DISSEMINATION_ORGANS[i], laneY: yPx });
+      // 3 anchors para una Bezier suave (entry → medio → exit, todo en la misma y).
+      var mid = { x: (entry.x + exit.x) / 2, y: yPx };
+      PATH.branches.push(buildBezierPath([entry, mid, exit]));
+      var t = PATH.branches[i].length;
+      PATH.totalForBranch.push(t);
+      // "Carril perdido" se dispara al 98% del recorrido (casi tocando la puerta).
+      PATH.absorbStartForBranch.push(t * 0.98);
+    }
+    // Sin tronco compartido en diseminación.
+    PATH.main = { length: 0, beziers: [] };
+    PATH.confluence = null;
+    // PATH.exit apunta al centro del campo izquierdo (referencia para fx).
+    PATH.exit = { x: FIELD_LEFT + exitXn * FIELD_W, y: FIELD_TOP + 0.5 * FIELD_H };
+    // Aliases legacy.
+    PATH.beziers = [];
+    PATH.total = PATH.totalForBranch[0];
+    PATH.entry = PATH.wounds[2];     // sangre como referencia (centro)
+    PATH.absorbStart = PATH.absorbStartForBranch[0];
+    if (state) generateTissue();
+  }
+  // ============ FIN PATH NIVEL PUENTE ============
+
   // Sample a point on a beziers array at distance `progress` (0..length).
   function sampleBeziers(beziers, progress) {
     if (!beziers.length) return { x: 0, y: 0, angle: 0 };
@@ -592,11 +639,16 @@
 
   function pathPos(progress, heridaIdx) {
     heridaIdx = heridaIdx | 0;
-    if (heridaIdx < 0 || heridaIdx > 2) heridaIdx = 0;
+    var maxIdx = (PATH.branches.length || 1) - 1;
+    if (heridaIdx < 0 || heridaIdx > maxIdx) heridaIdx = 0;
     if (!PATH.branches.length) return { x: 0, y: 0, angle: 0 };
     var branch = PATH.branches[heridaIdx];
     if (progress <= branch.length) {
       return sampleBeziers(branch.beziers, progress);
+    }
+    // En diseminación PATH.main está vacío: nos quedamos al final de la rama.
+    if (!PATH.main || !PATH.main.beziers || !PATH.main.beziers.length) {
+      return sampleBeziers(branch.beziers, branch.length);
     }
     var mainProgress = progress - branch.length;
     return sampleBeziers(PATH.main.beziers, mainProgress);
@@ -1128,6 +1180,56 @@
     17: [["hsv",8,0.45],["cacnes",5,0.9],["pseudomonas",6,0.85],["candida",6,0.9],["saureus",6,1.0],["sarna",2,1.0],["molluscum",2,0.9],["hpv",2,1.0]],
     18: [["hsv",6,0.45],["pseudomonas",5,0.85],["candida",4,0.9],["saureus",8,1.0],["hpv",3,1.0],["bossMRSA",1,0]]
   };
+
+  // ============ NIVEL PUENTE: DISEMINACIÓN ============
+  // 5 carriles paralelos estilo PvZ. Tras vencer al boss MRSA (ola 18), la
+  // infección rompió la barrera cutánea y busca órgano blanco. El jugador
+  // defiende; el primer germen que cruza una puerta define el escenario de
+  // Fase 2. Diseñado para que el ATP/slots NO alcancen los 5 carriles.
+  var DISSEMINATION_ORGANS = [
+    { id: "corazon",      label: "CORAZÓN",      scenario: "Endocarditis",       color: "#c1416a", tint: "rgba(193, 65, 106, 0.10)" },
+    { id: "pulmon",       label: "PULMÓN",       scenario: "Émbolos sépticos",   color: "#e8a3b3", tint: "rgba(232, 163, 179, 0.10)" },
+    { id: "sangre",       label: "SANGRE",       scenario: "Sepsis",             color: "#b8232a", tint: "rgba(184, 35, 42, 0.10)" },
+    { id: "hueso",        label: "HUESO",        scenario: "Osteomielitis",      color: "#d8c89a", tint: "rgba(216, 200, 154, 0.10)" },
+    { id: "articulacion", label: "ARTICULACIÓN", scenario: "Artritis séptica",   color: "#8ec5d0", tint: "rgba(142, 197, 208, 0.10)" }
+  ];
+
+  // 3 oleadas in crescendo. Calibradas para que sea imposible cubrir los 5
+  // carriles a la vez. Cantidad heavy en S. aureus / MRSA (clásico desde piel).
+  var DISSEMINATION_WAVE_TABLE = [
+    // Wave 1: presión moderada, S. aureus dominante por todos los carriles
+    [["saureus",8,0.70],["pseudomonas",4,0.85],["candida",3,0.85]],
+    // Wave 2: más volumen + un boss MRSA en el medio
+    [["saureus",10,0.60],["pseudomonas",5,0.80],["candida",4,0.85],["bossMRSA",1,0]],
+    // Wave 3: avalancha — múltiples bosses, imposible defender los 5
+    [["saureus",14,0.50],["pseudomonas",7,0.70],["candida",6,0.75],["bossMRSA",2,2.0],["bossPyogenes",1,3.0]]
+  ];
+
+  // Pesos de afinidad germen → carril [corazón, pulmón, sangre, hueso, articulación].
+  // Refleja la clínica: S. aureus → corazón/hueso/articulación; pyogenes → pulmón/sangre; etc.
+  var GERM_AFFINITY = {
+    saureus:         [3, 2, 2, 3, 3],
+    bossMRSA:        [3, 2, 3, 2, 2],
+    pyogenes:        [1, 3, 3, 1, 1],
+    bossPyogenes:    [1, 3, 3, 1, 1],
+    pseudomonas:     [1, 3, 2, 2, 1],
+    bossPseudomonas: [1, 3, 2, 2, 1],
+    sepidermidis:    [3, 1, 1, 1, 1],
+    candida:         [2, 2, 2, 1, 1]
+  };
+  function pickDisseminationLane(typeId) {
+    var weights = GERM_AFFINITY[typeId] || [1, 1, 1, 1, 1];
+    var total = 0;
+    for (var i = 0; i < weights.length; i++) total += weights[i];
+    var r = Math.random() * total;
+    for (var j = 0; j < weights.length; j++) {
+      r -= weights[j];
+      if (r <= 0) return j;
+    }
+    return 0;
+  }
+  // ============ FIN NIVEL PUENTE ============
+
   function getWaveDef(waveNum) {
     var diffHp = 1 + (waveNum - 1) * 0.05;
     var diffSpeed = 1 + (waveNum - 1) * 0.04;
@@ -1249,6 +1351,11 @@
       levelTransition: false,
       finalScreen: false,
       transitionTimer: 0,
+      // Nivel puente "Diseminación" (5 carriles, post ola 18).
+      dissemination: false,
+      disseminationWaveIdx: 0,         // 0..2 dentro del puente
+      disseminationOver: null,         // { germ, organ } cuando un germen cruza
+      disseminationIntroTimer: 0,      // banner de entrada al puente
       tissue: null,
       mitosis: null,
       nextMitosisAt: 12,
@@ -1438,6 +1545,7 @@
   // -------- WAVES / SPAWN -------------------------------------------------
   function startNextWave() {
     if (state.waveActive || state.cinematicEnd || state.confirmRestart || state.showIntro) return;
+    if (state.dissemination) { startNextDisseminationWave(); return; }
     state.waveIdx += 1;
     META.wavesReached = Math.max(META.wavesReached, state.waveIdx);
     saveMeta();
@@ -1468,30 +1576,139 @@
     sfx("wave");
   }
 
+  // ============ NIVEL PUENTE: TRANSICIÓN Y SCHEDULER ============
+  // Al cerrar la ola 18 (boss MRSA), saltamos al campo de 5 carriles.
+  // Reset con ATP base: no se heredan torres ni ATP de Fase 1.
+  function enterDissemination() {
+    state.dissemination = true;
+    state.disseminationWaveIdx = 0;
+    state.disseminationOver = null;
+    state.disseminationIntroTimer = 3.0;
+    // Limpieza del campo de Fase 1.
+    state.enemies.length = 0;
+    state.towers.length = 0;
+    state.guardians.length = 0;
+    state.germShots.length = 0;
+    state.projectiles.length = 0;
+    state.effects.length = 0;
+    state.fragments.length = 0;
+    state.cannonShots.length = 0;
+    state.acidSplats.length = 0;
+    state.seekers.length = 0;
+    state.slicks.length = 0;
+    state.restos.length = 0;
+    state.collectors.length = 0;
+    state.pathInflammation.length = 0;
+    state.barricada = null;
+    state.bossActive = null;
+    state.cinematicEnd = null;
+    state.selectedToBuild = null;
+    state.selectedTower = null;
+    // Reset progresión.
+    state.atp = 180;
+    state.viralLoad = 0;
+    state.viralThreshold = INFESTACION_THRESHOLD;
+    state.pathogensReached = 0;
+    state.waveIdx = 0;
+    state.waveActive = false;
+    state.pendingSpawns = [];
+    state.spawnElapsed = 0;
+    state.nextWaveAt = 5;
+    state.waveCountdownActive = true;
+    state.surgeAnnounced = false;
+    // Reconstruir PATH con 5 carriles.
+    rebuildPath();
+    state.waveBannerText = "DISEMINACIÓN — DEFENDÉ LOS ÓRGANOS";
+    state.waveBannerTimer = 3.0;
+    sfx("wave");
+    showMsg("La infección rompió la barrera. Buscó órgano blanco.");
+  }
+
+  function startNextDisseminationWave() {
+    if (state.disseminationOver) return;
+    if (state.disseminationWaveIdx >= DISSEMINATION_WAVE_TABLE.length) {
+      // Edge case: el jugador defendió las 3 olas sin perder ninguno (balance debería evitarlo).
+      // Repetimos la última ola en bucle con más HP hasta que algo caiga.
+      var lastIdx = DISSEMINATION_WAVE_TABLE.length - 1;
+      var lastDef = DISSEMINATION_WAVE_TABLE[lastIdx];
+      state.waveActive = true;
+      state.pendingSpawns = [];
+      state.spawnElapsed = 0;
+      var tEx = 0;
+      for (var ge = 0; ge < lastDef.length; ge++) {
+        var grpE = lastDef[ge];
+        for (var ke = 0; ke < grpE[1]; ke++) {
+          state.pendingSpawns.push({ type: grpE[0], time: tEx, hpMult: 1.5 });
+          tEx += grpE[2];
+        }
+      }
+      state.waveBannerText = "DISEMINACIÓN — PRESIÓN MÁXIMA";
+      state.waveBannerTimer = 2.2;
+      return;
+    }
+    var idx = state.disseminationWaveIdx++;
+    var groups = DISSEMINATION_WAVE_TABLE[idx];
+    state.waveActive = true;
+    state.waveCountdownActive = false;
+    state.pendingSpawns = [];
+    state.spawnElapsed = 0;
+    var t = 0;
+    for (var g = 0; g < groups.length; g++) {
+      var grp = groups[g];
+      for (var k = 0; k < grp[1]; k++) {
+        state.pendingSpawns.push({ type: grp[0], time: t, hpMult: 1.0 });
+        // Jitter de cadencia.
+        t += grp[2] * (0.85 + Math.random() * 0.30);
+      }
+      t += 0.6;
+    }
+    state.waveBannerText = "DISEMINACIÓN — OLEADA " + (idx + 1) + " / " + DISSEMINATION_WAVE_TABLE.length;
+    state.waveBannerTimer = 2.2;
+    sfx("wave");
+  }
+  // ============ FIN NIVEL PUENTE: TRANSICIÓN ============
+
   function spawnEnemy(typeId, hpMult) {
     var def = ENEMY_DEFS[typeId];
     if (!def) return;
     var diff = getDifficulty();
     var hp = def.hp * hpMult * diff.hp;
     if (def.isBoss) state.bossActive = null;  // reset; will be set after push
-    // Elegir una herida ACTIVA al azar (la 2ª recién cuenta tras abrirse).
-    var activeIdx = [];
-    for (var wi = 0; wi < PATH.wounds.length; wi++) if (PATH.wounds[wi].active) activeIdx.push(wi);
-    if (!activeIdx.length) activeIdx = [0];
-    var heridaIdx = activeIdx[Math.floor(Math.random() * activeIdx.length)];
+    var heridaIdx;
+    if (state.dissemination) {
+      // En el nivel puente: elegir carril por afinidad clínica del germen.
+      heridaIdx = pickDisseminationLane(typeId);
+    } else {
+      // Fase 1: herida ACTIVA al azar (la 2ª recién cuenta tras abrirse).
+      var activeIdx = [];
+      for (var wi = 0; wi < PATH.wounds.length; wi++) if (PATH.wounds[wi].active) activeIdx.push(wi);
+      if (!activeIdx.length) activeIdx = [0];
+      heridaIdx = activeIdx[Math.floor(Math.random() * activeIdx.length)];
+    }
     var wound = PATH.wounds[heridaIdx] || { x: VW * 0.5, y: FIELD_TOP + 20 * U };
-    // Initial OUTSIDE state: hover above the skin band briefly.
-    var outX = wound.x + (Math.random() - 0.5) * 80 * U;
-    var skinTop = FIELD_TOP + FIELD_H * 0.07;
-    var outY = FIELD_TOP + Math.random() * (skinTop - FIELD_TOP) * 0.8 + 4 * U;
+    var outX, outY;
+    if (state.dissemination) {
+      // En el puente: el germen aparece a la DERECHA de la grieta, en su carril.
+      outX = wound.x + (20 + Math.random() * 40) * U;
+      outY = wound.y + (Math.random() - 0.5) * 12 * U;
+    } else {
+      // Fase 1: el germen "cae" desde la piel sobre la herida.
+      outX = wound.x + (Math.random() - 0.5) * 80 * U;
+      var skinTop = FIELD_TOP + FIELD_H * 0.07;
+      outY = FIELD_TOP + Math.random() * (skinTop - FIELD_TOP) * 0.8 + 4 * U;
+    }
+    // En diseminación los gérmenes ya están dentro: spawn directo a "walking"
+    // sobre el carril, sin la animación de caer desde la piel.
+    var initState = state.dissemination ? "walking" : "outside";
+    var initOutsideTimer = state.dissemination ? 0 : (1.0 + Math.random() * 1.0);
     state.enemies.push({
       def: def,
       hp: hp,
       maxHp: hp,
       speedMultLevel: diff.speed,
       heridaIdx: heridaIdx,
-      state: "outside",   // outside -> falling -> entering -> walking -> absorbing
-      outsideTimer: 1.0 + Math.random() * 1.0,  // 1-2s in exterior
+      state: initState,
+      outsideTimer: initOutsideTimer,
       progress: 0,
       powerCd: def.power ? (def.power.cooldown * (0.5 + Math.random() * 0.6)) : 0,
       powerCharge: 0,
@@ -1588,12 +1805,15 @@
       // Single-file enforcement: if any live enemy is still very close to entry, hold.
       var def = ENEMY_DEFS[s.type];
       if (!def) { state.pendingSpawns.shift(); continue; }
-      var minSep = (def.radius + 10) * 2 * U;
-      var minProgress = Infinity;
-      for (var i = 0; i < state.enemies.length; i++) {
-        if (state.enemies[i].progress < minProgress) minProgress = state.enemies[i].progress;
+      // En diseminación hay 5 carriles paralelos: no aplica single-file global.
+      if (!state.dissemination) {
+        var minSep = (def.radius + 10) * 2 * U;
+        var minProgress = Infinity;
+        for (var i = 0; i < state.enemies.length; i++) {
+          if (state.enemies[i].progress < minProgress) minProgress = state.enemies[i].progress;
+        }
+        if (state.enemies.length > 0 && minProgress < minSep) break;
       }
-      if (state.enemies.length > 0 && minProgress < minSep) break;
       state.pendingSpawns.shift();
       spawnEnemy(s.type, s.hpMult);
     }
@@ -1608,12 +1828,21 @@
       state.waveActive = false;
       var bonus = 12 + state.waveIdx * 2;
       state.atp += bonus;
+      // Transición a NIVEL PUENTE: al cerrar la ola 18 (boss MRSA) en Fase 1.
+      if (!state.dissemination && state.waveIdx === 18) {
+        enterDissemination();
+        return;
+      }
       // Auto-schedule next wave: base gap shrinks with wave, infestation
       // multiplier shrinks gap further (snowball).
-      var baseGap = Math.max(2.5, 7.5 - state.waveIdx * 0.4);
-      state.nextWaveAt = baseGap * infestWaveGapMult(state.viralLoad);
+      var gapBase = state.dissemination ? 6 : Math.max(2.5, 7.5 - state.waveIdx * 0.4);
+      state.nextWaveAt = state.dissemination ? gapBase : (gapBase * infestWaveGapMult(state.viralLoad));
       state.waveCountdownActive = true;
-      showMsg("Oleada " + state.waveIdx + " superada (+" + bonus + " ATP)");
+      if (state.dissemination) {
+        showMsg("Oleada " + state.disseminationWaveIdx + " contenida (+" + bonus + " ATP)");
+      } else {
+        showMsg("Oleada " + state.waveIdx + " superada (+" + bonus + " ATP)");
+      }
     }
   }
 
@@ -1959,6 +2188,27 @@
         ? PATH.absorbStartForBranch[hi]
         : totalForThis * TORRENT_ABSORB_TRIGGER;
       if (e.progress >= absorbThreshold && !e.absorbing) {
+        // NIVEL PUENTE: el primer germen que cruza una puerta de órgano
+        // define el escenario de Fase 2 y termina el nivel.
+        if (state.dissemination) {
+          if (!state.disseminationOver) {
+            var organ = (PATH.organDoors && PATH.organDoors[hi])
+              ? PATH.organDoors[hi].organ
+              : DISSEMINATION_ORGANS[hi] || DISSEMINATION_ORGANS[0];
+            state.disseminationOver = {
+              germ: e.def,
+              organ: organ,
+              t: 0
+            };
+            triggerShake(0.45, 9);
+            sfx("playerHurt");
+            spawnEffect("escape", e.x, e.y);
+            state.waveActive = false;
+            state.pendingSpawns = [];
+          }
+          e.dead = true;
+          continue;
+        }
         e.absorbing = true;
         e.absorbStartTime = state.time;
         e.absorbStartX = e.x;
@@ -5049,6 +5299,12 @@
       setMuted(!audio.muted);
     } else if (e.key === "r" || e.key === "R") {
       state.confirmRestart = true;
+    } else if ((e.key === "B" || e.key === "b") && e.shiftKey) {
+      // DEV cheat: salto directo al nivel puente "Diseminación" (test).
+      if (!state.dissemination && !state.showTitle && !state.showIntro) {
+        state.waveIdx = 18;
+        enterDissemination();
+      }
     }
   });
 
@@ -9748,19 +10004,23 @@
 
     // Strict render order per Sprint 4A spec.
     clearCanvas();
-    drawExteriorZone();      // 0-7%: green outdoor band
-    drawSkinZone();          // 7-15%: thinner skin band
-    drawSkinLayers();        // 15-82%: dermis + hipodermis teñidas
-    drawCirculatoryZone();   // 85-100%: blood vessels area
+    if (state.dissemination) {
+      drawDisseminationField();
+    } else {
+      drawExteriorZone();      // 0-7%: green outdoor band
+      drawSkinZone();          // 7-15%: thinner skin band
+      drawSkinLayers();        // 15-82%: dermis + hipodermis teñidas
+      drawCirculatoryZone();   // 85-100%: blood vessels area
+    }
     drawAmbient();
-    drawMitosis();
-    drawPatrol();
+    if (!state.dissemination) drawMitosis();
+    if (!state.dissemination) drawPatrol();
     drawTissue();
     drawInflammation();
-    drawPath();              // path strokes (3 branches + main)
-    drawPlasmaFlow();        // corriente de plasma fluyendo por el camino
-    drawWound();             // 3 wound sprites
-    drawLymphNode();
+    drawPath();              // path strokes (rectas en diseminación)
+    if (!state.dissemination) drawPlasmaFlow();
+    if (!state.dissemination) drawWound();
+    if (!state.dissemination) drawLymphNode();
     drawRestos();
     drawCollectors();
     drawBarricada();         // coagulation barricade (under enemies)
@@ -9772,8 +10032,8 @@
       var ej = state.enemies[j];
       if (!ej.absorbing) drawEnemy(ej);
     }
-    // Torrente sprite — cubre cualquier enemigo cerca del vaso.
-    drawVessel();
+    // Torrente sprite — cubre cualquier enemigo cerca del vaso (no en diseminación).
+    if (!state.dissemination) drawVessel();
     // Pasada B: enemigos absorbing (sobre el torrente, se ven siendo tragados).
     for (var jb = 0; jb < state.enemies.length; jb++) {
       var ejb = state.enemies[jb];
@@ -9814,6 +10074,8 @@
     drawEndOverlay();
     drawMrsaIntro();
     drawCinematicEnd();
+    drawDisseminationIntro();
+    drawDisseminationOver();
     drawTooltip();
     drawIntroScreen();
     drawTitleScreen();
@@ -9884,6 +10146,181 @@
     }
   }
 
+  // -------- NIVEL PUENTE: RENDER -------------------------------------------
+  function drawDisseminationField() {
+    // Fondo gradiente cálido (tejido profundo del cuerpo).
+    var g = ctx.createLinearGradient(0, FIELD_TOP, 0, FIELD_TOP + FIELD_H);
+    g.addColorStop(0, "#3a1d24");
+    g.addColorStop(1, "#1f0e16");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, FIELD_TOP, VW, FIELD_H);
+    // 5 carriles con tinte propio + separadores tenues.
+    if (!PATH.laneYs) return;
+    var laneH = FIELD_H * 0.16;  // banda visual del carril (no es 1/5 entero)
+    for (var i = 0; i < PATH.laneYs.length; i++) {
+      var organ = DISSEMINATION_ORGANS[i];
+      var yc = FIELD_TOP + PATH.laneYs[i] * FIELD_H;
+      var yTop = yc - laneH / 2;
+      // Tinte del carril.
+      ctx.fillStyle = organ.tint;
+      ctx.fillRect(0, yTop, VW, laneH);
+      // Hairline central del carril (la "vena" del recorrido).
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.06)";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(0, yc);
+      ctx.lineTo(VW, yc);
+      ctx.stroke();
+    }
+    // Separadores entre carriles.
+    ctx.strokeStyle = "rgba(0, 0, 0, 0.35)";
+    ctx.lineWidth = 1;
+    for (var s = 1; s < PATH.laneYs.length; s++) {
+      var ys = FIELD_TOP + ((PATH.laneYs[s - 1] + PATH.laneYs[s]) / 2) * FIELD_H;
+      ctx.beginPath();
+      ctx.moveTo(0, ys);
+      ctx.lineTo(VW, ys);
+      ctx.stroke();
+    }
+    // Grietas (spawn) a la derecha y puertas de órgano a la izquierda.
+    if (PATH.wounds && PATH.organDoors) {
+      for (var k = 0; k < PATH.wounds.length; k++) {
+        var w = PATH.wounds[k];
+        var d = PATH.organDoors[k];
+        drawDisseminationCrack(w.x, w.y);
+        drawOrganDoor(d.x, d.y, d.organ);
+      }
+    }
+  }
+
+  function drawDisseminationCrack(x, y) {
+    // Grieta irregular roja oscura por donde entra el germen.
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.fillStyle = "rgba(120, 20, 30, 0.85)";
+    ctx.beginPath();
+    ctx.moveTo(0, -14 * U);
+    ctx.lineTo(8 * U, -6 * U);
+    ctx.lineTo(4 * U, 0);
+    ctx.lineTo(10 * U, 8 * U);
+    ctx.lineTo(0, 14 * U);
+    ctx.lineTo(-6 * U, 6 * U);
+    ctx.lineTo(-2 * U, 0);
+    ctx.lineTo(-8 * U, -8 * U);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = "rgba(40, 8, 12, 0.9)";
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawOrganDoor(x, y, organ) {
+    // Puerta circular con ícono del órgano + etiqueta.
+    ctx.save();
+    var r = 22 * U;
+    // Halo de color del órgano.
+    var grd = ctx.createRadialGradient(x, y, 4, x, y, r * 1.6);
+    grd.addColorStop(0, organ.color);
+    grd.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = grd;
+    ctx.fillRect(x - r * 2, y - r * 2, r * 4, r * 4);
+    // Disco oscuro.
+    ctx.fillStyle = "rgba(20, 10, 14, 0.92)";
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fill();
+    // Anillo del color del órgano.
+    ctx.strokeStyle = organ.color;
+    ctx.lineWidth = 3;
+    ctx.stroke();
+    // Ícono central (símbolo simple por órgano).
+    ctx.fillStyle = organ.color;
+    ctx.font = "bold " + Math.floor(18 * U) + "px Fredoka, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    var icon = organ.id === "corazon" ? "♥"
+             : organ.id === "pulmon" ? "🫁"
+             : organ.id === "sangre" ? "●"
+             : organ.id === "hueso" ? "▌"
+             : "◯";
+    ctx.fillText(icon, x, y - 1);
+    // Etiqueta debajo.
+    ctx.font = "bold " + Math.floor(10 * U) + "px Fredoka, sans-serif";
+    ctx.fillStyle = "rgba(240, 220, 200, 0.95)";
+    ctx.fillText(organ.label, x, y + r + 12 * U);
+    ctx.restore();
+  }
+
+  function drawDisseminationIntro() {
+    if (state.disseminationIntroTimer <= 0) return;
+    var t = state.disseminationIntroTimer;
+    var alpha = Math.min(1, t / 0.4) * Math.min(1, (3.0 - t) / 0.4 + 1);
+    if (alpha <= 0) return;
+    alpha = Math.min(1, alpha);
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
+    ctx.fillRect(0, VH * 0.30, VW, VH * 0.25);
+    ctx.fillStyle = "#f0d2a0";
+    ctx.font = "bold " + Math.floor(28 * U) + "px Fredoka, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("La infección rompió la barrera", VW / 2, VH * 0.38);
+    ctx.font = "bold " + Math.floor(18 * U) + "px Fredoka, sans-serif";
+    ctx.fillStyle = "#c0a080";
+    ctx.fillText("Defendé los 5 órganos", VW / 2, VH * 0.46);
+    ctx.restore();
+  }
+
+  function drawDisseminationOver() {
+    var dOver = state.disseminationOver;
+    if (!dOver) return;
+    var t = dOver.t;
+    // Fade in del fondo oscuro.
+    var bgAlpha = Math.min(0.85, t / 0.6 * 0.85);
+    ctx.save();
+    ctx.fillStyle = "rgba(0, 0, 0, " + bgAlpha + ")";
+    ctx.fillRect(0, 0, VW, VH);
+    // Banner: "[Germen] alcanzó [Órgano]" — aparece a los 0.4s.
+    if (t > 0.4) {
+      var b1Alpha = Math.min(1, (t - 0.4) / 0.4);
+      ctx.globalAlpha = b1Alpha;
+      ctx.fillStyle = dOver.organ.color;
+      ctx.font = "bold " + Math.floor(34 * U) + "px Fredoka, sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      var germLabel = (dOver.germ && (dOver.germ.label || dOver.germ.shortName || dOver.germ.id)) || "El patógeno";
+      ctx.fillText(germLabel + " alcanzó", VW / 2, VH * 0.34);
+      ctx.font = "bold " + Math.floor(52 * U) + "px Fredoka, sans-serif";
+      ctx.fillStyle = "#fff";
+      ctx.fillText(dOver.organ.label, VW / 2, VH * 0.44);
+      ctx.globalAlpha = 1;
+    }
+    // Cinemática: "Próximamente — Fase 2: [Escenario]" a los 1.6s.
+    if (t > 1.6) {
+      var b2Alpha = Math.min(1, (t - 1.6) / 0.5);
+      ctx.globalAlpha = b2Alpha;
+      ctx.fillStyle = "#c0a080";
+      ctx.font = "bold " + Math.floor(18 * U) + "px Fredoka, sans-serif";
+      ctx.fillText("PRÓXIMAMENTE — FASE 2", VW / 2, VH * 0.58);
+      ctx.fillStyle = "#f0d2a0";
+      ctx.font = "bold " + Math.floor(40 * U) + "px Fredoka, sans-serif";
+      ctx.fillText(dOver.organ.scenario, VW / 2, VH * 0.66);
+      // Hint pequeño abajo.
+      if (t > 2.6) {
+        var b3Alpha = Math.min(0.7, (t - 2.6) / 0.5 * 0.7);
+        ctx.globalAlpha = b3Alpha;
+        ctx.fillStyle = "#a08060";
+        ctx.font = "bold " + Math.floor(13 * U) + "px Fredoka, sans-serif";
+        ctx.fillText("(escenario en desarrollo)", VW / 2, VH * 0.76);
+      }
+      ctx.globalAlpha = 1;
+    }
+    ctx.restore();
+  }
+  // -------- FIN NIVEL PUENTE: RENDER --------------------------------------
+
   // -------- LOOP ----------------------------------------------------------
   var lastT = performance.now();
   function loop(now) {
@@ -9891,6 +10328,12 @@
     lastT = now;
     state.time += dt;
     var paused = state.confirmRestart || state.showTitle || state.showIntro || state.cinematicEnd;
+    // Nivel puente: pausamos la lógica al caer el primer carril (cinemática + placeholder).
+    if (state.disseminationOver) {
+      state.disseminationOver.t += dt;
+      paused = true;
+    }
+    if (state.disseminationIntroTimer > 0) state.disseminationIntroTimer -= dt;
     if (!paused) {
       updateWaveScheduler(dt);
       updateWave(dt);

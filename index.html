@@ -823,15 +823,29 @@
         { range: 150, damage: 0, fireRate: 1.0, projectileSpeed: 0, splash: 0, hp: 150, slowDur: 1.4, dotPerSec: 9 }
       ],
       upgradeCost: [80, 135]
+    },
+    complemento: {
+      id: "complemento", name: "Cañón del Complemento", shortName: "Cañón MAC",
+      color: "#FFD24A", colorDark: "#b8860b", cost: 5, currency: "complement",
+      desc: "MAC: ignora escudos",
+      ignoreShield: true,
+      levels: [
+        { range: 180, damage: 60,  fireRate: 0.8,  projectileSpeed: 500, splash: 30, hp: 120 },
+        { range: 200, damage: 95,  fireRate: 0.95, projectileSpeed: 540, splash: 38, hp: 150 },
+        { range: 220, damage: 140, fireRate: 1.1,  projectileSpeed: 580, splash: 46, hp: 180 }
+      ],
+      upgradeCost: [120, 200]
     }
   };
-  var TOWER_LIST = ["neutrofilo", "linfocitoB", "linfocitoT", "langerhans", "nk", "eosinofilo", "mastocito"];
+  var MAC_COST = 5;   // fragmentos de complemento para ensamblar el cañón
+  var TOWER_LIST = ["neutrofilo", "linfocitoB", "linfocitoT", "langerhans", "nk", "eosinofilo", "mastocito", "complemento"];
   // Cartilla por grupos desplegables (categorías de defensa).
   var TOWER_GROUPS = [
     { id: "linea",         label: "Primera línea", towers: ["neutrofilo"] },
     { id: "distancia",     label: "A distancia",   towers: ["linfocitoB", "linfocitoT"] },
     { id: "especialistas", label: "Especialistas", towers: ["nk", "eosinofilo"] },
-    { id: "soporte",       label: "Soporte",       towers: ["langerhans", "mastocito"] }
+    { id: "soporte",       label: "Soporte",       towers: ["langerhans", "mastocito"] },
+    { id: "especial",      label: "Especial (MAC)", towers: ["complemento"] }
   ];
 
   // BASE_SPEED in design px/s; multiplied by U each frame for actual movement.
@@ -1202,6 +1216,8 @@
       guardians: [],
       guardianTimer: 28,
       slicks: [],                       // charcos aceitosos de Malassezia
+      complement: 0,                    // fragmentos de complemento recogidos
+      fragments: [],                    // fragmentos C3b flotando en el campo
       medCharge: 0,
       medApplying: false,
       topicalCharge: 0,
@@ -2035,6 +2051,15 @@
   }
 
   // -------- TOWERS --------------------------------------------------------
+  // Coste en ATP o en fragmentos de complemento, según la torre.
+  function towerAffordable(def) {
+    return def.currency === "complement" ? (state.complement >= def.cost) : (state.atp >= def.cost);
+  }
+  function payTower(def) {
+    if (def.currency === "complement") state.complement = Math.max(0, state.complement - def.cost);
+    else state.atp -= def.cost;
+  }
+
   function placeTower(x, y, typeId) {
     var def = TOWER_DEFS[typeId];
     state.towers.push({
@@ -2160,6 +2185,7 @@
 
   function fireTower(t, target) {
     var stats = towerStats(t);
+    t.lastTargetX = target.x; t.lastTargetY = target.y;   // para apuntar el cañón
     var dmg = stats.damage;
     // Bonus de especialista: NK vs virus, Eosinófilo vs parásitos.
     if (t.def.bonusVs && target.def.baseKind === t.def.bonusVs.kind) dmg *= t.def.bonusVs.mult;
@@ -2220,7 +2246,8 @@
     var bodyDamage = amount;
     var dmgLabel = "-" + Math.round(amount);
     var dmgColor = "#FFD93D";
-    if (def.shield && e.shieldHP > 0) {
+    // El Complemento (MAC) y el antibiótico son químicos: ignoran el escudo.
+    if (def.shield && e.shieldHP > 0 && attackerType !== "complemento") {
       var sd = def.shield;
       if (sd.requiresT && attackerType !== "linfocitoT") {
         // Spike-shield rebote: 5% damage to body, no shield decrement.
@@ -2285,6 +2312,10 @@
         for (var ds = 0; ds < (def.deathSplit.count || 2); ds++) {
           spawnSplit(e, def.deathSplit.hpFrac || 0.35);
         }
+      }
+      // Suelta un fragmento de complemento (C3b) que el jugador puede recoger.
+      if (state.complement < MAC_COST && Math.random() < (def.isBoss ? 1 : 0.30)) {
+        spawnFragment(e.x, e.y);
       }
       pushEffect({
         kind: "atpText",
@@ -2791,6 +2822,85 @@
     if (!ready) {
       ctx.fillStyle = "rgba(255,255,255,0.4)";
       ctx.fillText(Math.round(ratio * 100) + "%", v.x + v.w + 5, v.y + 14);
+    }
+    ctx.restore();
+  }
+
+  // -------- COMPLEMENTO (fragmentos C3b + cañón MAC) ---------------------
+  function spawnFragment(x, y) {
+    state.fragments.push({
+      x: x, y: y,
+      vx: (Math.random() - 0.5) * 24 * U,
+      vy: -(22 + Math.random() * 16) * U,
+      life: 6.5, max: 6.5, phase: Math.random() * 6.28
+    });
+  }
+  function updateFragments(dt) {
+    if (!state.fragments) return;
+    for (var i = state.fragments.length - 1; i >= 0; i--) {
+      var f = state.fragments[i];
+      f.life -= dt;
+      f.vy += 36 * U * dt;
+      if (f.vy > 14 * U) f.vy = 14 * U;
+      f.x += f.vx * dt; f.y += f.vy * dt;
+      f.vx *= 0.96; f.phase += dt * 4;
+      // Rebote suave dentro del campo.
+      if (f.y > FIELD_BOTTOM - 14 * U) { f.y = FIELD_BOTTOM - 14 * U; f.vy *= -0.4; }
+      if (f.x < FIELD_LEFT + 8 * U) { f.x = FIELD_LEFT + 8 * U; f.vx *= -0.5; }
+      if (f.x > FIELD_RIGHT - 8 * U) { f.x = FIELD_RIGHT - 8 * U; f.vx *= -0.5; }
+      if (f.life <= 0) state.fragments.splice(i, 1);
+    }
+  }
+  function drawFragments() {
+    if (!state.fragments || !state.fragments.length) return;
+    for (var i = 0; i < state.fragments.length; i++) {
+      var f = state.fragments[i];
+      var a = Math.min(1, f.life / 1.2);          // se desvanece al final
+      var pulse = 0.7 + 0.3 * Math.sin(f.phase);
+      var R = 9 * U;
+      ctx.save();
+      ctx.globalAlpha = a;
+      // halo
+      var g = ctx.createRadialGradient(f.x, f.y, 1, f.x, f.y, R * 2.2 * pulse);
+      g.addColorStop(0, "rgba(124,252,158,0.55)"); g.addColorStop(1, "rgba(124,252,158,0)");
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(f.x, f.y, R * 2.2 * pulse, 0, Math.PI * 2); ctx.fill();
+      // fragmento (proteína C3b): triángulo redondeado verde-lima brillante
+      ctx.fillStyle = "#aef7c4"; ctx.strokeStyle = "#3fa86a"; ctx.lineWidth = 1.5 * U;
+      ctx.beginPath();
+      for (var k = 0; k < 3; k++) { var ang = f.phase * 0.3 + k * 2.094 - Math.PI / 2; var px = f.x + Math.cos(ang) * R, py = f.y + Math.sin(ang) * R; if (k === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py); }
+      ctx.closePath(); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = "#1f6b3a"; ctx.font = "bold " + Math.round(7 * U) + "px Fredoka, sans-serif";
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText("C3b", f.x, f.y + R + 7 * U);
+      ctx.restore();
+    }
+  }
+
+  function drawComplementMeter() {
+    var n = state.complement || 0;
+    if (n <= 0 && (!state.fragments || !state.fragments.length)) return;  // aparece al ser relevante
+    var dotR = 4 * U, gap = 4 * U, pad = 6;
+    ctx.save();
+    ctx.font = "bold 11px Fredoka, sans-serif"; ctx.textBaseline = "middle";
+    var label = "C3b", lw = ctx.measureText(label).width;
+    var w = pad * 2 + lw + 8 + MAC_COST * (dotR * 2) + (MAC_COST - 1) * gap;
+    var h = 22, bx = FIELD_LEFT + 6, by = FIELD_TOP + 6;
+    var ready = n >= MAC_COST;
+    ctx.fillStyle = "rgba(8,28,16,0.55)"; roundRect(bx, by, w, h, 7); ctx.fill();
+    ctx.strokeStyle = ready ? "rgba(124,252,158,0.95)" : "rgba(124,252,158,0.35)";
+    ctx.lineWidth = ready ? 2 : 1; roundRect(bx, by, w, h, 7); ctx.stroke();
+    ctx.fillStyle = "#aef7c4"; ctx.textAlign = "left";
+    ctx.fillText(label, bx + pad, by + h / 2 + 0.5);
+    var dx = bx + pad + lw + 8;
+    for (var i = 0; i < MAC_COST; i++) {
+      ctx.beginPath(); ctx.arc(dx + dotR + i * (dotR * 2 + gap), by + h / 2, dotR, 0, Math.PI * 2);
+      ctx.fillStyle = i < n ? "#7CFC9E" : "rgba(255,255,255,0.18)"; ctx.fill();
+    }
+    if (ready) {
+      var p = 0.5 + 0.5 * Math.sin(state.time * 5);
+      ctx.fillStyle = "rgba(124,252,158," + (0.6 + 0.4 * p) + ")";
+      ctx.textAlign = "left"; ctx.font = "bold 9px Fredoka, sans-serif";
+      ctx.fillText("¡MAC listo!", bx + 2, by + h + 7);
     }
     ctx.restore();
   }
@@ -4407,6 +4517,20 @@
       if (inRect(x, y, UI.endRestartBtn)) restartFromLevel1();
       return;
     }
+    // Recoger fragmentos de complemento (tap sobre un C3b flotante).
+    if (state.fragments && state.fragments.length) {
+      for (var fi = 0; fi < state.fragments.length; fi++) {
+        var fr = state.fragments[fi];
+        if (Math.hypot(x - fr.x, y - fr.y) < 28 * U) {
+          state.complement = Math.min(MAC_COST, state.complement + 1);
+          state.fragments.splice(fi, 1);
+          sfx("tick");
+          pushEffect({ kind: "atpText", x: fr.x, y: fr.y - 10 * U, vy: -32 * U, text: "+C3b", life: 0.7, max: 0.7, color: "#7CFC9E" });
+          if (state.complement >= MAC_COST) showMsg("¡Complemento listo! Ensambla el Cañón MAC (grupo Especial).");
+          return;
+        }
+      }
+    }
     // Medicamento sanguíneo: tocar el vial activa el poder del nivel =
     // bloques llenos (1 = más leve ... 4 = antibiótico máximo).
     if (UI.medVial && inRect(x, y, UI.medVial)) {
@@ -4465,7 +4589,7 @@
         if (viewRect.y > UI.cardStrip.y + UI.cardStrip.h) continue;
         if (inRect(x, y, viewRect)) {
           var typeId = ccard.typeId;
-          if (state.atp >= TOWER_DEFS[typeId].cost) {
+          if (towerAffordable(TOWER_DEFS[typeId])) {
             var prev = state.selectedToBuild;
             state.selectedToBuild = state.selectedToBuild === typeId ? null : typeId;
             state.selectedTower = null;
@@ -4511,10 +4635,10 @@
     if (state.selectedToBuild) {
       if (canPlaceTowerAt(x, y)) {
         var def = TOWER_DEFS[state.selectedToBuild];
-        if (state.atp >= def.cost) {
-          state.atp -= def.cost;
+        if (towerAffordable(def)) {
+          payTower(def);
           placeTower(x, y, state.selectedToBuild);
-          if (state.atp < def.cost) {
+          if (!towerAffordable(def)) {
             state.selectedToBuild = null;
             clearRangeHint();
           } else {
@@ -5544,6 +5668,7 @@
     else if (t.def.id === "nk") drawNK(t, pulse, expression, blink);
     else if (t.def.id === "eosinofilo") drawEosinofilo(t, pulse, expression, blink);
     else if (t.def.id === "mastocito") drawMastocito(t, pulse, expression, blink);
+    else if (t.def.id === "complemento") drawComplementCannon(t, pulse, expression, blink);
     else drawLinfocitoT(t, pulse, expression, blink);
     // Level-up sparkles
     if (levelup) {
@@ -5888,6 +6013,33 @@
     ctx.strokeStyle = t.def.colorDark; ctx.lineWidth = Math.max(1.2, 1.5 * U); ctx.stroke();
     for (var g = 0; g < 12; g++) { var ga = g * 0.66; var gd = R * (0.28 + 0.42 * ((g % 4) / 3)); ctx.fillStyle = "rgba(255,255,255,0.5)"; ctx.beginPath(); ctx.arc(Math.cos(ga) * gd, Math.sin(ga) * gd, R * 0.085, 0, Math.PI * 2); ctx.fill(); }
     towerFace(R, expression, blink, "neutral", "neutral");   // alerta/tranquilo
+    ctx.restore();
+  }
+
+  // CAÑÓN DEL COMPLEMENTO (MAC) — torreta dorada con poro de ataque a membrana.
+  function drawComplementCannon(t, pulse, expression, blink) {
+    var R = 19 * U * pulse, x = t.x, y = t.y;
+    ctx.save(); ctx.translate(x, y);
+    // Base/plataforma.
+    ctx.fillStyle = "#6b5410"; ctx.beginPath(); ctx.ellipse(0, R * 0.5, R * 1.05, R * 0.55, 0, 0, Math.PI * 2); ctx.fill();
+    // Anillos del MAC (poro cilíndrico de complemento, vista superior).
+    for (var i = 3; i >= 1; i--) {
+      var rr = R * (0.45 + i * 0.18);
+      ctx.strokeStyle = i % 2 ? "#FFE27A" : t.def.colorDark; ctx.lineWidth = 3 * U;
+      ctx.beginPath(); ctx.arc(0, 0, rr, 0, Math.PI * 2); ctx.stroke();
+    }
+    // Núcleo brillante.
+    var glow = 0.6 + 0.4 * Math.sin(state.time * 4 + (t.idlePhase || 0));
+    var g = ctx.createRadialGradient(0, 0, 1, 0, 0, R * 0.5);
+    g.addColorStop(0, "rgba(255,255,255," + (0.7 + 0.3 * glow) + ")"); g.addColorStop(1, t.def.color);
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, R * 0.42, 0, Math.PI * 2); ctx.fill();
+    // Cañón (apunta al objetivo si dispara, si no hacia arriba).
+    var ang = -Math.PI / 2;
+    if (t.lastTargetX != null) ang = Math.atan2(t.lastTargetY - y, t.lastTargetX - x);
+    ctx.rotate(ang + Math.PI / 2);
+    ctx.fillStyle = "#b8860b"; roundRect(-R * 0.18, -R * 1.35, R * 0.36, R * 0.9, R * 0.12); ctx.fill();
+    ctx.fillStyle = "#FFE27A"; ctx.beginPath(); ctx.arc(0, -R * 1.3, R * 0.2, 0, Math.PI * 2); ctx.fill();
+    if ((t.muzzleFlash || 0) > 0) { ctx.fillStyle = "rgba(180,255,200,0.8)"; ctx.beginPath(); ctx.arc(0, -R * 1.45, R * 0.3, 0, Math.PI * 2); ctx.fill(); }
     ctx.restore();
   }
 
@@ -7544,6 +7696,11 @@
       for (var ge = 0; ge < 5; ge++) { var gea = ge * 1.3; ctx.fillStyle = "rgba(225,90,50,0.9)"; ctx.beginPath(); ctx.arc(Math.cos(gea) * R * 0.5, Math.sin(gea) * R * 0.5, R * 0.16, 0, Math.PI * 2); ctx.fill(); }
     } else if (typeId === "mastocito") {
       for (var gm = 0; gm < 7; gm++) { var gma = gm * 0.9; ctx.fillStyle = "rgba(255,255,255,0.6)"; ctx.beginPath(); ctx.arc(Math.cos(gma) * R * 0.5, Math.sin(gma) * R * 0.5, R * 0.13, 0, Math.PI * 2); ctx.fill(); }
+    } else if (typeId === "complemento") {
+      ctx.strokeStyle = "#FFE27A"; ctx.lineWidth = Math.max(1.4, R * 0.12);
+      ctx.beginPath(); ctx.arc(0, 0, R * 0.6, 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath(); ctx.arc(0, 0, R * 0.95, 0, Math.PI * 2); ctx.stroke();
+      ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(0, 0, R * 0.28, 0, Math.PI * 2); ctx.fill();
     } else {
       // Macrofago: small bumps
       for (var b = 0; b < 5; b++) {
@@ -7949,7 +8106,7 @@
         // Skip if completely off-screen (small perf win when content grows).
         if (cardViewY + card.h < strip.y - 4) continue;
         if (cardViewY > strip.y + strip.h + 4) continue;
-        var canAfford = state.atp >= def.cost;
+        var canAfford = towerAffordable(def);
         var isSelected = state.selectedToBuild === typeId;
         var sc = isSelected ? 1.04 : 1.0;
         var cw = card.w * sc, ch = card.h * sc;
@@ -7985,8 +8142,9 @@
         ctx.fillText(nameStr, cx, cardY + ch * 0.60);
 
         ctx.font = "bold " + Math.max(11, Math.min(13, cw * 0.13)) + "px Fredoka, sans-serif";
-        ctx.fillStyle = canAfford ? "#f5d76e" : "#d9534f";
-        ctx.fillText("⚡ " + def.cost, cx, cardY + ch * 0.80);
+        var isComp = def.currency === "complement";
+        ctx.fillStyle = canAfford ? (isComp ? "#7CFC9E" : "#f5d76e") : "#d9534f";
+        ctx.fillText((isComp ? "🧬 " : "⚡ ") + def.cost, cx, cardY + ch * 0.80);
       }
       ctx.restore();
       // Edge-fade indicators (arriba/abajo) cuando hay contenido oculto.
@@ -8104,6 +8262,7 @@
     else if (def.id === "nk") drawNK(fakeTower, 1, "idle", false);
     else if (def.id === "eosinofilo") drawEosinofilo(fakeTower, 1, "idle", false);
     else if (def.id === "mastocito") drawMastocito(fakeTower, 1, "idle", false);
+    else if (def.id === "complemento") drawComplementCannon(fakeTower, 1, "idle", false);
     else drawLinfocitoT(fakeTower, 1, "idle", false);
     ctx.globalAlpha = 1;
     ctx.restore();
@@ -9192,6 +9351,7 @@
     // Towers on top of everything in the field.
     for (var i = 0; i < state.towers.length; i++) drawTower(state.towers[i]);
     drawGuardians();
+    drawFragments();   // fragmentos C3b flotando (tappables)
     drawLymphDrop();
     drawMedVial();
     drawTopical();
@@ -9208,6 +9368,7 @@
     if (!state.cinematicEnd) {
       drawHUD();
       drawPanel();
+      drawComplementMeter();
     }
     drawMessage();
     drawWaveBanner();
@@ -9306,6 +9467,7 @@
       updateGermShots(dt);
       updateProjectiles(dt);
       updateMed(dt);
+      updateFragments(dt);
     }
     if (state.showIntro && !state.showTitle) updateIntroComic(dt);
     if (state.cinematicEnd) updateCinematic(dt);

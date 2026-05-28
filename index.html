@@ -6308,109 +6308,120 @@
     ctx.restore();
   }
 
-  // UN solo tentáculo GRUESO con latigazo bien visible: se retrae sinuoso
-  // entre golpes, hace SNAP (extensión rápida) y al impactar suelta "¡POW!".
+  // LATIGAZO POR ARRIBA: un tentáculo grueso sale del lomo del germen, se
+  // alza como cola de escorpión y CAE de golpe sobre la CABEZA de la torre.
   function drawTentaclePunch(e, t) {
-    var dx = t.x - e.x, dy = t.y - e.y, dist = Math.hypot(dx, dy) || 1;
-    var nx = dx / dist, ny = dy / dist;
-    var px = -ny, py = nx;
     var tcfg = e.def.tentacles || { pulseGap: 0.22 };
     var pulseT = Math.max(0, e.tentPulseT || 0);
     var punchActive = (e.tentPunchT || 0) > 0;
     var punch = punchActive ? (e.tentPunchT / 0.20) : 0;
     var wind = 1 - Math.min(1, pulseT / tcfg.pulseGap);
-    var snap = wind * wind * wind;
-    var ext = punchActive ? (1 + Math.sin(punch * Math.PI) * 0.12) : snap;
-    if (ext < 0.10) ext = 0.10;
-    var fistX = e.x + nx * dist * ext;
-    var fistY = e.y + ny * dist * ext;
-    // Sag perpendicular del tentáculo: mucho al retraído, recto al extender.
-    var sag = (1 - ext) * 32 * U;
-    var midX = (e.x + fistX) / 2 + px * Math.sin(state.time * 14) * sag * 0.6;
-    var midY = (e.y + fistY) / 2 + py * Math.sin(state.time * 14) * sag * 0.6;
-    var jitter = punchActive ? (Math.random() - 0.5) * 4 * U : 0;
+    var snap = wind * wind * wind;     // easing exponencial para el snap
+    var ext = punchActive ? 1 : snap;  // 0 = cargado atrás-arriba, 1 = impacto en la cabeza
+    if (ext < 0.06) ext = 0.06;
+    var germR = (e.def.radius || 24) * U;
+    var dx = t.x - e.x, dy = t.y - e.y, dist = Math.hypot(dx, dy) || 1;
+    var nx = dx / dist, ny = dy / dist;
+    // Base del tentáculo: lomo del germen.
+    var baseX = e.x, baseY = e.y - germR * 0.85;
+    // Posición CARGADA: alto y un poco hacia atrás (lejos de la torre).
+    var cockX = e.x - nx * 22 * U, cockY = baseY - 65 * U;
+    // Posición de IMPACTO: cabeza/parte superior de la torre.
+    var headX = t.x, headY = t.y - 22 * U;
+    // Latigazo final del tip: cuando golpea, vibra un poco hacia abajo.
+    var jitter = punchActive ? (Math.random() - 0.5) * 6 * U * punch : 0;
+    var tipX = cockX + (headX - cockX) * ext + jitter * 0.3;
+    var tipY = cockY + (headY - cockY) * ext + jitter * 0.3 + (punchActive ? Math.sin(punch * Math.PI) * 4 * U : 0);
+    // Bezier ARQUEADO: los puntos de control quedan MUY por encima de la línea
+    // base-tip, así el brazo siempre pasa por arriba del germen y la torre.
+    var arch = 72 * U;
+    var c1x = baseX, c1y = baseY - arch;
+    var c2x = tipX, c2y = tipY - arch;
     ctx.save();
     ctx.lineCap = "round"; ctx.lineJoin = "round";
-    // === TENTÁCULO ÚNICO Y GRUESO ===
-    var lw = (7 + 3 * ext) * U;
-    // Sombra/contorno
-    ctx.strokeStyle = "#1f2a32"; ctx.lineWidth = lw + 2.5 * U;
+    // Sombra/contorno oscuro del tentáculo.
+    var lw = (8 + 3 * ext) * U;
+    ctx.strokeStyle = "#1f2a32"; ctx.lineWidth = lw + 2.8 * U;
     ctx.beginPath();
-    ctx.moveTo(e.x + jitter, e.y);
-    ctx.quadraticCurveTo(midX, midY, fistX, fistY);
+    ctx.moveTo(baseX, baseY);
+    ctx.bezierCurveTo(c1x, c1y, c2x, c2y, tipX, tipY);
     ctx.stroke();
-    // Cuerpo principal
+    // Cuerpo del tentáculo.
     ctx.strokeStyle = "#4a6271"; ctx.lineWidth = lw;
     ctx.beginPath();
-    ctx.moveTo(e.x + jitter, e.y);
-    ctx.quadraticCurveTo(midX, midY, fistX, fistY);
+    ctx.moveTo(baseX, baseY);
+    ctx.bezierCurveTo(c1x, c1y, c2x, c2y, tipX, tipY);
     ctx.stroke();
-    // Brillo lateral del tentáculo (sensación de volumen).
+    // Brillo en la parte superior del arco (sensación de volumen).
     ctx.strokeStyle = "rgba(255,255,255,0.22)"; ctx.lineWidth = lw * 0.35;
     ctx.beginPath();
-    ctx.moveTo(e.x + jitter + px * lw * 0.18, e.y + py * lw * 0.18);
-    ctx.quadraticCurveTo(midX + px * lw * 0.18, midY + py * lw * 0.18, fistX + px * lw * 0.18, fistY + py * lw * 0.18);
+    ctx.moveTo(baseX, baseY - 1);
+    ctx.bezierCurveTo(c1x, c1y - 1, c2x, c2y - 1, tipX, tipY - 1);
     ctx.stroke();
-    // Líneas de velocidad durante el SNAP (antes del impacto).
+    // Líneas de velocidad CAYENDO sobre el tip durante el snap.
     if (!punchActive && wind > 0.55) {
       var sw = (wind - 0.55) / 0.45;
-      ctx.strokeStyle = "rgba(255,255,255," + (0.7 * sw) + ")"; ctx.lineWidth = 3;
-      for (var sl = 0; sl < 5; sl++) {
-        var ssx = e.x + nx * dist * (0.35 + sl * 0.10) + px * (sl - 2) * 8 * U;
-        var ssy = e.y + ny * dist * (0.35 + sl * 0.10) + py * (sl - 2) * 8 * U;
+      ctx.strokeStyle = "rgba(255,255,255," + (0.75 * sw) + ")"; ctx.lineWidth = 3;
+      for (var sl = 0; sl < 4; sl++) {
+        var ox = (sl - 1.5) * 5 * U;
+        var oy = -(8 + sl * 8) * U;
         ctx.beginPath();
-        ctx.moveTo(ssx - nx * 9 * U, ssy - ny * 9 * U);
-        ctx.lineTo(ssx + nx * 9 * U, ssy + ny * 9 * U);
+        ctx.moveTo(tipX + ox, tipY + oy);
+        ctx.lineTo(tipX + ox + 2 * U, tipY + oy + 9 * U);
         ctx.stroke();
       }
     }
-    // === PUÑO grande y claro ===
-    var fistR = (12 + 6 * ext) * U + punch * 7 * U;
-    // Sombra
-    ctx.fillStyle = "rgba(0,0,0,0.35)";
-    ctx.beginPath(); ctx.arc(fistX + 2 * U, fistY + 2 * U, fistR, 0, Math.PI * 2); ctx.fill();
-    // Cuerpo del puño
-    var fg = ctx.createRadialGradient(fistX - fistR * 0.35, fistY - fistR * 0.35, 1, fistX, fistY, fistR);
+    // CABEZAL del látigo (esfera con espinas) en el extremo.
+    var headR = (11 + 5 * ext) * U + punch * 5 * U;
+    ctx.fillStyle = "rgba(0,0,0,0.40)";
+    ctx.beginPath(); ctx.arc(tipX + 2 * U, tipY + 2 * U, headR, 0, Math.PI * 2); ctx.fill();
+    var fg = ctx.createRadialGradient(tipX - headR * 0.35, tipY - headR * 0.35, 1, tipX, tipY, headR);
     fg.addColorStop(0, "#e6edf1"); fg.addColorStop(0.55, e.def.color); fg.addColorStop(1, e.def.colorDark);
     ctx.fillStyle = fg;
-    ctx.beginPath(); ctx.arc(fistX, fistY, fistR, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(tipX, tipY, headR, 0, Math.PI * 2); ctx.fill();
     ctx.strokeStyle = "#1a1a22"; ctx.lineWidth = 2.4 * U;
-    ctx.beginPath(); ctx.arc(fistX, fistY, fistR, 0, Math.PI * 2); ctx.stroke();
-    // Nudillos (3 protuberancias)
-    ctx.fillStyle = "rgba(0,0,0,0.40)";
-    for (var nu = 0; nu < 3; nu++) {
-      var na = (nu - 1) * 0.48 + Math.atan2(ny, nx);
+    ctx.beginPath(); ctx.arc(tipX, tipY, headR, 0, Math.PI * 2); ctx.stroke();
+    // Pinchos del cabezal (amenazante).
+    ctx.fillStyle = e.def.colorDark;
+    for (var sp = 0; sp < 5; sp++) {
+      var spa = sp * (Math.PI * 2 / 5) + state.time * 0.4;
+      var sx = tipX + Math.cos(spa) * headR * 0.95, sy = tipY + Math.sin(spa) * headR * 0.95;
+      var sx2 = tipX + Math.cos(spa) * (headR + 5 * U), sy2 = tipY + Math.sin(spa) * (headR + 5 * U);
       ctx.beginPath();
-      ctx.arc(fistX + Math.cos(na) * fistR * 0.58, fistY + Math.sin(na) * fistR * 0.58, fistR * 0.24, 0, Math.PI * 2);
-      ctx.fill();
+      ctx.moveTo(sx + Math.cos(spa + Math.PI / 2) * 2.5 * U, sy + Math.sin(spa + Math.PI / 2) * 2.5 * U);
+      ctx.lineTo(sx2, sy2);
+      ctx.lineTo(sx + Math.cos(spa - Math.PI / 2) * 2.5 * U, sy + Math.sin(spa - Math.PI / 2) * 2.5 * U);
+      ctx.closePath(); ctx.fill();
     }
-    // Aro de tensión cuando casi golpea (antes del POW).
+    // Aro de tensión dorado justo antes de impactar.
     if (!punchActive && wind > 0.7) {
       var ta = (wind - 0.7) / 0.3;
       ctx.strokeStyle = "rgba(255,220,80," + (0.85 * ta) + ")"; ctx.lineWidth = 2.5;
-      ctx.beginPath(); ctx.arc(fistX, fistY, fistR + 5 * U, 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath(); ctx.arc(tipX, tipY, headR + 6 * U, 0, Math.PI * 2); ctx.stroke();
     }
-    // === IMPACTO: anillo + rayos + ¡POW! ===
+    // IMPACTO en la CABEZA de la torre.
     if (punchActive) {
       var ringR = (18 + (1 - punch) * 34) * U;
       ctx.strokeStyle = "rgba(255, 220, 100, " + (0.95 * punch) + ")"; ctx.lineWidth = 4.5;
-      ctx.beginPath(); ctx.arc(t.x, t.y, ringR, 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath(); ctx.arc(headX, headY, ringR, 0, Math.PI * 2); ctx.stroke();
+      // Rayos de impacto.
       ctx.strokeStyle = "rgba(255,210,80," + (0.9 * punch) + ")"; ctx.lineWidth = 3.5;
       for (var rl = 0; rl < 8; rl++) {
         var ra = rl * Math.PI / 4 + Math.PI / 8;
-        var rL = (1 - punch) * 40 * U + 10 * U;
+        var rL = (1 - punch) * 38 * U + 8 * U;
         ctx.beginPath();
-        ctx.moveTo(t.x + Math.cos(ra) * (fistR * 1.15), t.y + Math.sin(ra) * (fistR * 1.15));
-        ctx.lineTo(t.x + Math.cos(ra) * (fistR * 1.15 + rL), t.y + Math.sin(ra) * (fistR * 1.15 + rL));
+        ctx.moveTo(headX + Math.cos(ra) * (headR * 1.15), headY + Math.sin(ra) * (headR * 1.15));
+        ctx.lineTo(headX + Math.cos(ra) * (headR * 1.15 + rL), headY + Math.sin(ra) * (headR * 1.15 + rL));
         ctx.stroke();
       }
+      // Estrellitas/onomatopeya ARRIBA de la torre.
       var sh = (Math.random() - 0.5) * 5 * U * punch;
       ctx.font = "900 " + Math.round((22 + 10 * punch) * U) + "px Fredoka, sans-serif";
       ctx.textAlign = "center"; ctx.textBaseline = "middle";
       ctx.lineWidth = 5; ctx.strokeStyle = "#1a1a22";
-      ctx.strokeText("¡POW!", t.x + sh, t.y - 34 * U);
+      ctx.strokeText("¡ZAS!", headX + sh, headY - 32 * U);
       ctx.fillStyle = "#FFD24A";
-      ctx.fillText("¡POW!", t.x + sh, t.y - 34 * U);
+      ctx.fillText("¡ZAS!", headX + sh, headY - 32 * U);
     }
     ctx.restore();
   }

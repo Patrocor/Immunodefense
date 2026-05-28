@@ -827,12 +827,17 @@
     complemento: {
       id: "complemento", name: "Cañón del Complemento", shortName: "Cañón MAC",
       color: "#FFD24A", colorDark: "#b8860b", cost: 5, currency: "complement",
-      desc: "MAC: ignora escudos",
+      desc: "MAC manual: ácido que ignora escudos",
       ignoreShield: true,
+      manualFire: true,             // el jugador apunta y dispara
+      immuneToAura: true,           // el aura de contacto no le hace daño
+      lifetimeDecay: 2.5,           // HP perdidos por segundo (se consume solo)
+      // El "tiro" es una mancha de ácido en el campo: fireRate como cadencia mínima
+      // entre tiros manuales; splash define el radio del charco; damage es el DoT/s.
       levels: [
-        { range: 180, damage: 60,  fireRate: 0.8,  projectileSpeed: 500, splash: 30, hp: 120 },
-        { range: 200, damage: 95,  fireRate: 0.95, projectileSpeed: 540, splash: 38, hp: 150 },
-        { range: 220, damage: 140, fireRate: 1.1,  projectileSpeed: 580, splash: 46, hp: 180 }
+        { range: 200, damage: 28, fireRate: 0.7, projectileSpeed: 0, splash: 42, hp: 100, acidDur: 4.0, travelTime: 1.1 },
+        { range: 230, damage: 40, fireRate: 0.9, projectileSpeed: 0, splash: 50, hp: 130, acidDur: 4.5, travelTime: 1.0 },
+        { range: 260, damage: 56, fireRate: 1.1, projectileSpeed: 0, splash: 58, hp: 160, acidDur: 5.0, travelTime: 0.95 }
       ],
       upgradeCost: [120, 200]
     }
@@ -929,7 +934,8 @@
       color: "#26A69A", colorDark: "#00695C", colorLight: "#80DEEA", radius: 20,
       speedMult: 1.0, hp: 360, reward: 16, viralAdd: 7, attack: 10, power: { type: "spray", range: 115, cooldown: 5, stun: 2.4, dmg: 16 }, isBoss: false,
       shield: { type: "wall", maxHP: 3, regenRate: 3 / 12, regenDelay: 8 },
-      tooltip: "Bacilo gram negativo de heridas húmedas y quemaduras. Produce pus azul-verdoso (piocianina) y biofilm resistente. Foliculitis del 'jacuzzi' y ectima gangrenoso."
+      seekers: { interval: 7.5, hp: 8, speed: 75, dmg: 22 },   // esporas buscadoras de torres disparadoras (cañón MAC, NK, linfocito B/T, eosinófilo)
+      tooltip: "Bacilo gram negativo de heridas húmedas. Además de su spray paralizante, suelta esporas que vuelan hacia las torres disparadoras (cañón MAC, Linfocito B/T, NK, Eosinófilo) para destruirlas. Piocianina y biofilm resistente."
     },
     // ---- Lote 2: gérmenes de piel con poderes propios ------------------
     sarna: {
@@ -1218,6 +1224,9 @@
       slicks: [],                       // charcos aceitosos de Malassezia
       complement: 0,                    // fragmentos de complemento recogidos
       fragments: [],                    // fragmentos C3b flotando en el campo
+      cannonShots: [],                  // disparos del cañón MAC (en vuelo, arco)
+      acidSplats: [],                   // charcos de ácido del cañón MAC
+      seekers: [],                      // esporas buscadoras (Pseudomonas)
       medCharge: 0,
       medApplying: false,
       topicalCharge: 0,
@@ -1521,6 +1530,7 @@
       childTimer: def.spore ? def.spore.interval * (0.5 + Math.random() * 0.5) : 0,
       burrowTimer: def.burrow ? def.burrow.interval * (0.6 + Math.random() * 0.6) : 0,
       burrowed: false, surfaceTimer: 0, revealed: false,
+      seekerCd: def.seekers ? def.seekers.interval * (0.5 + Math.random() * 0.6) : 0,
       x: outX, y: outY,
       vx: (Math.random() - 0.5) * 16 * U,
       vy: 0,
@@ -1891,6 +1901,16 @@
           spawnSpore(e);
         }
       }
+      // Pseudomonas: esporas buscadoras de torres disparadoras (cañón MAC,
+      // Linfocito B/T, NK, Eosinófilo). Vuelan hacia su objetivo y le pegan.
+      if (e.def.seekers && e.state === "walking") {
+        e.seekerCd -= dt;
+        if (e.seekerCd <= 0) {
+          var sh = pickShooterTower(e.x, e.y);
+          if (sh) { spawnSeeker(e, sh); e.seekerCd = e.def.seekers.interval; }
+          else { e.seekerCd = 2.0; }   // sin objetivos: reintenta en 2s
+        }
+      }
       e.wobble += dt * 6;
       // Sprint 7: walking enemies leave inflammation marks every 0.5s.
       if (e.state === "walking") {
@@ -1974,6 +1994,7 @@
         var atkMult = (e.enraged && e.def.id === "hpv") ? 1.5 : 1;   // HPV furioso pega más
         for (var ti = 0; ti < state.towers.length; ti++) {
           var tw = state.towers[ti];
+          if (tw.def.immuneToAura) continue;   // Cañón MAC: inmune al aura de contacto
           if (Math.hypot(tw.x - e.x, tw.y - e.y) < aura) {
             var admg = e.def.attack * ATTACK_MULT * atkMult * dt;
             tw.hp -= admg;
@@ -2116,6 +2137,8 @@
           t.dmgNumTimer = 0.4;
         }
       }
+      // El cañón MAC se consume solo (vida que decae con el tiempo).
+      if (t.def.lifetimeDecay) t.hp -= t.def.lifetimeDecay * dt;
       // Sin recuperación: a 0 de vida la torre muere y desaparece.
       if (t.hp <= 0) {
         for (var pk = 0; pk < 12; pk++) {
@@ -2140,6 +2163,8 @@
       if (t.cooldown > 0) continue;
       var stats = towerStats(t);
       var rangePx = stats.range * U;
+      // Cañón manual: no autoataca; el jugador apunta y dispara desde handleClick.
+      if (t.def.manualFire) continue;
       // Torres de SOPORTE: aplican aura a todos los gérmenes en rango (sin
       // objetivo único). Langerhans marca (+daño y revela); Mastocito ralentiza.
       if (t.def.support) {
@@ -2827,12 +2852,14 @@
   }
 
   // -------- COMPLEMENTO (fragmentos C3b + cañón MAC) ---------------------
+  // Fragmentos C3b: el doble de tamaño, flotan suave por la pantalla (sin
+  // gravedad) y se desvanecen al final de su tiempo.
   function spawnFragment(x, y) {
     state.fragments.push({
       x: x, y: y,
-      vx: (Math.random() - 0.5) * 24 * U,
-      vy: -(22 + Math.random() * 16) * U,
-      life: 6.5, max: 6.5, phase: Math.random() * 6.28
+      vx: (Math.random() - 0.5) * 18 * U,
+      vy: -(6 + Math.random() * 6) * U,
+      life: 9.5, max: 9.5, phase: Math.random() * 6.28
     });
   }
   function updateFragments(dt) {
@@ -2840,14 +2867,15 @@
     for (var i = state.fragments.length - 1; i >= 0; i--) {
       var f = state.fragments[i];
       f.life -= dt;
-      f.vy += 36 * U * dt;
-      if (f.vy > 14 * U) f.vy = 14 * U;
-      f.x += f.vx * dt; f.y += f.vy * dt;
-      f.vx *= 0.96; f.phase += dt * 4;
-      // Rebote suave dentro del campo.
-      if (f.y > FIELD_BOTTOM - 14 * U) { f.y = FIELD_BOTTOM - 14 * U; f.vy *= -0.4; }
-      if (f.x < FIELD_LEFT + 8 * U) { f.x = FIELD_LEFT + 8 * U; f.vx *= -0.5; }
-      if (f.x > FIELD_RIGHT - 8 * U) { f.x = FIELD_RIGHT - 8 * U; f.vx *= -0.5; }
+      // Sin gravedad: deriva con leve oscilación tipo "flotando".
+      f.x += (f.vx + Math.sin(f.phase) * 6 * U) * dt;
+      f.y += (f.vy + Math.cos(f.phase * 0.7) * 4 * U) * dt;
+      f.vx *= 0.985; f.vy *= 0.985;
+      f.phase += dt * 1.8;
+      if (f.y < FIELD_TOP + 22 * U)    { f.y = FIELD_TOP + 22 * U;    f.vy *= -0.4; }
+      if (f.y > FIELD_BOTTOM - 28 * U) { f.y = FIELD_BOTTOM - 28 * U; f.vy *= -0.4; }
+      if (f.x < FIELD_LEFT + 22 * U)   { f.x = FIELD_LEFT + 22 * U;   f.vx *= -0.5; }
+      if (f.x > FIELD_RIGHT - 22 * U)  { f.x = FIELD_RIGHT - 22 * U;  f.vx *= -0.5; }
       if (f.life <= 0) state.fragments.splice(i, 1);
     }
   }
@@ -2855,24 +2883,205 @@
     if (!state.fragments || !state.fragments.length) return;
     for (var i = 0; i < state.fragments.length; i++) {
       var f = state.fragments[i];
-      var a = Math.min(1, f.life / 1.2);          // se desvanece al final
-      var pulse = 0.7 + 0.3 * Math.sin(f.phase);
-      var R = 9 * U;
+      var a = Math.min(1, f.life / 1.4);          // se desvanece al final
+      var pulse = 0.75 + 0.25 * Math.sin(f.phase);
+      var R = 18 * U;   // doble tamaño
       ctx.save();
       ctx.globalAlpha = a;
-      // halo
-      var g = ctx.createRadialGradient(f.x, f.y, 1, f.x, f.y, R * 2.2 * pulse);
+      var g = ctx.createRadialGradient(f.x, f.y, 1, f.x, f.y, R * 2.0 * pulse);
       g.addColorStop(0, "rgba(124,252,158,0.55)"); g.addColorStop(1, "rgba(124,252,158,0)");
-      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(f.x, f.y, R * 2.2 * pulse, 0, Math.PI * 2); ctx.fill();
-      // fragmento (proteína C3b): triángulo redondeado verde-lima brillante
-      ctx.fillStyle = "#aef7c4"; ctx.strokeStyle = "#3fa86a"; ctx.lineWidth = 1.5 * U;
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(f.x, f.y, R * 2.0 * pulse, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = "#aef7c4"; ctx.strokeStyle = "#3fa86a"; ctx.lineWidth = 2 * U;
       ctx.beginPath();
       for (var k = 0; k < 3; k++) { var ang = f.phase * 0.3 + k * 2.094 - Math.PI / 2; var px = f.x + Math.cos(ang) * R, py = f.y + Math.sin(ang) * R; if (k === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py); }
       ctx.closePath(); ctx.fill(); ctx.stroke();
-      ctx.fillStyle = "#1f6b3a"; ctx.font = "bold " + Math.round(7 * U) + "px Fredoka, sans-serif";
+      ctx.fillStyle = "#1f6b3a"; ctx.font = "bold " + Math.round(10 * U) + "px Fredoka, sans-serif";
       ctx.textAlign = "center"; ctx.textBaseline = "middle";
-      ctx.fillText("C3b", f.x, f.y + R + 7 * U);
+      ctx.fillText("C3b", f.x, f.y + R + 8 * U);
       ctx.restore();
+    }
+  }
+
+  // -------- CAÑÓN MAC: tiro manual (arco lento + charco de ácido) ---------
+  function fireCannonAt(t, tx, ty) {
+    var st = towerStats(t);
+    state.cannonShots.push({
+      sx: t.x, sy: t.y, tx: tx, ty: ty,
+      t: 0, max: st.travelTime || 1.0,
+      dmg: st.damage,
+      splash: st.splash * U,
+      dur: st.acidDur || 4.0
+    });
+    t.cooldown = 1 / st.fireRate;
+    t.muzzleFlash = 0.18;
+    t.attackAnim = 0.28;
+    t.lastTargetX = tx; t.lastTargetY = ty;
+    sfx("place");
+  }
+  function updateCannonShots(dt) {
+    if (!state.cannonShots) return;
+    for (var i = state.cannonShots.length - 1; i >= 0; i--) {
+      var s = state.cannonShots[i];
+      s.t += dt;
+      if (s.t >= s.max) {
+        state.acidSplats.push({ x: s.tx, y: s.ty, r: s.splash, dps: s.dmg, life: s.dur, max: s.dur });
+        pushEffect({ kind: "shock", x: s.tx, y: s.ty, r: s.splash, life: 0.5, max: 0.5, color: "#9be000" });
+        sfx("tick");
+        state.cannonShots.splice(i, 1);
+      }
+    }
+  }
+  function drawCannonShots() {
+    if (!state.cannonShots || !state.cannonShots.length) return;
+    for (var i = 0; i < state.cannonShots.length; i++) {
+      var s = state.cannonShots[i];
+      var p = s.t / s.max;
+      var x = s.sx + (s.tx - s.sx) * p;
+      var y = s.sy + (s.ty - s.sy) * p - Math.sin(p * Math.PI) * 90 * U; // arco
+      // Marcador del punto de caída (crece a medida que se acerca).
+      var fadeIn = Math.min(1, s.t / (s.max * 0.5));
+      ctx.fillStyle = "rgba(155,224,0," + (0.18 + 0.25 * fadeIn) + ")";
+      ctx.beginPath(); ctx.ellipse(s.tx, s.ty, s.splash * fadeIn, s.splash * 0.35 * fadeIn, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = "rgba(155,224,0," + (0.5 + 0.5 * fadeIn) + ")"; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(s.tx, s.ty, s.splash * fadeIn, 0, Math.PI * 2); ctx.stroke();
+      // Sombra elíptica bajo la gota.
+      ctx.fillStyle = "rgba(0,0,0,0.25)";
+      ctx.beginPath(); ctx.ellipse(x, y + (s.sy + (s.ty - s.sy) * p) - y + 6 * U, 8 * U, 3 * U, 0, 0, Math.PI * 2); ctx.fill();
+      // Gota de complemento (luminosa).
+      var gg = ctx.createRadialGradient(x, y, 1, x, y, 16 * U);
+      gg.addColorStop(0, "#FFFFE6"); gg.addColorStop(0.5, "#FFD24A"); gg.addColorStop(1, "rgba(184,134,11,0.3)");
+      ctx.fillStyle = gg;
+      ctx.beginPath(); ctx.arc(x, y, 13 * U, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = "rgba(255,255,255,0.7)"; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(x, y, 13 * U, 0, Math.PI * 2); ctx.stroke();
+    }
+  }
+
+  function updateAcidSplats(dt) {
+    if (!state.acidSplats) return;
+    for (var i = state.acidSplats.length - 1; i >= 0; i--) {
+      var s = state.acidSplats[i];
+      s.life -= dt;
+      // DoT a los gérmenes dentro del charco (ignora escudos: complemento).
+      for (var ei = 0; ei < state.enemies.length; ei++) {
+        var en = state.enemies[ei];
+        if (en.dead || en.dying || en.absorbing) continue;
+        if (en.state !== "walking" && en.state !== "blocked") continue;
+        if (Math.hypot(en.x - s.x, en.y - s.y) < s.r) {
+          damageEnemy(en, s.dps * dt, "complemento");
+        }
+      }
+      if (s.life <= 0) state.acidSplats.splice(i, 1);
+    }
+  }
+  function drawAcidSplats() {
+    if (!state.acidSplats || !state.acidSplats.length) return;
+    ctx.save();
+    for (var i = 0; i < state.acidSplats.length; i++) {
+      var s = state.acidSplats[i];
+      var a = Math.min(1, s.life / 1.2);
+      var pulse = 0.85 + 0.15 * Math.sin(state.time * 6 + i);
+      var g = ctx.createRadialGradient(s.x, s.y, s.r * 0.1, s.x, s.y, s.r);
+      g.addColorStop(0, "rgba(210,255,90," + (0.55 * a) + ")");
+      g.addColorStop(0.65, "rgba(155,224,0," + (0.40 * a) + ")");
+      g.addColorStop(1, "rgba(120,160,20,0)");
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(s.x, s.y, s.r * pulse, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = "rgba(155,224,0," + (0.7 * a) + ")"; ctx.lineWidth = 1.6;
+      ctx.beginPath(); ctx.arc(s.x, s.y, s.r * pulse, 0, Math.PI * 2); ctx.stroke();
+      for (var b = 0; b < 5; b++) {
+        var ba = (state.time * 1.8 + i + b * 1.3) % (Math.PI * 2);
+        var br = s.r * (0.25 + 0.5 * ((b % 3) / 2));
+        ctx.fillStyle = "rgba(220,255,150," + (0.55 * a) + ")";
+        ctx.beginPath(); ctx.arc(s.x + Math.cos(ba) * br, s.y + Math.sin(ba) * br, 2.4 * U, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+    ctx.restore();
+  }
+
+  // -------- ESPORAS BUSCADORAS DE PSEUDOMONAS -----------------------------
+  // Una torre cuenta como "disparadora" si dispara proyectiles (linfocitos,
+  // NK, Eosinófilo) o si es manual (Cañón MAC).
+  function isShooterTower(t) {
+    if (!t.def) return false;
+    if (t.def.manualFire) return true;
+    if (t.def.support) return false;
+    var lvl = t.def.levels && t.def.levels[t.level || 0];
+    return !!(lvl && lvl.projectileSpeed > 0);
+  }
+  function pickShooterTower(x, y) {
+    var best = null, bd = Infinity;
+    for (var i = 0; i < state.towers.length; i++) {
+      var t = state.towers[i];
+      if (!isShooterTower(t)) continue;
+      if (t.devouredBy) continue;
+      var d = Math.hypot(t.x - x, t.y - y);
+      if (d < bd) { bd = d; best = t; }
+    }
+    return best;
+  }
+  function spawnSeeker(e, target) {
+    var sp = e.def.seekers;
+    state.seekers.push({
+      x: e.x, y: e.y, vx: 0, vy: 0,
+      hp: sp.hp, maxHp: sp.hp, dmg: sp.dmg, speed: sp.speed,
+      target: target, phase: Math.random() * 6.28, life: 12, max: 12
+    });
+    pushEffect({ kind: "particle", x: e.x, y: e.y, vx: 0, vy: -16 * U, life: 0.4, max: 0.5, color: e.def.colorDark });
+  }
+  function updateSeekers(dt) {
+    if (!state.seekers) return;
+    for (var i = state.seekers.length - 1; i >= 0; i--) {
+      var s = state.seekers[i];
+      s.life -= dt; s.phase += dt * 4;
+      // Si el objetivo ya no existe, busca otro o se autodestruye.
+      if (!s.target || state.towers.indexOf(s.target) === -1 || s.target.hp <= 0) {
+        s.target = pickShooterTower(s.x, s.y);
+        if (!s.target) { s.life -= 0.3; }
+      }
+      if (s.target) {
+        var dx = s.target.x - s.x, dy = s.target.y - s.y, dd = Math.hypot(dx, dy) || 1;
+        var spd = s.speed * U;
+        s.vx = (dx / dd) * spd + Math.sin(s.phase) * 6 * U;
+        s.vy = (dy / dd) * spd + Math.cos(s.phase * 0.7) * 6 * U;
+        s.x += s.vx * dt; s.y += s.vy * dt;
+        if (dd < 16 * U) {
+          // Impacto: daña a la torre.
+          s.target.hp -= s.dmg;
+          s.target.hitFlash = 0.20;
+          s.target.dmgAccum = (s.target.dmgAccum || 0) + s.dmg;
+          pushEffect({ kind: "shock", x: s.x, y: s.y, r: 14 * U, life: 0.3, max: 0.3, color: "#80DEEA" });
+          for (var pk = 0; pk < 6; pk++) { var pa = Math.random() * Math.PI * 2, ps = (15 + Math.random() * 25) * U; pushEffect({ kind: "particle", x: s.x, y: s.y, vx: Math.cos(pa) * ps, vy: Math.sin(pa) * ps, life: 0.3, max: 0.4, color: "#26A69A" }); }
+          state.seekers.splice(i, 1);
+          continue;
+        }
+      } else {
+        // Sin objetivo: deriva suave hacia el centro del campo.
+        s.x += Math.sin(s.phase) * 8 * U * dt;
+        s.y += Math.cos(s.phase * 0.6) * 8 * U * dt;
+      }
+      if (s.life <= 0) state.seekers.splice(i, 1);
+    }
+  }
+  function drawSeekers() {
+    if (!state.seekers || !state.seekers.length) return;
+    for (var i = 0; i < state.seekers.length; i++) {
+      var s = state.seekers[i];
+      var R = 8 * U;
+      // halo turquesa amenazante
+      var g = ctx.createRadialGradient(s.x, s.y, 1, s.x, s.y, R * 2.2);
+      g.addColorStop(0, "rgba(38,166,154,0.6)"); g.addColorStop(1, "rgba(38,166,154,0)");
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(s.x, s.y, R * 2.2, 0, Math.PI * 2); ctx.fill();
+      // cuerpo de la espora con flagelos
+      ctx.strokeStyle = "#00695C"; ctx.lineWidth = 1.5 * U;
+      ctx.beginPath();
+      for (var k = 0; k < 6; k++) { var ka = k * Math.PI / 3 + s.phase * 0.3; ctx.moveTo(s.x, s.y); ctx.lineTo(s.x + Math.cos(ka) * R * 1.4, s.y + Math.sin(ka) * R * 1.4); }
+      ctx.stroke();
+      ctx.fillStyle = "#26A69A"; ctx.strokeStyle = "#00695C"; ctx.lineWidth = 1.4 * U;
+      ctx.beginPath(); ctx.arc(s.x, s.y, R, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      // ojito malvado central
+      ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(s.x, s.y, R * 0.45, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = "#1a1a22"; ctx.beginPath(); ctx.arc(s.x, s.y, R * 0.22, 0, Math.PI * 2); ctx.fill();
     }
   }
 
@@ -2884,7 +3093,9 @@
     ctx.font = "bold 11px Fredoka, sans-serif"; ctx.textBaseline = "middle";
     var label = "C3b", lw = ctx.measureText(label).width;
     var w = pad * 2 + lw + 8 + MAC_COST * (dotR * 2) + (MAC_COST - 1) * gap;
-    var h = 22, bx = FIELD_LEFT + 6, by = FIELD_TOP + 6;
+    // Justo debajo de la vial del tópico para no solaparse.
+    var topY = (UI.topicalVial ? UI.topicalVial.y + UI.topicalVial.h + 6 : FIELD_TOP + 6);
+    var h = 22, bx = FIELD_LEFT + 6, by = topY;
     var ready = n >= MAC_COST;
     ctx.fillStyle = "rgba(8,28,16,0.55)"; roundRect(bx, by, w, h, 7); ctx.fill();
     ctx.strokeStyle = ready ? "rgba(124,252,158,0.95)" : "rgba(124,252,158,0.35)";
@@ -4521,7 +4732,7 @@
     if (state.fragments && state.fragments.length) {
       for (var fi = 0; fi < state.fragments.length; fi++) {
         var fr = state.fragments[fi];
-        if (Math.hypot(x - fr.x, y - fr.y) < 28 * U) {
+        if (Math.hypot(x - fr.x, y - fr.y) < 36 * U) {
           state.complement = Math.min(MAC_COST, state.complement + 1);
           state.fragments.splice(fi, 1);
           sfx("tick");
@@ -4652,6 +4863,25 @@
         flashFail();
       }
       return;
+    }
+    // Cañón MAC: si está seleccionado, un tap en el campo (no sobre una torre)
+    // dispara la mancha de ácido al punto elegido — manual.
+    if (state.selectedTower && state.selectedTower.def.manualFire) {
+      var onTower = null;
+      for (var ct = 0; ct < state.towers.length; ct++) {
+        var ctw = state.towers[ct];
+        if (Math.hypot(ctw.x - x, ctw.y - y) <= 32 * U) { onTower = ctw; break; }
+      }
+      if (!onTower) {
+        var cn = state.selectedTower, cst = towerStats(cn);
+        if (Math.hypot(x - cn.x, y - cn.y) <= cst.range * U) {
+          if (cn.cooldown > 0) { flashFail(); return; }
+          fireCannonAt(cn, x, y);
+          return;
+        } else {
+          flashFail(); return;
+        }
+      }
     }
     // Try to select an existing tower.
     var picked = null;
@@ -9335,6 +9565,7 @@
     drawCollectors();
     drawBarricada();         // coagulation barricade (under enemies)
     drawSlicks();            // charcos aceitosos de Malassezia (bajo gérmenes)
+    drawAcidSplats();        // charcos de ácido del cañón MAC (bajo gérmenes)
     drawRangeHint();
     // Pasada A: enemigos NO absorbing (visualmente bajo el torrente).
     for (var j = 0; j < state.enemies.length; j++) {
@@ -9352,6 +9583,8 @@
     for (var i = 0; i < state.towers.length; i++) drawTower(state.towers[i]);
     drawGuardians();
     drawFragments();   // fragmentos C3b flotando (tappables)
+    drawCannonShots(); // gotas del cañón MAC en vuelo (arco lento)
+    drawSeekers();     // esporas buscadoras de Pseudomonas
     drawLymphDrop();
     drawMedVial();
     drawTopical();
@@ -9468,6 +9701,9 @@
       updateProjectiles(dt);
       updateMed(dt);
       updateFragments(dt);
+      updateCannonShots(dt);
+      updateAcidSplats(dt);
+      updateSeekers(dt);
     }
     if (state.showIntro && !state.showTitle) updateIntroComic(dt);
     if (state.cinematicEnd) updateCinematic(dt);

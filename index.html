@@ -360,6 +360,8 @@
 
   // -------- LYMPHATIC DRIP (periodic ATP source) -------------------------
   var DRIP = { x: 0, y: 0, w: 0, h: 0, mouthY: 0 };
+  // En diseminación se enciende una segunda mitocondria al otro lado.
+  var DRIP_R = { x: 0, y: 0, w: 0, h: 0, mouthY: 0, active: false };
   var DRIP_INTERVAL = 8.0;
   var DRIP_REWARD = 25;
   var DRIP_WINDOW = 3.0;
@@ -398,13 +400,28 @@
   }
 
   function layoutDrip() {
-    // Nódulo linfático: a la derecha, entre epidermis y dermis (~y0.17),
-    // casi junto a los cajones de los personajes (borde derecho del campo).
-    DRIP.x = FIELD_LEFT + FIELD_W * 0.84;
-    DRIP.y = FIELD_TOP + FIELD_H * 0.17;
-    DRIP.w = 44 * U;   // long axis radius (reducido para no invadir el camino)
-    DRIP.h = 27 * U;   // short axis radius
-    DRIP.mouthY = DRIP.y + DRIP.h * 0.85;
+    if (typeof state !== "undefined" && state && state.dissemination) {
+      // Dos mitocondrias laterales (en los márgenes, fuera del rect de carriles).
+      DRIP.x = FIELD_LEFT + FIELD_W * 0.065;
+      DRIP.y = FIELD_TOP + FIELD_H * 0.50;
+      DRIP.w = 32 * U;
+      DRIP.h = 22 * U;
+      DRIP.mouthY = DRIP.y + DRIP.h * 0.85;
+      DRIP_R.x = FIELD_LEFT + FIELD_W * 0.935;
+      DRIP_R.y = FIELD_TOP + FIELD_H * 0.50;
+      DRIP_R.w = 32 * U;
+      DRIP_R.h = 22 * U;
+      DRIP_R.mouthY = DRIP_R.y + DRIP_R.h * 0.85;
+      DRIP_R.active = true;
+    } else {
+      // Fase 1: una sola mitocondria a la derecha del campo.
+      DRIP.x = FIELD_LEFT + FIELD_W * 0.84;
+      DRIP.y = FIELD_TOP + FIELD_H * 0.17;
+      DRIP.w = 44 * U;
+      DRIP.h = 27 * U;
+      DRIP.mouthY = DRIP.y + DRIP.h * 0.85;
+      DRIP_R.active = false;
+    }
   }
 
   // -------- PATH (1 entrada arriba -> espiral orgánica -> vaso abajo) -----
@@ -559,41 +576,41 @@
     if (state) generateTissue();
   }
 
-  // ============ PATH DEL NIVEL PUENTE (5 carriles paralelos) ============
-  // Cada carril es una línea recta horizontal: spawn a la derecha, puerta de
-  // órgano a la izquierda. No hay tronco compartido (PATH.main vacío).
+  // ============ PATH DEL NIVEL PUENTE (5 carriles VERTICALES) ============
+  // Cada carril es vertical: spawn arriba (la barrera rota), puerta de órgano
+  // abajo. Campo al 80%: 15% de margen lateral (deja sitio para las dos
+  // mitocondrias) y 12% arriba/abajo. Sin tronco compartido.
   function rebuildDisseminationPath() {
     PATH.orientation = isPortrait ? "portrait" : "landscape";
-    // 5 carriles equiespaciados verticalmente, con margen arriba/abajo.
-    var laneYs = [0.18, 0.34, 0.50, 0.66, 0.82];
-    var entryXn = 0.94;
-    var exitXn = 0.10;
+    // 5 columnas equiespaciadas en el 70% central del campo (15%..85%).
+    var laneXs = [0.20, 0.35, 0.50, 0.65, 0.80];
+    var entryYn = 0.12;   // arriba (grieta de barrera rota)
+    var exitYn = 0.88;    // abajo (puerta de órgano)
     PATH.wounds = [];
     PATH.branches = [];
     PATH.totalForBranch = [];
     PATH.absorbStartForBranch = [];
     PATH.organDoors = [];
-    PATH.laneYs = laneYs;
+    PATH.laneXs = laneXs;
+    PATH.entryYn = entryYn;
+    PATH.exitYn = exitYn;
     for (var i = 0; i < 5; i++) {
-      var yPx = FIELD_TOP + laneYs[i] * FIELD_H;
-      var entry = { x: FIELD_LEFT + entryXn * FIELD_W, y: yPx };
-      var exit = { x: FIELD_LEFT + exitXn * FIELD_W, y: yPx };
+      var xPx = FIELD_LEFT + laneXs[i] * FIELD_W;
+      var entry = { x: xPx, y: FIELD_TOP + entryYn * FIELD_H };
+      var exit = { x: xPx, y: FIELD_TOP + exitYn * FIELD_H };
       PATH.wounds.push({ x: entry.x, y: entry.y, phase: i * 0.4, active: true });
-      PATH.organDoors.push({ x: exit.x, y: exit.y, organ: DISSEMINATION_ORGANS[i], laneY: yPx });
-      // 3 anchors para una Bezier suave (entry → medio → exit, todo en la misma y).
-      var mid = { x: (entry.x + exit.x) / 2, y: yPx };
+      PATH.organDoors.push({ x: exit.x, y: exit.y, organ: DISSEMINATION_ORGANS[i], laneX: xPx });
+      // 3 anchors para una Bezier vertical suave (entry → medio → exit).
+      var mid = { x: xPx, y: (entry.y + exit.y) / 2 };
       PATH.branches.push(buildBezierPath([entry, mid, exit]));
       var t = PATH.branches[i].length;
       PATH.totalForBranch.push(t);
-      // "Carril perdido" se dispara al 98% del recorrido (casi tocando la puerta).
       PATH.absorbStartForBranch.push(t * 0.98);
     }
-    // Sin tronco compartido en diseminación.
     PATH.main = { length: 0, beziers: [] };
     PATH.confluence = null;
-    // PATH.exit apunta al centro del campo izquierdo (referencia para fx).
-    PATH.exit = { x: FIELD_LEFT + exitXn * FIELD_W, y: FIELD_TOP + 0.5 * FIELD_H };
-    // Aliases legacy.
+    // PATH.exit apunta al centro inferior del campo (referencia para fx).
+    PATH.exit = { x: FIELD_LEFT + 0.5 * FIELD_W, y: FIELD_TOP + exitYn * FIELD_H };
     PATH.beziers = [];
     PATH.total = PATH.totalForBranch[0];
     PATH.entry = PATH.wounds[2];     // sangre como referencia (centro)
@@ -1616,8 +1633,12 @@
     state.nextWaveAt = 5;
     state.waveCountdownActive = true;
     state.surgeAnnounced = false;
-    // Reconstruir PATH con 5 carriles.
+    // Reconstruir PATH con 5 carriles + reposicionar mitocondrias laterales.
     rebuildPath();
+    layoutDrip();
+    // Limpiar drops viejas para que se reposicionen.
+    if (state.lymph) state.lymph.drop = null;
+    if (state.lymphR) state.lymphR.drop = null;
     state.waveBannerText = "DISEMINACIÓN — DEFENDÉ LOS ÓRGANOS";
     state.waveBannerTimer = 3.0;
     sfx("wave");
@@ -1898,6 +1919,7 @@
     return pool[Math.floor(Math.random() * pool.length)];
   }
   function updateIntermediateSpawns(dt) {
+    if (state.dissemination) return;        // nivel puente: solo waves explícitas
     if (state.waveIdx < 1) return;          // no stragglers before wave 1 actually starts
     state.nextIntermediateAt -= dt;
     if (state.nextIntermediateAt > 0) return;
@@ -3647,24 +3669,10 @@
   // Cinematic end trigger when infestation reaches 100. Sets up a 7s timeline
   // played in updateCinematic + drawn in drawCinematicEnd.
   function triggerCinematicEnd() {
-    if (state.cinematicEnd) return;
-    // A partir de la ola 18 (boss MRSA), la "infección establecida" deja de
-    // ser un final: es el portal al NIVEL PUENTE. Redirigimos.
-    if (state.waveIdx >= 18 && !state.dissemination) {
-      enterDissemination();
-      return;
-    }
-    // En el nivel puente, la lógica de carril perdido es independiente.
-    if (state.dissemination) return;
-    state.cinematicEnd = {
-      t: 0,
-      buttonShown: false
-    };
-    state.waveActive = false;
-    showMsg("INFECCIÓN ESTABLECIDA");
-    if (audio && audio.ctx) sfx("defeat");
-    META.totalPathogensInfiltrated = META.totalPathogensInfiltrated;
-    saveMeta();
+    if (state.cinematicEnd || state.dissemination) return;
+    // El "100% de infección" en Fase 1 ya no es un final: es el PORTAL al
+    // nivel puente. Siempre que se alcance, redirigimos a Diseminación.
+    enterDissemination();
   }
   // Backward-compat shim: old code may still call triggerLevelEnd().
   function triggerLevelEnd() { triggerCinematicEnd(); }
@@ -3816,48 +3824,54 @@
 
   // -------- LYMPHATIC DRIP UPDATE / DRAW --------------------------------
   // Sprint 7: slower, larger, oscillating drop so players can actually grab it.
-  function updateDrip(dt) {
-    if (state.gameOver || state.victory || state.confirmRestart || state.levelTransition) return;
-    if (!state.lymph) state.lymph = { drop: null, nextDropAt: 6 };
-    if (!state.lymph.drop) {
-      if (state.lymph.nextDropAt === undefined) state.lymph.nextDropAt = 6;
-      state.lymph.nextDropAt -= dt;
-      if (state.lymph.nextDropAt <= 0) {
-        state.lymph.drop = {
-          x: DRIP.x,
-          baseX: DRIP.x,
-          y: DRIP.mouthY,
-          vy: 8 * U,           // slower initial fall
-          ay: 18 * U,          // very gentle gravity (was 90)
-          life: 5.5,           // 5-6s window
+  function updateDripSlot(slot, drip, dt) {
+    if (!slot.drop) {
+      if (slot.nextDropAt === undefined) slot.nextDropAt = 6;
+      slot.nextDropAt -= dt;
+      if (slot.nextDropAt <= 0) {
+        slot.drop = {
+          x: drip.x,
+          baseX: drip.x,
+          y: drip.mouthY,
+          vy: 8 * U,
+          ay: 18 * U,
+          life: 5.5,
           max: 5.5,
           phase: Math.random() * Math.PI * 2,
           collected: false,
           collectAnim: 0
         };
-        state.lymph.nextDropAt = DRIP_INTERVAL;
+        slot.nextDropAt = DRIP_INTERVAL;
       }
     } else {
-      var d = state.lymph.drop;
+      var d = slot.drop;
       if (d.collected) {
         d.collectAnim += dt;
-        if (d.collectAnim >= 0.30) state.lymph.drop = null;
+        if (d.collectAnim >= 0.30) slot.drop = null;
         return;
       }
       d.life -= dt;
       d.vy += d.ay * dt;
-      d.vy = Math.min(d.vy, 38 * U);  // cap terminal velocity
+      d.vy = Math.min(d.vy, 38 * U);
       d.y += d.vy * dt;
-      // Lateral oscillation: 2s period, ±15px design amplitude.
       d.x = d.baseX + Math.sin(state.time * Math.PI + d.phase) * 15 * U;
-      if (d.life <= 0) state.lymph.drop = null;
+      if (d.life <= 0) slot.drop = null;
+    }
+  }
+  function updateDrip(dt) {
+    if (state.gameOver || state.victory || state.confirmRestart || state.levelTransition) return;
+    if (!state.lymph) state.lymph = { drop: null, nextDropAt: 6 };
+    updateDripSlot(state.lymph, DRIP, dt);
+    if (DRIP_R && DRIP_R.active) {
+      if (!state.lymphR) state.lymphR = { drop: null, nextDropAt: 7 };
+      updateDripSlot(state.lymphR, DRIP_R, dt);
     }
   }
 
-  function tryClickDrip(x, y) {
-    var d = state.lymph && state.lymph.drop;
+  function tryClickDripSlot(x, y, slot) {
+    var d = slot && slot.drop;
     if (!d || d.collected) return false;
-    if (Math.hypot(x - d.x, y - d.y) <= 36 * U) {  // +30% tap radius
+    if (Math.hypot(x - d.x, y - d.y) <= 36 * U) {
       state.atp += DRIP_REWARD;
       pushEffect({
         kind: "atpText",
@@ -3887,13 +3901,22 @@
     }
     return false;
   }
+  function tryClickDrip(x, y) {
+    if (tryClickDripSlot(x, y, state.lymph)) return true;
+    if (DRIP_R && DRIP_R.active && tryClickDripSlot(x, y, state.lymphR)) return true;
+    return false;
+  }
 
   // Bean-shaped lymph node (replaces the rectangular tube).
   // MITOCONDRIA — productora real de ATP en la célula. Óvalo con doble membrana
   // y crestas (folded inner membrane). Las gotas amarillas que suelta son ATP.
   function drawLymphNode() {
-    var cx = DRIP.x, cy = DRIP.y;
-    var rx = DRIP.w, ry = DRIP.h;
+    drawMitochondriaAt(DRIP);
+    if (DRIP_R && DRIP_R.active) drawMitochondriaAt(DRIP_R);
+  }
+  function drawMitochondriaAt(drip) {
+    var cx = drip.x, cy = drip.y;
+    var rx = drip.w, ry = drip.h;
     var pulse = 1 + Math.sin(state.time * (Math.PI * 2 / 1.8)) * 0.05;
     var rxp = rx * pulse, ryp = ry * pulse;
     ctx.save();
@@ -3947,7 +3970,10 @@
   }
 
   function drawLymphDrop() {
-    var d = state.lymph && state.lymph.drop;
+    drawDripFor(state.lymph && state.lymph.drop);
+    if (DRIP_R && DRIP_R.active) drawDripFor(state.lymphR && state.lymphR.drop);
+  }
+  function drawDripFor(d) {
     if (!d) return;
     // Collection animation: 1.0 -> 1.5 -> 0 with white flash.
     if (d.collected) {
@@ -10028,7 +10054,7 @@
     drawPath();              // path strokes (rectas en diseminación)
     if (!state.dissemination) drawPlasmaFlow();
     if (!state.dissemination) drawWound();
-    if (!state.dissemination) drawLymphNode();
+    drawLymphNode();      // 1 mitocondria en Fase 1, 2 laterales en Diseminación
     drawRestos();
     drawCollectors();
     drawBarricada();         // coagulation barricade (under enemies)
@@ -10162,35 +10188,43 @@
     g.addColorStop(1, "#1f0e16");
     ctx.fillStyle = g;
     ctx.fillRect(0, FIELD_TOP, VW, FIELD_H);
-    // 5 carriles con tinte propio + separadores tenues.
-    if (!PATH.laneYs) return;
-    var laneH = FIELD_H * 0.16;  // banda visual del carril (no es 1/5 entero)
-    for (var i = 0; i < PATH.laneYs.length; i++) {
+    if (!PATH.laneXs) return;
+    // Rectángulo del campo de carriles (80% del field, centrado).
+    var bridgeLeft = FIELD_LEFT + FIELD_W * 0.13;
+    var bridgeRight = FIELD_LEFT + FIELD_W * 0.87;
+    var bridgeTop = FIELD_TOP + FIELD_H * 0.06;
+    var bridgeBottom = FIELD_TOP + FIELD_H * 0.94;
+    var laneW = (bridgeRight - bridgeLeft) / 5;
+    // Tintes verticales por carril.
+    for (var i = 0; i < PATH.laneXs.length; i++) {
       var organ = DISSEMINATION_ORGANS[i];
-      var yc = FIELD_TOP + PATH.laneYs[i] * FIELD_H;
-      var yTop = yc - laneH / 2;
-      // Tinte del carril.
+      var xc = FIELD_LEFT + PATH.laneXs[i] * FIELD_W;
+      var xL = xc - laneW / 2;
       ctx.fillStyle = organ.tint;
-      ctx.fillRect(0, yTop, VW, laneH);
-      // Hairline central del carril (la "vena" del recorrido).
+      ctx.fillRect(xL, bridgeTop, laneW, bridgeBottom - bridgeTop);
+      // Hairline central (la "vena" del recorrido).
       ctx.strokeStyle = "rgba(255, 255, 255, 0.06)";
       ctx.lineWidth = 1;
       ctx.beginPath();
-      ctx.moveTo(0, yc);
-      ctx.lineTo(VW, yc);
+      ctx.moveTo(xc, bridgeTop);
+      ctx.lineTo(xc, bridgeBottom);
       ctx.stroke();
     }
-    // Separadores entre carriles.
+    // Separadores verticales entre carriles.
     ctx.strokeStyle = "rgba(0, 0, 0, 0.35)";
     ctx.lineWidth = 1;
-    for (var s = 1; s < PATH.laneYs.length; s++) {
-      var ys = FIELD_TOP + ((PATH.laneYs[s - 1] + PATH.laneYs[s]) / 2) * FIELD_H;
+    for (var s = 1; s < PATH.laneXs.length; s++) {
+      var xs = FIELD_LEFT + ((PATH.laneXs[s - 1] + PATH.laneXs[s]) / 2) * FIELD_W;
       ctx.beginPath();
-      ctx.moveTo(0, ys);
-      ctx.lineTo(VW, ys);
+      ctx.moveTo(xs, bridgeTop);
+      ctx.lineTo(xs, bridgeBottom);
       ctx.stroke();
     }
-    // Grietas (spawn) a la derecha y puertas de órgano a la izquierda.
+    // Marco del campo del puente (sutil).
+    ctx.strokeStyle = "rgba(255, 200, 160, 0.18)";
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(bridgeLeft, bridgeTop, bridgeRight - bridgeLeft, bridgeBottom - bridgeTop);
+    // Grietas (spawn) arriba y puertas de órgano abajo.
     if (PATH.wounds && PATH.organDoors) {
       for (var k = 0; k < PATH.wounds.length; k++) {
         var w = PATH.wounds[k];
@@ -10202,31 +10236,40 @@
   }
 
   function drawDisseminationCrack(x, y) {
-    // Grieta irregular roja oscura por donde entra el germen.
+    // Grieta horizontal (la barrera rota arriba del carril). Mancha rojo oscuro.
     ctx.save();
     ctx.translate(x, y);
+    var w = 16 * U, h = 7 * U;
     ctx.fillStyle = "rgba(120, 20, 30, 0.85)";
     ctx.beginPath();
-    ctx.moveTo(0, -14 * U);
-    ctx.lineTo(8 * U, -6 * U);
-    ctx.lineTo(4 * U, 0);
-    ctx.lineTo(10 * U, 8 * U);
-    ctx.lineTo(0, 14 * U);
-    ctx.lineTo(-6 * U, 6 * U);
-    ctx.lineTo(-2 * U, 0);
-    ctx.lineTo(-8 * U, -8 * U);
+    ctx.moveTo(-w, -h * 0.4);
+    ctx.lineTo(-w * 0.4, -h);
+    ctx.lineTo(w * 0.1, -h * 0.5);
+    ctx.lineTo(w * 0.5, -h);
+    ctx.lineTo(w, -h * 0.3);
+    ctx.lineTo(w * 0.6, h * 0.5);
+    ctx.lineTo(w * 0.2, h);
+    ctx.lineTo(-w * 0.3, h * 0.6);
+    ctx.lineTo(-w * 0.7, h);
+    ctx.lineTo(-w, h * 0.2);
     ctx.closePath();
     ctx.fill();
     ctx.strokeStyle = "rgba(40, 8, 12, 0.9)";
     ctx.lineWidth = 1.5;
     ctx.stroke();
+    // Brillo interno apenas.
+    ctx.fillStyle = "rgba(220, 100, 90, 0.25)";
+    ctx.beginPath();
+    ctx.ellipse(0, 0, w * 0.6, h * 0.35, 0, 0, Math.PI * 2);
+    ctx.fill();
     ctx.restore();
   }
 
   function drawOrganDoor(x, y, organ) {
-    // Puerta circular con ícono del órgano + etiqueta.
+    // Puerta circular con ícono del órgano. En layout vertical la etiqueta
+    // va ENCIMA (la puerta está en la franja inferior del campo).
     ctx.save();
-    var r = 22 * U;
+    var r = 20 * U;
     // Halo de color del órgano.
     var grd = ctx.createRadialGradient(x, y, 4, x, y, r * 1.6);
     grd.addColorStop(0, organ.color);
@@ -10242,9 +10285,9 @@
     ctx.strokeStyle = organ.color;
     ctx.lineWidth = 3;
     ctx.stroke();
-    // Ícono central (símbolo simple por órgano).
+    // Ícono central.
     ctx.fillStyle = organ.color;
-    ctx.font = "bold " + Math.floor(18 * U) + "px Fredoka, sans-serif";
+    ctx.font = "bold " + Math.floor(16 * U) + "px Fredoka, sans-serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     var icon = organ.id === "corazon" ? "♥"
@@ -10253,10 +10296,10 @@
              : organ.id === "hueso" ? "▌"
              : "◯";
     ctx.fillText(icon, x, y - 1);
-    // Etiqueta debajo.
+    // Etiqueta ENCIMA de la puerta (en el campo, no debajo).
     ctx.font = "bold " + Math.floor(10 * U) + "px Fredoka, sans-serif";
     ctx.fillStyle = "rgba(240, 220, 200, 0.95)";
-    ctx.fillText(organ.label, x, y + r + 12 * U);
+    ctx.fillText(organ.label, x, y - r - 8 * U);
     ctx.restore();
   }
 

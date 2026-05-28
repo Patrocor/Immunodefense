@@ -392,7 +392,9 @@
   // distinguen de los débiles. En px diseño; multiplicar por U al usar.
   function enemyAuraRadiusPx(def) {
     // Rango = (base + 2*ataque) con +20% y otro +15% acumulado (1.2*1.15=1.38).
-    return (ATTACK_RADIUS_BASE + (def.attack || 0) * 2) * 1.38 * U;
+    // Halo de daño UNIFORME para todos los gérmenes (basado en el clásico más
+    // amenazante, attack=12 → ~88 px diseño). Legibilidad y equilibrio claro.
+    return (ATTACK_RADIUS_BASE + 24) * 1.38 * U;
   }
 
   function layoutDrip() {
@@ -758,11 +760,12 @@
       color: "#50C878",
       colorDark: "#2c8049",
       cost: 83,
-      desc: "Anticuerpos a distancia",
+      desc: "Ametralladora de anticuerpos",
+      machineGun: true,
       levels: [
-        { range: 180, damage: 15, fireRate: 1.5, projectileSpeed: 380, splash: 0, hp: 70 },
-        { range: 210, damage: 24, fireRate: 1.8, projectileSpeed: 430, splash: 0, hp: 90 },
-        { range: 240, damage: 38, fireRate: 2.2, projectileSpeed: 480, splash: 0, hp: 120 }
+        { range: 180, damage: 2, fireRate: 12, projectileSpeed: 460, splash: 0, hp: 70 },
+        { range: 210, damage: 3, fireRate: 16, projectileSpeed: 500, splash: 0, hp: 90 },
+        { range: 240, damage: 4, fireRate: 20, projectileSpeed: 540, splash: 0, hp: 120 }
       ],
       upgradeCost: [85, 140]
     },
@@ -913,7 +916,8 @@
       color: "#90A4AE", colorDark: "#546E7A", radius: 27,
       speedMult: 1.3, hp: 120, reward: 6, viralAdd: 4, attack: 3, isBoss: false,
       shield: null,
-      tooltip: "Coco gram positivo de la flora normal de la piel. Suele ser inofensivo, pero forma biofilm sobre catéteres y prótesis. Rápido y débil: el primer invasor cuando se rompe la barrera cutánea."
+      tentacles: { range: 70, dmg: 7, interval: 1.8, pulses: 3, pulseGap: 0.22 },
+      tooltip: "Coco gram positivo de la flora normal de la piel. Rápido y débil... pero cuando pasa pegado a una torre saca SEUDÓPODOS y le mete puñetazos. Forma biofilm sobre catéteres y prótesis."
     },
     hsv: {
       id: "hsv", name: "Herpes simplex (HSV)", baseKind: "virus",
@@ -1531,6 +1535,8 @@
       burrowTimer: def.burrow ? def.burrow.interval * (0.6 + Math.random() * 0.6) : 0,
       burrowed: false, surfaceTimer: 0, revealed: false,
       seekerCd: def.seekers ? def.seekers.interval * (0.5 + Math.random() * 0.6) : 0,
+      tentTimer: def.tentacles ? def.tentacles.interval * (0.4 + Math.random() * 0.6) : 0,
+      tentTarget: null, tentPulsesLeft: 0, tentPulseT: 0, tentPunchT: 0,
       x: outX, y: outY,
       vx: (Math.random() - 0.5) * 16 * U,
       vy: 0,
@@ -1899,6 +1905,42 @@
           e.childTimer = e.def.spore.interval;
           e.childCount = (e.childCount || 0) + 1;
           spawnSpore(e);
+        }
+      }
+      // S. epidermidis (y cualquier germen con def.tentacles): al pasar cerca
+      // de una torre saca SEUDÓPODOS y le mete una ráfaga de puñetazos.
+      if (e.tentPunchT > 0) e.tentPunchT -= dt;
+      if (e.def.tentacles && e.state === "walking") {
+        var tcfg = e.def.tentacles;
+        if (e.tentTarget && e.tentPulsesLeft > 0) {
+          var stillValid = state.towers.indexOf(e.tentTarget) !== -1 && e.tentTarget.hp > 0 &&
+            Math.hypot(e.tentTarget.x - e.x, e.tentTarget.y - e.y) < tcfg.range * U * 1.6;
+          if (!stillValid) { e.tentTarget = null; e.tentPulsesLeft = 0; e.tentTimer = tcfg.interval * 0.5; }
+          else {
+            e.tentPulseT -= dt;
+            if (e.tentPulseT <= 0) {
+              e.tentTarget.hp -= tcfg.dmg;
+              e.tentTarget.hitFlash = 0.20;
+              e.tentTarget.dmgAccum = (e.tentTarget.dmgAccum || 0) + tcfg.dmg;
+              e.tentPunchT = 0.20;
+              pushEffect({ kind: "particle", x: e.tentTarget.x, y: e.tentTarget.y, vx: (Math.random() - 0.5) * 40 * U, vy: -(20 + Math.random() * 25) * U, life: 0.30, max: 0.40, color: "#ffd24a" });
+              e.tentPulsesLeft -= 1;
+              e.tentPulseT = tcfg.pulseGap;
+              if (e.tentPulsesLeft <= 0) { e.tentTimer = tcfg.interval; e.tentTarget = null; }
+            }
+          }
+        } else {
+          e.tentTimer = (e.tentTimer || 0) - dt;
+          if (e.tentTimer <= 0) {
+            var nearestTT = null, ntdd = Infinity;
+            for (var tti = 0; tti < state.towers.length; tti++) {
+              var ttw = state.towers[tti]; if (ttw.devouredBy) continue;
+              var ttd = Math.hypot(ttw.x - e.x, ttw.y - e.y);
+              if (ttd < tcfg.range * U && ttd < ntdd) { ntdd = ttd; nearestTT = ttw; }
+            }
+            if (nearestTT) { e.tentTarget = nearestTT; e.tentPulsesLeft = tcfg.pulses; e.tentPulseT = tcfg.pulseGap * 0.4; }
+            else { e.tentTimer = 0.6; }
+          }
         }
       }
       // Pseudomonas: esporas buscadoras de torres disparadoras (cañón MAC,
@@ -6246,30 +6288,108 @@
     ctx.restore();
   }
 
-  // CAÑÓN DEL COMPLEMENTO (MAC) — torreta dorada con poro de ataque a membrana.
+  // CAÑÓN DEL COMPLEMENTO (MAC) — BAZUCA militar con muzzle dorado del MAC.
   function drawComplementCannon(t, pulse, expression, blink) {
     var R = 19 * U * pulse, x = t.x, y = t.y;
     ctx.save(); ctx.translate(x, y);
-    // Base/plataforma.
-    ctx.fillStyle = "#6b5410"; ctx.beginPath(); ctx.ellipse(0, R * 0.5, R * 1.05, R * 0.55, 0, 0, Math.PI * 2); ctx.fill();
-    // Anillos del MAC (poro cilíndrico de complemento, vista superior).
-    for (var i = 3; i >= 1; i--) {
-      var rr = R * (0.45 + i * 0.18);
-      ctx.strokeStyle = i % 2 ? "#FFE27A" : t.def.colorDark; ctx.lineWidth = 3 * U;
-      ctx.beginPath(); ctx.arc(0, 0, rr, 0, Math.PI * 2); ctx.stroke();
-    }
-    // Núcleo brillante.
-    var glow = 0.6 + 0.4 * Math.sin(state.time * 4 + (t.idlePhase || 0));
-    var g = ctx.createRadialGradient(0, 0, 1, 0, 0, R * 0.5);
-    g.addColorStop(0, "rgba(255,255,255," + (0.7 + 0.3 * glow) + ")"); g.addColorStop(1, t.def.color);
-    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, R * 0.42, 0, Math.PI * 2); ctx.fill();
-    // Cañón (apunta al objetivo si dispara, si no hacia arriba).
+    // Sombra bajo el arma.
+    ctx.fillStyle = "rgba(0,0,0,0.30)";
+    ctx.beginPath(); ctx.ellipse(0, R * 0.55, R * 1.3, R * 0.45, 0, 0, Math.PI * 2); ctx.fill();
+    // Orientación hacia el último objetivo (si no hay, hacia arriba).
     var ang = -Math.PI / 2;
     if (t.lastTargetX != null) ang = Math.atan2(t.lastTargetY - y, t.lastTargetX - x);
-    ctx.rotate(ang + Math.PI / 2);
-    ctx.fillStyle = "#b8860b"; roundRect(-R * 0.18, -R * 1.35, R * 0.36, R * 0.9, R * 0.12); ctx.fill();
-    ctx.fillStyle = "#FFE27A"; ctx.beginPath(); ctx.arc(0, -R * 1.3, R * 0.2, 0, Math.PI * 2); ctx.fill();
-    if ((t.muzzleFlash || 0) > 0) { ctx.fillStyle = "rgba(180,255,200,0.8)"; ctx.beginPath(); ctx.arc(0, -R * 1.45, R * 0.3, 0, Math.PI * 2); ctx.fill(); }
+    ctx.rotate(ang);   // +x = "adelante" (hacia el objetivo)
+    var L = R * 2.4, W = R * 0.9;
+    // Tubo de la bazuca (rectángulo redondeado horizontal).
+    var grad = ctx.createLinearGradient(0, -W * 0.6, 0, W * 0.6);
+    grad.addColorStop(0, "#7e8a4a"); grad.addColorStop(0.45, "#5e6a2c"); grad.addColorStop(1, "#3d4520");
+    ctx.fillStyle = grad;
+    roundRect(-L * 0.50, -W * 0.6, L, W * 1.2, W * 0.42); ctx.fill();
+    ctx.strokeStyle = "#3d4520"; ctx.lineWidth = 1.5; roundRect(-L * 0.50, -W * 0.6, L, W * 1.2, W * 0.42); ctx.stroke();
+    // Anillos/segmentos a lo largo del tubo.
+    ctx.strokeStyle = "rgba(0,0,0,0.35)"; ctx.lineWidth = 1.3;
+    for (var i = -1; i <= 1; i++) { ctx.beginPath(); ctx.moveTo(L * 0.20 * i, -W * 0.6); ctx.lineTo(L * 0.20 * i, W * 0.6); ctx.stroke(); }
+    // Cap trasero con orificios de ventilación (back-blast).
+    ctx.fillStyle = "#2c3015";
+    roundRect(-L * 0.55, -W * 0.7, L * 0.10, W * 1.4, 3); ctx.fill();
+    ctx.fillStyle = "#0e1207";
+    for (var v = 0; v < 3; v++) { ctx.beginPath(); ctx.arc(-L * 0.50, -W * 0.42 + v * W * 0.42, W * 0.12, 0, Math.PI * 2); ctx.fill(); }
+    // Mira encima del tubo.
+    ctx.fillStyle = "#1a1a22";
+    roundRect(-W * 0.15, -W * 0.95, W * 0.30, W * 0.30, 2); ctx.fill();
+    ctx.fillStyle = "#FFD24A"; ctx.fillRect(-W * 0.04, -W * 0.92, W * 0.08, W * 0.22);
+    // Empuñadura bajo el tubo.
+    ctx.fillStyle = "#3d4520";
+    roundRect(-W * 0.22, W * 0.55, W * 0.44, W * 0.85, W * 0.16); ctx.fill();
+    ctx.strokeStyle = "#1f2410"; ctx.lineWidth = 1.2; roundRect(-W * 0.22, W * 0.55, W * 0.44, W * 0.85, W * 0.16); ctx.stroke();
+    // Anillo dorado del MAC en la boca (muzzle) y núcleo brillante latiendo.
+    var glow = 0.55 + 0.45 * Math.sin(state.time * 4 + (t.idlePhase || 0));
+    ctx.fillStyle = "#FFD24A"; ctx.strokeStyle = "#b8860b"; ctx.lineWidth = 2.2;
+    ctx.beginPath(); ctx.arc(L * 0.52, 0, W * 0.55, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    var gg = ctx.createRadialGradient(L * 0.52, 0, 1, L * 0.52, 0, W * 0.5);
+    gg.addColorStop(0, "rgba(255,255,255," + (0.7 + 0.3 * glow) + ")"); gg.addColorStop(0.6, "#FFE27A"); gg.addColorStop(1, "rgba(184,134,11,0.3)");
+    ctx.fillStyle = gg; ctx.beginPath(); ctx.arc(L * 0.52, 0, W * 0.40, 0, Math.PI * 2); ctx.fill();
+    // Muzzle flash al disparar.
+    if ((t.muzzleFlash || 0) > 0) {
+      var mf = t.muzzleFlash / 0.18;
+      ctx.fillStyle = "rgba(255, 248, 200, " + (0.85 * mf) + ")";
+      ctx.beginPath(); ctx.arc(L * 0.55 + W * 0.5 * (1 - mf), 0, W * (0.55 + 0.5 * mf), 0, Math.PI * 2); ctx.fill();
+      for (var fr = 0; fr < 6; fr++) {
+        var fa = (fr / 6) * Math.PI - Math.PI / 2;
+        ctx.fillStyle = "rgba(255, 215, 90, " + (0.55 * mf) + ")";
+        ctx.beginPath(); ctx.arc(L * 0.62 + Math.cos(fa) * W * 1.1, Math.sin(fa) * W * 0.55, W * 0.16, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+    ctx.restore();
+  }
+
+  // Dibuja tentáculos/seudópodos que salen del germen hacia la torre objetivo,
+  // con un puño en el extremo que vibra cuando golpea (tentPunchT>0).
+  function drawTentaclePunch(e, t) {
+    var dx = t.x - e.x, dy = t.y - e.y, dist = Math.hypot(dx, dy) || 1;
+    var nx = dx / dist, ny = dy / dist;
+    var px = -ny, py = nx;  // perpendicular
+    var punch = (e.tentPunchT || 0) / 0.20;   // 0..1 al golpear
+    var advance = punch * 6 * U;
+    var midPoint = { x: e.x + nx * (dist * 0.55) + px * 0, y: e.y + ny * (dist * 0.55) + py * 0 };
+    var endX = t.x + nx * advance, endY = t.y + ny * advance;
+    ctx.save();
+    ctx.strokeStyle = "rgba(70, 90, 100, 0.95)"; ctx.lineWidth = 3.5 * U; ctx.lineCap = "round";
+    // 3 seudópodos sinuosos hacia el objetivo.
+    for (var k = -1; k <= 1; k++) {
+      var off = k * 8 * U;
+      var c1x = e.x + nx * dist * 0.25 + px * (off + Math.sin(state.time * 8 + k) * 6 * U);
+      var c1y = e.y + ny * dist * 0.25 + py * (off + Math.sin(state.time * 8 + k) * 6 * U);
+      var c2x = midPoint.x + px * (off * 1.4 + Math.cos(state.time * 7 + k) * 5 * U);
+      var c2y = midPoint.y + py * (off * 1.4 + Math.cos(state.time * 7 + k) * 5 * U);
+      ctx.beginPath();
+      ctx.moveTo(e.x, e.y);
+      ctx.bezierCurveTo(c1x, c1y, c2x, c2y, endX + px * off * 0.4, endY + py * off * 0.4);
+      ctx.stroke();
+    }
+    // Puño en el extremo.
+    var fistR = 8 * U + punch * 4 * U;
+    var fistX = endX + nx * 4 * U, fistY = endY + ny * 4 * U;
+    var fg = ctx.createRadialGradient(fistX - fistR * 0.3, fistY - fistR * 0.3, 1, fistX, fistY, fistR);
+    fg.addColorStop(0, "#cfd9e0"); fg.addColorStop(0.6, e.def.color); fg.addColorStop(1, e.def.colorDark);
+    ctx.fillStyle = fg;
+    ctx.beginPath(); ctx.arc(fistX, fistY, fistR, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = e.def.colorDark; ctx.lineWidth = 1.4 * U;
+    ctx.beginPath(); ctx.arc(fistX, fistY, fistR, 0, Math.PI * 2); ctx.stroke();
+    // Nudillos.
+    ctx.fillStyle = "rgba(0,0,0,0.30)";
+    for (var nu = 0; nu < 3; nu++) {
+      var na = (nu - 1) * 0.6 + Math.atan2(-ny, -nx);
+      ctx.beginPath(); ctx.arc(fistX + Math.cos(na) * fistR * 0.55, fistY + Math.sin(na) * fistR * 0.55, fistR * 0.20, 0, Math.PI * 2); ctx.fill();
+    }
+    // Destello al impactar.
+    if (punch > 0) {
+      ctx.fillStyle = "rgba(255, 240, 160, " + (0.5 * punch) + ")";
+      ctx.beginPath(); ctx.arc(t.x, t.y, 18 * U * (1 - punch * 0.5), 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = "#FFB000"; ctx.font = "bold " + Math.round(14 * U) + "px Fredoka, sans-serif";
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText("¡POW!", t.x, t.y - 26 * U);
+    }
     ctx.restore();
   }
 
@@ -6481,6 +6601,11 @@
     else if (kind === "hongo")          drawHongo(e, rad * scale, expression, blink);
     else if (kind === "primordial" || def.id === "boss") drawBoss(e, rad * scale, expression, blink);
     ctx.restore();
+    // Tentáculos/puñetazos (S. epidermidis): seudópodos que extienden hacia
+    // la torre objetivo con puño que vibra al golpear.
+    if (def.tentacles && e.tentTarget && state.towers.indexOf(e.tentTarget) !== -1) {
+      drawTentaclePunch(e, e.tentTarget);
+    }
     // Shield overlay (drawn on top of body but under HP bar).
     if (def.shield && (e.shieldHP > 0 || e.shieldShatterTimer > 0)) {
       drawShield(e, rad * scale);

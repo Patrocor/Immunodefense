@@ -1686,11 +1686,14 @@
     state.waveIdx = idx + 1;
     state.pendingSpawns = [];
     state.spawnElapsed = 0;
+    // HP reducido en diseminación (gérmenes "frescos" tras romper la barrera,
+    // más vulnerables al ataque inmune): 60% base, escala leve por oleada.
+    var hpMult = 0.55 + idx * 0.10;   // 0.55 / 0.65 / 0.75
     var t = 0;
     for (var g = 0; g < groups.length; g++) {
       var grp = groups[g];
       for (var k = 0; k < grp[1]; k++) {
-        state.pendingSpawns.push({ type: grp[0], time: t, hpMult: 1.0 });
+        state.pendingSpawns.push({ type: grp[0], time: t, hpMult: hpMult });
         // Jitter de cadencia.
         t += grp[2] * (0.85 + Math.random() * 0.30);
       }

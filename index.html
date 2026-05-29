@@ -1678,6 +1678,8 @@
     var groups = DISSEMINATION_WAVE_TABLE[idx];
     state.waveActive = true;
     state.waveCountdownActive = false;
+    // Sincronizar waveIdx para que el HUD muestre "Oleada 1/2/3" correctamente.
+    state.waveIdx = idx + 1;
     state.pendingSpawns = [];
     state.spawnElapsed = 0;
     var t = 0;

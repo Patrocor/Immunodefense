@@ -10114,62 +10114,70 @@
     ctx.setTransform(dpr, 0, 0, dpr, shakeOff.x * dpr, shakeOff.y * dpr);
 
     // Strict render order per Sprint 4A spec.
+    // Wrapper: si algo en el field crashea, atrapamos para que HUD/Panel
+    // sigan visibles (clave en Safari iOS, más estricto que Chrome).
     clearCanvas();
-    if (state.dissemination) {
-      drawDisseminationField();
-    } else {
-      drawExteriorZone();      // 0-7%: green outdoor band
-      drawSkinZone();          // 7-15%: thinner skin band
-      drawSkinLayers();        // 15-82%: dermis + hipodermis teñidas
-      drawCirculatoryZone();   // 85-100%: blood vessels area
+    try {
+      if (state.dissemination) {
+        drawDisseminationField();
+      } else {
+        drawExteriorZone();
+        drawSkinZone();
+        drawSkinLayers();
+        drawCirculatoryZone();
+      }
+      drawAmbient();
+      if (!state.dissemination) drawMitosis();
+      if (!state.dissemination) drawPatrol();
+      drawTissue();
+      drawInflammation();
+      drawPath();
+      if (!state.dissemination) drawPlasmaFlow();
+      if (!state.dissemination) drawWound();
+      drawLymphNode();
+      drawRestos();
+      drawCollectors();
+      drawBarricada();
+      drawSlicks();
+      drawAcidSplats();
+      drawRangeHint();
+      for (var j = 0; j < state.enemies.length; j++) {
+        var ej = state.enemies[j];
+        if (!ej.absorbing) drawEnemy(ej);
+      }
+      if (!state.dissemination) drawVessel();
+      for (var jb = 0; jb < state.enemies.length; jb++) {
+        var ejb = state.enemies[jb];
+        if (ejb.absorbing) drawEnemy(ejb);
+      }
+      for (var i = 0; i < state.towers.length; i++) drawTower(state.towers[i]);
+      drawGuardians();
+      drawFragments();
+      drawCannonShots();
+      drawSeekers();
+      drawLymphDrop();
+      drawMedVial();
+      drawTopical();
+      for (var k = 0; k < state.projectiles.length; k++) drawProjectile(state.projectiles[k]);
+      drawGermShots();
+      for (var m = 0; m < state.effects.length; m++) drawEffect(state.effects[m]);
+      drawAcid();
+      drawGas();
+      drawGhost();
+      drawDamageNumbers();
+      drawAtmosphere();
+    } catch (e) {
+      // Si el field crashea, dejamos el HUD/Panel intactos. Solo registramos
+      // (la primera vez) para no inundar.
+      if (!window.__renderErrorLogged) {
+        window.__renderErrorLogged = true;
+        try { console.error("Render field error:", e); } catch (_) {}
+      }
     }
-    drawAmbient();
-    if (!state.dissemination) drawMitosis();
-    if (!state.dissemination) drawPatrol();
-    drawTissue();
-    drawInflammation();
-    drawPath();              // path strokes (rectas en diseminación)
-    if (!state.dissemination) drawPlasmaFlow();
-    if (!state.dissemination) drawWound();
-    drawLymphNode();      // 1 mitocondria en Fase 1, 2 laterales en Diseminación
-    drawRestos();
-    drawCollectors();
-    drawBarricada();         // coagulation barricade (under enemies)
-    drawSlicks();            // charcos aceitosos de Malassezia (bajo gérmenes)
-    drawAcidSplats();        // charcos de ácido del cañón MAC (bajo gérmenes)
-    drawRangeHint();
-    // Pasada A: enemigos NO absorbing (visualmente bajo el torrente).
-    for (var j = 0; j < state.enemies.length; j++) {
-      var ej = state.enemies[j];
-      if (!ej.absorbing) drawEnemy(ej);
-    }
-    // Torrente sprite — cubre cualquier enemigo cerca del vaso (no en diseminación).
-    if (!state.dissemination) drawVessel();
-    // Pasada B: enemigos absorbing (sobre el torrente, se ven siendo tragados).
-    for (var jb = 0; jb < state.enemies.length; jb++) {
-      var ejb = state.enemies[jb];
-      if (ejb.absorbing) drawEnemy(ejb);
-    }
-    // Towers on top of everything in the field.
-    for (var i = 0; i < state.towers.length; i++) drawTower(state.towers[i]);
-    drawGuardians();
-    drawFragments();   // fragmentos C3b flotando (tappables)
-    drawCannonShots(); // gotas del cañón MAC en vuelo (arco lento)
-    drawSeekers();     // esporas buscadoras de Pseudomonas
-    drawLymphDrop();
-    drawMedVial();
-    drawTopical();
-    for (var k = 0; k < state.projectiles.length; k++) drawProjectile(state.projectiles[k]);
-    drawGermShots();
-    for (var m = 0; m < state.effects.length; m++) drawEffect(state.effects[m]);
-    drawAcid();
-    drawGas();
-    drawGhost();
-    drawDamageNumbers();
-    drawAtmosphere();        // vignette + glow + enrojecimiento por infestación
-    // Sprint 8B: durante la cinemática se oculta el HUD y el panel para
-    // que el canvas se sienta fullscreen.
-    if (!state.cinematicEnd) {
+    // HUD y panel SIEMPRE visibles (excepto en title/intro, que tienen su
+    // propio overlay). La cinemática vieja ya no se usa (era el placeholder
+    // pre-puente); mantenerlo oculto rompía la jugabilidad si quedaba activo.
+    if (!state.showTitle && !state.showIntro) {
       drawHUD();
       drawPanel();
       drawComplementMeter();

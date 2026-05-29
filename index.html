@@ -910,9 +910,9 @@
       // El "tiro" es una mancha de ácido en el campo: fireRate como cadencia mínima
       // entre tiros manuales; splash define el radio del charco; damage es el DoT/s.
       levels: [
-        { range: 200, damage: 28, fireRate: 0.7, projectileSpeed: 0, splash: 42, hp: 100, acidDur: 4.0, travelTime: 1.1 },
-        { range: 230, damage: 40, fireRate: 0.9, projectileSpeed: 0, splash: 50, hp: 130, acidDur: 4.5, travelTime: 1.0 },
-        { range: 260, damage: 56, fireRate: 1.1, projectileSpeed: 0, splash: 58, hp: 160, acidDur: 5.0, travelTime: 0.95 }
+        { range: 400, damage: 28, fireRate: 0.7, projectileSpeed: 0, splash: 42, hp: 100, acidDur: 4.0, travelTime: 1.1 },
+        { range: 460, damage: 40, fireRate: 0.9, projectileSpeed: 0, splash: 50, hp: 130, acidDur: 4.5, travelTime: 1.0 },
+        { range: 520, damage: 56, fireRate: 1.1, projectileSpeed: 0, splash: 58, hp: 160, acidDur: 5.0, travelTime: 0.95 }
       ],
       upgradeCost: [120, 200]
     }
@@ -1377,8 +1377,10 @@
       // Nivel puente "Diseminación" (5 carriles, post ola 18).
       dissemination: false,
       disseminationWaveIdx: 0,         // 0..2 dentro del puente
-      disseminationOver: null,         // { germ, organ } cuando un germen cruza
+      disseminationOver: null,         // { germ, organ } cuando un órgano llena
       disseminationIntroTimer: 0,      // banner de entrada al puente
+      disseminationOrganLoad: [0,0,0,0,0],   // 0..10 por órgano (cada germen +1)
+      disseminationFlash: [0,0,0,0,0],       // brillo de impacto al recibir germen
       tissue: null,
       mitosis: null,
       nextMitosisAt: 12,
@@ -1607,6 +1609,8 @@
     state.disseminationWaveIdx = 0;
     state.disseminationOver = null;
     state.disseminationIntroTimer = 4.0;
+    state.disseminationOrganLoad = [0, 0, 0, 0, 0];
+    state.disseminationFlash = [0, 0, 0, 0, 0];
     // Limpieza del campo de Fase 1.
     state.enemies.length = 0;
     state.towers.length = 0;
@@ -2092,8 +2096,9 @@
       }
       var pxSpeed = e.def.speedMult * (e.speedMultLevel || 1) * BASE_SPEED * U *
                     infestSpeedMult(state.viralLoad);
-      // Nivel puente: gérmenes a la mitad de velocidad para dar tiempo de luchar.
-      if (state.dissemination) pxSpeed *= 0.5;
+      // Nivel puente: gérmenes a 0.35× la velocidad original (50% × 70%
+      // adicional) para dar tiempo holgado de defender.
+      if (state.dissemination) pxSpeed *= 0.35;
       // Medicamento: paralización / ralentización.
       if (e.stunTimer > 0) e.stunTimer -= dt;
       if (e.slowTimer > 0) e.slowTimer -= dt;
@@ -2224,21 +2229,25 @@
         ? PATH.absorbStartForBranch[hi]
         : totalForThis * TORRENT_ABSORB_TRIGGER;
       if (e.progress >= absorbThreshold && !e.absorbing) {
-        // NIVEL PUENTE: el primer germen que cruza una puerta de órgano
-        // define el escenario de Fase 2 y termina el nivel.
+        // NIVEL PUENTE: cada germen que cruza una puerta llena +10% el
+        // medidor del órgano. Al llegar a 10/10 (100%), ese órgano cae y
+        // se define el escenario de Fase 2.
         if (state.dissemination) {
-          if (!state.disseminationOver) {
-            var organ = (PATH.organDoors && PATH.organDoors[hi])
-              ? PATH.organDoors[hi].organ
-              : DISSEMINATION_ORGANS[hi] || DISSEMINATION_ORGANS[0];
-            state.disseminationOver = {
-              germ: e.def,
-              organ: organ,
-              t: 0
-            };
-            triggerShake(0.45, 9);
-            sfx("playerHurt");
-            spawnEffect("escape", e.x, e.y);
+          if (!state.disseminationOrganLoad) state.disseminationOrganLoad = [0, 0, 0, 0, 0];
+          state.disseminationOrganLoad[hi] = (state.disseminationOrganLoad[hi] || 0) + 1;
+          // Feedback visual del impacto en la puerta.
+          var organ = (PATH.organDoors && PATH.organDoors[hi])
+            ? PATH.organDoors[hi].organ
+            : DISSEMINATION_ORGANS[hi] || DISSEMINATION_ORGANS[0];
+          spawnEffect("escape", e.x, e.y, organ.color);
+          if (!state.disseminationFlash) state.disseminationFlash = [0,0,0,0,0];
+          state.disseminationFlash[hi] = 0.6;
+          triggerShake(0.12, 3);
+          if (audio && audio.ctx) sfx("playerHurt");
+          // ¿órgano lleno?
+          if (state.disseminationOrganLoad[hi] >= 10 && !state.disseminationOver) {
+            state.disseminationOver = { germ: e.def, organ: organ, t: 0 };
+            triggerShake(0.5, 9);
             state.waveActive = false;
             state.pendingSpawns = [];
           }
@@ -10315,7 +10324,9 @@
         var w = PATH.wounds[k];
         var d = PATH.organDoors[k];
         drawDisseminationCrack(w.x, w.y);
-        drawOrganDoor(d.x, d.y, d.organ);
+        var load = (state.disseminationOrganLoad && state.disseminationOrganLoad[k]) || 0;
+        var flash = (state.disseminationFlash && state.disseminationFlash[k]) || 0;
+        drawOrganDoor(d.x, d.y, d.organ, load, flash);
       }
     }
   }
@@ -10350,25 +10361,38 @@
     ctx.restore();
   }
 
-  function drawOrganDoor(x, y, organ) {
-    // Puerta circular con ícono del órgano. En layout vertical la etiqueta
-    // va ENCIMA (la puerta está en la franja inferior del campo).
+  function drawOrganDoor(x, y, organ, load, flash) {
+    load = load || 0;
+    flash = flash || 0;
+    var pct = Math.min(1, load / 10);
     ctx.save();
     var r = 20 * U;
-    // Halo de color del órgano.
-    var grd = ctx.createRadialGradient(x, y, 4, x, y, r * 1.6);
-    grd.addColorStop(0, organ.color);
+    // Halo de color del órgano (más intenso con load y con flash).
+    var haloA = 0.8 + flash * 1.2 + pct * 0.6;
+    var grd = ctx.createRadialGradient(x, y, 4, x, y, r * (1.6 + flash * 0.5));
+    grd.addColorStop(0, colorAlpha(organ.color, Math.min(1, haloA)));
     grd.addColorStop(1, "rgba(0,0,0,0)");
     ctx.fillStyle = grd;
-    ctx.fillRect(x - r * 2, y - r * 2, r * 4, r * 4);
-    // Disco oscuro.
+    ctx.fillRect(x - r * 2.5, y - r * 2.5, r * 5, r * 5);
+    // Disco oscuro de fondo.
     ctx.fillStyle = "rgba(20, 10, 14, 0.92)";
     ctx.beginPath();
     ctx.arc(x, y, r, 0, Math.PI * 2);
     ctx.fill();
-    // Anillo del color del órgano.
+    // Relleno del color del órgano según el load (anillo que se va llenando).
+    if (pct > 0) {
+      ctx.fillStyle = colorAlpha(organ.color, 0.35 + pct * 0.45);
+      ctx.beginPath();
+      ctx.arc(x, y, r, -Math.PI / 2, -Math.PI / 2 + pct * Math.PI * 2);
+      ctx.lineTo(x, y);
+      ctx.closePath();
+      ctx.fill();
+    }
+    // Anillo del color del órgano (más grueso con flash).
     ctx.strokeStyle = organ.color;
-    ctx.lineWidth = 3;
+    ctx.lineWidth = 3 + flash * 4;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
     ctx.stroke();
     // Ícono central.
     ctx.fillStyle = organ.color;
@@ -10381,10 +10405,15 @@
              : organ.id === "hueso" ? "▌"
              : "◯";
     ctx.fillText(icon, x, y - 1);
-    // Etiqueta ENCIMA de la puerta (en el campo, no debajo).
+    // Contador X/10 sobre la puerta.
+    ctx.font = "bold " + Math.floor(11 * U) + "px Fredoka, sans-serif";
+    var loadColor = pct >= 0.7 ? "#ff7a7a" : (pct >= 0.4 ? "#ffd24a" : "rgba(240, 220, 200, 0.95)");
+    ctx.fillStyle = loadColor;
+    ctx.fillText(load + " / 10", x, y - r - 8 * U);
+    // Etiqueta del órgano más arriba.
     ctx.font = "bold " + Math.floor(10 * U) + "px Fredoka, sans-serif";
-    ctx.fillStyle = "rgba(240, 220, 200, 0.95)";
-    ctx.fillText(organ.label, x, y - r - 8 * U);
+    ctx.fillStyle = "rgba(240, 220, 200, 0.80)";
+    ctx.fillText(organ.label, x, y - r - 20 * U);
     ctx.restore();
   }
 
@@ -10528,6 +10557,11 @@
       paused = true;
     }
     if (state.disseminationIntroTimer > 0) state.disseminationIntroTimer -= dt;
+    if (state.disseminationFlash) {
+      for (var dFi = 0; dFi < state.disseminationFlash.length; dFi++) {
+        if (state.disseminationFlash[dFi] > 0) state.disseminationFlash[dFi] -= dt;
+      }
+    }
     if (!paused) {
       updateWaveScheduler(dt);
       updateWave(dt);

@@ -6297,6 +6297,7 @@
       ctx.fillStyle = "rgba(90, 150, 240, 0.30)";
       ctx.beginPath(); ctx.arc(t.x, t.y, 20 * U, 0, Math.PI * 2); ctx.fill();
     }
+    if (disseminationScaled) ctx.restore();
   }
 
   function drawNeutrofilo(t, pulse, expression, blink) {
@@ -6762,7 +6763,6 @@
       ctx.fillText("¡ZAS!", headX + sh, headY - 32 * U);
     }
     ctx.restore();
-    if (disseminationScaled) ctx.restore();
   }
 
   function drawEnemy(e) {

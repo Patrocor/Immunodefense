@@ -396,7 +396,10 @@
     // Rango = (base + 2*ataque) con +20% y otro +15% acumulado (1.2*1.15=1.38).
     // Halo de daño UNIFORME para todos los gérmenes (basado en el clásico más
     // amenazante, attack=12 → ~88 px diseño). Legibilidad y equilibrio claro.
-    return (ATTACK_RADIUS_BASE + 24) * 1.38 * U;
+    var r = (ATTACK_RADIUS_BASE + 24) * 1.38 * U;
+    // Nivel puente: todo al 72%, incluido el aura de daño.
+    if (typeof state !== "undefined" && state && state.dissemination) r *= 0.72;
+    return r;
   }
 
   function layoutDrip() {
@@ -1603,7 +1606,7 @@
     state.dissemination = true;
     state.disseminationWaveIdx = 0;
     state.disseminationOver = null;
-    state.disseminationIntroTimer = 3.0;
+    state.disseminationIntroTimer = 4.0;
     // Limpieza del campo de Fase 1.
     state.enemies.length = 0;
     state.towers.length = 0;
@@ -1642,10 +1645,11 @@
     // Limpiar drops viejas para que se reposicionen.
     if (state.lymph) state.lymph.drop = null;
     if (state.lymphR) state.lymphR.drop = null;
-    state.waveBannerText = "DISEMINACIÓN — DEFENDÉ LOS ÓRGANOS";
-    state.waveBannerTimer = 3.0;
+    // El banner clásico lo reemplaza la cinemática de entrada
+    // (drawDisseminationIntro). Sin showMsg, sin waveBannerTimer.
+    state.waveBannerText = "";
+    state.waveBannerTimer = 0;
     sfx("wave");
-    showMsg("La infección rompió la barrera. Buscó órgano blanco.");
   }
 
   function startNextDisseminationWave() {
@@ -1741,7 +1745,7 @@
       swallowAnim: 0,
       mawOpen: 0,
       speedBoost: 1,
-      radiusScale: 1,
+      radiusScale: state.dissemination ? 0.72 : 1,
       noSpore: false,
       childCount: 0,
       childTimer: def.spore ? def.spore.interval * (0.5 + Math.random() * 0.5) : 0,
@@ -5171,6 +5175,7 @@
   }
 
   function canPlaceTowerAt(x, y) {
+    if (state.dissemination) return canPlaceTowerAtDissemination(x, y);
     var pad = 24 * U;
     // Restrict to body interior zone (15%-85% of field height).
     // Espiral usa casi todo el campo: permitir colocar en casi toda la altura.
@@ -5194,6 +5199,37 @@
     }
     if (PATH.exit && Math.hypot(x - PATH.exit.x, y - PATH.exit.y) < 44 * U) return false;
     if (PATH.confluence && Math.hypot(x - PATH.confluence.x, y - PATH.confluence.y) < 36 * U) return false;
+    return true;
+  }
+
+  // En el nivel puente: terreno libre. Solo se bloquean las mitocondrias,
+  // las grietas de spawn arriba, las puertas de órgano abajo y las propias
+  // torres. El path NO bloquea — el jugador puede colocar dentro de un carril.
+  function canPlaceTowerAtDissemination(x, y) {
+    var pad = 12 * U;
+    if (y < FIELD_TOP + pad || y > FIELD_BOTTOM - pad) return false;
+    if (x < FIELD_LEFT + pad || x > FIELD_RIGHT - pad) return false;
+    for (var i = 0; i < state.towers.length; i++) {
+      if (Math.hypot(state.towers[i].x - x, state.towers[i].y - y) < 28 * U) return false;
+    }
+    // Mitocondrias laterales.
+    if (Math.abs(x - DRIP.x) < DRIP.w + 10 * U &&
+        Math.abs(y - DRIP.y) < DRIP.h + 10 * U) return false;
+    if (DRIP_R && DRIP_R.active &&
+        Math.abs(x - DRIP_R.x) < DRIP_R.w + 10 * U &&
+        Math.abs(y - DRIP_R.y) < DRIP_R.h + 10 * U) return false;
+    // Grietas (spawn arriba).
+    if (PATH.wounds) {
+      for (var w = 0; w < PATH.wounds.length; w++) {
+        if (Math.hypot(x - PATH.wounds[w].x, y - PATH.wounds[w].y) < 26 * U) return false;
+      }
+    }
+    // Puertas de órgano (abajo).
+    if (PATH.organDoors) {
+      for (var d = 0; d < PATH.organDoors.length; d++) {
+        if (Math.hypot(x - PATH.organDoors[d].x, y - PATH.organDoors[d].y) < 30 * U) return false;
+      }
+    }
     return true;
   }
 
@@ -5638,6 +5674,11 @@
   }
 
   function drawPath() {
+    // En diseminación dibujamos líneas finas y discretas (no la espiral rosada).
+    if (state.dissemination) {
+      drawDisseminationPathStroke();
+      return;
+    }
     // Inflammation halos under the path strokes.
     drawPathInflammation();
     ctx.lineCap = "round";
@@ -5668,6 +5709,24 @@
   }
   // Legacy alias kept for any straggler refs.
   function strokePathLine() { strokeAllPaths(); }
+
+  // Path del puente: trazo fino y semitransparente — solo guía visual.
+  function drawDisseminationPathStroke() {
+    if (!PATH.branches || !PATH.branches.length) return;
+    ctx.save();
+    ctx.lineCap = "round";
+    // Banda gruesa muy translúcida (la "vena" del carril).
+    ctx.strokeStyle = "rgba(180, 60, 70, 0.10)";
+    ctx.lineWidth = 12 * U;
+    for (var b = 0; b < PATH.branches.length; b++) strokeBeziers(PATH.branches[b].beziers);
+    // Trazo central tenue (dashed) que indica recorrido.
+    ctx.strokeStyle = "rgba(230, 200, 180, 0.30)";
+    ctx.lineWidth = 1.4 * U;
+    ctx.setLineDash([5 * U, 9 * U]);
+    for (var b2 = 0; b2 < PATH.branches.length; b2++) strokeBeziers(PATH.branches[b2].beziers);
+    ctx.setLineDash([]);
+    ctx.restore();
+  }
 
   // ---- Herida (wound) at path entry ------------------------------------
   // Stable jitter: precompute once.
@@ -6130,6 +6189,13 @@
   }
 
   function drawTower(t) {
+    var disseminationScaled = !!state.dissemination;
+    if (disseminationScaled) {
+      ctx.save();
+      ctx.translate(t.x, t.y);
+      ctx.scale(0.75, 0.75);
+      ctx.translate(-t.x, -t.y);
+    }
     var stats = towerStats(t);
     var idle = Math.sin(state.time * Math.PI + (t.idlePhase || 0));
     var pulse = 1 + idle * 0.025;
@@ -6694,6 +6760,7 @@
       ctx.fillText("¡ZAS!", headX + sh, headY - 32 * U);
     }
     ctx.restore();
+    if (disseminationScaled) ctx.restore();
   }
 
   function drawEnemy(e) {
@@ -10313,22 +10380,80 @@
 
   function drawDisseminationIntro() {
     if (state.disseminationIntroTimer <= 0) return;
+    var total = 4.0;
     var t = state.disseminationIntroTimer;
-    var alpha = Math.min(1, t / 0.4) * Math.min(1, (3.0 - t) / 0.4 + 1);
-    if (alpha <= 0) return;
-    alpha = Math.min(1, alpha);
+    var elapsed = total - t;
     ctx.save();
-    ctx.globalAlpha = alpha;
-    ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
-    ctx.fillRect(0, VH * 0.30, VW, VH * 0.25);
-    ctx.fillStyle = "#f0d2a0";
-    ctx.font = "bold " + Math.floor(28 * U) + "px Fredoka, sans-serif";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText("La infección rompió la barrera", VW / 2, VH * 0.38);
-    ctx.font = "bold " + Math.floor(18 * U) + "px Fredoka, sans-serif";
-    ctx.fillStyle = "#c0a080";
-    ctx.fillText("Defendé los 5 órganos", VW / 2, VH * 0.46);
+    // ── Velo oscuro de fondo (fade in → hold → fade out)
+    var bgAlpha;
+    if (elapsed < 0.5) bgAlpha = (elapsed / 0.5) * 0.88;
+    else if (elapsed < 2.9) bgAlpha = 0.88;
+    else bgAlpha = Math.max(0, 0.88 * (1 - (elapsed - 2.9) / 1.1));
+    ctx.fillStyle = "rgba(8, 4, 8, " + bgAlpha + ")";
+    ctx.fillRect(0, 0, VW, VH);
+    // ── Flash radial rojo (la barrera cediendo) — 0.4-1.4s
+    if (elapsed > 0.4 && elapsed < 1.6) {
+      var ft = (elapsed - 0.4) / 1.2;
+      var flashAlpha = Math.sin(ft * Math.PI) * 0.60;
+      var fg = ctx.createRadialGradient(VW / 2, VH / 2, 0, VW / 2, VH / 2, Math.max(VW, VH) * 0.75);
+      fg.addColorStop(0, "rgba(220, 40, 50, " + flashAlpha + ")");
+      fg.addColorStop(0.6, "rgba(120, 20, 30, " + (flashAlpha * 0.5) + ")");
+      fg.addColorStop(1, "rgba(40, 0, 0, 0)");
+      ctx.fillStyle = fg;
+      ctx.fillRect(0, 0, VW, VH);
+    }
+    // ── Grietas que se expanden desde el centro — 0.8-2.4s
+    if (elapsed > 0.8 && elapsed < 2.6) {
+      var crackProgress = Math.min(1, (elapsed - 0.8) / 0.8);
+      var crackFade = elapsed > 2.0 ? Math.max(0, 1 - (elapsed - 2.0) / 0.6) : 1;
+      ctx.strokeStyle = "rgba(240, 110, 120, " + (0.85 * crackFade) + ")";
+      ctx.lineWidth = 2.5;
+      ctx.lineCap = "round";
+      var nCracks = 8;
+      var rMax = Math.max(VW, VH) * 0.55 * crackProgress;
+      for (var c = 0; c < nCracks; c++) {
+        var ang = (c / nCracks) * Math.PI * 2 + 0.2;
+        ctx.beginPath();
+        ctx.moveTo(VW / 2, VH / 2);
+        // Grieta con quiebres (zigzag).
+        var steps = 4;
+        for (var k = 1; k <= steps; k++) {
+          var rk = rMax * (k / steps);
+          var jitter = (Math.sin(c * 1.7 + k * 2.3) * 0.18) - 0.09;
+          var ax = VW / 2 + Math.cos(ang + jitter) * rk;
+          var ay = VH / 2 + Math.sin(ang + jitter) * rk;
+          ctx.lineTo(ax, ay);
+        }
+        ctx.stroke();
+      }
+    }
+    // ── Texto principal: aparece en 1.0s, hold, fade out en 3.0s
+    if (elapsed > 1.0) {
+      var textAlpha;
+      if (elapsed < 1.6) textAlpha = (elapsed - 1.0) / 0.6;
+      else if (elapsed < 3.0) textAlpha = 1;
+      else textAlpha = Math.max(0, 1 - (elapsed - 3.0) / 1.0);
+      ctx.globalAlpha = textAlpha;
+      // Título grande con slide-in vertical.
+      var slideOff = Math.max(0, (1.6 - elapsed) * 30 * U);
+      ctx.fillStyle = "#ffce8a";
+      ctx.font = "bold " + Math.floor(38 * U) + "px Fredoka, sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.lineWidth = 4;
+      ctx.strokeStyle = "rgba(80, 10, 10, 0.9)";
+      ctx.strokeText("LA BARRERA CAYÓ", VW / 2, VH * 0.40 + slideOff);
+      ctx.fillText("LA BARRERA CAYÓ", VW / 2, VH * 0.40 + slideOff);
+      // Subtítulo.
+      ctx.font = "italic " + Math.floor(17 * U) + "px Fredoka, sans-serif";
+      ctx.fillStyle = "#d4a888";
+      ctx.fillText("La infección busca órganos profundos", VW / 2, VH * 0.49);
+      // Call to action.
+      ctx.font = "bold " + Math.floor(22 * U) + "px Fredoka, sans-serif";
+      ctx.fillStyle = "#f0d8a0";
+      ctx.fillText("◆ DEFENDÉ LOS 5 ÓRGANOS ◆", VW / 2, VH * 0.60);
+      ctx.globalAlpha = 1;
+    }
     ctx.restore();
   }
 

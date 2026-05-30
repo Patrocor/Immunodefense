@@ -2109,6 +2109,8 @@
     state.nets = [];
     state.thrombi = [];
     state.armedResponse = null;
+    state.medCharge = 0;
+    state.topicalCharge = 0;
     // Limpieza del campo de Fase 1.
     state.enemies.length = 0;
     state.towers.length = 0;
@@ -10826,7 +10828,7 @@
       drawCannonShots();
       drawSeekers();
       drawLymphDrop();
-      drawMedVial();
+      if (!state.dissemination) drawMedVial();
       if (!state.dissemination) drawTopical();
       for (var k = 0; k < state.projectiles.length; k++) drawProjectile(state.projectiles[k]);
       drawGermShots();

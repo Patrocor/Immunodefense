@@ -9655,12 +9655,40 @@
         if (hy + Hh.h < strip.y - 4 || hy > strip.y + strip.h + 4) continue;
         ctx.fillStyle = Hh.open ? "#33212e" : "#241620";
         ctx.fillRect(Hh.x, hy, Hh.w, Hh.h);
+        // Layout con auto-ajuste: la cuenta a la derecha (siempre visible),
+        // y la etiqueta a la izquierda escalada/recortada para que no
+        // invada el espacio de la cuenta.
+        ctx.textBaseline = "middle";
+        var countStr = String(Hh.count);
+        // Reserva espacio para la cuenta (siempre 11px font).
+        ctx.font = "bold 11px Fredoka, sans-serif";
+        var countW = ctx.measureText(countStr).width;
+        var lblText = (Hh.open ? "▾ " : "▸ ") + Hh.label;
+        var lblX = Hh.x + 8;
+        var lblMaxW = Hh.w - 16 - countW - 6;
+        // Probar tamaños descendentes hasta que entre, o usar ellipsis.
+        var maxFs = Math.max(10, Math.min(12, Hh.w * 0.105));
+        var fs = maxFs;
+        ctx.font = "bold " + fs + "px Fredoka, sans-serif";
+        while (fs > 8 && ctx.measureText(lblText).width > lblMaxW) {
+          fs -= 0.5;
+          ctx.font = "bold " + fs + "px Fredoka, sans-serif";
+        }
+        // Si aún no entra al mínimo de 8px, recorta con "…"
+        var displayText = lblText;
+        if (ctx.measureText(displayText).width > lblMaxW) {
+          while (displayText.length > 4 && ctx.measureText(displayText + "…").width > lblMaxW) {
+            displayText = displayText.slice(0, -1);
+          }
+          displayText += "…";
+        }
         ctx.fillStyle = "#fff";
-        ctx.font = "bold " + Math.max(10, Math.min(12, Hh.w * 0.105)) + "px Fredoka, sans-serif";
-        ctx.textAlign = "left"; ctx.textBaseline = "middle";
-        ctx.fillText((Hh.open ? "▾ " : "▸ ") + Hh.label, Hh.x + 8, hy + Hh.h / 2);
+        ctx.textAlign = "left";
+        ctx.fillText(displayText, lblX, hy + Hh.h / 2);
+        // Cuenta a la derecha.
+        ctx.font = "bold 11px Fredoka, sans-serif";
         ctx.textAlign = "right"; ctx.fillStyle = "rgba(255,255,255,0.45)";
-        ctx.fillText(String(Hh.count), Hh.x + Hh.w - 8, hy + Hh.h / 2);
+        ctx.fillText(countStr, Hh.x + Hh.w - 8, hy + Hh.h / 2);
       }
       // Cartas (solo de los grupos abiertos).
       for (var i = 0; i < UI.cards.length; i++) {

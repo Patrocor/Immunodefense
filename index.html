@@ -1208,19 +1208,19 @@
   // ============ MÉDULA ÓSEA Y PICKUPS DE DESBLOQUEO ============
   // Cada cierto número de oleadas, la médula ósea emite un pickup flotante.
   // El jugador lo tappea y la torre correspondiente se desbloquea en el dock.
-  // Schedule cada 2 olas en Fase 1. Las primeras 3 son per-fase (se pierden
-  // al entrar a Diseminación y se vuelven a emitir). Las últimas 2 (Mastocito
-  // y MAC) tienen persistAcrossPhases=true, así que una vez desbloqueadas
-  // quedan en el dock para todas las fases siguientes.
+  // Schedule cada 2 olas en Fase 1. MAC sale 2do — el jugador ya cuenta con
+  // él temprano. Las per-fase se pierden al cambiar de fase y se re-emiten;
+  // las permanentes (Mastocito, MAC) si se desbloquean, quedan para siempre.
   var BASIC_TOWERS = ["neutrofilo", "linfocitoB", "linfocitoT"];
   var UNLOCK_SCHEDULE = {
-    2:  "langerhans",
-    4:  "nk",
-    6:  "eosinofilo",
-    8:  "mastocito",
-    10: "complemento"
+    2:  "langerhans",   // per-fase
+    4:  "complemento",  // permanente (MAC) — segundo pickup
+    6:  "nk",           // per-fase
+    8:  "eosinofilo",   // per-fase
+    10: "mastocito"     // permanente
   };
   var PER_PHASE_TOWERS = ["langerhans", "nk", "eosinofilo"]; // re-emiten al cambiar fase
+  var PERSISTENT_UNLOCKABLES = ["mastocito", "complemento"]; // si no llegó a unlocked, también re-aparece
 
   function spawnUnlockPickup(typeId) {
     if (!state.medulaOsea) return;
@@ -2468,8 +2468,9 @@
     }
     state.unlockScheduleNotified = {};
     state.unlockPickups = [];
-    // Cola de pickups que la médula va a emitir en esta nueva fase para las
-    // torres per-fase (se distribuyen en el tiempo).
+    // Cola de pickups que la médula va a emitir en la nueva fase:
+    //  1) Per-fase: SIEMPRE se re-emiten (Langerhans, NK, Eosinófilo).
+    //  2) Permanentes: solo si NO se desbloquearon en Fase 1 (Mastocito, MAC).
     state.pendingPhaseUnlocks = [];
     var firstUnlockAt = state.time + 6;
     var nUnlocked = 0;
@@ -2477,6 +2478,13 @@
       var ppType = PER_PHASE_TOWERS[ppi];
       if (state.unlockedTowers.indexOf(ppType) === -1) {
         state.pendingPhaseUnlocks.push({ typeId: ppType, spawnAt: firstUnlockAt + nUnlocked * 10 });
+        nUnlocked++;
+      }
+    }
+    for (var psi = 0; psi < PERSISTENT_UNLOCKABLES.length; psi++) {
+      var psType = PERSISTENT_UNLOCKABLES[psi];
+      if (state.unlockedTowers.indexOf(psType) === -1) {
+        state.pendingPhaseUnlocks.push({ typeId: psType, spawnAt: firstUnlockAt + nUnlocked * 10 });
         nUnlocked++;
       }
     }

@@ -894,6 +894,7 @@
       id: "mastocito", name: "Mastocito", shortName: "Mastocito",
       color: "#4F8FE0", colorDark: "#2c5da0", cost: 75, desc: "Histamina (ralentiza)",
       support: "slow",
+      persistAcrossPhases: true,  // tank/soporte tisular: una vez desbloqueado, queda
       levels: [
         { range: 110, damage: 0, fireRate: 1.0, projectileSpeed: 0, splash: 0, hp: 95,  slowDur: 1.2, dotPerSec: 4 },
         { range: 130, damage: 0, fireRate: 1.0, projectileSpeed: 0, splash: 0, hp: 120, slowDur: 1.2, dotPerSec: 6 },
@@ -905,6 +906,7 @@
       id: "complemento", name: "Cañón del Complemento", shortName: "Cañón MAC",
       color: "#FFD24A", colorDark: "#b8860b", cost: 5, currency: "complement",
       desc: "MAC manual: ácido que ignora escudos",
+      persistAcrossPhases: true,  // soporte tanque: persiste entre fases
       ignoreShield: true,
       manualFire: true,             // el jugador apunta y dispara
       immuneToAura: true,           // el aura de contacto no le hace daño
@@ -1206,13 +1208,19 @@
   // ============ MÉDULA ÓSEA Y PICKUPS DE DESBLOQUEO ============
   // Cada cierto número de oleadas, la médula ósea emite un pickup flotante.
   // El jugador lo tappea y la torre correspondiente se desbloquea en el dock.
+  // Schedule cada 2 olas en Fase 1. Las primeras 3 son per-fase (se pierden
+  // al entrar a Diseminación y se vuelven a emitir). Las últimas 2 (Mastocito
+  // y MAC) tienen persistAcrossPhases=true, así que una vez desbloqueadas
+  // quedan en el dock para todas las fases siguientes.
+  var BASIC_TOWERS = ["neutrofilo", "linfocitoB", "linfocitoT"];
   var UNLOCK_SCHEDULE = {
-    3:  "langerhans",
-    5:  "nk",
-    7:  "eosinofilo",
-    9:  "mastocito",
-    11: "complemento"
+    2:  "langerhans",
+    4:  "nk",
+    6:  "eosinofilo",
+    8:  "mastocito",
+    10: "complemento"
   };
+  var PER_PHASE_TOWERS = ["langerhans", "nk", "eosinofilo"]; // re-emiten al cambiar fase
 
   function spawnUnlockPickup(typeId) {
     if (!state.medulaOsea) return;
@@ -2447,6 +2455,31 @@
     state.topicalCharge = 0;
     // Primer macrófago autónomo aparece pronto (no esperamos los 28s estándar).
     state.guardianTimer = 8;
+    // Filtrar desbloqueos: conservamos básicas + las que tengan
+    // persistAcrossPhases. Las per-fase se pierden y se re-emiten via médula.
+    if (state.unlockedTowers) {
+      state.unlockedTowers = state.unlockedTowers.filter(function (t) {
+        if (BASIC_TOWERS.indexOf(t) !== -1) return true;
+        var defT = TOWER_DEFS[t];
+        return !!(defT && defT.persistAcrossPhases);
+      });
+    } else {
+      state.unlockedTowers = BASIC_TOWERS.slice();
+    }
+    state.unlockScheduleNotified = {};
+    state.unlockPickups = [];
+    // Cola de pickups que la médula va a emitir en esta nueva fase para las
+    // torres per-fase (se distribuyen en el tiempo).
+    state.pendingPhaseUnlocks = [];
+    var firstUnlockAt = state.time + 6;
+    var nUnlocked = 0;
+    for (var ppi = 0; ppi < PER_PHASE_TOWERS.length; ppi++) {
+      var ppType = PER_PHASE_TOWERS[ppi];
+      if (state.unlockedTowers.indexOf(ppType) === -1) {
+        state.pendingPhaseUnlocks.push({ typeId: ppType, spawnAt: firstUnlockAt + nUnlocked * 10 });
+        nUnlocked++;
+      }
+    }
     // Recalcular layout para que UI.responsePanel y el strip de torres se
     // dimensionen para esta fase (sino quedaban con la geometría de Fase 1).
     layoutUI();
@@ -5958,8 +5991,8 @@
       sfx("upgrade");
       return;
     }
-    // Pickup de desbloqueo de torre (Fase 1): tap sobre la cápsula la consume.
-    if (!state.dissemination && tryTapUnlockPickup(x, y)) {
+    // Pickup de desbloqueo de torre (cualquier fase): tap sobre la cápsula la consume.
+    if (tryTapUnlockPickup(x, y)) {
       return;
     }
     // Respuestas inmunes: tap sobre una carta del panel.
@@ -11190,8 +11223,8 @@
       drawCannonShots();
       drawSeekers();
       drawLymphDrop();
-      if (!state.dissemination) drawMedulaOsea();
-      if (!state.dissemination) drawUnlockPickups();
+      drawMedulaOsea();
+      drawUnlockPickups();
       if (!state.dissemination) drawMedVial();
       if (!state.dissemination) drawTopical();
       for (var k = 0; k < state.projectiles.length; k++) drawProjectile(state.projectiles[k]);
@@ -11709,6 +11742,15 @@
       updateThrombi(dt);
       updateDendriticStains(dt);
       updateUnlockPickups(dt);
+      // Spawneo retardado de pickups per-fase al cambiar de fase.
+      if (state.pendingPhaseUnlocks && state.pendingPhaseUnlocks.length > 0) {
+        for (var pui = state.pendingPhaseUnlocks.length - 1; pui >= 0; pui--) {
+          if (state.time >= state.pendingPhaseUnlocks[pui].spawnAt) {
+            spawnUnlockPickup(state.pendingPhaseUnlocks[pui].typeId);
+            state.pendingPhaseUnlocks.splice(pui, 1);
+          }
+        }
+      }
     }
     if (state.showIntro && !state.showTitle) updateIntroComic(dt);
     if (state.cinematicEnd) updateCinematic(dt);

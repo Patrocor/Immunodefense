@@ -1403,7 +1403,7 @@
     ctx.fillStyle = "rgba(30, 15, 20, 0.85)";
     ctx.strokeStyle = "#ffd24a";
     ctx.lineWidth = 2;
-    roundRect(x, y, w, h, 6);
+    roundRect(x, y, w, h, 4);
     ctx.fill(); ctx.stroke();
     ctx.fillStyle = "#ffd24a";
     ctx.font = "bold " + Math.floor(13 * U) + "px Fredoka, sans-serif";
@@ -1468,7 +1468,7 @@
       ctx.fillStyle = armed ? colorAlpha(def.color, 0.30) : "rgba(20, 10, 14, 0.85)";
       ctx.strokeStyle = def.color;
       ctx.lineWidth = armed ? 3 : 2;
-      roundRect(cx, cy, cardW, cardH, 6);
+      roundRect(cx, cy, cardW, cardH, 4);
       ctx.fill(); ctx.stroke();
 
       // Ícono como glifo de texto (sin círculo de fondo que se lea como "globo
@@ -3821,7 +3821,7 @@
       ctx.shadowBlur = 8 + 8 * gp;
     }
     ctx.fillStyle = "rgba(20,8,12,0.55)";
-    roundRect(v.x, v.y, v.w, v.h, 5); ctx.fill();
+    roundRect(v.x, v.y, v.w, v.h, 4); ctx.fill();
     ctx.shadowBlur = 0;
     // 4 bloques de izquierda (Nv1) a derecha (Nv4 = antibiótico máximo).
     for (var i = 0; i < MED_BLOCKS; i++) {
@@ -3837,7 +3837,7 @@
       roundRect(segX + 1, v.y + 1.5, segW - 2, v.h - 3, 3); ctx.stroke();
     }
     ctx.strokeStyle = "rgba(255,255,255,0.5)"; ctx.lineWidth = 2;
-    roundRect(v.x, v.y, v.w, v.h, 5); ctx.stroke();
+    roundRect(v.x, v.y, v.w, v.h, 4); ctx.stroke();
     ctx.restore();
     // Label flotante removido: el gauge se comunica con sus 4 segmentos de
     // color (Nv1..Nv4) que ya indican qué medicamento está cargado.
@@ -3853,7 +3853,7 @@
       ctx.shadowBlur = 8 + 8 * (0.5 + 0.5 * Math.sin(state.time * 5));
     }
     ctx.fillStyle = "rgba(20,8,12,0.55)";
-    roundRect(v.x, v.y, v.w, v.h, 5); ctx.fill();
+    roundRect(v.x, v.y, v.w, v.h, 4); ctx.fill();
     ctx.shadowBlur = 0;
     // Llenado de abajo hacia arriba (verde ácido).
     var lh = (v.h - 4) * ratio;
@@ -3861,7 +3861,7 @@
     ctx.fillRect(v.x + 2, v.y + v.h - 2 - lh, v.w - 4, lh);
     ctx.strokeStyle = ready ? "#b6ff3a" : "rgba(255,255,255,0.5)";
     ctx.lineWidth = 2;
-    roundRect(v.x, v.y, v.w, v.h, 5); ctx.stroke();
+    roundRect(v.x, v.y, v.w, v.h, 4); ctx.stroke();
     ctx.restore();
     // Etiqueta dentro del rect (rotada 90° en el lateral) — antes flotaba a
     // la derecha del vial creando efecto callout. Ahora vive dentro del marco.
@@ -4123,9 +4123,9 @@
     var topY = (UI.topicalVial ? UI.topicalVial.y + UI.topicalVial.h + 6 : FIELD_TOP + 6);
     var h = 22, bx = FIELD_LEFT + 6, by = topY;
     var ready = n >= MAC_COST;
-    ctx.fillStyle = "rgba(8,28,16,0.55)"; roundRect(bx, by, w, h, 7); ctx.fill();
+    ctx.fillStyle = "rgba(8,28,16,0.55)"; roundRect(bx, by, w, h, 4); ctx.fill();
     ctx.strokeStyle = ready ? "rgba(124,252,158,0.95)" : "rgba(124,252,158,0.35)";
-    ctx.lineWidth = ready ? 2 : 1; roundRect(bx, by, w, h, 7); ctx.stroke();
+    ctx.lineWidth = ready ? 2 : 1; roundRect(bx, by, w, h, 4); ctx.stroke();
     ctx.fillStyle = "#aef7c4"; ctx.textAlign = "left";
     ctx.fillText(label, bx + pad, by + h / 2 + 0.5);
     var dx = bx + pad + lw + 8;
@@ -9663,9 +9663,9 @@
         var hy = strip.y + Hh.contentY - scroll;
         if (hy + Hh.h < strip.y - 4 || hy > strip.y + strip.h + 4) continue;
         ctx.fillStyle = Hh.open ? "#33212e" : "#241620";
-        roundRect(Hh.x, hy, Hh.w, Hh.h, 6); ctx.fill();
+        roundRect(Hh.x, hy, Hh.w, Hh.h, 4); ctx.fill();
         ctx.strokeStyle = "rgba(255,255,255,0.12)"; ctx.lineWidth = 1.2;
-        roundRect(Hh.x, hy, Hh.w, Hh.h, 6); ctx.stroke();
+        roundRect(Hh.x, hy, Hh.w, Hh.h, 4); ctx.stroke();
         ctx.fillStyle = "#fff";
         ctx.font = "bold " + Math.max(10, Math.min(12, Hh.w * 0.105)) + "px Fredoka, sans-serif";
         ctx.textAlign = "left"; ctx.textBaseline = "middle";
@@ -9780,7 +9780,7 @@
 
       // X deseleccionar (esquina sup-der de la zona info).
       ctx.fillStyle = "rgba(255,255,255,0.12)";
-      roundRect(UI.deselectBtn.x, UI.deselectBtn.y, UI.deselectBtn.w, UI.deselectBtn.h, 6);
+      roundRect(UI.deselectBtn.x, UI.deselectBtn.y, UI.deselectBtn.w, UI.deselectBtn.h, 4);
       ctx.fill();
       ctx.fillStyle = "rgba(255,255,255,0.8)";
       ctx.font = "bold 13px Fredoka, sans-serif";
@@ -10438,14 +10438,12 @@
     ctx.fillText("Tu cuerpo es el campo de batalla", cx, VH * 0.44);
     ctx.globalAlpha = 1;
 
-    // Botón INICIAR (normal, sin pulso).
+    // Botón INICIAR — rectángulo sólido sin sombra ni borde grueso (antes la
+    // sombra blur 12 y el outline 2.5 lo hacían parecer una cápsula).
     var bw = Math.min(VW * 0.62, 270), bh = 56, by = VH * 0.72, bx = cx - bw / 2;
     UI.startBtn = { x: bx, y: by, w: bw, h: bh };
-    ctx.save();
-    ctx.shadowColor = "rgba(0,0,0,0.45)"; ctx.shadowBlur = 12; ctx.shadowOffsetY = 3;
     ctx.fillStyle = "#d61f1f"; roundRect(bx, by, bw, bh, 4); ctx.fill();
-    ctx.restore();
-    ctx.strokeStyle = "rgba(255,255,255,0.9)"; ctx.lineWidth = 2.5; roundRect(bx, by, bw, bh, 4); ctx.stroke();
+    ctx.strokeStyle = "rgba(255,255,255,0.45)"; ctx.lineWidth = 1.5; roundRect(bx, by, bw, bh, 4); ctx.stroke();
     ctx.fillStyle = "#fff"; ctx.font = "900 " + Math.round(bh * 0.40) + "px Fredoka, sans-serif";
     ctx.textAlign = "center"; ctx.textBaseline = "middle";
     ctx.fillText("INICIAR", cx, by + bh / 2 + 1);

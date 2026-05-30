@@ -3836,21 +3836,8 @@
     ctx.strokeStyle = "rgba(255,255,255,0.5)"; ctx.lineWidth = 2;
     roundRect(v.x, v.y, v.w, v.h, 5); ctx.stroke();
     ctx.restore();
-    // Etiqueta arriba de la barra.
-    ctx.save();
-    ctx.textAlign = "center"; ctx.textBaseline = "bottom";
-    if (filled >= 1) {
-      var pw = MED_POWERS[filled - 1];
-      var lp = 0.5 + 0.5 * Math.sin(state.time * 6);
-      ctx.font = "700 10px Fredoka, sans-serif";
-      ctx.fillStyle = colorAlpha(pw.color, 0.8 + 0.2 * lp);
-      ctx.fillText("💉 " + pw.short + " ▸", v.x + v.w / 2, v.y - 4);
-    } else {
-      ctx.font = "9px Fredoka, sans-serif";
-      ctx.fillStyle = "rgba(255,255,255,0.55)";
-      ctx.fillText("💉 medicamento sanguíneo", v.x + v.w / 2, v.y - 4);
-    }
-    ctx.restore();
+    // Label flotante removido: el gauge se comunica con sus 4 segmentos de
+    // color (Nv1..Nv4) que ya indican qué medicamento está cargado.
   }
 
   function drawTopical() {
@@ -10308,35 +10295,42 @@
     var capA = fin * (sc === last ? Math.max(0, 1 - (p - 0.45) / 0.2) : 1);
     if (capA > 0.01) {
       ctx.globalAlpha = capA;
-      var boxH = 64, boxY = VH - boxH - 14, boxX = 16, boxW = VW - 32;
-      ctx.fillStyle = "rgba(255,252,240,0.94)";
-      roundRect(boxX, boxY, boxW, boxH, 10); ctx.fill();
-      ctx.strokeStyle = "#1a1a22"; ctx.lineWidth = 2.5; roundRect(boxX, boxY, boxW, boxH, 10); ctx.stroke();
+      var boxH = 70, boxY = VH - boxH - 14, boxX = 16, boxW = VW - 32;
+      // Rect sólido (sin transparencia), esquinas suaves pero rectas.
+      ctx.fillStyle = "#fffcf0";
+      roundRect(boxX, boxY, boxW, boxH, 4); ctx.fill();
+      ctx.strokeStyle = "#1a1a22"; ctx.lineWidth = 2; roundRect(boxX, boxY, boxW, boxH, 4); ctx.stroke();
       ctx.fillStyle = "#2C2A28"; ctx.font = "15px Fredoka, sans-serif";
       ctx.textAlign = "center"; ctx.textBaseline = "middle";
       var capLines = wrapText(INTRO_CAPTIONS[sc], boxW - 28, 15);
+      // Texto distribuido verticalmente centrado en el cuadro.
+      var lineH = 19;
+      var totalH = capLines.length * lineH;
+      var startY = boxY + (boxH - totalH) / 2 + lineH / 2;
       for (var ci = 0; ci < capLines.length; ci++) {
-        ctx.fillText(capLines[ci], VW / 2, boxY + boxH / 2 + (ci - (capLines.length - 1) / 2) * 19);
+        ctx.fillText(capLines[ci], VW / 2, startY + ci * lineH);
       }
       ctx.globalAlpha = 1;
     }
 
-    // Puntos de progreso (sobre un fondo tenue para legibilidad).
+    // Puntos de progreso (rectángulo sólido para que se lea limpio).
     var nd = INTRO_DUR.length, dx0 = VW / 2 - (nd - 1) * 6;
-    ctx.fillStyle = "rgba(0,0,0,0.28)";
-    roundRect(dx0 - 12, 12, (nd - 1) * 12 + 24, 16, 8); ctx.fill();
+    ctx.fillStyle = "rgba(20,15,18,0.85)";
+    roundRect(dx0 - 12, 12, (nd - 1) * 12 + 24, 16, 4); ctx.fill();
     for (var s2 = 0; s2 < nd; s2++) {
       ctx.fillStyle = s2 === sc ? "#ffffff" : "rgba(255,255,255,0.45)";
       ctx.beginPath(); ctx.arc(dx0 + s2 * 12, 20, 4, 0, Math.PI * 2); ctx.fill();
     }
 
-    // Botón "Saltar ▸".
+    // Botón "Saltar" — rectángulo sólido, esquinas suaves, texto centrado.
     var sw = 86, sh = 30, sx = VW - sw - 12, sy = 12;
     UI.introSkip = { x: sx, y: sy, w: sw, h: sh };
-    ctx.fillStyle = "rgba(0,0,0,0.40)"; roundRect(sx, sy, sw, sh, 8); ctx.fill();
+    ctx.fillStyle = "#1a1a22"; roundRect(sx, sy, sw, sh, 4); ctx.fill();
+    ctx.strokeStyle = "rgba(255,255,255,0.40)"; ctx.lineWidth = 1.5;
+    roundRect(sx, sy, sw, sh, 4); ctx.stroke();
     ctx.fillStyle = "#fff"; ctx.font = "bold 13px Fredoka, sans-serif";
     ctx.textAlign = "center"; ctx.textBaseline = "middle";
-    ctx.fillText("Saltar ▸", sx + sw / 2, sy + sh / 2);
+    ctx.fillText("Saltar", sx + sw / 2, sy + sh / 2);
     UI.introBtn = null;
 
     // Cierre del buceo: oscurecer al final de la última escena -> juego.

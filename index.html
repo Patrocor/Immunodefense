@@ -4007,16 +4007,23 @@
 
   // -------- MEDICAMENTO ---------------------------------------------------
   function layoutMed() {
-    // Sanguíneo: barra HORIZONTAL de 4 bloques, debajo del vaso (zona inferior).
-    // Más grande para el tacto con el dedo.
-    var bw = Math.min(FIELD_W * 0.66, 280);
-    var bh = Math.max(34, 38 * U);
-    var bx = FIELD_LEFT + FIELD_W * 0.50 - bw / 2;   // centrado bajo el vaso
-    var by = FIELD_BOTTOM - bh - 8 * U;              // pegado al borde inferior
-    UI.medVial = { x: bx, y: by, w: bw, h: bh };
-    // Tópico: bloque pequeño en la esquina superior izquierda.
-    var tw = Math.max(20, 24 * U), th = Math.max(34, 42 * U);
-    UI.topicalVial = { x: FIELD_LEFT + 8 * U, y: FIELD_TOP + 10 * U, w: tw, h: th };
+    // Fila inferior con 3 indicadores HORIZONTALES alineados:
+    //  [ antiséptico ] [ medicamento (4 bloques) ] [ C3b dots ]
+    var rowH = Math.max(34, 38 * U);
+    var rowY = FIELD_BOTTOM - rowH - 8 * U;
+    var gap = 6 * U;
+    var availableW = FIELD_W - 16 * U;
+    // Proporciones: 1.0 (medvial principal) / 0.55 (antiséptico) / 0.55 (C3b)
+    var totalRatio = 1.0 + 0.55 + 0.55;
+    var unit = (availableW - gap * 2) / totalRatio;
+    var topicalW = Math.round(unit * 0.55);
+    var medW = Math.round(unit * 1.0);
+    var c3bW = Math.round(unit * 0.55);
+
+    var startX = FIELD_LEFT + 8 * U;
+    UI.topicalVial = { x: startX, y: rowY, w: topicalW, h: rowH };
+    UI.medVial = { x: startX + topicalW + gap, y: rowY, w: medW, h: rowH };
+    UI.c3bMeter = { x: startX + topicalW + gap + medW + gap, y: rowY, w: c3bW, h: rowH };
   }
 
   // Bloques llenos (0..MED_BLOCKS) según la carga acumulada.
@@ -4119,28 +4126,27 @@
       ctx.shadowColor = "rgba(155, 224, 0, 0.9)";
       ctx.shadowBlur = 8 + 8 * (0.5 + 0.5 * Math.sin(state.time * 5));
     }
+    // Fondo plano horizontal.
     ctx.fillStyle = "rgba(20,8,12,0.55)";
-    roundRect(v.x, v.y, v.w, v.h, 0); ctx.fill();
+    ctx.fillRect(v.x, v.y, v.w, v.h);
     ctx.shadowBlur = 0;
-    // Llenado de abajo hacia arriba (verde ácido).
-    var lh = (v.h - 4) * ratio;
+    // Llenado HORIZONTAL de izquierda a derecha (verde ácido).
+    var lw = (v.w - 4) * ratio;
     ctx.fillStyle = ready ? "#b6ff3a" : "#8fce2e";
-    ctx.fillRect(v.x + 2, v.y + v.h - 2 - lh, v.w - 4, lh);
+    ctx.fillRect(v.x + 2, v.y + 2, lw, v.h - 4);
     ctx.strokeStyle = ready ? "#b6ff3a" : "rgba(255,255,255,0.5)";
     ctx.lineWidth = 2;
-    roundRect(v.x, v.y, v.w, v.h, 0); ctx.stroke();
+    ctx.strokeRect(v.x, v.y, v.w, v.h);
     ctx.restore();
-    // Etiqueta dentro del rect (rotada 90° en el lateral) — antes flotaba a
-    // la derecha del vial creando efecto callout. Ahora vive dentro del marco.
+    // Texto centrado dentro del rect.
     ctx.save();
-    ctx.translate(v.x + v.w / 2, v.y + v.h / 2);
-    ctx.rotate(-Math.PI / 2);
     ctx.textAlign = "center"; ctx.textBaseline = "middle";
-    ctx.font = (ready ? "700 " : "") + "9px Fredoka, sans-serif";
+    ctx.font = "bold " + Math.max(10, Math.min(13, v.h * 0.34)) + "px Fredoka, sans-serif";
     ctx.fillStyle = ready
-      ? "rgba(20,30,8," + (0.85 + 0.15 * (0.5 + 0.5 * Math.sin(state.time * 6))) + ")"
-      : "rgba(255,255,255,0.65)";
-    ctx.fillText(ready ? "Antiséptico ▸" : "🧴 tópico " + Math.round(ratio * 100) + "%", 0, 0);
+      ? "rgba(20,30,8," + (0.90 + 0.10 * (0.5 + 0.5 * Math.sin(state.time * 6))) + ")"
+      : "rgba(255,255,255,0.85)";
+    var lbl = ready ? "▸ ANTISÉPTICO" : "🧴 Antiséptico " + Math.round(ratio * 100) + "%";
+    ctx.fillText(lbl, v.x + v.w / 2, v.y + v.h / 2);
     ctx.restore();
   }
 
@@ -4380,28 +4386,45 @@
 
   function drawComplementMeter() {
     var n = state.complement || 0;
-    if (n <= 0 && (!state.fragments || !state.fragments.length)) return;  // aparece al ser relevante
-    var dotR = 4 * U, gap = 4 * U, pad = 6;
-    ctx.save();
-    ctx.font = "bold 11px Fredoka, sans-serif"; ctx.textBaseline = "middle";
-    var label = "C3b", lw = ctx.measureText(label).width;
-    var w = pad * 2 + lw + 8 + MAC_COST * (dotR * 2) + (MAC_COST - 1) * gap;
-    // Justo debajo de la vial del tópico para no solaparse.
-    var topY = (UI.topicalVial ? UI.topicalVial.y + UI.topicalVial.h + 6 : FIELD_TOP + 6);
-    var h = 22, bx = FIELD_LEFT + 6, by = topY;
-    var ready = n >= MAC_COST;
-    ctx.fillStyle = "rgba(8,28,16,0.55)"; roundRect(bx, by, w, h, 0); ctx.fill();
-    ctx.strokeStyle = ready ? "rgba(124,252,158,0.95)" : "rgba(124,252,158,0.35)";
-    ctx.lineWidth = ready ? 2 : 1; roundRect(bx, by, w, h, 0); ctx.stroke();
-    ctx.fillStyle = "#aef7c4"; ctx.textAlign = "left";
-    ctx.fillText(label, bx + pad, by + h / 2 + 0.5);
-    var dx = bx + pad + lw + 8;
-    for (var i = 0; i < MAC_COST; i++) {
-      ctx.beginPath(); ctx.arc(dx + dotR + i * (dotR * 2 + gap), by + h / 2, dotR, 0, Math.PI * 2);
-      ctx.fillStyle = i < n ? "#7CFC9E" : "rgba(255,255,255,0.18)"; ctx.fill();
+    if (n <= 0 && (!state.fragments || !state.fragments.length)) return;
+    // Usa UI.c3bMeter (fila inferior, a la derecha del medvial). Si no existe,
+    // fallback al sitio anterior para no romper layouts antiguos.
+    var v = UI.c3bMeter;
+    if (!v) {
+      v = { x: FIELD_LEFT + 6, y: (UI.topicalVial ? UI.topicalVial.y + UI.topicalVial.h + 6 : FIELD_TOP + 6), w: 100, h: 22 };
     }
-    // Label "¡MAC listo!" eliminado: colgaba debajo del rect (efecto callout).
-    // El estado "listo" ya se comunica con el borde brillante y los dots verdes.
+    var ready = n >= MAC_COST;
+    ctx.save();
+    // Fondo + borde
+    ctx.fillStyle = "rgba(8,28,16,0.55)";
+    ctx.fillRect(v.x, v.y, v.w, v.h);
+    ctx.strokeStyle = ready ? "rgba(124,252,158,0.95)" : "rgba(124,252,158,0.35)";
+    ctx.lineWidth = ready ? 2 : 1;
+    ctx.strokeRect(v.x, v.y, v.w, v.h);
+    // Label "C3b"
+    ctx.font = "bold " + Math.max(10, Math.min(13, v.h * 0.34)) + "px Fredoka, sans-serif";
+    ctx.textBaseline = "middle";
+    ctx.textAlign = "left";
+    ctx.fillStyle = "#aef7c4";
+    var label = ready ? "▸ C3b" : "C3b";
+    var pad = 8;
+    ctx.fillText(label, v.x + pad, v.y + v.h / 2);
+    var lw = ctx.measureText(label).width;
+    // Dots a la derecha del label, espaciados para llenar el rect.
+    var dotsStart = v.x + pad + lw + 8;
+    var dotsEnd = v.x + v.w - pad;
+    var dotsArea = dotsEnd - dotsStart;
+    var dotR = Math.max(3, Math.min(5, v.h * 0.16));
+    var totalDotsW = MAC_COST * (dotR * 2);
+    var gapDots = (dotsArea - totalDotsW) / Math.max(1, MAC_COST - 1);
+    if (gapDots < 2) gapDots = 2;
+    for (var i = 0; i < MAC_COST; i++) {
+      var cx = dotsStart + dotR + i * (dotR * 2 + gapDots);
+      ctx.beginPath();
+      ctx.arc(cx, v.y + v.h / 2, dotR, 0, Math.PI * 2);
+      ctx.fillStyle = i < n ? "#7CFC9E" : "rgba(255,255,255,0.20)";
+      ctx.fill();
+    }
     ctx.restore();
   }
 

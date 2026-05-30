@@ -1403,7 +1403,7 @@
     ctx.fillStyle = "rgba(30, 15, 20, 0.85)";
     ctx.strokeStyle = "#ffd24a";
     ctx.lineWidth = 2;
-    roundRect(x, y, w, h, 4);
+    roundRect(x, y, w, h, 0);
     ctx.fill(); ctx.stroke();
     ctx.fillStyle = "#ffd24a";
     ctx.font = "bold " + Math.floor(13 * U) + "px Fredoka, sans-serif";
@@ -1446,12 +1446,9 @@
     var cardW = rp.w - 2 * pad;
     var cardX = rp.x + pad;
     ctx.save();
-    // Fondo + borde del contenedor
+    // Contenedor plano sin borde.
     ctx.fillStyle = "rgba(30, 15, 20, 0.85)";
-    ctx.strokeStyle = "rgba(255, 210, 74, 0.30)";
-    ctx.lineWidth = 1;
-    roundRect(rp.x, rp.y, rp.w, rp.h, 4);
-    ctx.fill(); ctx.stroke();
+    ctx.fillRect(rp.x, rp.y, rp.w, rp.h);
 
     UI.responseCards = [];
     for (var i = 0; i < RESPONSE_ORDER.length; i++) {
@@ -1466,10 +1463,13 @@
 
       ctx.globalAlpha = canAfford ? 1 : 0.4;
       ctx.fillStyle = armed ? colorAlpha(def.color, 0.30) : "rgba(20, 10, 14, 0.85)";
-      ctx.strokeStyle = def.color;
-      ctx.lineWidth = armed ? 3 : 2;
-      roundRect(cx, cy, cardW, cardH, 4);
-      ctx.fill(); ctx.stroke();
+      ctx.fillRect(cx, cy, cardW, cardH);
+      // Borde solo si está armada (feedback). Sin borde en estado normal.
+      if (armed) {
+        ctx.strokeStyle = def.color;
+        ctx.lineWidth = 2;
+        ctx.strokeRect(cx, cy, cardW, cardH);
+      }
 
       // Ícono como glifo de texto (sin círculo de fondo que se lea como "globo
       // de diálogo"). Se queda dentro del rectángulo limpio.
@@ -3821,7 +3821,7 @@
       ctx.shadowBlur = 8 + 8 * gp;
     }
     ctx.fillStyle = "rgba(20,8,12,0.55)";
-    roundRect(v.x, v.y, v.w, v.h, 4); ctx.fill();
+    roundRect(v.x, v.y, v.w, v.h, 0); ctx.fill();
     ctx.shadowBlur = 0;
     // 4 bloques de izquierda (Nv1) a derecha (Nv4 = antibiótico máximo).
     for (var i = 0; i < MED_BLOCKS; i++) {
@@ -3834,10 +3834,10 @@
       }
       ctx.strokeStyle = (f >= 1) ? col : "rgba(255,255,255,0.22)";
       ctx.lineWidth = (f >= 1) ? 2 : 1;
-      roundRect(segX + 1, v.y + 1.5, segW - 2, v.h - 3, 3); ctx.stroke();
+      roundRect(segX + 1, v.y + 1.5, segW - 2, v.h - 3, 0); ctx.stroke();
     }
     ctx.strokeStyle = "rgba(255,255,255,0.5)"; ctx.lineWidth = 2;
-    roundRect(v.x, v.y, v.w, v.h, 4); ctx.stroke();
+    roundRect(v.x, v.y, v.w, v.h, 0); ctx.stroke();
     ctx.restore();
     // Label flotante removido: el gauge se comunica con sus 4 segmentos de
     // color (Nv1..Nv4) que ya indican qué medicamento está cargado.
@@ -3853,7 +3853,7 @@
       ctx.shadowBlur = 8 + 8 * (0.5 + 0.5 * Math.sin(state.time * 5));
     }
     ctx.fillStyle = "rgba(20,8,12,0.55)";
-    roundRect(v.x, v.y, v.w, v.h, 4); ctx.fill();
+    roundRect(v.x, v.y, v.w, v.h, 0); ctx.fill();
     ctx.shadowBlur = 0;
     // Llenado de abajo hacia arriba (verde ácido).
     var lh = (v.h - 4) * ratio;
@@ -3861,7 +3861,7 @@
     ctx.fillRect(v.x + 2, v.y + v.h - 2 - lh, v.w - 4, lh);
     ctx.strokeStyle = ready ? "#b6ff3a" : "rgba(255,255,255,0.5)";
     ctx.lineWidth = 2;
-    roundRect(v.x, v.y, v.w, v.h, 4); ctx.stroke();
+    roundRect(v.x, v.y, v.w, v.h, 0); ctx.stroke();
     ctx.restore();
     // Etiqueta dentro del rect (rotada 90° en el lateral) — antes flotaba a
     // la derecha del vial creando efecto callout. Ahora vive dentro del marco.
@@ -4123,9 +4123,9 @@
     var topY = (UI.topicalVial ? UI.topicalVial.y + UI.topicalVial.h + 6 : FIELD_TOP + 6);
     var h = 22, bx = FIELD_LEFT + 6, by = topY;
     var ready = n >= MAC_COST;
-    ctx.fillStyle = "rgba(8,28,16,0.55)"; roundRect(bx, by, w, h, 4); ctx.fill();
+    ctx.fillStyle = "rgba(8,28,16,0.55)"; roundRect(bx, by, w, h, 0); ctx.fill();
     ctx.strokeStyle = ready ? "rgba(124,252,158,0.95)" : "rgba(124,252,158,0.35)";
-    ctx.lineWidth = ready ? 2 : 1; roundRect(bx, by, w, h, 4); ctx.stroke();
+    ctx.lineWidth = ready ? 2 : 1; roundRect(bx, by, w, h, 0); ctx.stroke();
     ctx.fillStyle = "#aef7c4"; ctx.textAlign = "left";
     ctx.fillText(label, bx + pad, by + h / 2 + 0.5);
     var dx = bx + pad + lw + 8;
@@ -7385,12 +7385,12 @@
     for (var i = -1; i <= 1; i++) { ctx.beginPath(); ctx.moveTo(L * 0.20 * i, -W * 0.6); ctx.lineTo(L * 0.20 * i, W * 0.6); ctx.stroke(); }
     // Cap trasero con orificios de ventilación (back-blast).
     ctx.fillStyle = "#2c3015";
-    roundRect(-L * 0.55, -W * 0.7, L * 0.10, W * 1.4, 3); ctx.fill();
+    roundRect(-L * 0.55, -W * 0.7, L * 0.10, W * 1.4, 0); ctx.fill();
     ctx.fillStyle = "#0e1207";
     for (var v = 0; v < 3; v++) { ctx.beginPath(); ctx.arc(-L * 0.50, -W * 0.42 + v * W * 0.42, W * 0.12, 0, Math.PI * 2); ctx.fill(); }
     // Mira encima del tubo.
     ctx.fillStyle = "#1a1a22";
-    roundRect(-W * 0.15, -W * 0.95, W * 0.30, W * 0.30, 2); ctx.fill();
+    roundRect(-W * 0.15, -W * 0.95, W * 0.30, W * 0.30, 0); ctx.fill();
     ctx.fillStyle = "#FFD24A"; ctx.fillRect(-W * 0.04, -W * 0.92, W * 0.08, W * 0.22);
     // Empuñadura bajo el tubo.
     ctx.fillStyle = "#3d4520";
@@ -9500,13 +9500,9 @@
     } else statusText = "OLEADA " + state.waveIdx;
     var nb = UI.nextWaveBtn;
     if (nb) {
+      // Banner de estado sin borde — solo fill plano.
       ctx.fillStyle = "rgba(20, 14, 18, 0.55)";
-      roundRect(nb.x, nb.y, nb.w, nb.h, 4);
-      ctx.fill();
-      ctx.strokeStyle = "rgba(255,255,255,0.10)";
-      ctx.lineWidth = 1;
-      roundRect(nb.x, nb.y, nb.w, nb.h, 4);
-      ctx.stroke();
+      ctx.fillRect(nb.x, nb.y, nb.w, nb.h);
       ctx.fillStyle = "#ffd6c4";
       ctx.font = "bold " + Math.max(11, Math.min(13, nb.h * 0.36)) + "px Fredoka, sans-serif";
       ctx.textAlign = "center";
@@ -9514,25 +9510,15 @@
       ctx.fillText(statusText, nb.x + nb.w / 2, nb.y + nb.h / 2);
     }
 
+    // Restart y Mute como rectángulos planos (sin borde).
     var rb = UI.restartBtn;
     ctx.fillStyle = "#5a3540";
-    roundRect(rb.x, rb.y, rb.w, rb.h, 4);
-    ctx.fill();
-    ctx.strokeStyle = "#3a2530";
-    ctx.lineWidth = 1.5;
-    roundRect(rb.x, rb.y, rb.w, rb.h, 4);
-    ctx.stroke();
+    ctx.fillRect(rb.x, rb.y, rb.w, rb.h);
     drawRestartIcon(rb.x + rb.w / 2, rb.y + rb.h / 2, rb.h * 0.32, "#fff");
 
-    // Mute button
     var mb = UI.muteBtn;
     ctx.fillStyle = "#5a3540";
-    roundRect(mb.x, mb.y, mb.w, mb.h, 4);
-    ctx.fill();
-    ctx.strokeStyle = "#3a2530";
-    ctx.lineWidth = 1.5;
-    roundRect(mb.x, mb.y, mb.w, mb.h, 4);
-    ctx.stroke();
+    ctx.fillRect(mb.x, mb.y, mb.w, mb.h);
     drawSpeakerIcon(mb.x + mb.w / 2, mb.y + mb.h / 2, mb.h * 0.36, audio.muted, "#fff");
     if (state.dissemination) drawAntigenHud();
   }
@@ -9611,11 +9597,11 @@
 
   function drawButton(r, text, fill, stroke, enabled) {
     ctx.fillStyle = fill;
-    roundRect(r.x, r.y, r.w, r.h, 4);
+    roundRect(r.x, r.y, r.w, r.h, 0);
     ctx.fill();
     ctx.strokeStyle = stroke;
     ctx.lineWidth = 1.5;
-    roundRect(r.x, r.y, r.w, r.h, 4);
+    roundRect(r.x, r.y, r.w, r.h, 0);
     ctx.stroke();
     ctx.fillStyle = enabled ? "#fff" : "rgba(255,255,255,0.55)";
     var fs = Math.max(11, Math.min(14, r.h * 0.36));
@@ -9663,9 +9649,7 @@
         var hy = strip.y + Hh.contentY - scroll;
         if (hy + Hh.h < strip.y - 4 || hy > strip.y + strip.h + 4) continue;
         ctx.fillStyle = Hh.open ? "#33212e" : "#241620";
-        roundRect(Hh.x, hy, Hh.w, Hh.h, 4); ctx.fill();
-        ctx.strokeStyle = "rgba(255,255,255,0.12)"; ctx.lineWidth = 1.2;
-        roundRect(Hh.x, hy, Hh.w, Hh.h, 4); ctx.stroke();
+        ctx.fillRect(Hh.x, hy, Hh.w, Hh.h);
         ctx.fillStyle = "#fff";
         ctx.font = "bold " + Math.max(10, Math.min(12, Hh.w * 0.105)) + "px Fredoka, sans-serif";
         ctx.textAlign = "left"; ctx.textBaseline = "middle";
@@ -9695,15 +9679,16 @@
           ctx.shadowOffsetX = -4;
         }
         ctx.fillStyle = isSelected ? "#3a2538" : "#1f1219";
-        roundRect(cardX, cardY, cw, ch, 4);
-        ctx.fill();
+        ctx.fillRect(cardX, cardY, cw, ch);
         ctx.shadowColor = "transparent";
         ctx.shadowBlur = 0;
         ctx.shadowOffsetX = 0;
-        ctx.strokeStyle = isSelected ? def.color : "rgba(255,255,255,0.08)";
-        ctx.lineWidth = isSelected ? 3 : 1.5;
-        roundRect(cardX, cardY, cw, ch, 4);
-        ctx.stroke();
+        // Borde solo si está seleccionada (para feedback) — el resto sin outline.
+        if (isSelected) {
+          ctx.strokeStyle = def.color;
+          ctx.lineWidth = 2;
+          ctx.strokeRect(cardX, cardY, cw, ch);
+        }
 
         // Layout HORIZONTAL: ícono pequeño a la izquierda (en su propio
         // recuadro cuadrado) + nombre y costo a la derecha. Todo dentro del
@@ -9780,7 +9765,7 @@
 
       // X deseleccionar (esquina sup-der de la zona info).
       ctx.fillStyle = "rgba(255,255,255,0.12)";
-      roundRect(UI.deselectBtn.x, UI.deselectBtn.y, UI.deselectBtn.w, UI.deselectBtn.h, 4);
+      roundRect(UI.deselectBtn.x, UI.deselectBtn.y, UI.deselectBtn.w, UI.deselectBtn.h, 0);
       ctx.fill();
       ctx.fillStyle = "rgba(255,255,255,0.8)";
       ctx.font = "bold 13px Fredoka, sans-serif";
@@ -9900,7 +9885,7 @@
       var x = VW / 2 - w / 2;
       ctx.fillStyle = "rgba(0,0,0,0.55)";
       ctx.globalAlpha = alpha * 0.6;
-      roundRect(x, FIELD_TOP + 12, w, 36, 4);
+      roundRect(x, FIELD_TOP + 12, w, 36, 0);
       ctx.fill();
       ctx.globalAlpha = alpha;
       ctx.fillStyle = "#fff";
@@ -9916,11 +9901,11 @@
     ctx.fillStyle = "rgba(0,0,0,0.55)";
     ctx.fillRect(0, 0, VW, VH);
     ctx.fillStyle = "#2a1a22";
-    roundRect(UI.modal.x, UI.modal.y, UI.modal.w, UI.modal.h, 4);
+    roundRect(UI.modal.x, UI.modal.y, UI.modal.w, UI.modal.h, 0);
     ctx.fill();
     ctx.strokeStyle = "#5a3540";
     ctx.lineWidth = 2;
-    roundRect(UI.modal.x, UI.modal.y, UI.modal.w, UI.modal.h, 4);
+    roundRect(UI.modal.x, UI.modal.y, UI.modal.w, UI.modal.h, 0);
     ctx.stroke();
     ctx.fillStyle = "#fff";
     ctx.font = "bold 18px Fredoka, sans-serif";
@@ -9991,11 +9976,11 @@
     var btn = { x: VW / 2 - btnW / 2, y: sy + stats.length * lineH + 24, w: btnW, h: btnH };
     UI.transitionBtn = btn;
     ctx.fillStyle = state.finalScreen ? "#2C3E50" : "#1f8a4c";
-    roundRect(btn.x, btn.y, btn.w, btn.h, 4);
+    roundRect(btn.x, btn.y, btn.w, btn.h, 0);
     ctx.fill();
     ctx.strokeStyle = "rgba(0,0,0,0.4)";
     ctx.lineWidth = 1.5;
-    roundRect(btn.x, btn.y, btn.w, btn.h, 4);
+    roundRect(btn.x, btn.y, btn.w, btn.h, 0);
     ctx.stroke();
     ctx.fillStyle = "#fff";
     ctx.font = 'bold 16px Fredoka, sans-serif';
@@ -10327,9 +10312,9 @@
     // Botón "Saltar" — rectángulo sólido, esquinas suaves, texto centrado.
     var sw = 86, sh = 30, sx = VW - sw - 12, sy = 12;
     UI.introSkip = { x: sx, y: sy, w: sw, h: sh };
-    ctx.fillStyle = "#1a1a22"; roundRect(sx, sy, sw, sh, 4); ctx.fill();
+    ctx.fillStyle = "#1a1a22"; roundRect(sx, sy, sw, sh, 0); ctx.fill();
     ctx.strokeStyle = "rgba(255,255,255,0.40)"; ctx.lineWidth = 1.5;
-    roundRect(sx, sy, sw, sh, 4); ctx.stroke();
+    roundRect(sx, sy, sw, sh, 0); ctx.stroke();
     ctx.fillStyle = "#fff"; ctx.font = "bold 13px Fredoka, sans-serif";
     ctx.textAlign = "center"; ctx.textBaseline = "middle";
     ctx.fillText("Saltar", sx + sw / 2, sy + sh / 2);
@@ -10423,12 +10408,11 @@
     ctx.fillText("Tu cuerpo es el campo de batalla", cx, VH * 0.44);
     ctx.globalAlpha = 1;
 
-    // Botón INICIAR — rectángulo sólido sin sombra ni borde grueso (antes la
-    // sombra blur 12 y el outline 2.5 lo hacían parecer una cápsula).
+    // Botón INICIAR — rectángulo plano sólido, sin esquinas redondeadas ni
+    // outline (era lo que le daba aspecto de cápsula/badge).
     var bw = Math.min(VW * 0.62, 270), bh = 56, by = VH * 0.72, bx = cx - bw / 2;
     UI.startBtn = { x: bx, y: by, w: bw, h: bh };
-    ctx.fillStyle = "#d61f1f"; roundRect(bx, by, bw, bh, 4); ctx.fill();
-    ctx.strokeStyle = "rgba(255,255,255,0.45)"; ctx.lineWidth = 1.5; roundRect(bx, by, bw, bh, 4); ctx.stroke();
+    ctx.fillStyle = "#d61f1f"; ctx.fillRect(bx, by, bw, bh);
     ctx.fillStyle = "#fff"; ctx.font = "900 " + Math.round(bh * 0.40) + "px Fredoka, sans-serif";
     ctx.textAlign = "center"; ctx.textBaseline = "middle";
     ctx.fillText("INICIAR", cx, by + bh / 2 + 1);
@@ -10854,11 +10838,11 @@
     var btn = UI.endRestartBtn;
     if (state.victory) {
       ctx.fillStyle = "#2C3E50";
-      roundRect(btn.x, btn.y, btn.w, btn.h, 4);
+      roundRect(btn.x, btn.y, btn.w, btn.h, 0);
       ctx.fill();
       ctx.strokeStyle = "#1a2b3a";
       ctx.lineWidth = 1.5;
-      roundRect(btn.x, btn.y, btn.w, btn.h, 4);
+      roundRect(btn.x, btn.y, btn.w, btn.h, 0);
       ctx.stroke();
       ctx.fillStyle = "#fff";
       ctx.font = 'bold 15px Fredoka, sans-serif';
@@ -10866,11 +10850,11 @@
       ctx.fillText("Jugar de nuevo", btn.x + btn.w / 2, btn.y + btn.h / 2);
     } else {
       ctx.fillStyle = "#C0392B";
-      roundRect(btn.x, btn.y, btn.w, btn.h, 4);
+      roundRect(btn.x, btn.y, btn.w, btn.h, 0);
       ctx.fill();
       ctx.strokeStyle = "#7d2419";
       ctx.lineWidth = 1.5;
-      roundRect(btn.x, btn.y, btn.w, btn.h, 4);
+      roundRect(btn.x, btn.y, btn.w, btn.h, 0);
       ctx.stroke();
       ctx.fillStyle = "#fff";
       ctx.font = 'bold 15px Fredoka, sans-serif';

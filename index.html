@@ -3190,7 +3190,9 @@
       META.totalPathogensDefeated += 1;
       // Cada germen vencido carga el TÓPICO (ácido). El sanguíneo se carga con
       // la muerte de TUS células (ver updateTowers).
-      state.topicalCharge = Math.min(TOPICAL_MAX, state.topicalCharge + (def.isBoss ? TOPICAL_PER_BOSS : TOPICAL_PER_KILL));
+      if (!state.dissemination) {
+        state.topicalCharge = Math.min(TOPICAL_MAX, state.topicalCharge + (def.isBoss ? TOPICAL_PER_BOSS : TOPICAL_PER_KILL));
+      }
       germExplode(e);   // estalla y daña a los personajes cercanos
       // Molluscum: al morir se DIVIDE en mini-molluscum (salvo que ya sea hijo).
       if (def.deathSplit && !e.noSplit && !e.absorbing) {
@@ -5690,7 +5692,7 @@
       if (lvl >= 1) { applyMedicationLevel(lvl); return; }
     }
     // Tópico: tocar el bloque (lleno) lanza el ácido al camino.
-    if (UI.topicalVial && inRect(x, y, UI.topicalVial)) {
+    if (!state.dissemination && UI.topicalVial && inRect(x, y, UI.topicalVial)) {
       if (state.topicalCharge >= TOPICAL_MAX) { applyTopical(); return; }
     }
     // Lymphatic drip drop: highest priority so finger taps grant ATP.
@@ -10825,7 +10827,7 @@
       drawSeekers();
       drawLymphDrop();
       drawMedVial();
-      drawTopical();
+      if (!state.dissemination) drawTopical();
       for (var k = 0; k < state.projectiles.length; k++) drawProjectile(state.projectiles[k]);
       drawGermShots();
       for (var m = 0; m < state.effects.length; m++) drawEffect(state.effects[m]);

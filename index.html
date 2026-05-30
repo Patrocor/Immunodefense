@@ -1450,7 +1450,7 @@
     ctx.fillStyle = "rgba(30, 15, 20, 0.85)";
     ctx.strokeStyle = "rgba(255, 210, 74, 0.30)";
     ctx.lineWidth = 1;
-    roundRect(rp.x, rp.y, rp.w, rp.h, 8);
+    roundRect(rp.x, rp.y, rp.w, rp.h, 4);
     ctx.fill(); ctx.stroke();
 
     UI.responseCards = [];
@@ -9501,11 +9501,11 @@
     var nb = UI.nextWaveBtn;
     if (nb) {
       ctx.fillStyle = "rgba(20, 14, 18, 0.55)";
-      roundRect(nb.x, nb.y, nb.w, nb.h, 8);
+      roundRect(nb.x, nb.y, nb.w, nb.h, 4);
       ctx.fill();
       ctx.strokeStyle = "rgba(255,255,255,0.10)";
       ctx.lineWidth = 1;
-      roundRect(nb.x, nb.y, nb.w, nb.h, 8);
+      roundRect(nb.x, nb.y, nb.w, nb.h, 4);
       ctx.stroke();
       ctx.fillStyle = "#ffd6c4";
       ctx.font = "bold " + Math.max(11, Math.min(13, nb.h * 0.36)) + "px Fredoka, sans-serif";
@@ -9516,22 +9516,22 @@
 
     var rb = UI.restartBtn;
     ctx.fillStyle = "#5a3540";
-    roundRect(rb.x, rb.y, rb.w, rb.h, 8);
+    roundRect(rb.x, rb.y, rb.w, rb.h, 4);
     ctx.fill();
     ctx.strokeStyle = "#3a2530";
     ctx.lineWidth = 1.5;
-    roundRect(rb.x, rb.y, rb.w, rb.h, 8);
+    roundRect(rb.x, rb.y, rb.w, rb.h, 4);
     ctx.stroke();
     drawRestartIcon(rb.x + rb.w / 2, rb.y + rb.h / 2, rb.h * 0.32, "#fff");
 
     // Mute button
     var mb = UI.muteBtn;
     ctx.fillStyle = "#5a3540";
-    roundRect(mb.x, mb.y, mb.w, mb.h, 8);
+    roundRect(mb.x, mb.y, mb.w, mb.h, 4);
     ctx.fill();
     ctx.strokeStyle = "#3a2530";
     ctx.lineWidth = 1.5;
-    roundRect(mb.x, mb.y, mb.w, mb.h, 8);
+    roundRect(mb.x, mb.y, mb.w, mb.h, 4);
     ctx.stroke();
     drawSpeakerIcon(mb.x + mb.w / 2, mb.y + mb.h / 2, mb.h * 0.36, audio.muted, "#fff");
     if (state.dissemination) drawAntigenHud();
@@ -9611,11 +9611,11 @@
 
   function drawButton(r, text, fill, stroke, enabled) {
     ctx.fillStyle = fill;
-    roundRect(r.x, r.y, r.w, r.h, 8);
+    roundRect(r.x, r.y, r.w, r.h, 4);
     ctx.fill();
     ctx.strokeStyle = stroke;
     ctx.lineWidth = 1.5;
-    roundRect(r.x, r.y, r.w, r.h, 8);
+    roundRect(r.x, r.y, r.w, r.h, 4);
     ctx.stroke();
     ctx.fillStyle = enabled ? "#fff" : "rgba(255,255,255,0.55)";
     var fs = Math.max(11, Math.min(14, r.h * 0.36));
@@ -9695,14 +9695,14 @@
           ctx.shadowOffsetX = -4;
         }
         ctx.fillStyle = isSelected ? "#3a2538" : "#1f1219";
-        roundRect(cardX, cardY, cw, ch, 8);
+        roundRect(cardX, cardY, cw, ch, 4);
         ctx.fill();
         ctx.shadowColor = "transparent";
         ctx.shadowBlur = 0;
         ctx.shadowOffsetX = 0;
         ctx.strokeStyle = isSelected ? def.color : "rgba(255,255,255,0.08)";
         ctx.lineWidth = isSelected ? 3 : 1.5;
-        roundRect(cardX, cardY, cw, ch, 8);
+        roundRect(cardX, cardY, cw, ch, 4);
         ctx.stroke();
 
         // Layout HORIZONTAL: ícono pequeño a la izquierda (en su propio
@@ -9900,7 +9900,7 @@
       var x = VW / 2 - w / 2;
       ctx.fillStyle = "rgba(0,0,0,0.55)";
       ctx.globalAlpha = alpha * 0.6;
-      roundRect(x, FIELD_TOP + 12, w, 36, 8);
+      roundRect(x, FIELD_TOP + 12, w, 36, 4);
       ctx.fill();
       ctx.globalAlpha = alpha;
       ctx.fillStyle = "#fff";
@@ -9916,11 +9916,11 @@
     ctx.fillStyle = "rgba(0,0,0,0.55)";
     ctx.fillRect(0, 0, VW, VH);
     ctx.fillStyle = "#2a1a22";
-    roundRect(UI.modal.x, UI.modal.y, UI.modal.w, UI.modal.h, 12);
+    roundRect(UI.modal.x, UI.modal.y, UI.modal.w, UI.modal.h, 4);
     ctx.fill();
     ctx.strokeStyle = "#5a3540";
     ctx.lineWidth = 2;
-    roundRect(UI.modal.x, UI.modal.y, UI.modal.w, UI.modal.h, 12);
+    roundRect(UI.modal.x, UI.modal.y, UI.modal.w, UI.modal.h, 4);
     ctx.stroke();
     ctx.fillStyle = "#fff";
     ctx.font = "bold 18px Fredoka, sans-serif";
@@ -9991,11 +9991,11 @@
     var btn = { x: VW / 2 - btnW / 2, y: sy + stats.length * lineH + 24, w: btnW, h: btnH };
     UI.transitionBtn = btn;
     ctx.fillStyle = state.finalScreen ? "#2C3E50" : "#1f8a4c";
-    roundRect(btn.x, btn.y, btn.w, btn.h, 8);
+    roundRect(btn.x, btn.y, btn.w, btn.h, 4);
     ctx.fill();
     ctx.strokeStyle = "rgba(0,0,0,0.4)";
     ctx.lineWidth = 1.5;
-    roundRect(btn.x, btn.y, btn.w, btn.h, 8);
+    roundRect(btn.x, btn.y, btn.w, btn.h, 4);
     ctx.stroke();
     ctx.fillStyle = "#fff";
     ctx.font = 'bold 16px Fredoka, sans-serif';
@@ -10064,14 +10064,15 @@
     UI.tooltipBtn = null;
     ctx.save();
     ctx.globalAlpha = alpha;
-    // Soft shadow to the left (the card "floats")
-    ctx.shadowColor = "rgba(0, 0, 0, 0.20)";
-    ctx.shadowBlur = 14;
-    ctx.shadowOffsetX = -4;
+    // Sombra centrada y sutil (antes ofsetX=-4 daba aspecto de "cola" a la
+    // izquierda). Aplica al fill para que no toque el stroke después.
+    ctx.shadowColor = "rgba(0, 0, 0, 0.18)";
+    ctx.shadowBlur = 8;
+    ctx.shadowOffsetX = 0;
     ctx.shadowOffsetY = 2;
-    // Cream rounded card
+    // Tarjeta cream con esquinas casi rectas (radius 4 en vez de 12).
     ctx.fillStyle = "#FFF8E7";
-    roundRect(x, y, W, H, 12);
+    roundRect(x, y, W, H, 4);
     ctx.fill();
     ctx.shadowColor = "transparent";
     ctx.shadowBlur = 0;
@@ -10079,9 +10080,8 @@
     ctx.shadowOffsetY = 0;
     ctx.strokeStyle = "#1a1a22";
     ctx.lineWidth = 1.5;
-    roundRect(x, y, W, H, 12);
+    roundRect(x, y, W, H, 4);
     ctx.stroke();
-    // (Sticky-note tab removida — la tarjeta es un rectángulo regular sin punta.)
     // Dibujo por filas: cada fila centrada en su franja (baseline middle).
     var cyc = y + ttPad;
     for (var r2 = 0; r2 < ttRows.length; r2++) {
@@ -10443,9 +10443,9 @@
     UI.startBtn = { x: bx, y: by, w: bw, h: bh };
     ctx.save();
     ctx.shadowColor = "rgba(0,0,0,0.45)"; ctx.shadowBlur = 12; ctx.shadowOffsetY = 3;
-    ctx.fillStyle = "#d61f1f"; roundRect(bx, by, bw, bh, 10); ctx.fill();
+    ctx.fillStyle = "#d61f1f"; roundRect(bx, by, bw, bh, 4); ctx.fill();
     ctx.restore();
-    ctx.strokeStyle = "rgba(255,255,255,0.9)"; ctx.lineWidth = 2.5; roundRect(bx, by, bw, bh, 10); ctx.stroke();
+    ctx.strokeStyle = "rgba(255,255,255,0.9)"; ctx.lineWidth = 2.5; roundRect(bx, by, bw, bh, 4); ctx.stroke();
     ctx.fillStyle = "#fff"; ctx.font = "900 " + Math.round(bh * 0.40) + "px Fredoka, sans-serif";
     ctx.textAlign = "center"; ctx.textBaseline = "middle";
     ctx.fillText("INICIAR", cx, by + bh / 2 + 1);
@@ -10871,11 +10871,11 @@
     var btn = UI.endRestartBtn;
     if (state.victory) {
       ctx.fillStyle = "#2C3E50";
-      roundRect(btn.x, btn.y, btn.w, btn.h, 8);
+      roundRect(btn.x, btn.y, btn.w, btn.h, 4);
       ctx.fill();
       ctx.strokeStyle = "#1a2b3a";
       ctx.lineWidth = 1.5;
-      roundRect(btn.x, btn.y, btn.w, btn.h, 8);
+      roundRect(btn.x, btn.y, btn.w, btn.h, 4);
       ctx.stroke();
       ctx.fillStyle = "#fff";
       ctx.font = 'bold 15px Fredoka, sans-serif';
@@ -10883,11 +10883,11 @@
       ctx.fillText("Jugar de nuevo", btn.x + btn.w / 2, btn.y + btn.h / 2);
     } else {
       ctx.fillStyle = "#C0392B";
-      roundRect(btn.x, btn.y, btn.w, btn.h, 8);
+      roundRect(btn.x, btn.y, btn.w, btn.h, 4);
       ctx.fill();
       ctx.strokeStyle = "#7d2419";
       ctx.lineWidth = 1.5;
-      roundRect(btn.x, btn.y, btn.w, btn.h, 8);
+      roundRect(btn.x, btn.y, btn.w, btn.h, 4);
       ctx.stroke();
       ctx.fillStyle = "#fff";
       ctx.font = 'bold 15px Fredoka, sans-serif';

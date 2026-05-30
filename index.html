@@ -1395,27 +1395,20 @@
 
   function drawAntigenHud() {
     if (!state.dissemination || !state.antigens) return;
-    var w = 140 * U, h = 24 * U;
+    var w = 150 * U, h = 26 * U;
     var x = FIELD_LEFT + 8 * U;
     var y = FIELD_TOP + 100 * U;
     ctx.save();
+    // Rectángulo regular (sin ícono circular pegado que pareciera "globo de diálogo").
     ctx.fillStyle = "rgba(30, 15, 20, 0.85)";
     ctx.strokeStyle = "#ffd24a";
     ctx.lineWidth = 2;
-    roundRect(x, y, w, h, h / 2);
+    roundRect(x, y, w, h, 6);
     ctx.fill(); ctx.stroke();
     ctx.fillStyle = "#ffd24a";
-    ctx.beginPath();
-    ctx.arc(x + h/2, y + h/2, h/2 - 4, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = "#5a3a08";
-    ctx.font = "bold " + Math.floor(11 * U) + "px Fredoka, sans-serif";
-    ctx.textAlign = "center"; ctx.textBaseline = "middle";
-    ctx.fillText("!", x + h/2, y + h/2);
-    ctx.fillStyle = "#ffd24a";
     ctx.font = "bold " + Math.floor(13 * U) + "px Fredoka, sans-serif";
-    ctx.textAlign = "left";
-    ctx.fillText(state.antigens.count + "  ANTÍGENOS", x + h + 4 * U, y + h/2);
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillText("★ " + state.antigens.count + "  ANTÍGENOS", x + w / 2, y + h / 2);
     ctx.restore();
   }
 
@@ -1478,29 +1471,19 @@
       roundRect(cx, cy, cardW, cardH, 6);
       ctx.fill(); ctx.stroke();
 
-      // Ícono circular a la izquierda
-      var iconR = cardH / 2 - 6;
-      var iconCx = cx + cardH / 2;
-      var iconCy = cy + cardH / 2;
-      ctx.fillStyle = colorAlpha(def.color, 0.7);
-      ctx.beginPath();
-      ctx.arc(iconCx, iconCy, iconR, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = "#fff";
-      ctx.font = "bold " + Math.floor(11 * U) + "px Fredoka, sans-serif";
-      ctx.textAlign = "center"; ctx.textBaseline = "middle";
-      ctx.fillText(def.icon, iconCx, iconCy);
-
-      // Label arriba, costo abajo (a la derecha del ícono)
-      var textX = cx + cardH + 4 * U;
+      // Ícono como glifo de texto (sin círculo de fondo que se lea como "globo
+      // de diálogo"). Se queda dentro del rectángulo limpio.
+      var textX = cx + 10 * U;
       ctx.textAlign = "left";
-      ctx.fillStyle = "#fff";
-      ctx.font = "bold " + Math.floor(11 * U) + "px Fredoka, sans-serif";
-      ctx.fillText(def.label, textX, cy + cardH * 0.32);
-
+      ctx.textBaseline = "middle";
+      // Línea superior: ícono + label en el color del poder
+      ctx.fillStyle = def.color;
+      ctx.font = "bold " + Math.floor(13 * U) + "px Fredoka, sans-serif";
+      ctx.fillText(def.icon + "  " + def.label, textX, cy + cardH * 0.35);
+      // Línea inferior: costo en antígenos
       ctx.fillStyle = "#ffd24a";
-      ctx.font = "bold " + Math.floor(11 * U) + "px Fredoka, sans-serif";
-      ctx.fillText("!  " + def.cost, textX, cy + cardH * 0.72);
+      ctx.font = "bold " + Math.floor(12 * U) + "px Fredoka, sans-serif";
+      ctx.fillText("★ " + def.cost, textX, cy + cardH * 0.72);
 
       ctx.globalAlpha = 1;
     }

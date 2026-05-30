@@ -1203,6 +1203,202 @@
     18: [["hsv",6,0.45],["pseudomonas",5,0.85],["candida",4,0.9],["saureus",8,1.0],["hpv",3,1.0],["bossMRSA",1,0]]
   };
 
+  // ============ MÉDULA ÓSEA Y PICKUPS DE DESBLOQUEO ============
+  // Cada cierto número de oleadas, la médula ósea emite un pickup flotante.
+  // El jugador lo tappea y la torre correspondiente se desbloquea en el dock.
+  var UNLOCK_SCHEDULE = {
+    3:  "langerhans",
+    5:  "nk",
+    7:  "eosinofilo",
+    9:  "mastocito",
+    11: "complemento"
+  };
+
+  function spawnUnlockPickup(typeId) {
+    if (!state.medulaOsea) return;
+    if (!state.unlockPickups) state.unlockPickups = [];
+    // No spawn si ya está desbloqueada o ya hay un pickup pendiente.
+    if (state.unlockedTowers && state.unlockedTowers.indexOf(typeId) !== -1) return;
+    for (var i = 0; i < state.unlockPickups.length; i++) {
+      if (state.unlockPickups[i].typeId === typeId) return;
+    }
+    state.unlockPickups.push({
+      typeId: typeId,
+      x: state.medulaOsea.x,
+      y: state.medulaOsea.y,
+      vx: (Math.random() - 0.5) * 8 * U,
+      vy: -22 * U,
+      age: 0,
+      bornAt: state.time,
+      collecting: false,
+      collectT: 0
+    });
+    showMsg("¡Nueva defensa disponible!");
+    sfx("upgrade");
+  }
+
+  function updateUnlockPickups(dt) {
+    if (!state.unlockPickups) return;
+    var arr = state.unlockPickups;
+    for (var i = arr.length - 1; i >= 0; i--) {
+      var p = arr[i];
+      p.age += dt;
+      if (p.collecting) {
+        p.collectT += dt;
+        if (p.collectT >= 0.5) {
+          // Desbloquea
+          if (state.unlockedTowers.indexOf(p.typeId) === -1) {
+            state.unlockedTowers.push(p.typeId);
+            // Asegurar que su grupo se abra para que se vea la nueva torre.
+            for (var gi = 0; gi < TOWER_GROUPS.length; gi++) {
+              if (TOWER_GROUPS[gi].towers.indexOf(p.typeId) !== -1) {
+                state.openGroups[TOWER_GROUPS[gi].id] = true;
+                break;
+              }
+            }
+            layoutUI();
+            var defNew = TOWER_DEFS[p.typeId];
+            if (defNew) showMsg("¡" + defNew.name + " desbloqueado!");
+            sfx("upgrade");
+          }
+          arr.splice(i, 1);
+          continue;
+        }
+        continue;
+      }
+      // Física: flota arriba con leve oscilación, baja luego, se queda en el aire.
+      p.vy *= (1 - 0.6 * dt);
+      p.vy -= 4 * U * dt;  // ligera flotabilidad continua
+      p.vx *= (1 - 0.8 * dt);
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      // Clamp al campo
+      if (p.x < FIELD_LEFT + 16 * U) { p.x = FIELD_LEFT + 16 * U; p.vx = Math.abs(p.vx); }
+      if (p.x > FIELD_RIGHT - 16 * U) { p.x = FIELD_RIGHT - 16 * U; p.vx = -Math.abs(p.vx); }
+      if (p.y < FIELD_TOP + 80 * U) { p.y = FIELD_TOP + 80 * U; p.vy = 0; }
+    }
+  }
+
+  function tryTapUnlockPickup(x, y) {
+    if (!state.unlockPickups) return false;
+    var arr = state.unlockPickups;
+    for (var i = 0; i < arr.length; i++) {
+      var p = arr[i];
+      if (p.collecting) continue;
+      var dx = x - p.x, dy = y - p.y;
+      var R = 22 * U;
+      if (dx * dx + dy * dy <= R * R) {
+        p.collecting = true;
+        p.collectT = 0;
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function drawMedulaOsea() {
+    if (!state.medulaOsea) return;
+    var m = state.medulaOsea;
+    var s = U;
+    ctx.save();
+    ctx.translate(m.x, m.y);
+    // Pulso suave si hay pickup esperando
+    var pendingPulse = 0;
+    if (state.unlockPickups && state.unlockPickups.length > 0) {
+      pendingPulse = 0.5 + 0.5 * Math.sin(state.time * 3);
+    }
+    if (pendingPulse > 0) {
+      ctx.fillStyle = "rgba(255, 210, 100, " + (0.15 + pendingPulse * 0.20) + ")";
+      ctx.beginPath();
+      ctx.arc(0, 0, 40 * s, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // Forma de hueso
+    ctx.fillStyle = "#e8d8a8";
+    ctx.strokeStyle = "#8a6f3a";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 28 * s, 14 * s, 0, 0, Math.PI * 2);
+    ctx.fill(); ctx.stroke();
+    // Bulbos extremos
+    var bulbs = [[-28, -10], [-28, 10], [28, -10], [28, 10]];
+    for (var b = 0; b < bulbs.length; b++) {
+      ctx.beginPath();
+      ctx.arc(bulbs[b][0] * s, bulbs[b][1] * s, 8 * s, 0, Math.PI * 2);
+      ctx.fill(); ctx.stroke();
+    }
+    // Centro rosado (médula)
+    ctx.fillStyle = "#c08080";
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 18 * s, 8 * s, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // Etiqueta
+    ctx.fillStyle = "rgba(80, 50, 30, 0.8)";
+    ctx.font = "bold " + Math.floor(9 * s) + "px Fredoka, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "top";
+    ctx.fillText("MÉDULA", 0, 20 * s);
+    ctx.restore();
+  }
+
+  function drawUnlockPickups() {
+    if (!state.unlockPickups) return;
+    var arr = state.unlockPickups;
+    for (var i = 0; i < arr.length; i++) {
+      var p = arr[i];
+      var def = TOWER_DEFS[p.typeId];
+      if (!def) continue;
+      var scale = 1;
+      var alpha = 1;
+      if (p.collecting) {
+        var t = p.collectT / 0.5;
+        scale = 1 + t * 1.5;
+        alpha = 1 - t;
+      }
+      var pulse = 0.5 + 0.5 * Math.sin(state.time * 4 + i);
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.globalAlpha = alpha;
+      ctx.scale(scale, scale);
+      // Halo pulsante
+      ctx.fillStyle = "rgba(255, 210, 100, " + (0.20 + pulse * 0.30) + ")";
+      ctx.beginPath();
+      ctx.arc(0, 0, 26 * U, 0, Math.PI * 2);
+      ctx.fill();
+      // Cápsula amarilla
+      ctx.fillStyle = "#f5d76e";
+      ctx.strokeStyle = "#8a6020";
+      ctx.lineWidth = 2;
+      ctx.fillRect(-18 * U, -18 * U, 36 * U, 36 * U);
+      ctx.strokeRect(-18 * U, -18 * U, 36 * U, 36 * U);
+      // Sprite de la torre dentro
+      drawCardIcon(p.typeId, 0, 0, 11 * U, true);
+      // "+" arriba
+      ctx.fillStyle = "#ffd24a";
+      ctx.font = "bold " + Math.floor(11 * U) + "px Fredoka, sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("+", 0, -26 * U);
+      ctx.restore();
+      // Texto debajo: nombre de la torre
+      if (!p.collecting) {
+        ctx.save();
+        ctx.fillStyle = "rgba(0,0,0,0.55)";
+        ctx.font = "bold " + Math.floor(10 * U) + "px Fredoka, sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "top";
+        var nameTxt = def.shortName || def.name;
+        var pad = 4 * U;
+        var tw = ctx.measureText(nameTxt).width;
+        ctx.fillRect(p.x - tw / 2 - pad, p.y + 24 * U, tw + pad * 2, 16 * U);
+        ctx.fillStyle = "#fff";
+        ctx.fillText(nameTxt, p.x, p.y + 26 * U);
+        ctx.restore();
+      }
+    }
+  }
+  // ============ FIN MÉDULA ÓSEA ============
+
   // ============ PATTERNS BIOLÓGICOS POR ÓRGANO ============
   // Cacheados en OffscreenCanvas para reutilizar en barrera + puerta.
   // Generados lazy la primera vez que se piden.
@@ -1899,7 +2095,11 @@
       ambient: [],
       circulatory: [],
       selectedToBuild: null,
-      openGroups: { linea: true },      // grupos desplegables de la cartilla
+      openGroups: { linea: true, distancia: true }, // grupos abiertos por defecto
+      unlockedTowers: ["neutrofilo", "linfocitoB", "linfocitoT"], // resto se desbloquea con pickups
+      unlockPickups: [],                // píldoras flotantes en el campo
+      medulaOsea: null,                 // posición de la médula ósea (se setea en layoutUI)
+      unlockScheduleNotified: {},       // qué waves ya emitieron su pickup
       selectedTower: null,
       pointer: { x: 0, y: 0, isOver: false },
       lastPlaceFailedAt: -10,
@@ -2112,18 +2312,26 @@
     UI.cards = [];
     UI.groupHeaders = [];
     var cyc = 0;
+    // Filtra solo torres desbloqueadas (las nuevas se añaden via pickups
+    // de la médula ósea durante el juego).
+    var unlocked = (state && state.unlockedTowers) || ["neutrofilo", "linfocitoB", "linfocitoT"];
+    function isUnlocked(typeId) { return unlocked.indexOf(typeId) !== -1; }
     for (var gi = 0; gi < TOWER_GROUPS.length; gi++) {
       var grp = TOWER_GROUPS[gi];
+      // Filtrar el grupo a las torres desbloqueadas. Si ninguna está
+      // desbloqueada, saltamos el grupo entero (no aparece su header).
+      var visibleTowers = grp.towers.filter(isUnlocked);
+      if (visibleTowers.length === 0) continue;
       var gopen = !!openMap[grp.id];
       UI.groupHeaders.push({ id: grp.id, label: grp.label, open: gopen,
-        count: grp.towers.length, x: contentX, w: contentW, h: headerH, contentY: cyc });
+        count: visibleTowers.length, x: contentX, w: contentW, h: headerH, contentY: cyc });
       cyc += headerH;
       if (gopen) {
         cyc += cardGap;
-        for (var ti = 0; ti < grp.towers.length; ti++) {
-          UI.cards.push({ typeId: grp.towers[ti], x: contentX, w: cardW, h: cardH, contentY: cyc });
+        for (var ti = 0; ti < visibleTowers.length; ti++) {
+          UI.cards.push({ typeId: visibleTowers[ti], x: contentX, w: cardW, h: cardH, contentY: cyc });
           cyc += cardH;
-          if (ti < grp.towers.length - 1) cyc += cardGap;
+          if (ti < visibleTowers.length - 1) cyc += cardGap;
         }
       }
       cyc += groupSpacing;
@@ -2161,6 +2369,15 @@
     UI.modalNo  = { x: UI.modalYes.x + btnsW + 16, y: UI.modalYes.y, w: btnsW, h: 40 };
 
     UI.endRestartBtn = { x: VW / 2 - 90, y: VH / 2 + 30, w: 180, h: 50 };
+
+    // Médula ósea: fija en la izquierda del campo, en zona hipodermis.
+    // Lejos del path de los gérmenes para no interferir con la colocación.
+    if (state) {
+      state.medulaOsea = {
+        x: FIELD_LEFT + Math.min(60 * U, FIELD_W * 0.10),
+        y: FIELD_TOP + FIELD_H * 0.70
+      };
+    }
   }
 
   // -------- WAVES / SPAWN -------------------------------------------------
@@ -2170,6 +2387,13 @@
     state.waveIdx += 1;
     META.wavesReached = Math.max(META.wavesReached, state.waveIdx);
     saveMeta();
+    // Schedule de desbloqueos: si esta ola corresponde a una torre nueva,
+    // la médula ósea emite el pickup correspondiente.
+    var unlockType = UNLOCK_SCHEDULE[state.waveIdx];
+    if (unlockType && !state.unlockScheduleNotified[state.waveIdx]) {
+      state.unlockScheduleNotified[state.waveIdx] = true;
+      spawnUnlockPickup(unlockType);
+    }
     var wave = getWaveDef(state.waveIdx);
     state.currentWaveDef = wave;
     state.waveActive = true;
@@ -5732,6 +5956,10 @@
     // Antígenos: tap sobre el drop lo recoge inmediatamente.
     if (state.dissemination && tryTapAntigen(x, y)) {
       sfx("upgrade");
+      return;
+    }
+    // Pickup de desbloqueo de torre (Fase 1): tap sobre la cápsula la consume.
+    if (!state.dissemination && tryTapUnlockPickup(x, y)) {
       return;
     }
     // Respuestas inmunes: tap sobre una carta del panel.
@@ -10962,6 +11190,8 @@
       drawCannonShots();
       drawSeekers();
       drawLymphDrop();
+      if (!state.dissemination) drawMedulaOsea();
+      if (!state.dissemination) drawUnlockPickups();
       if (!state.dissemination) drawMedVial();
       if (!state.dissemination) drawTopical();
       for (var k = 0; k < state.projectiles.length; k++) drawProjectile(state.projectiles[k]);
@@ -11478,6 +11708,7 @@
       updateNets(dt);
       updateThrombi(dt);
       updateDendriticStains(dt);
+      updateUnlockPickups(dt);
     }
     if (state.showIntro && !state.showTitle) updateIntroComic(dt);
     if (state.cinematicEnd) updateCinematic(dt);

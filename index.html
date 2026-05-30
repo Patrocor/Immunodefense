@@ -1307,6 +1307,132 @@
   }
   // ============ FIN PATTERNS BIOLÓGICOS ============
 
+  // ============ SISTEMA DE ANTÍGENOS ============
+  // Cada germen muerto en diseminación suelta 1 antígeno tappeable.
+  // El jugador los recoge para gastarlos en Respuestas Inmunes.
+
+  var ANTIGEN_TTL = 10.0;
+  var ANTIGEN_RADIUS = 8;  // multiplicado por U
+
+  function spawnAntigenDrop(x, y) {
+    if (!state.dissemination) return;
+    if (!state.antigens) state.antigens = { count: 0, drops: [] };
+    state.antigens.drops.push({
+      x: x, y: y,
+      vx: (Math.random() - 0.5) * 24 * U,
+      vy: -36 * U,
+      age: 0,
+      ttl: ANTIGEN_TTL,
+      collecting: false,
+      collectT: 0
+    });
+  }
+
+  function updateAntigenDrops(dt) {
+    if (!state.antigens) return;
+    var drops = state.antigens.drops;
+    for (var i = drops.length - 1; i >= 0; i--) {
+      var d = drops[i];
+      d.age += dt;
+
+      if (d.collecting) {
+        d.collectT += dt;
+        var t = Math.min(1, d.collectT / 0.4);
+        d.x += (FIELD_LEFT + 30 * U - d.x) * t * 0.25;
+        d.y += (FIELD_TOP + 30 * U - d.y) * t * 0.25;
+        if (d.collectT >= 0.4) {
+          state.antigens.count += 1;
+          drops.splice(i, 1);
+        }
+        continue;
+      }
+
+      d.vy += 60 * U * dt;
+      d.vx *= (1 - 1.2 * dt);
+      d.x += d.vx * dt;
+      d.y += d.vy * dt;
+      if (d.y > FIELD_BOTTOM - 4 * U) {
+        d.y = FIELD_BOTTOM - 4 * U;
+        d.vy = -Math.abs(d.vy) * 0.4;
+      }
+
+      if (d.age >= d.ttl) {
+        d.collecting = true;
+        d.collectT = 0;
+      }
+    }
+  }
+
+  function drawAntigenDrops() {
+    if (!state.antigens) return;
+    var drops = state.antigens.drops;
+    for (var i = 0; i < drops.length; i++) {
+      var d = drops[i];
+      var pulse = 0.5 + 0.5 * Math.sin(state.time * 6 + i);
+      ctx.save();
+      ctx.fillStyle = "rgba(255, 210, 74, " + (0.25 + pulse * 0.20) + ")";
+      ctx.beginPath();
+      ctx.arc(d.x, d.y, ANTIGEN_RADIUS * U * 1.8, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#ffd24a";
+      ctx.strokeStyle = "#8a6020";
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(d.x, d.y, ANTIGEN_RADIUS * U, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = "#5a3a08";
+      ctx.font = "bold " + Math.floor(11 * U) + "px Fredoka, sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("!", d.x, d.y);
+      ctx.restore();
+    }
+  }
+
+  function drawAntigenHud() {
+    if (!state.dissemination || !state.antigens) return;
+    var w = 140 * U, h = 24 * U;
+    var x = FIELD_LEFT + 8 * U;
+    var y = FIELD_TOP + 100 * U;
+    ctx.save();
+    ctx.fillStyle = "rgba(30, 15, 20, 0.85)";
+    ctx.strokeStyle = "#ffd24a";
+    ctx.lineWidth = 2;
+    roundRect(x, y, w, h, h / 2);
+    ctx.fill(); ctx.stroke();
+    ctx.fillStyle = "#ffd24a";
+    ctx.beginPath();
+    ctx.arc(x + h/2, y + h/2, h/2 - 4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#5a3a08";
+    ctx.font = "bold " + Math.floor(11 * U) + "px Fredoka, sans-serif";
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillText("!", x + h/2, y + h/2);
+    ctx.fillStyle = "#ffd24a";
+    ctx.font = "bold " + Math.floor(13 * U) + "px Fredoka, sans-serif";
+    ctx.textAlign = "left";
+    ctx.fillText(state.antigens.count + "  ANTÍGENOS", x + h + 4 * U, y + h/2);
+    ctx.restore();
+  }
+
+  function tryTapAntigen(x, y) {
+    if (!state.antigens) return false;
+    var drops = state.antigens.drops;
+    for (var i = 0; i < drops.length; i++) {
+      var d = drops[i];
+      if (d.collecting) continue;
+      var dx = x - d.x, dy = y - d.y;
+      if (dx*dx + dy*dy <= (ANTIGEN_RADIUS * U * 1.8) * (ANTIGEN_RADIUS * U * 1.8)) {
+        d.collecting = true;
+        d.collectT = 0;
+        return true;
+      }
+    }
+    return false;
+  }
+  // ============ FIN ANTÍGENOS ============
+
   // ============ NIVEL PUENTE: DISEMINACIÓN ============
   // 5 carriles paralelos estilo PvZ. Tras vencer al boss MRSA (ola 18), la
   // infección rompió la barrera cutánea y busca órgano blanco. El jugador
@@ -1518,7 +1644,8 @@
       activeTooltip: null,               // {defId, timer, isFirst}
       tooltipPauseSpawn: 0,              // seconds during which spawn shifts pause
       mrsaIntro: null,                   // {t, duration} during MRSA boss spawn
-      vistos: null                       // populated below from localStorage
+      vistos: null,                      // populated below from localStorage
+      antigens: { count: 0, drops: [] }
     };
   }
   // ---- Pathogen "vistos" persistence (Sprint 6 tooltips) ----------------
@@ -1732,6 +1859,7 @@
     state.disseminationBarrierBroken = [false, false, false, false, false];
     state.disseminationBarrierBreakAt = 0;
     state.disseminationBarrierBreakLane = -1;
+    state.antigens = { count: 0, drops: [] };
     // Limpieza del campo de Fase 1.
     state.enemies.length = 0;
     state.towers.length = 0;
@@ -2132,6 +2260,10 @@
       if (e.dying) {
         e.dyingTimer -= dt;
         if (e.dyingTimer <= 0) {
+          if (state.dissemination && !e.antigenSpawned) {
+            spawnAntigenDrop(e.x, e.y);
+            e.antigenSpawned = true;
+          }
           e.dead = true;
           spawnEffect("death", e.x, e.y, e.def.color);
           sfx("enemyDie");
@@ -2219,6 +2351,10 @@
         e.absorbAlpha = Math.max(0, 1 - t01);
         e.absorbedRot += dt * 6;  // spin during suction (per spec ~6 rad/s)
         if (t01 >= 1) {
+          if (state.dissemination && !e.antigenSpawned) {
+            spawnAntigenDrop(e.x, e.y);
+            e.antigenSpawned = true;
+          }
           e.dead = true;
           state.vesselFlashTimer = Math.max(state.vesselFlashTimer, 0.20);
           state.vesselSwallow = 0.20;
@@ -2383,7 +2519,10 @@
             state.disseminationFlash[lane] = 0.6;
             triggerShake(0.08, 2);
             spawnEffect("escape", e.x, e.y, organ.color);
-            // TODO Task 4: spawnAntigenDrop(e.x, e.y) — aún no existe.
+            if (!e.antigenSpawned) {
+              spawnAntigenDrop(e.x, e.y);
+              e.antigenSpawned = true;
+            }
             // ¿La barrera acaba de romperse?
             if (state.disseminationBarrierHP[lane] <= 0) {
               state.disseminationBarrierBroken[lane] = true;
@@ -2901,6 +3040,10 @@
       e.beingEngulfed = false;
       e.engulfScale = null;
       if (!e.dying) {
+        if (state.dissemination && !e.antigenSpawned) {
+          spawnAntigenDrop(e.x, e.y);
+          e.antigenSpawned = true;
+        }
         e.dead = true;
         state.atp += e.def.reward; state.pathogensDefeated += 1; META.totalPathogensDefeated += 1;
         pushEffect({ kind: "atpText", x: g.x, y: g.y - 22 * U, vy: -36 * U,
@@ -5169,6 +5312,11 @@
     // End overlay (legacy victory screen no longer used; restart goes to level 1).
     if (state.gameOver || state.victory) {
       if (inRect(x, y, UI.endRestartBtn)) restartFromLevel1();
+      return;
+    }
+    // Antígenos: tap sobre el drop lo recoge inmediatamente.
+    if (state.dissemination && tryTapAntigen(x, y)) {
+      sfx("upgrade");
       return;
     }
     // Recoger fragmentos de complemento (tap sobre un C3b flotante).
@@ -8922,6 +9070,7 @@
     roundRect(mb.x, mb.y, mb.w, mb.h, 8);
     ctx.stroke();
     drawSpeakerIcon(mb.x + mb.w / 2, mb.y + mb.h / 2, mb.h * 0.36, audio.muted, "#fff");
+    if (state.dissemination) drawAntigenHud();
   }
 
   function drawSpeakerIcon(cx, cy, r, muted, color) {
@@ -10286,6 +10435,7 @@
     try {
       if (state.dissemination) {
         drawDisseminationField();
+        drawAntigenDrops();
       } else {
         drawExteriorZone();
         drawSkinZone();
@@ -10833,6 +10983,7 @@
       updateCannonShots(dt);
       updateAcidSplats(dt);
       updateSeekers(dt);
+      updateAntigenDrops(dt);
     }
     if (state.showIntro && !state.showTitle) updateIntroComic(dt);
     if (state.cinematicEnd) updateCinematic(dt);

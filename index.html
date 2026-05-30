@@ -10429,11 +10429,13 @@
     var t = state.disseminationIntroTimer;
     var elapsed = total - t;
     ctx.save();
-    // ── Velo oscuro de fondo (fade in → hold → fade out)
+    // ── Velo oscuro de fondo: empezamos opacos para que la rajadura se vea ANTES que los carriles.
+    // Hold-on al inicio (sin fade-in), fade-out al final que revela el campo.
     var bgAlpha;
-    if (elapsed < 0.5) bgAlpha = (elapsed / 0.5) * 0.88;
-    else if (elapsed < 2.9) bgAlpha = 0.88;
-    else bgAlpha = Math.max(0, 0.88 * (1 - (elapsed - 2.9) / 1.1));
+    if (elapsed < 0.4) bgAlpha = 1.0;
+    else if (elapsed < 2.6) bgAlpha = 0.95;
+    else if (elapsed < 3.6) bgAlpha = Math.max(0, 0.95 * (1 - (elapsed - 2.6) / 1.0));
+    else bgAlpha = 0;
     ctx.fillStyle = "rgba(8, 4, 8, " + bgAlpha + ")";
     ctx.fillRect(0, 0, VW, VH);
     // ── Flash radial rojo (la barrera cediendo) — 0.4-1.4s
@@ -10447,9 +10449,9 @@
       ctx.fillStyle = fg;
       ctx.fillRect(0, 0, VW, VH);
     }
-    // ── Grietas que se expanden desde el centro — 0.8-2.4s
-    if (elapsed > 0.8 && elapsed < 2.6) {
-      var crackProgress = Math.min(1, (elapsed - 0.8) / 0.8);
+    // ── Grietas que se expanden desde el centro — 0.4-2.6s
+    if (elapsed > 0.4 && elapsed < 2.6) {
+      var crackProgress = Math.min(1, (elapsed - 0.4) / 0.8);
       var crackFade = elapsed > 2.0 ? Math.max(0, 1 - (elapsed - 2.0) / 0.6) : 1;
       ctx.strokeStyle = "rgba(240, 110, 120, " + (0.85 * crackFade) + ")";
       ctx.lineWidth = 2.5;
@@ -10472,15 +10474,15 @@
         ctx.stroke();
       }
     }
-    // ── Texto principal: aparece en 1.0s, hold, fade out en 3.0s
-    if (elapsed > 1.0) {
+    // ── Texto principal: aparece en 0.6s, hold, fade out en 2.8s
+    if (elapsed > 0.6) {
       var textAlpha;
-      if (elapsed < 1.6) textAlpha = (elapsed - 1.0) / 0.6;
-      else if (elapsed < 3.0) textAlpha = 1;
-      else textAlpha = Math.max(0, 1 - (elapsed - 3.0) / 1.0);
+      if (elapsed < 1.2) textAlpha = (elapsed - 0.6) / 0.6;
+      else if (elapsed < 2.4) textAlpha = 1;
+      else textAlpha = Math.max(0, 1 - (elapsed - 2.4) / 0.4);
       ctx.globalAlpha = textAlpha;
       // Título grande con slide-in vertical.
-      var slideOff = Math.max(0, (1.6 - elapsed) * 30 * U);
+      var slideOff = Math.max(0, (1.2 - elapsed) * 30 * U);
       ctx.fillStyle = "#ffce8a";
       ctx.font = "bold " + Math.floor(38 * U) + "px Fredoka, sans-serif";
       ctx.textAlign = "center";

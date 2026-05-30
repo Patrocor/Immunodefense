@@ -1521,6 +1521,90 @@
     }
   }
 
+  function spawnNet(laneX, laneY) {
+    state.nets.push({
+      x: laneX, y: laneY,
+      radius: 35 * U,
+      ttl: 4.0,
+      age: 0,
+      damagePerSec: 2,
+      lastDmgTick: 0
+    });
+  }
+
+  function updateNets(dt) {
+    if (!state.nets) return;
+    for (var i = state.nets.length - 1; i >= 0; i--) {
+      var n = state.nets[i];
+      n.age += dt;
+      for (var ei = 0; ei < state.enemies.length; ei++) {
+        var en = state.enemies[ei];
+        if (en.dead) continue;
+        var dx = en.x - n.x, dy = en.y - n.y;
+        if (dx*dx + dy*dy <= n.radius * n.radius) {
+          en.nettedUntil = state.time + 0.2;
+          en.hp = (en.hp || 1) - n.damagePerSec * dt;
+          if (en.hp <= 0 && !en.dead) {
+            if (!en.antigenSpawned) {
+              spawnAntigenDrop(en.x, en.y);
+              en.antigenSpawned = true;
+            }
+            en.dead = true;
+          }
+        }
+      }
+      if (n.age >= n.ttl) state.nets.splice(i, 1);
+    }
+  }
+
+  function drawNets() {
+    if (!state.nets) return;
+    for (var i = 0; i < state.nets.length; i++) {
+      var n = state.nets[i];
+      var fadeIn = Math.min(1, n.age / 0.3);
+      var fadeOut = n.age > n.ttl - 1 ? Math.max(0, 1 - (n.age - (n.ttl - 1))) : 1;
+      var alpha = fadeIn * fadeOut;
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.strokeStyle = "rgba(255, 220, 180, 0.7)";
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, n.radius, 0, Math.PI * 2);
+      ctx.stroke();
+      for (var li = 0; li < 8; li++) {
+        var a = (li / 8) * Math.PI * 2 + n.age * 0.5;
+        ctx.beginPath();
+        ctx.moveTo(n.x, n.y);
+        ctx.lineTo(n.x + Math.cos(a) * n.radius, n.y + Math.sin(a) * n.radius);
+        ctx.stroke();
+      }
+      ctx.beginPath();
+      for (var t = 0; t <= Math.PI * 2; t += 0.2) {
+        var r = n.radius * 0.5 * (1 + 0.4 * Math.sin(t * 4));
+        var x = n.x + Math.cos(t) * r, y = n.y + Math.sin(t) * r;
+        if (t === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  function hasResponseInLane(lane, type) {
+    var arr = (type === "net") ? state.nets : state.thrombi;
+    if (!arr || !PATH.organDoors || !PATH.organDoors[lane]) return false;
+    var laneX = PATH.organDoors[lane].x;
+    for (var i = 0; i < arr.length; i++) {
+      if (Math.abs(arr[i].x - laneX) < (FIELD_W / 5) * 0.45) return true;
+    }
+    return false;
+  }
+
+  function laneAt(x) {
+    var rel = (x - FIELD_LEFT) / FIELD_W;
+    var idx = Math.floor(rel * 5);
+    return Math.max(0, Math.min(4, idx));
+  }
+
   // ============ NIVEL PUENTE: DISEMINACIÓN ============
   // 5 carriles paralelos estilo PvZ. Tras vencer al boss MRSA (ola 18), la
   // infección rompió la barrera cutánea y busca órgano blanco. El jugador
@@ -2464,6 +2548,9 @@
       // Nivel puente: gérmenes a 0.35× la velocidad original (50% × 70%
       // adicional) para dar tiempo holgado de defender.
       if (state.dissemination) pxSpeed *= 0.35;
+      if (state.dissemination && e.nettedUntil && state.time < e.nettedUntil) {
+        pxSpeed = 0;
+      }
       // Medicamento: paralización / ralentización.
       if (e.stunTimer > 0) e.stunTimer -= dt;
       if (e.slowTimer > 0) e.slowTimer -= dt;
@@ -5484,6 +5571,30 @@
           }
         }
       }
+    }
+    // Respuesta armada: tap en un carril para colocar NET o Trombosis.
+    if (state.armedResponse && state.dissemination) {
+      var lane = laneAt(x);
+      var type = state.armedResponse;
+      var def2 = RESPONSE_DEFS[type];
+      var arrType = (type === "netosis") ? "net" : "thrombus";
+      if (hasResponseInLane(lane, arrType)) {
+        showMsg("Ya hay un efecto en este carril");
+        state.armedResponse = null;
+        return;
+      }
+      if (state.antigens.count < def2.cost) {
+        state.armedResponse = null;
+        return;
+      }
+      var laneX = PATH.organDoors ? PATH.organDoors[lane].x : x;
+      var laneY = y;
+      state.antigens.count -= def2.cost;
+      if (type === "netosis") spawnNet(laneX, laneY);
+      // plaquetas en 5.4
+      state.armedResponse = null;
+      sfx("upgrade");
+      return;
     }
     // Recoger fragmentos de complemento (tap sobre un C3b flotante).
     if (state.fragments && state.fragments.length) {
@@ -10602,6 +10713,7 @@
       if (state.dissemination) {
         drawDisseminationField();
         drawAntigenDrops();
+        drawNets();
       } else {
         drawExteriorZone();
         drawSkinZone();
@@ -11151,6 +11263,7 @@
       updateAcidSplats(dt);
       updateSeekers(dt);
       updateAntigenDrops(dt);
+      updateNets(dt);
     }
     if (state.showIntro && !state.showTitle) updateIntroComic(dt);
     if (state.cinematicEnd) updateCinematic(dt);

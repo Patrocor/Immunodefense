@@ -1487,6 +1487,11 @@
       disseminationIntroTimer: 0,      // banner de entrada al puente
       disseminationOrganLoad: [0,0,0,0,0],   // 0..10 por órgano (cada germen +1)
       disseminationFlash: [0,0,0,0,0],       // brillo de impacto al recibir germen
+      disseminationBarrierHP:     [0, 0, 0, 0, 0],
+      disseminationBarrierMax:    [0, 0, 0, 0, 0],
+      disseminationBarrierBroken: [false, false, false, false, false],
+      disseminationBarrierBreakAt: 0,
+      disseminationBarrierBreakLane: -1,
       tissue: null,
       mitosis: null,
       nextMitosisAt: 12,
@@ -1720,6 +1725,13 @@
     state.disseminationIntroTimer = 4.0;
     state.disseminationOrganLoad = [0, 0, 0, 0, 0];
     state.disseminationFlash = [0, 0, 0, 0, 0];
+    // HP biológico por órgano (orden = DISSEMINATION_ORGANS):
+    // [corazón=pericardio, pulmón=pleura, sangre=endotelio, hueso=periostio, articulación=cápsula sinovial]
+    state.disseminationBarrierMax    = [12, 8, 6, 10, 7];
+    state.disseminationBarrierHP     = [12, 8, 6, 10, 7];
+    state.disseminationBarrierBroken = [false, false, false, false, false];
+    state.disseminationBarrierBreakAt = 0;
+    state.disseminationBarrierBreakLane = -1;
     // Limpieza del campo de Fase 1.
     state.enemies.length = 0;
     state.towers.length = 0;
@@ -1788,6 +1800,17 @@
       return;
     }
     var idx = state.disseminationWaveIdx++;
+    // Regenerar +1 HP en barreras NO rotas antes de empezar la oleada.
+    if (state.disseminationBarrierHP) {
+      for (var brI = 0; brI < state.disseminationBarrierHP.length; brI++) {
+        if (!state.disseminationBarrierBroken[brI]) {
+          state.disseminationBarrierHP[brI] = Math.min(
+            state.disseminationBarrierMax[brI],
+            state.disseminationBarrierHP[brI] + 1
+          );
+        }
+      }
+    }
     var groups = DISSEMINATION_WAVE_TABLE[idx];
     state.waveActive = true;
     state.waveCountdownActive = false;
@@ -2346,18 +2369,40 @@
         // se define el escenario de Fase 2.
         if (state.dissemination) {
           if (!state.disseminationOrganLoad) state.disseminationOrganLoad = [0, 0, 0, 0, 0];
-          state.disseminationOrganLoad[hi] = (state.disseminationOrganLoad[hi] || 0) + 1;
-          // Feedback visual del impacto en la puerta.
-          var organ = (PATH.organDoors && PATH.organDoors[hi])
-            ? PATH.organDoors[hi].organ
-            : DISSEMINATION_ORGANS[hi] || DISSEMINATION_ORGANS[0];
-          spawnEffect("escape", e.x, e.y, organ.color);
+          if (!state.disseminationBarrierHP) state.disseminationBarrierHP = [0,0,0,0,0];
+          if (!state.disseminationBarrierBroken) state.disseminationBarrierBroken = [false,false,false,false,false];
+          var lane = hi;
+          var organ = (PATH.organDoors && PATH.organDoors[lane])
+            ? PATH.organDoors[lane].organ
+            : DISSEMINATION_ORGANS[lane] || DISSEMINATION_ORGANS[0];
           if (!state.disseminationFlash) state.disseminationFlash = [0,0,0,0,0];
-          state.disseminationFlash[hi] = 0.6;
+
+          if (!state.disseminationBarrierBroken[lane] && state.disseminationBarrierHP[lane] > 0) {
+            // El germen es absorbido por la barrera: muere, barrera -1 HP.
+            state.disseminationBarrierHP[lane] -= 1;
+            state.disseminationFlash[lane] = 0.6;
+            triggerShake(0.08, 2);
+            spawnEffect("escape", e.x, e.y, organ.color);
+            // TODO Task 4: spawnAntigenDrop(e.x, e.y) — aún no existe.
+            // ¿La barrera acaba de romperse?
+            if (state.disseminationBarrierHP[lane] <= 0) {
+              state.disseminationBarrierBroken[lane] = true;
+              state.disseminationBarrierBreakAt = state.time;
+              state.disseminationBarrierBreakLane = lane;
+              triggerShake(0.35, 6);
+              sfx("playerHurt");
+            }
+            e.dead = true;
+            continue;
+          }
+
+          // Barrera rota: comportamiento original (suma al organ load).
+          state.disseminationOrganLoad[lane] = (state.disseminationOrganLoad[lane] || 0) + 1;
+          spawnEffect("escape", e.x, e.y, organ.color);
+          state.disseminationFlash[lane] = 0.6;
           triggerShake(0.12, 3);
           if (audio && audio.ctx) sfx("playerHurt");
-          // ¿órgano lleno?
-          if (state.disseminationOrganLoad[hi] >= 10 && !state.disseminationOver) {
+          if (state.disseminationOrganLoad[lane] >= 10 && !state.disseminationOver) {
             state.disseminationOver = { germ: e.def, organ: organ, t: 0 };
             triggerShake(0.5, 9);
             state.waveActive = false;
@@ -10438,6 +10483,10 @@
         drawDisseminationCrack(w.x, w.y);
         var load = (state.disseminationOrganLoad && state.disseminationOrganLoad[k]) || 0;
         var flash = (state.disseminationFlash && state.disseminationFlash[k]) || 0;
+        var hp = (state.disseminationBarrierHP && state.disseminationBarrierHP[k]) || 0;
+        var hpMax = (state.disseminationBarrierMax && state.disseminationBarrierMax[k]) || 1;
+        var broken = !!(state.disseminationBarrierBroken && state.disseminationBarrierBroken[k]);
+        drawOrganBarrier(d.x, d.y, d.organ, hp, hpMax, broken, flash);
         drawOrganDoor(d.x, d.y, d.organ, load, flash);
       }
     }
@@ -10470,6 +10519,101 @@
     ctx.beginPath();
     ctx.ellipse(0, 0, w * 0.6, h * 0.35, 0, 0, Math.PI * 2);
     ctx.fill();
+    ctx.restore();
+  }
+
+  function drawOrganBarrier(x, yDoor, organ, hp, hpMax, broken, flash) {
+    hp = hp || 0; hpMax = hpMax || 1; flash = flash || 0;
+    var r = 22 * U;
+    var yMem = yDoor - r * 1.3;
+    var laneW = (FIELD_W / 5);
+    var w = laneW * 0.75;
+    var h = 8 * U;
+    var ratio = hp / hpMax;
+
+    ctx.save();
+    if (broken) {
+      // Barrera completamente rota: franja oscura con bordes rojos rotos.
+      ctx.fillStyle = "rgba(20, 10, 14, 0.85)";
+      ctx.fillRect(x - w/2, yMem - h/2, w, h);
+      ctx.strokeStyle = "rgba(255, 60, 60, 0.85)";
+      ctx.lineWidth = 2 * U;
+      ctx.setLineDash([4 * U, 3 * U]);
+      ctx.beginPath();
+      ctx.moveTo(x - w/2, yMem - h/2); ctx.lineTo(x + w/2, yMem - h/2);
+      ctx.moveTo(x - w/2, yMem + h/2); ctx.lineTo(x + w/2, yMem + h/2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.restore();
+      return;
+    }
+
+    // 1. Banda con pattern del órgano.
+    var pat = getOrganPattern(organ.id);
+    ctx.fillStyle = pat || colorAlpha(organ.color, 0.4);
+    ctx.fillRect(x - w/2, yMem - h/2, w, h);
+
+    // 2. Bordes superior/inferior.
+    ctx.strokeStyle = organ.color;
+    ctx.lineWidth = 2 * U;
+    ctx.beginPath();
+    ctx.moveTo(x - w/2, yMem - h/2); ctx.lineTo(x + w/2, yMem - h/2);
+    ctx.moveTo(x - w/2, yMem + h/2); ctx.lineTo(x + w/2, yMem + h/2);
+    ctx.stroke();
+
+    // 3. Etiqueta histológica.
+    ctx.fillStyle = colorAlpha(organ.color, 0.6);
+    ctx.font = "bold " + Math.floor(9 * U) + "px Fredoka, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "top";
+    ctx.fillText(TISSUE_LABEL[organ.id] || "", x, yMem + h/2 + 2 * U);
+
+    // 4. Inflamación si ratio < 0.7
+    if (ratio < 0.7) {
+      var inflam = Math.min(0.30, (0.7 - ratio) * 0.5);
+      ctx.fillStyle = "rgba(255, 90, 90, " + inflam + ")";
+      ctx.fillRect(x - w/2 - 2, yMem - h/2 - 2, w + 4, h + 4);
+    }
+
+    // 5. Agujeros si ratio < 0.4 (1 a 3 deterministas por organId)
+    if (ratio < 0.4) {
+      var holes = Math.max(1, Math.min(3, Math.floor((0.4 - ratio) * 10)));
+      var seed = organIdSeed(organ.id);
+      for (var hi = 0; hi < holes; hi++) {
+        var hx = x - w/2 + ((seed * (hi + 1) * 17) % 1000) / 1000 * w;
+        ctx.fillStyle = "rgba(20, 10, 14, 0.92)";
+        ctx.beginPath();
+        ctx.ellipse(hx, yMem, 3 * U, 2.5 * U, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    // 6. Flash + rasgadura si flash > 0
+    if (flash > 0) {
+      ctx.strokeStyle = "rgba(255, 200, 200, " + (flash * 0.65) + ")";
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(x, yMem, r * 0.9, 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath(); ctx.arc(x, yMem, r * 1.4, 0, Math.PI * 2); ctx.stroke();
+      ctx.fillStyle = "rgba(20, 10, 14, " + flash + ")";
+      ctx.beginPath();
+      ctx.ellipse(x, yMem, 4 * U, 3 * U, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // 7. Barra de HP debajo del label
+    var hpBarY = yMem + h/2 + 14 * U;
+    var hpBarW = w * 0.7;
+    ctx.fillStyle = "rgba(20, 10, 14, 0.85)";
+    ctx.fillRect(x - hpBarW/2, hpBarY, hpBarW, 4 * U);
+    var hpFillW = hpBarW * ratio;
+    var hpColor = ratio > 0.6 ? "#5ad15a" : ratio > 0.3 ? "#e8c84a" : "#d9534f";
+    ctx.fillStyle = hpColor;
+    ctx.fillRect(x - hpBarW/2, hpBarY, hpFillW, 4 * U);
+    ctx.fillStyle = hpColor;
+    ctx.font = "bold " + Math.floor(9 * U) + "px Fredoka, sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText(hp + " / " + hpMax + " HP", x, hpBarY + 14 * U);
+
     ctx.restore();
   }
 

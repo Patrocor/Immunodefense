@@ -1268,6 +1268,9 @@
             var defNew = TOWER_DEFS[p.typeId];
             if (defNew) showMsg("¡" + defNew.name + " desbloqueado!");
             sfx("upgrade");
+            // Abre el compendio enfocado en la nueva torre para que el
+            // jugador conozca sus poderes/stats antes de seguir.
+            openCompendium(p.typeId);
           }
           arr.splice(i, 1);
           continue;
@@ -1406,6 +1409,162 @@
     }
   }
   // ============ FIN MÉDULA ÓSEA ============
+
+  // ============ COMPENDIO DE UNIDADES ============
+  function openCompendium(typeId) {
+    state.compendiumOpen = true;
+    state.compendiumFocus = typeId || null;
+    state.compendiumScroll = 0;
+  }
+  function closeCompendium() {
+    state.compendiumOpen = false;
+    state.compendiumFocus = null;
+  }
+
+  function drawCompendiumButton() {
+    var b = UI.compendiumBtn;
+    if (!b) return;
+    var pulse = state.compendiumFocus ? (0.5 + 0.5 * Math.sin(state.time * 4)) : 0;
+    ctx.save();
+    ctx.fillStyle = pulse ? "rgba(255, 210, 74, " + (0.55 + pulse * 0.30) + ")" : "#33212e";
+    ctx.fillRect(b.x, b.y, b.w, b.h);
+    ctx.fillStyle = pulse ? "#5a3a08" : "#ffd24a";
+    ctx.font = "bold " + Math.max(11, Math.min(13, b.h * 0.36)) + "px Fredoka, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("📖 Compendio", b.x + b.w / 2, b.y + b.h / 2);
+    ctx.restore();
+  }
+
+  function drawCompendium() {
+    if (!state.compendiumOpen) return;
+    ctx.save();
+    // Backdrop oscuro a pantalla completa.
+    ctx.fillStyle = "rgba(0, 0, 0, 0.72)";
+    ctx.fillRect(0, 0, VW, VH);
+    // Modal centrado, ~92% del ancho.
+    var modalW = Math.min(VW - 24, 480);
+    var modalH = Math.min(VH - 60, 580);
+    var modalX = (VW - modalW) / 2;
+    var modalY = (VH - modalH) / 2;
+    ctx.fillStyle = "#241620";
+    ctx.fillRect(modalX, modalY, modalW, modalH);
+    // Cabecera del modal
+    var headerH = 44;
+    ctx.fillStyle = "#33212e";
+    ctx.fillRect(modalX, modalY, modalW, headerH);
+    ctx.fillStyle = "#ffd24a";
+    ctx.font = "bold 16px Fredoka, sans-serif";
+    ctx.textAlign = "left";
+    ctx.textBaseline = "middle";
+    ctx.fillText("📖 Compendio de unidades", modalX + 14, modalY + headerH / 2);
+    // Botón cerrar (X) en esquina sup-der
+    var closeSize = 32;
+    UI.compendiumCloseBtn = {
+      x: modalX + modalW - closeSize - 6,
+      y: modalY + (headerH - closeSize) / 2,
+      w: closeSize, h: closeSize
+    };
+    ctx.fillStyle = "#7a3a3a";
+    ctx.fillRect(UI.compendiumCloseBtn.x, UI.compendiumCloseBtn.y, closeSize, closeSize);
+    ctx.fillStyle = "#fff";
+    ctx.font = "bold 16px Fredoka, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("✕", UI.compendiumCloseBtn.x + closeSize / 2, UI.compendiumCloseBtn.y + closeSize / 2 + 1);
+
+    // Lista de torres desbloqueadas — clip a la zona inferior del modal.
+    var listX = modalX + 12;
+    var listY = modalY + headerH + 8;
+    var listW = modalW - 24;
+    var listH = modalH - headerH - 16;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(listX, listY, listW, listH);
+    ctx.clip();
+
+    var entryH = 100;
+    var unlocked = state.unlockedTowers || [];
+    var scroll = state.compendiumScroll || 0;
+    var totalH = unlocked.length * (entryH + 8);
+    var maxScroll = Math.max(0, totalH - listH);
+    if (scroll > maxScroll) scroll = maxScroll;
+    if (scroll < 0) scroll = 0;
+    state.compendiumScroll = scroll;
+
+    for (var i = 0; i < unlocked.length; i++) {
+      var typeId = unlocked[i];
+      var def = TOWER_DEFS[typeId];
+      if (!def) continue;
+      var ey = listY + i * (entryH + 8) - scroll;
+      if (ey + entryH < listY || ey > listY + listH) continue;
+
+      var focused = (typeId === state.compendiumFocus);
+      ctx.fillStyle = focused ? "#3a2538" : "#1f1219";
+      ctx.fillRect(listX, ey, listW, entryH);
+      if (focused) {
+        ctx.strokeStyle = def.color;
+        ctx.lineWidth = 2;
+        ctx.strokeRect(listX, ey, listW, entryH);
+      }
+
+      // Icono a la izquierda
+      drawCardIcon(typeId, listX + 36, ey + 38, 20, true);
+
+      // Texto a la derecha del icono
+      var txtX = listX + 72;
+      ctx.fillStyle = def.color;
+      ctx.font = "bold 14px Fredoka, sans-serif";
+      ctx.textAlign = "left";
+      ctx.textBaseline = "top";
+      ctx.fillText(def.name, txtX, ey + 8);
+
+      // Cost
+      ctx.fillStyle = (def.currency === "complement") ? "#7CFC9E" : "#f5d76e";
+      ctx.font = "bold 11px Fredoka, sans-serif";
+      ctx.fillText((def.currency === "complement" ? "🧬 " : "⚡ ") + def.cost, txtX, ey + 28);
+
+      // Descripción
+      if (def.desc) {
+        ctx.fillStyle = "rgba(255,255,255,0.78)";
+        ctx.font = "11px Fredoka, sans-serif";
+        ctx.fillText(def.desc, txtX, ey + 48);
+      }
+
+      // Stats Nv1
+      var lvl = (def.levels && def.levels[0]) || {};
+      var statsParts = [];
+      if (lvl.damage != null && lvl.damage > 0) statsParts.push("Daño " + lvl.damage);
+      if (lvl.range != null && lvl.range > 0) statsParts.push("Alc " + Math.round(lvl.range));
+      if (lvl.fireRate != null) statsParts.push((lvl.fireRate).toFixed(1) + "/s");
+      if (lvl.splash != null && lvl.splash > 0) statsParts.push("AOE " + Math.round(lvl.splash));
+      if (lvl.hp != null && lvl.hp > 0) statsParts.push("HP " + lvl.hp);
+      if (statsParts.length > 0) {
+        ctx.fillStyle = "rgba(255,255,255,0.55)";
+        ctx.font = "10px Fredoka, sans-serif";
+        ctx.fillText(statsParts.join("  ·  "), txtX, ey + 66);
+      }
+
+      // Indicador NUEVO si está focused
+      if (focused) {
+        ctx.fillStyle = "#ffd24a";
+        ctx.font = "bold 10px Fredoka, sans-serif";
+        ctx.textAlign = "right";
+        ctx.fillText("¡NUEVO!", listX + listW - 10, ey + 12);
+      }
+    }
+    ctx.restore();
+
+    // Hint inferior
+    ctx.fillStyle = "rgba(255,255,255,0.40)";
+    ctx.font = "10px Fredoka, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "bottom";
+    ctx.fillText("Tocá fuera del cuadro o el ✕ para volver al juego", VW / 2, modalY + modalH - 6);
+
+    ctx.restore();
+  }
+  // ============ FIN COMPENDIO ============
 
   // ============ PATTERNS BIOLÓGICOS POR ÓRGANO ============
   // Cacheados en OffscreenCanvas para reutilizar en barrera + puerta.
@@ -2108,6 +2267,9 @@
       unlockPickups: [],                // píldoras flotantes en el campo
       medulaOsea: null,                 // posición de la médula ósea (se setea en layoutUI)
       unlockScheduleNotified: {},       // qué waves ya emitieron su pickup
+      compendiumOpen: false,            // overlay del compendio
+      compendiumFocus: null,            // typeId destacado (al desbloquear)
+      compendiumScroll: 0,              // scroll vertical en el modal
       selectedTower: null,
       pointer: { x: 0, y: 0, isOver: false },
       lastPlaceFailedAt: -10,
@@ -2307,9 +2469,13 @@
       };
     }
 
+    // Botón "Compendio" arriba del dock — abre el overlay informativo.
+    var compBtnH = Math.round(Math.max(28, Math.min(36, contentW * 0.34)));
+    UI.compendiumBtn = { x: contentX, y: dockTop, w: contentW, h: compBtnH };
+
     // Cartilla por GRUPOS DESPLEGABLES: cada categoría (cabecera) se abre/cierra
     // de forma independiente. Sin abrir, solo se ven las cabeceras (no satura).
-    var stripTop = dockTop;
+    var stripTop = dockTop + compBtnH + 6;
     var stripRegionH = Math.max(0, (infoY - dockPad - responsesReservedH) - stripTop);
     var headerH = 28, groupSpacing = 6;
     // Cartas compactas horizontales (ícono pequeño a la izquierda + texto a
@@ -6010,6 +6176,22 @@
       } else if (inRect(x, y, UI.modalNo)) {
         state.confirmRestart = false;
       }
+      return;
+    }
+    // Compendio: si está abierto, cualquier tap lo cierra (salvo en el cuerpo
+    // de la lista, donde podríamos querer scroll en el futuro).
+    if (state.compendiumOpen) {
+      if (UI.compendiumCloseBtn && inRect(x, y, UI.compendiumCloseBtn)) {
+        closeCompendium();
+        return;
+      }
+      // Tap en cualquier otro lugar también cierra (lo más natural en móvil).
+      closeCompendium();
+      return;
+    }
+    // Botón "Compendio" arriba del dock — abre el overlay.
+    if (UI.compendiumBtn && inRect(x, y, UI.compendiumBtn)) {
+      openCompendium();
       return;
     }
     // End overlay (legacy victory screen no longer used; restart goes to level 1).
@@ -11280,9 +11462,12 @@
     if (!state.showTitle && !state.showIntro) {
       drawHUD();
       drawPanel();
+      drawCompendiumButton();
       drawComplementMeter();
       if (state.dissemination) drawImmuneResponsePanel();
     }
+    // Compendio: por encima de todo lo demás cuando está abierto.
+    drawCompendium();
     drawMessage();
     drawWaveBanner();
     if (state.time - state.lastPlaceFailedAt < 0.25) {
@@ -11743,7 +11928,7 @@
     var dt = Math.min(0.05, (now - lastT) / 1000);
     lastT = now;
     state.time += dt;
-    var paused = state.confirmRestart || state.showTitle || state.showIntro || state.cinematicEnd;
+    var paused = state.confirmRestart || state.showTitle || state.showIntro || state.cinematicEnd || state.compendiumOpen;
     // Nivel puente: pausamos la lógica al caer el primer carril (cinemática + placeholder).
     if (state.disseminationOver) {
       state.disseminationOver.t += dt;

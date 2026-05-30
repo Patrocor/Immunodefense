@@ -814,7 +814,7 @@
   var TOWER_DEFS = {
     neutrofilo: {
       id: "neutrofilo",
-      name: "Macrófago",
+      name: "Neutrofilo",
       color: "#B79CE0",
       colorDark: "#7E5FB0",
       cost: 55,
@@ -2144,6 +2144,8 @@
     state.armedResponse = null;
     state.medCharge = 0;
     state.topicalCharge = 0;
+    // Primer macrófago autónomo aparece pronto (no esperamos los 28s estándar).
+    state.guardianTimer = 8;
     // Recalcular layout para que UI.responsePanel y el strip de torres se
     // dimensionen para esta fase (sino quedaban con la geometría de Fase 1).
     layoutUI();
@@ -3355,7 +3357,10 @@
   }
 
   function spawnGuardian() {
-    if (!PATH.confluence) return;
+    // En Fase 1 necesitamos PATH.confluence para orientarse. En diseminación
+    // el path son 5 carriles sin confluencia: igual entra de un costado y
+    // patrulla buscando gérmenes vulnerables.
+    if (!PATH.confluence && !state.dissemination) return;
     var fromLeft = Math.random() < 0.5;
     var x = fromLeft ? FIELD_LEFT - 20 * U : FIELD_RIGHT + 20 * U;
     var y = FIELD_TOP + FIELD_H * (0.35 + Math.random() * 0.4);
@@ -3377,7 +3382,11 @@
     state.guardianTimer -= dt;
     if (state.guardianTimer <= 0) {
       state.guardianTimer = GUARDIAN_INTERVAL;
-      if (state.waveIdx >= 2 && state.guardians.length < GUARDIAN_MAX) spawnGuardian();
+      // En diseminación, el macrófago de apoyo aparece desde la primera oleada
+      // (la barrera ya cayó y el ataque es masivo). En Fase 1 sigue siendo
+      // a partir de la oleada 2.
+      var minWave = state.dissemination ? 1 : 2;
+      if (state.waveIdx >= minWave && state.guardians.length < GUARDIAN_MAX) spawnGuardian();
     }
     var speed = GUARDIAN_SPEED * U;
     for (var i = 0; i < state.guardians.length; i++) {

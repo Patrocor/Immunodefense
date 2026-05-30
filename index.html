@@ -1434,6 +1434,9 @@
 
   state = newState();
   state.vistos = loadVistos();
+  // Dev hook: permite inspeccionar y mutar state desde DevTools en producción.
+  // Es inofensivo — el código del juego ya es público (GitHub Pages + Vercel).
+  window.__game = { get state() { return state; } };
 
   // Per-wave difficulty (replaces getDifficulty(level)). Speed also receives
   // an additional snowball multiplier from infestation in updateEnemies.

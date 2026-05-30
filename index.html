@@ -10064,24 +10064,10 @@
     UI.tooltipBtn = null;
     ctx.save();
     ctx.globalAlpha = alpha;
-    // Sombra centrada y sutil (antes ofsetX=-4 daba aspecto de "cola" a la
-    // izquierda). Aplica al fill para que no toque el stroke después.
-    ctx.shadowColor = "rgba(0, 0, 0, 0.18)";
-    ctx.shadowBlur = 8;
-    ctx.shadowOffsetX = 0;
-    ctx.shadowOffsetY = 2;
-    // Tarjeta cream con esquinas casi rectas (radius 4 en vez de 12).
-    ctx.fillStyle = "#FFF8E7";
-    roundRect(x, y, W, H, 4);
-    ctx.fill();
-    ctx.shadowColor = "transparent";
-    ctx.shadowBlur = 0;
-    ctx.shadowOffsetX = 0;
-    ctx.shadowOffsetY = 0;
-    ctx.strokeStyle = "#1a1a22";
-    ctx.lineWidth = 1.5;
-    roundRect(x, y, W, H, 4);
-    ctx.stroke();
+    // Tarjeta plana estilo overlay: fondo oscuro semitransparente, sin borde
+    // ni sombra. Antes era cream + borde negro grueso + sombra → "bocadillo".
+    ctx.fillStyle = "rgba(15, 12, 18, 0.92)";
+    ctx.fillRect(x, y, W, H);
     // Dibujo por filas: cada fila centrada en su franja (baseline middle).
     var cyc = y + ttPad;
     for (var r2 = 0; r2 < ttRows.length; r2++) {
@@ -10090,7 +10076,7 @@
       ctx.textBaseline = "middle";
       if (r === "header") {
         ctx.font = "bold 8px Fredoka, sans-serif";
-        ctx.fillStyle = "#1565C0";
+        ctx.fillStyle = "#6BB4FF";
         ctx.fillText("🔬 NUEVO PATÓGENO", x + W / 2, midY);
       } else if (r === "sprite") {
         drawTooltipSprite(def, x + W / 2, midY, previewSize);
@@ -10101,26 +10087,26 @@
         while (fns > 9 && ctx.measureText(line).width > W - 18) {
           fns--; ctx.font = "italic bold " + fns + "px Fredoka, sans-serif";
         }
-        ctx.fillStyle = "#B22222";
+        ctx.fillStyle = "#FF8080";
         ctx.fillText(line, x + W / 2, midY);
       } else if (r === "sep") {
-        ctx.strokeStyle = "rgba(80, 60, 60, 0.30)"; ctx.lineWidth = 1;
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.18)"; ctx.lineWidth = 1;
         ctx.beginPath(); ctx.moveTo(x + 16, midY); ctx.lineTo(x + W - 16, midY); ctx.stroke();
       } else if (r === "shield") {
         var sl, sc;
         if (def.shield) {
-          if (def.shield.type === "capsula") { sl = "🟡 Cápsula ·" + def.shield.maxHP; sc = "#B8964A"; }
-          else if (def.shield.type === "spike") { sl = "🔵 Spike ·" + def.shield.maxHP; sc = "#3F8AC8"; }
-          else { sl = "🟢 Pared ·" + def.shield.maxHP; sc = "#5E8A3A"; }
+          if (def.shield.type === "capsula") { sl = "🟡 Cápsula ·" + def.shield.maxHP; sc = "#FFD380"; }
+          else if (def.shield.type === "spike") { sl = "🔵 Spike ·" + def.shield.maxHP; sc = "#9FC8F0"; }
+          else { sl = "🟢 Pared ·" + def.shield.maxHP; sc = "#B5E090"; }
           ctx.font = "bold 11px Fredoka, sans-serif"; ctx.fillStyle = sc;
         } else {
           sl = "Sin escudo"; ctx.font = "italic 11px Fredoka, sans-serif";
-          ctx.fillStyle = "rgba(80, 60, 60, 0.6)";
+          ctx.fillStyle = "rgba(255, 255, 255, 0.55)";
         }
         ctx.fillText(sl, x + W / 2, midY);
       } else {
         var idx = parseInt(r.slice(4), 10);
-        ctx.font = "10px Fredoka, sans-serif"; ctx.fillStyle = "#2C2A28";
+        ctx.font = "10px Fredoka, sans-serif"; ctx.fillStyle = "rgba(240, 235, 230, 0.92)";
         ctx.fillText(ttDescLines[idx], x + W / 2, midY);
       }
       cyc += rh;
@@ -10308,19 +10294,18 @@
       ctx.restore();
     }
 
-    // Subtítulo (se desvanece durante el clímax del buceo final).
+    // Subtítulo estilo barra de subtítulos de video: fondo oscuro
+    // semitransparente, texto blanco, sin borde. Antes tenía fondo cream con
+    // borde oscuro grueso (estilo comic) y se leía como "bocadillo".
     var capA = fin * (sc === last ? Math.max(0, 1 - (p - 0.45) / 0.2) : 1);
     if (capA > 0.01) {
       ctx.globalAlpha = capA;
       var boxH = 70, boxY = VH - boxH - 14, boxX = 16, boxW = VW - 32;
-      // Rect sólido (sin transparencia), esquinas suaves pero rectas.
-      ctx.fillStyle = "#fffcf0";
-      roundRect(boxX, boxY, boxW, boxH, 4); ctx.fill();
-      ctx.strokeStyle = "#1a1a22"; ctx.lineWidth = 2; roundRect(boxX, boxY, boxW, boxH, 4); ctx.stroke();
-      ctx.fillStyle = "#2C2A28"; ctx.font = "15px Fredoka, sans-serif";
+      ctx.fillStyle = "rgba(15, 12, 18, 0.78)";
+      ctx.fillRect(boxX, boxY, boxW, boxH);
+      ctx.fillStyle = "#ffffff"; ctx.font = "15px Fredoka, sans-serif";
       ctx.textAlign = "center"; ctx.textBaseline = "middle";
       var capLines = wrapText(INTRO_CAPTIONS[sc], boxW - 28, 15);
-      // Texto distribuido verticalmente centrado en el cuadro.
       var lineH = 19;
       var totalH = capLines.length * lineH;
       var startY = boxY + (boxH - totalH) / 2 + lineH / 2;

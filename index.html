@@ -3873,18 +3873,17 @@
     ctx.lineWidth = 2;
     roundRect(v.x, v.y, v.w, v.h, 5); ctx.stroke();
     ctx.restore();
-    // Etiqueta.
+    // Etiqueta dentro del rect (rotada 90° en el lateral) — antes flotaba a
+    // la derecha del vial creando efecto callout. Ahora vive dentro del marco.
     ctx.save();
-    ctx.textAlign = "left"; ctx.textBaseline = "top";
+    ctx.translate(v.x + v.w / 2, v.y + v.h / 2);
+    ctx.rotate(-Math.PI / 2);
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
     ctx.font = (ready ? "700 " : "") + "9px Fredoka, sans-serif";
     ctx.fillStyle = ready
-      ? "rgba(182,255,58," + (0.8 + 0.2 * (0.5 + 0.5 * Math.sin(state.time * 6))) + ")"
-      : "rgba(255,255,255,0.6)";
-    ctx.fillText(ready ? "▸ Antiséptico" : "🧴 tópico", v.x + v.w + 5, v.y + 2);
-    if (!ready) {
-      ctx.fillStyle = "rgba(255,255,255,0.4)";
-      ctx.fillText(Math.round(ratio * 100) + "%", v.x + v.w + 5, v.y + 14);
-    }
+      ? "rgba(20,30,8," + (0.85 + 0.15 * (0.5 + 0.5 * Math.sin(state.time * 6))) + ")"
+      : "rgba(255,255,255,0.65)";
+    ctx.fillText(ready ? "Antiséptico ▸" : "🧴 tópico " + Math.round(ratio * 100) + "%", 0, 0);
     ctx.restore();
   }
 
@@ -4144,12 +4143,8 @@
       ctx.beginPath(); ctx.arc(dx + dotR + i * (dotR * 2 + gap), by + h / 2, dotR, 0, Math.PI * 2);
       ctx.fillStyle = i < n ? "#7CFC9E" : "rgba(255,255,255,0.18)"; ctx.fill();
     }
-    if (ready) {
-      var p = 0.5 + 0.5 * Math.sin(state.time * 5);
-      ctx.fillStyle = "rgba(124,252,158," + (0.6 + 0.4 * p) + ")";
-      ctx.textAlign = "left"; ctx.font = "bold 9px Fredoka, sans-serif";
-      ctx.fillText("¡MAC listo!", bx + 2, by + h + 7);
-    }
+    // Label "¡MAC listo!" eliminado: colgaba debajo del rect (efecto callout).
+    // El estado "listo" ya se comunica con el borde brillante y los dots verdes.
     ctx.restore();
   }
 
@@ -9240,6 +9235,13 @@
     ctx.strokeStyle = def.colorDark;
     ctx.lineWidth = 1.2;
     ctx.stroke();
+    // Clipea las decoraciones dentro del círculo del avatar para que las
+    // cartas se vean como rectángulos limpios (sin anticuerpos/dendritas/bumps
+    // sobresaliendo y dando efecto de "globo de diálogo").
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(0, 0, R, 0, Math.PI * 2);
+    ctx.clip();
     if (typeId === "linfocitoB") {
       // 3 mini Y antibodies
       for (var i = 0; i < 3; i++) {
@@ -9296,6 +9298,7 @@
         ctx.stroke();
       }
     }
+    ctx.restore(); // termina el clip del círculo
     // tiny eyes
     var eyeR = R * 0.16;
     ctx.fillStyle = "#fff";
@@ -10151,6 +10154,12 @@
       shieldShatterTimer: 0
     };
     ctx.save();
+    // Clip al cuadrado de la fila del preview para que decoraciones (flagelos,
+    // protrusiones, escudos extendidos) no salgan del marco del tooltip.
+    var clipR = R * 1.8;
+    ctx.beginPath();
+    ctx.rect(cx - clipR, cy - clipR, clipR * 2, clipR * 2);
+    ctx.clip();
     var kind = def.baseKind || def.id;
     if (def.id === "dermatofito") drawDermatofito(fakeEnemy, R, "idle", false);
     else if (def.id === "sarna") drawSarna(fakeEnemy, R, "idle", false);

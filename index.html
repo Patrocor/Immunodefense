@@ -1598,18 +1598,19 @@
       ctx.fillText(tabs[ti].label + " (" + tabs[ti].count + ")", tx + tw / 2, tabY + tabH / 2);
     }
 
-    // Grid de tarjetas (solo nombre)
+    // Grid de tarjetas estilo álbum: ícono arriba + nombre abajo.
     var ids = (state.compendiumTab === "germs") ? compendiumGerms() : compendiumCells();
     var gridY = tabY + tabH + 10;
-    var detailH = Math.round(modalH * 0.42);
+    var detailH = Math.round(modalH * 0.40);
     var gridH = modalH - (gridY - modalY) - detailH - 8;
     var gridX = modalX + 10;
     var gridW = modalW - 20;
 
-    // 3 columnas, cards de nombre solo
+    // 3 columnas, cards cuadrados con ícono + nombre.
     var cols = 3;
     var cardW = (gridW - (cols - 1) * 8) / cols;
-    var cardH = 44;
+    var cardH = cardW + 14;   // alto = ancho + espacio para el nombre
+    var iconR = cardW * 0.32;
     UI.compendiumCards = [];
 
     ctx.save();
@@ -1636,22 +1637,63 @@
       if (!def) continue;
       var selected = (typeId === state.compendiumSelected);
       UI.compendiumCards.push({ typeId: typeId, x: cx, y: cy, w: cardW, h: cardH });
-      ctx.fillStyle = selected ? colorAlpha(def.color || "#888", 0.35) : "#1f1219";
+      // Fondo
+      ctx.fillStyle = selected ? colorAlpha(def.color || "#888", 0.30) : "#1f1219";
       ctx.fillRect(cx, cy, cardW, cardH);
       if (selected) {
         ctx.strokeStyle = def.color || "#888";
         ctx.lineWidth = 2;
         ctx.strokeRect(cx, cy, cardW, cardH);
       }
+      // Ícono / sprite
+      var iconCx = cx + cardW / 2;
+      var iconCy = cy + cardW * 0.50;
+      var isGerm = !!ENEMY_DEFS[typeId];
+      if (isGerm) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(cx + 4, cy + 4, cardW - 8, cardW - 8);
+        ctx.clip();
+        drawTooltipSprite(def, iconCx, iconCy, iconR);
+        ctx.restore();
+      } else if (typeId === "macrofagoLibre") {
+        // Sprite simplificado del macrófago libre.
+        ctx.save();
+        ctx.translate(iconCx, iconCy);
+        ctx.fillStyle = def.color;
+        ctx.strokeStyle = def.colorDark;
+        ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(0, 0, iconR, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+        // Bumps (clipeados)
+        ctx.beginPath(); ctx.arc(0, 0, iconR, 0, Math.PI * 2); ctx.clip();
+        for (var bb = 0; bb < 5; bb++) {
+          var ba = bb * Math.PI * 2 / 5;
+          ctx.beginPath();
+          ctx.arc(Math.cos(ba) * iconR * 0.85, Math.sin(ba) * iconR * 0.85, iconR * 0.30, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+        // Ojos pequeños
+        ctx.fillStyle = "#fff";
+        ctx.beginPath(); ctx.arc(iconCx - iconR * 0.25, iconCy - iconR * 0.05, iconR * 0.16, 0, Math.PI * 2);
+        ctx.arc(iconCx + iconR * 0.25, iconCy - iconR * 0.05, iconR * 0.16, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "#1a1a22";
+        ctx.beginPath(); ctx.arc(iconCx - iconR * 0.25, iconCy - iconR * 0.05, iconR * 0.09, 0, Math.PI * 2);
+        ctx.arc(iconCx + iconR * 0.25, iconCy - iconR * 0.05, iconR * 0.09, 0, Math.PI * 2);
+        ctx.fill();
+      } else {
+        drawCardIcon(typeId, iconCx, iconCy, iconR, true);
+      }
+      // Nombre abajo, dentro de la tarjeta
       ctx.fillStyle = def.color || "#fff";
-      ctx.font = "bold 12px Fredoka, sans-serif";
+      ctx.font = "bold " + Math.max(9, Math.min(12, cardW * 0.13)) + "px Fredoka, sans-serif";
       ctx.textAlign = "center"; ctx.textBaseline = "middle";
       var name = def.shortName || def.name;
-      // Truncar si no entra
-      while (ctx.measureText(name).width > cardW - 12 && name.length > 4) {
+      while (ctx.measureText(name).width > cardW - 8 && name.length > 4) {
         name = name.slice(0, -2);
       }
-      ctx.fillText(name, cx + cardW / 2, cy + cardH / 2);
+      ctx.fillText(name, cx + cardW / 2, cy + cardH - 12);
     }
     ctx.restore();
 

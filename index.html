@@ -334,7 +334,9 @@
   }
 
   function layout() {
-    var hudBase = Math.max(48, Math.min(72, VH * 0.075));
+    // HUD un poco más alto para que el banner OLEADA y la barra viral no se
+    // pisen verticalmente (antes 48-72, ahora 72-92 = ~25% más alto).
+    var hudBase = Math.max(72, Math.min(92, VH * 0.095));
     // Dock lateral derecho: las cartas viven en una columna a la derecha para
     // que el campo use TODO el alto. Portrait: dock angosto (~27% del ancho);
     // landscape: dock fijo cómodo. Incluye safeRight para no quedar bajo el
@@ -9419,9 +9421,12 @@
   function drawViralBar() {
     var pad = 10;
     var barW = VW - 2 * pad - safeLeft - safeRight;
-    var barH = Math.max(10, Math.min(14, HUD_H * 0.18));
+    var barH = Math.max(10, Math.min(14, HUD_H * 0.16));
     var bx = safeLeft + pad;
-    var by = FIELD_TOP - barH - 4;
+    // Posiciona explícitamente DEBAJO del botón de oleada para garantizar gap.
+    var byPref = FIELD_TOP - barH - 4;
+    var byBelowBtn = (UI.nextWaveBtn ? UI.nextWaveBtn.y + UI.nextWaveBtn.h + 4 : byPref);
+    var by = Math.max(byPref, byBelowBtn);
     var ratio = Math.min(1, state.viralLoad / Math.max(1, state.viralThreshold));
     var color = getViralColor(ratio);
     // Background track

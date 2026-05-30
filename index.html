@@ -1411,14 +1411,114 @@
   // ============ FIN MÉDULA ÓSEA ============
 
   // ============ COMPENDIO DE UNIDADES ============
-  function openCompendium(typeId) {
+  // Datos de fuerza/debilidad por unidad (defensas) y por germen.
+  var TOWER_LORE = {
+    neutrofilo:    { strong: "Bacterias sin escudo, infiltraciones leves",
+                     weak:   "Virus rápidos, bacterias con cápsula gruesa" },
+    linfocitoB:    { strong: "Bacterias extracelulares con cápsula",
+                     weak:   "Virus intracelulares, daño en área no especializado" },
+    linfocitoT:    { strong: "Virus con escudo spike, células infectadas",
+                     weak:   "Hongos, bacterias agrupadas" },
+    langerhans:    { strong: "Marca al enemigo: las otras torres lo dañan más",
+                     weak:   "No hace daño propio, depende del resto del equipo" },
+    nk:            { strong: "Virus, células sospechosas (rompe escudos)",
+                     weak:   "Bacterias con biofilm muy denso" },
+    eosinofilo:    { strong: "Hongos, parásitos, infestaciones grandes",
+                     weak:   "Virus pequeños y rápidos" },
+    mastocito:     { strong: "Ralentiza ENJAMBRES: el equipo dispara más",
+                     weak:   "No mata por sí mismo (es soporte)" },
+    complemento:   { strong: "Cualquier escudo (ignora cápsula/spike/pared)",
+                     weak:   "Requiere C3b acumulado, tiro manual" },
+    macrofagoLibre:{ strong: "Bacterias detenidas / ralentizadas (fagocita)",
+                     weak:   "No la controlás, se retira al 30% HP" }
+  };
+  var ENEMY_LORE = {
+    saureus:        { strong: "Defensas directas (su cápsula amarilla resiste)",
+                      weak:   "Linfocito B (anticuerpos), MAC (ácido)" },
+    influenza:      { strong: "Esquivar trampas lentas — es rápido",
+                      weak:   "NK (rompe envoltura viral), Linfocito B" },
+    hsv:            { strong: "Spike azul: rechaza casi todo el daño",
+                      weak:   "Linfocito T citotóxico (lo atraviesa)" },
+    candida:        { strong: "Pared blanca: resiste anticuerpos",
+                      weak:   "Eosinófilo (gránulos antifúngicos), MAC" },
+    pseudomonas:    { strong: "Biofilm protector, suelta esporas buscadoras",
+                      weak:   "MAC (ácido lo derrite), Mastocito (ralentiza)" },
+    hpv:            { strong: "Esquivo y duradero",
+                      weak:   "Linfocito T (oncovirus)" },
+    molluscum:      { strong: "Lento pero resistente; transmite",
+                      weak:   "Linfocito T, Langerhans (lo marca)" },
+    sarna:          { strong: "Se entierra: invisible hasta ser marcada",
+                      weak:   "Langerhans (la revela), Eosinófilo" },
+    malassezia:     { strong: "Película aceitosa: ralentiza torres cercanas",
+                      weak:   "Antiséptico, Eosinófilo" },
+    cacnes:         { strong: "Coco común, rápido en piel grasa",
+                      weak:   "Neutrófilo, Linfocito B" },
+    sepidermidis:   { strong: "Forma biofilm, parte de la flora",
+                      weak:   "MAC, Neutrófilo agresivo" },
+    bossMRSA:       { strong: "Resistente a antibióticos clásicos",
+                      weak:   "Linfocito B + MAC combinados" },
+    bossPyogenes:   { strong: "Fagolítico, dispara enzimas",
+                      weak:   "Linfocito B + ataques rápidos" },
+    bossPseudomonas:{ strong: "Spawn de esporas + biofilm grueso",
+                      weak:   "MAC sostenido, Mastocito para frenar" },
+    bossClostridium:{ strong: "Toxinas paralizantes",
+                      weak:   "MAC, Linfocito T citotóxico" }
+  };
+
+  // Macrófago Libre — entrada virtual del compendio para el guardián autónomo
+  // (no se coloca como torre, aparece solo cada cierto tiempo a apoyar).
+  var MACROFAGO_LIBRE_DEF = {
+    id: "macrofagoLibre",
+    name: "Macrófago Libre",
+    shortName: "Macrofago",
+    color: "#E8923A",
+    colorDark: "#A8581A",
+    cost: 0,
+    free: true,
+    desc: "Patrulla autónoma — engulle gérmenes lentos/parados",
+    levels: [{ damage: 30, range: 30, fireRate: 1.25, hp: 80 }]
+  };
+
+  function openCompendium(typeId, tabOverride) {
     state.compendiumOpen = true;
     state.compendiumFocus = typeId || null;
+    state.compendiumSelected = typeId || null;
     state.compendiumScroll = 0;
+    // Tab por defecto: si el typeId es de germen, ir a "germs", si no "cells".
+    if (tabOverride) {
+      state.compendiumTab = tabOverride;
+    } else if (typeId && ENEMY_DEFS[typeId]) {
+      state.compendiumTab = "germs";
+    } else {
+      state.compendiumTab = state.compendiumTab || "cells";
+    }
   }
   function closeCompendium() {
     state.compendiumOpen = false;
     state.compendiumFocus = null;
+  }
+  function compendiumCells() {
+    // Torres desbloqueadas + Macrófago Libre (siempre visible, es parte
+    // del lore base del jugador).
+    var arr = (state.unlockedTowers || []).slice();
+    arr.push("macrofagoLibre");
+    return arr;
+  }
+  function compendiumGerms() {
+    // Solo los gérmenes ya vistos (mismo criterio que el sistema de vistos).
+    var seen = state.vistos || {};
+    var out = [];
+    for (var k in seen) {
+      if (seen[k] && ENEMY_DEFS[k]) out.push(k);
+    }
+    return out;
+  }
+  function compendiumGetDef(typeId) {
+    if (typeId === "macrofagoLibre") return MACROFAGO_LIBRE_DEF;
+    return TOWER_DEFS[typeId] || ENEMY_DEFS[typeId] || null;
+  }
+  function compendiumGetLore(typeId) {
+    return TOWER_LORE[typeId] || ENEMY_LORE[typeId] || null;
   }
 
   function drawCompendiumButton() {
@@ -1439,29 +1539,30 @@
   function drawCompendium() {
     if (!state.compendiumOpen) return;
     ctx.save();
-    // Backdrop oscuro a pantalla completa.
+    // Backdrop
     ctx.fillStyle = "rgba(0, 0, 0, 0.72)";
     ctx.fillRect(0, 0, VW, VH);
-    // Modal centrado, ~92% del ancho.
-    var modalW = Math.min(VW - 24, 480);
-    var modalH = Math.min(VH - 60, 580);
+    // Modal
+    var modalW = Math.min(VW - 24, 500);
+    var modalH = Math.min(VH - 40, 640);
     var modalX = (VW - modalW) / 2;
     var modalY = (VH - modalH) / 2;
     ctx.fillStyle = "#241620";
     ctx.fillRect(modalX, modalY, modalW, modalH);
-    // Cabecera del modal
-    var headerH = 44;
+
+    // Header
+    var headerH = 40;
     ctx.fillStyle = "#33212e";
     ctx.fillRect(modalX, modalY, modalW, headerH);
     ctx.fillStyle = "#ffd24a";
-    ctx.font = "bold 16px Fredoka, sans-serif";
+    ctx.font = "bold 15px Fredoka, sans-serif";
     ctx.textAlign = "left";
     ctx.textBaseline = "middle";
-    ctx.fillText("📖 Compendio de unidades", modalX + 14, modalY + headerH / 2);
-    // Botón cerrar (X) en esquina sup-der
-    var closeSize = 32;
+    ctx.fillText("📖 Compendio", modalX + 12, modalY + headerH / 2);
+    // Close
+    var closeSize = 30;
     UI.compendiumCloseBtn = {
-      x: modalX + modalW - closeSize - 6,
+      x: modalX + modalW - closeSize - 5,
       y: modalY + (headerH - closeSize) / 2,
       w: closeSize, h: closeSize
     };
@@ -1469,98 +1570,207 @@
     ctx.fillRect(UI.compendiumCloseBtn.x, UI.compendiumCloseBtn.y, closeSize, closeSize);
     ctx.fillStyle = "#fff";
     ctx.font = "bold 16px Fredoka, sans-serif";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
     ctx.fillText("✕", UI.compendiumCloseBtn.x + closeSize / 2, UI.compendiumCloseBtn.y + closeSize / 2 + 1);
 
-    // Lista de torres desbloqueadas — clip a la zona inferior del modal.
-    var listX = modalX + 12;
-    var listY = modalY + headerH + 8;
-    var listW = modalW - 24;
-    var listH = modalH - headerH - 16;
+    // Tabs
+    var tabH = 36;
+    var tabY = modalY + headerH;
+    var tabs = [
+      { key: "cells", label: "Células", count: compendiumCells().length },
+      { key: "germs", label: "Gérmenes", count: compendiumGerms().length }
+    ];
+    UI.compendiumTabs = [];
+    for (var ti = 0; ti < tabs.length; ti++) {
+      var tw = modalW / tabs.length;
+      var tx = modalX + ti * tw;
+      var active = (state.compendiumTab === tabs[ti].key);
+      UI.compendiumTabs.push({ key: tabs[ti].key, x: tx, y: tabY, w: tw, h: tabH });
+      ctx.fillStyle = active ? "#241620" : "#1a1018";
+      ctx.fillRect(tx, tabY, tw, tabH);
+      if (active) {
+        ctx.fillStyle = "#ffd24a";
+        ctx.fillRect(tx, tabY + tabH - 3, tw, 3);
+      }
+      ctx.fillStyle = active ? "#fff" : "rgba(255,255,255,0.55)";
+      ctx.font = "bold 13px Fredoka, sans-serif";
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText(tabs[ti].label + " (" + tabs[ti].count + ")", tx + tw / 2, tabY + tabH / 2);
+    }
+
+    // Grid de tarjetas (solo nombre)
+    var ids = (state.compendiumTab === "germs") ? compendiumGerms() : compendiumCells();
+    var gridY = tabY + tabH + 10;
+    var detailH = Math.round(modalH * 0.42);
+    var gridH = modalH - (gridY - modalY) - detailH - 8;
+    var gridX = modalX + 10;
+    var gridW = modalW - 20;
+
+    // 3 columnas, cards de nombre solo
+    var cols = 3;
+    var cardW = (gridW - (cols - 1) * 8) / cols;
+    var cardH = 44;
+    UI.compendiumCards = [];
+
     ctx.save();
     ctx.beginPath();
-    ctx.rect(listX, listY, listW, listH);
+    ctx.rect(gridX, gridY, gridW, gridH);
     ctx.clip();
 
-    var entryH = 100;
-    var unlocked = state.unlockedTowers || [];
+    var rows = Math.ceil(ids.length / cols);
+    var totalGridH = rows * cardH + Math.max(0, rows - 1) * 8;
+    var maxScroll = Math.max(0, totalGridH - gridH);
     var scroll = state.compendiumScroll || 0;
-    var totalH = unlocked.length * (entryH + 8);
-    var maxScroll = Math.max(0, totalH - listH);
     if (scroll > maxScroll) scroll = maxScroll;
     if (scroll < 0) scroll = 0;
     state.compendiumScroll = scroll;
 
-    for (var i = 0; i < unlocked.length; i++) {
-      var typeId = unlocked[i];
-      var def = TOWER_DEFS[typeId];
+    for (var i = 0; i < ids.length; i++) {
+      var col = i % cols;
+      var row = Math.floor(i / cols);
+      var cx = gridX + col * (cardW + 8);
+      var cy = gridY + row * (cardH + 8) - scroll;
+      if (cy + cardH < gridY || cy > gridY + gridH) continue;
+      var typeId = ids[i];
+      var def = compendiumGetDef(typeId);
       if (!def) continue;
-      var ey = listY + i * (entryH + 8) - scroll;
-      if (ey + entryH < listY || ey > listY + listH) continue;
-
-      var focused = (typeId === state.compendiumFocus);
-      ctx.fillStyle = focused ? "#3a2538" : "#1f1219";
-      ctx.fillRect(listX, ey, listW, entryH);
-      if (focused) {
-        ctx.strokeStyle = def.color;
+      var selected = (typeId === state.compendiumSelected);
+      UI.compendiumCards.push({ typeId: typeId, x: cx, y: cy, w: cardW, h: cardH });
+      ctx.fillStyle = selected ? colorAlpha(def.color || "#888", 0.35) : "#1f1219";
+      ctx.fillRect(cx, cy, cardW, cardH);
+      if (selected) {
+        ctx.strokeStyle = def.color || "#888";
         ctx.lineWidth = 2;
-        ctx.strokeRect(listX, ey, listW, entryH);
+        ctx.strokeRect(cx, cy, cardW, cardH);
       }
-
-      // Icono a la izquierda
-      drawCardIcon(typeId, listX + 36, ey + 38, 20, true);
-
-      // Texto a la derecha del icono
-      var txtX = listX + 72;
-      ctx.fillStyle = def.color;
-      ctx.font = "bold 14px Fredoka, sans-serif";
-      ctx.textAlign = "left";
-      ctx.textBaseline = "top";
-      ctx.fillText(def.name, txtX, ey + 8);
-
-      // Cost
-      ctx.fillStyle = (def.currency === "complement") ? "#7CFC9E" : "#f5d76e";
-      ctx.font = "bold 11px Fredoka, sans-serif";
-      ctx.fillText((def.currency === "complement" ? "🧬 " : "⚡ ") + def.cost, txtX, ey + 28);
-
-      // Descripción
-      if (def.desc) {
-        ctx.fillStyle = "rgba(255,255,255,0.78)";
-        ctx.font = "11px Fredoka, sans-serif";
-        ctx.fillText(def.desc, txtX, ey + 48);
+      ctx.fillStyle = def.color || "#fff";
+      ctx.font = "bold 12px Fredoka, sans-serif";
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      var name = def.shortName || def.name;
+      // Truncar si no entra
+      while (ctx.measureText(name).width > cardW - 12 && name.length > 4) {
+        name = name.slice(0, -2);
       }
-
-      // Stats Nv1
-      var lvl = (def.levels && def.levels[0]) || {};
-      var statsParts = [];
-      if (lvl.damage != null && lvl.damage > 0) statsParts.push("Daño " + lvl.damage);
-      if (lvl.range != null && lvl.range > 0) statsParts.push("Alc " + Math.round(lvl.range));
-      if (lvl.fireRate != null) statsParts.push((lvl.fireRate).toFixed(1) + "/s");
-      if (lvl.splash != null && lvl.splash > 0) statsParts.push("AOE " + Math.round(lvl.splash));
-      if (lvl.hp != null && lvl.hp > 0) statsParts.push("HP " + lvl.hp);
-      if (statsParts.length > 0) {
-        ctx.fillStyle = "rgba(255,255,255,0.55)";
-        ctx.font = "10px Fredoka, sans-serif";
-        ctx.fillText(statsParts.join("  ·  "), txtX, ey + 66);
-      }
-
-      // Indicador NUEVO si está focused
-      if (focused) {
-        ctx.fillStyle = "#ffd24a";
-        ctx.font = "bold 10px Fredoka, sans-serif";
-        ctx.textAlign = "right";
-        ctx.fillText("¡NUEVO!", listX + listW - 10, ey + 12);
-      }
+      ctx.fillText(name, cx + cardW / 2, cy + cardH / 2);
     }
     ctx.restore();
 
-    // Hint inferior
-    ctx.fillStyle = "rgba(255,255,255,0.40)";
-    ctx.font = "10px Fredoka, sans-serif";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "bottom";
-    ctx.fillText("Tocá fuera del cuadro o el ✕ para volver al juego", VW / 2, modalY + modalH - 6);
+    // Detail panel
+    var detailY = modalY + modalH - detailH - 10;
+    var detailX = modalX + 10;
+    var detailW = modalW - 20;
+    ctx.fillStyle = "#1a1018";
+    ctx.fillRect(detailX, detailY, detailW, detailH);
+    ctx.fillStyle = "#33212e";
+    ctx.fillRect(detailX, detailY, detailW, 2);
+
+    var sel = state.compendiumSelected;
+    if (!sel) {
+      // Mensaje placeholder
+      ctx.fillStyle = "rgba(255,255,255,0.50)";
+      ctx.font = "italic 12px Fredoka, sans-serif";
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText("Tocá una tarjeta arriba para ver detalles", detailX + detailW / 2, detailY + detailH / 2);
+    } else {
+      var def2 = compendiumGetDef(sel);
+      var lore = compendiumGetLore(sel);
+      var isGerm = !!ENEMY_DEFS[sel];
+      // Nombre + sprite
+      ctx.fillStyle = def2.color || "#fff";
+      ctx.font = "bold 16px Fredoka, sans-serif";
+      ctx.textAlign = "left"; ctx.textBaseline = "top";
+      ctx.fillText(def2.name || sel, detailX + 60, detailY + 10);
+      // Sprite icon
+      if (isGerm) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(detailX + 8, detailY + 8, 44, 44);
+        ctx.clip();
+        drawTooltipSprite(def2, detailX + 30, detailY + 30, 14);
+        ctx.restore();
+      } else if (sel === "macrofagoLibre") {
+        ctx.fillStyle = def2.color;
+        ctx.beginPath();
+        ctx.arc(detailX + 30, detailY + 30, 18, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = def2.colorDark; ctx.lineWidth = 2; ctx.stroke();
+        ctx.fillStyle = "#fff";
+        ctx.font = "bold 10px Fredoka, sans-serif";
+        ctx.textAlign = "center"; ctx.textBaseline = "middle";
+        ctx.fillText("M", detailX + 30, detailY + 31);
+      } else {
+        drawCardIcon(sel, detailX + 30, detailY + 30, 16, true);
+      }
+      // Costo + stats
+      var lvl2 = (def2.levels && def2.levels[0]) || {};
+      var line2 = "";
+      if (def2.free) {
+        line2 = "Gratis (autónomo)";
+      } else if (def2.cost != null) {
+        line2 = (def2.currency === "complement" ? "🧬 C3b: " : "⚡ ATP: ") + def2.cost;
+      }
+      ctx.fillStyle = (def2.currency === "complement") ? "#7CFC9E" : "#f5d76e";
+      ctx.font = "bold 11px Fredoka, sans-serif";
+      ctx.textAlign = "left"; ctx.textBaseline = "top";
+      ctx.fillText(line2, detailX + 60, detailY + 32);
+      // Stats / hp / vel
+      var sparts = [];
+      if (isGerm) {
+        if (def2.hp != null) sparts.push("HP " + def2.hp);
+        if (def2.speedMult != null) sparts.push("Vel ×" + def2.speedMult.toFixed(1));
+        if (def2.reward != null) sparts.push("+" + def2.reward + " ATP");
+        if (def2.attack != null) sparts.push("Atq " + def2.attack);
+        if (def2.shield) sparts.push("Escudo " + def2.shield.type + " (" + def2.shield.maxHP + ")");
+      } else {
+        if (lvl2.damage != null && lvl2.damage > 0) sparts.push("Daño " + lvl2.damage);
+        if (lvl2.range != null && lvl2.range > 0) sparts.push("Alc " + Math.round(lvl2.range));
+        if (lvl2.fireRate != null) sparts.push((lvl2.fireRate).toFixed(1) + "/s");
+        if (lvl2.splash != null && lvl2.splash > 0) sparts.push("AOE " + Math.round(lvl2.splash));
+        if (lvl2.hp != null && lvl2.hp > 0) sparts.push("HP " + lvl2.hp);
+      }
+      ctx.fillStyle = "rgba(255,255,255,0.65)";
+      ctx.font = "10px Fredoka, sans-serif";
+      var sLines = wrapText(sparts.join("  ·  "), detailW - 16, 10);
+      for (var sli = 0; sli < Math.min(2, sLines.length); sli++) {
+        ctx.fillText(sLines[sli], detailX + 10, detailY + 60 + sli * 14);
+      }
+
+      // Descripción
+      var descY = detailY + 92;
+      if (def2.desc || def2.tooltip) {
+        ctx.fillStyle = "rgba(255,255,255,0.85)";
+        ctx.font = "11px Fredoka, sans-serif";
+        var descTxt = def2.tooltip || def2.desc || "";
+        var descLines = wrapText(descTxt, detailW - 16, 11);
+        for (var dli = 0; dli < Math.min(3, descLines.length); dli++) {
+          ctx.fillText(descLines[dli], detailX + 10, descY + dli * 14);
+        }
+        descY += Math.min(3, descLines.length) * 14 + 6;
+      }
+
+      // Strong / Weak
+      if (lore) {
+        ctx.fillStyle = "#5ad15a";
+        ctx.font = "bold 11px Fredoka, sans-serif";
+        ctx.fillText("⚔ Fuerte:", detailX + 10, descY);
+        ctx.fillStyle = "rgba(255,255,255,0.85)";
+        ctx.font = "11px Fredoka, sans-serif";
+        var sw = wrapText(lore.strong, detailW - 78, 11);
+        for (var si = 0; si < Math.min(2, sw.length); si++) {
+          ctx.fillText(sw[si], detailX + 70, descY + si * 14);
+        }
+        descY += Math.min(2, sw.length) * 14 + 4;
+        ctx.fillStyle = "#d9534f";
+        ctx.font = "bold 11px Fredoka, sans-serif";
+        ctx.fillText("🛡 Débil:", detailX + 10, descY);
+        ctx.fillStyle = "rgba(255,255,255,0.85)";
+        ctx.font = "11px Fredoka, sans-serif";
+        var ww = wrapText(lore.weak, detailW - 78, 11);
+        for (var wi = 0; wi < Math.min(2, ww.length); wi++) {
+          ctx.fillText(ww[wi], detailX + 70, descY + wi * 14);
+        }
+      }
+    }
 
     ctx.restore();
   }
@@ -3039,19 +3249,13 @@
         }
       }
       // Sprint 8A: lateral tooltip — first encounter goes to a queue. The
-      // game does NOT pause; the tooltip slides in from the right side and
-      // auto-closes after 3s. Multiple new pathogens line up.
+      // NUEVO sistema: en vez de auto-tooltip, el germen recibe un glow
+      // amarillo (drawEnemy) y se muestra un mini aviso "Toca al nuevo
+      // enemigo" mientras NO esté en state.vistos. El jugador tappea y se
+      // abre el compendio. NO se marca vistos hasta que se vea el detalle.
       if (!e.tooltipShown && e.state === "walking"
           && !state.vistos[e.def.id] && !state.showIntro && !state.cinematicEnd) {
-        state.vistos[e.def.id] = true;
-        saveVistos(state.vistos);
-        if (!state.tooltipQueue) state.tooltipQueue = [];
-        // Avoid duplicates already queued or active.
-        var alreadyQueued = (state.activeTooltip && state.activeTooltip.defId === e.def.id);
-        for (var q = 0; q < state.tooltipQueue.length && !alreadyQueued; q++) {
-          if (state.tooltipQueue[q] === e.def.id) alreadyQueued = true;
-        }
-        if (!alreadyQueued) state.tooltipQueue.push(e.def.id);
+        state.newGermAlert = { defId: e.def.id, since: state.time };
         e.tooltipShown = true;
       }
       if (e.dying) {
@@ -6178,14 +6382,37 @@
       }
       return;
     }
-    // Compendio: si está abierto, cualquier tap lo cierra (salvo en el cuerpo
-    // de la lista, donde podríamos querer scroll en el futuro).
+    // Compendio: si está abierto, interceptamos taps.
     if (state.compendiumOpen) {
+      // Cerrar
       if (UI.compendiumCloseBtn && inRect(x, y, UI.compendiumCloseBtn)) {
         closeCompendium();
         return;
       }
-      // Tap en cualquier otro lugar también cierra (lo más natural en móvil).
+      // Tabs
+      if (UI.compendiumTabs) {
+        for (var ti = 0; ti < UI.compendiumTabs.length; ti++) {
+          var tab = UI.compendiumTabs[ti];
+          if (inRect(x, y, tab)) {
+            state.compendiumTab = tab.key;
+            state.compendiumSelected = null;
+            state.compendiumScroll = 0;
+            return;
+          }
+        }
+      }
+      // Cards (tarjetas con nombre): seleccionar para detalle.
+      if (UI.compendiumCards) {
+        for (var ci = 0; ci < UI.compendiumCards.length; ci++) {
+          var card = UI.compendiumCards[ci];
+          if (inRect(x, y, card)) {
+            state.compendiumSelected = card.typeId;
+            return;
+          }
+        }
+      }
+      // Tap fuera del modal cierra. Aprovechamos UI.compendiumCloseBtn como
+      // referencia del header.
       closeCompendium();
       return;
     }
@@ -6207,6 +6434,27 @@
     // Pickup de desbloqueo de torre (cualquier fase): tap sobre la cápsula la consume.
     if (tryTapUnlockPickup(x, y)) {
       return;
+    }
+    // Tap sobre un GERMEN con glow (no visto aún): abre el compendio y lo
+    // marca como visto.
+    for (var enei = 0; enei < state.enemies.length; enei++) {
+      var enE = state.enemies[enei];
+      if (enE.dead) continue;
+      var defE = enE.def;
+      if (!defE || !defE.id) continue;
+      if (state.vistos[defE.id]) continue;
+      var radE = defE.radius * U * (enE.radiusScale || 1);
+      var dxE = x - enE.x, dyE = y - enE.y;
+      // Hit radius generoso (1.4x) porque hay halo glow alrededor.
+      if (dxE * dxE + dyE * dyE <= (radE * 1.4) * (radE * 1.4)) {
+        state.vistos[defE.id] = true;
+        saveVistos(state.vistos);
+        if (state.newGermAlert && state.newGermAlert.defId === defE.id) {
+          state.newGermAlert = null;
+        }
+        openCompendium(defE.id, "germs");
+        return;
+      }
     }
     // Respuestas inmunes: tap sobre una carta del panel.
     if (state.dissemination && UI.responseCards) {
@@ -8016,6 +8264,20 @@
     var rad = def.radius * U * (e.radiusScale || 1);
     if (e.swallowAnim > 0) rad *= 1 + 0.35 * (e.swallowAnim / 0.45);   // se hincha al tragar
     if (e.engulfScale != null) rad *= e.engulfScale;                    // encogido al ser fagocitado
+    // Glow para gérmenes NO vistos aún: pulso amarillo invitando al tap
+    // que abre el compendio. Se quita en cuanto state.vistos[id] se set.
+    if (def && def.id && state.vistos && !state.vistos[def.id]) {
+      var glowPulse = 0.5 + 0.5 * Math.sin(state.time * 4);
+      ctx.save();
+      ctx.strokeStyle = "rgba(255, 210, 74, " + (0.55 + glowPulse * 0.40) + ")";
+      ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.arc(e.x, e.y, rad + (6 + glowPulse * 4) * U, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.fillStyle = "rgba(255, 210, 74, " + (0.12 + glowPulse * 0.10) + ")";
+      ctx.beginPath(); ctx.arc(e.x, e.y, rad + (10 + glowPulse * 4) * U, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
     // Estado por medicamento: paralizado (escarcha cian) o lento (tinte azul).
     if (e.stunTimer > 0) {
       ctx.save();
@@ -11466,6 +11728,24 @@
       drawComplementMeter();
       if (state.dissemination) drawImmuneResponsePanel();
     }
+    // Mini aviso de nuevo germen: sólo si hay un alerta activa y el germen
+    // sigue sin ver. El usuario toca el germen brillante y se abre el compendio.
+    if (state.newGermAlert && state.newGermAlert.defId && !state.vistos[state.newGermAlert.defId]
+        && !state.showTitle && !state.showIntro && !state.compendiumOpen) {
+      var pulseA = 0.5 + 0.5 * Math.sin(state.time * 4);
+      var bw = Math.min(VW - 32, 260);
+      var bh = 30;
+      var bx = (VW - bw) / 2;
+      var by = FIELD_TOP + 16;
+      ctx.save();
+      ctx.fillStyle = "rgba(255, 210, 74, " + (0.85 + pulseA * 0.10) + ")";
+      ctx.fillRect(bx, by, bw, bh);
+      ctx.fillStyle = "#3a2008";
+      ctx.font = "bold 12px Fredoka, sans-serif";
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText("¡Toca al nuevo enemigo!", bx + bw / 2, by + bh / 2);
+      ctx.restore();
+    }
     // Compendio: por encima de todo lo demás cuando está abierto.
     drawCompendium();
     drawMessage();
@@ -11481,7 +11761,8 @@
     drawCinematicEnd();
     drawDisseminationIntro();
     drawDisseminationOver();
-    drawTooltip();
+    // drawTooltip(): reemplazado por el compendio. El glow del germen +
+    // el mini banner invitan al tap, y el compendio abre con sus datos.
     drawIntroScreen();
     drawTitleScreen();
     drawConfirmModal();

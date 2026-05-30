@@ -814,7 +814,7 @@
   var TOWER_DEFS = {
     neutrofilo: {
       id: "neutrofilo",
-      name: "Neutrofilo",
+      name: "Macrófago",
       color: "#B79CE0",
       colorDark: "#7E5FB0",
       cost: 55,
@@ -1312,7 +1312,7 @@
   // El jugador los recoge para gastarlos en Respuestas Inmunes.
 
   var ANTIGEN_TTL = 10.0;
-  var ANTIGEN_RADIUS = 8;  // multiplicado por U
+  var ANTIGEN_RADIUS = 9.6;  // multiplicado por U (20% más que el tamaño original)
 
   function spawnAntigenDrop(x, y) {
     if (!state.dissemination) return;
@@ -1347,13 +1347,16 @@
         continue;
       }
 
-      d.vy += 60 * U * dt;
+      // Flotan hacia arriba: ligera aceleración ascendente continua + fricción.
+      d.vy -= 8 * U * dt;
+      d.vy *= (1 - 0.4 * dt);
       d.vx *= (1 - 1.2 * dt);
       d.x += d.vx * dt;
       d.y += d.vy * dt;
-      if (d.y > FIELD_BOTTOM - 4 * U) {
-        d.y = FIELD_BOTTOM - 4 * U;
-        d.vy = -Math.abs(d.vy) * 0.4;
+      // Clamp suave si llegan al borde superior (poco probable antes del TTL).
+      if (d.y < FIELD_TOP + 4 * U) {
+        d.y = FIELD_TOP + 4 * U;
+        d.vy = 0;
       }
 
       if (d.age >= d.ttl) {
@@ -1442,26 +1445,27 @@
   var RESPONSE_ORDER = ["dendritica", "netosis", "plaquetas"];
 
   function drawImmuneResponsePanel() {
-    if (!state.dissemination) return;
-    var panelW = FIELD_W * 0.55;
-    var panelH = 44 * U;
-    var panelX = FIELD_LEFT + (FIELD_W - panelW) / 2;
-    var panelY = FIELD_BOTTOM - panelH - 8 * U;
+    if (!state.dissemination || !UI.responsePanel) return;
+    var rp = UI.responsePanel;
+    var cardH = rp.cardH;
+    var gap = rp.gap;
+    var pad = rp.pad;
+    var cardW = rp.w - 2 * pad;
+    var cardX = rp.x + pad;
     ctx.save();
+    // Fondo + borde del contenedor
     ctx.fillStyle = "rgba(30, 15, 20, 0.85)";
     ctx.strokeStyle = "rgba(255, 210, 74, 0.30)";
     ctx.lineWidth = 1;
-    roundRect(panelX, panelY, panelW, panelH, 8);
+    roundRect(rp.x, rp.y, rp.w, rp.h, 8);
     ctx.fill(); ctx.stroke();
 
-    var cardW = (panelW - 8 * U) / 3 - 6 * U;
-    var cardH = panelH - 8 * U;
     UI.responseCards = [];
     for (var i = 0; i < RESPONSE_ORDER.length; i++) {
       var key = RESPONSE_ORDER[i];
       var def = RESPONSE_DEFS[key];
-      var cx = panelX + 4 * U + i * (cardW + 6 * U);
-      var cy = panelY + 4 * U;
+      var cy = rp.y + pad + i * (cardH + gap);
+      var cx = cardX;
       var canAfford = (state.antigens && state.antigens.count >= def.cost);
       var armed = (state.armedResponse === key);
 
@@ -1474,23 +1478,29 @@
       roundRect(cx, cy, cardW, cardH, 6);
       ctx.fill(); ctx.stroke();
 
+      // Ícono circular a la izquierda
+      var iconR = cardH / 2 - 6;
+      var iconCx = cx + cardH / 2;
+      var iconCy = cy + cardH / 2;
       ctx.fillStyle = colorAlpha(def.color, 0.7);
       ctx.beginPath();
-      ctx.arc(cx + cardH/2, cy + cardH/2, cardH/2 - 6, 0, Math.PI * 2);
+      ctx.arc(iconCx, iconCy, iconR, 0, Math.PI * 2);
       ctx.fill();
       ctx.fillStyle = "#fff";
-      ctx.font = "bold " + Math.floor(10 * U) + "px Fredoka, sans-serif";
+      ctx.font = "bold " + Math.floor(11 * U) + "px Fredoka, sans-serif";
       ctx.textAlign = "center"; ctx.textBaseline = "middle";
-      ctx.fillText(def.icon, cx + cardH/2, cy + cardH/2);
+      ctx.fillText(def.icon, iconCx, iconCy);
 
+      // Label arriba, costo abajo (a la derecha del ícono)
+      var textX = cx + cardH + 4 * U;
       ctx.textAlign = "left";
       ctx.fillStyle = "#fff";
       ctx.font = "bold " + Math.floor(11 * U) + "px Fredoka, sans-serif";
-      ctx.fillText(def.label, cx + cardH + 4 * U, cy + 12 * U);
+      ctx.fillText(def.label, textX, cy + cardH * 0.32);
 
       ctx.fillStyle = "#ffd24a";
       ctx.font = "bold " + Math.floor(11 * U) + "px Fredoka, sans-serif";
-      ctx.fillText("!  " + def.cost, cx + cardH + 4 * U, cy + 28 * U);
+      ctx.fillText("!  " + def.cost, textX, cy + cardH * 0.72);
 
       ctx.globalAlpha = 1;
     }
@@ -1695,12 +1705,12 @@
   var DISSEMINATION_WAVE_TABLE = [
     // Wave 1: presentación tranquila — pocos gérmenes, mucha separación,
     // para que el jugador construya su defensa y entienda los carriles.
-    [["saureus",4,1.80],["pseudomonas",2,2.20],["candida",2,2.00]],
+    [["saureus",2,2.20],["pseudomonas",1,2.40],["candida",1,2.20]],
     // Wave 2: presión media — más volumen, primer boss MRSA al final.
-    [["saureus",7,1.30],["pseudomonas",4,1.50],["candida",3,1.40],["bossMRSA",1,0]],
-    // Wave 3: avalancha — bosses dobles, intervalos cortos, imposible
-    // defender los 5 carriles a la vez.
-    [["saureus",12,0.80],["pseudomonas",6,1.00],["candida",5,1.10],["bossMRSA",2,3.0],["bossPyogenes",1,4.0]]
+    [["saureus",4,1.50],["pseudomonas",2,1.70],["candida",2,1.60],["bossMRSA",1,0]],
+    // Wave 3: avalancha — bosses dobles, intervalos cortos, aglomeración
+    // sostenida para defender los 5 carriles a la vez.
+    [["saureus",10,0.90],["pseudomonas",5,1.10],["candida",4,1.20],["bossMRSA",2,3.0],["bossPyogenes",1,4.0]]
   ];
 
   // Pesos de afinidad germen → carril [corazón, pulmón, sangre, hueso, articulación].
@@ -1993,10 +2003,33 @@
     var infoH = Math.min(96 + btnH * 2, Math.round(dockH * 0.52));
     var infoY = dockBottom - infoH;
 
+    // Panel de Respuestas Inmunes (solo en diseminación): 3 cartas verticales
+    // en la parte BAJA del dock derecho, debajo del strip de torres y arriba del
+    // bloque info/botones. Se calcula primero para reservarle espacio al strip.
+    UI.responsePanel = null;
+    var responsesReservedH = 0;
+    if (state && state.dissemination) {
+      var rpCardH = Math.round(40 * U);
+      var rpGap = Math.round(6 * U);
+      var rpPad = Math.round(6 * U);
+      var rpInnerH = 3 * rpCardH + 2 * rpGap;
+      var rpH = rpInnerH + 2 * rpPad;
+      responsesReservedH = rpH + dockPad;
+      UI.responsePanel = {
+        x: contentX,
+        y: infoY - dockPad - rpH,
+        w: contentW,
+        h: rpH,
+        cardH: rpCardH,
+        gap: rpGap,
+        pad: rpPad
+      };
+    }
+
     // Cartilla por GRUPOS DESPLEGABLES: cada categoría (cabecera) se abre/cierra
     // de forma independiente. Sin abrir, solo se ven las cabeceras (no satura).
     var stripTop = dockTop;
-    var stripRegionH = Math.max(0, (infoY - dockPad) - stripTop);
+    var stripRegionH = Math.max(0, (infoY - dockPad - responsesReservedH) - stripTop);
     var headerH = 28, groupSpacing = 6;
     var cardH = Math.round(Math.max(56, Math.min(92, contentW * 0.92)));
     var openMap = (state && state.openGroups) ? state.openGroups : { linea: true };
@@ -2111,6 +2144,9 @@
     state.armedResponse = null;
     state.medCharge = 0;
     state.topicalCharge = 0;
+    // Recalcular layout para que UI.responsePanel y el strip de torres se
+    // dimensionen para esta fase (sino quedaban con la geometría de Fase 1).
+    layoutUI();
     // Limpieza del campo de Fase 1.
     state.enemies.length = 0;
     state.towers.length = 0;

@@ -1201,6 +1201,112 @@
     18: [["hsv",6,0.45],["pseudomonas",5,0.85],["candida",4,0.9],["saureus",8,1.0],["hpv",3,1.0],["bossMRSA",1,0]]
   };
 
+  // ============ PATTERNS BIOLÓGICOS POR ÓRGANO ============
+  // Cacheados en OffscreenCanvas para reutilizar en barrera + puerta.
+  // Generados lazy la primera vez que se piden.
+  var ORGAN_PATTERN_CACHE = {};
+  var TISSUE_LABEL = {
+    corazon:      "pericardio",
+    pulmon:       "pleura",
+    sangre:       "endotelio vascular",
+    hueso:        "periostio",
+    articulacion: "cápsula sinovial"
+  };
+
+  function createPatternCanvas(w, h) {
+    if (typeof OffscreenCanvas !== "undefined") return new OffscreenCanvas(w, h);
+    var c = document.createElement("canvas");
+    c.width = w; c.height = h;
+    return c;
+  }
+
+  function paintCorazonPattern(pctx) {
+    // Miocardio: fondo rojo oscuro + líneas paralelas claras (fibras estriadas).
+    pctx.fillStyle = "#7a2543"; pctx.fillRect(0, 0, 64, 64);
+    pctx.strokeStyle = "rgba(255,180,170,0.30)"; pctx.lineWidth = 0.8;
+    pctx.save();
+    pctx.rotate(0.35); // ~20° en radianes
+    for (var y = -10; y < 80; y += 4) {
+      pctx.beginPath(); pctx.moveTo(-10, y); pctx.lineTo(80, y); pctx.stroke();
+    }
+    pctx.restore();
+  }
+
+  function paintPulmonPattern(pctx) {
+    // Alvéolos: rosado oscuro + burbujas claras dispersas.
+    pctx.fillStyle = "#a36272"; pctx.fillRect(0, 0, 64, 64);
+    pctx.fillStyle = "rgba(255,210,220,0.50)";
+    var spots = [[8,8,4],[26,18,5],[44,10,3.5],[58,28,4],[14,32,3],[36,40,5],[52,50,4],[10,54,3.5],[26,56,3],[42,58,4]];
+    for (var i = 0; i < spots.length; i++) {
+      pctx.beginPath(); pctx.arc(spots[i][0], spots[i][1], spots[i][2], 0, Math.PI*2); pctx.fill();
+    }
+  }
+
+  function paintSangrePattern(pctx) {
+    // Eritrocitos bicóncavos.
+    pctx.fillStyle = "#7a1a1f"; pctx.fillRect(0, 0, 64, 64);
+    var cells = [[10,10],[34,8],[52,18],[18,28],[42,32],[58,42],[12,46],[32,50],[50,58]];
+    for (var i = 0; i < cells.length; i++) {
+      var cx = cells[i][0], cy = cells[i][1];
+      pctx.fillStyle = "#c02a30";
+      pctx.beginPath(); pctx.ellipse(cx, cy, 4, 3, 0, 0, Math.PI*2); pctx.fill();
+      pctx.fillStyle = "#5a0d10";
+      pctx.beginPath(); pctx.ellipse(cx, cy, 1.6, 1.2, 0, 0, Math.PI*2); pctx.fill();
+    }
+  }
+
+  function paintHuesoPattern(pctx) {
+    // Trabéculas: marrón claro + red de líneas blancas.
+    pctx.fillStyle = "#8a7548"; pctx.fillRect(0, 0, 64, 64);
+    pctx.strokeStyle = "rgba(245,230,180,0.55)"; pctx.lineWidth = 1.2;
+    pctx.beginPath();
+    pctx.moveTo(0, 0); pctx.lineTo(64, 64);
+    pctx.moveTo(64, 0); pctx.lineTo(0, 64);
+    pctx.moveTo(32, 0); pctx.lineTo(32, 64);
+    pctx.moveTo(0, 32); pctx.lineTo(64, 32);
+    pctx.stroke();
+    pctx.fillStyle = "rgba(20,10,4,0.5)";
+    pctx.beginPath(); pctx.arc(32, 32, 1.8, 0, Math.PI*2); pctx.fill();
+  }
+
+  function paintArticulacionPattern(pctx) {
+    // Cartílago hialino: azul-verde liso con líneas onduladas finas.
+    pctx.fillStyle = "#4c7f8a"; pctx.fillRect(0, 0, 64, 64);
+    pctx.strokeStyle = "rgba(220,240,250,0.30)"; pctx.lineWidth = 1;
+    for (var y = 4; y < 64; y += 16) {
+      pctx.beginPath();
+      pctx.moveTo(0, y);
+      for (var x = 4; x <= 64; x += 8) {
+        pctx.quadraticCurveTo(x - 4, y - 4, x, y);
+      }
+      pctx.stroke();
+    }
+  }
+
+  function getOrganPattern(organId) {
+    if (ORGAN_PATTERN_CACHE[organId]) return ORGAN_PATTERN_CACHE[organId];
+    var canvas = createPatternCanvas(64, 64);
+    var pctx = canvas.getContext("2d");
+    switch (organId) {
+      case "corazon":      paintCorazonPattern(pctx);      break;
+      case "pulmon":       paintPulmonPattern(pctx);       break;
+      case "sangre":       paintSangrePattern(pctx);       break;
+      case "hueso":        paintHuesoPattern(pctx);        break;
+      case "articulacion": paintArticulacionPattern(pctx); break;
+      default: pctx.fillStyle = "#444"; pctx.fillRect(0, 0, 64, 64);
+    }
+    var pat = ctx.createPattern(canvas, "repeat");
+    ORGAN_PATTERN_CACHE[organId] = pat;
+    return pat;
+  }
+
+  function organIdSeed(id) {
+    var s = 0;
+    for (var i = 0; i < id.length; i++) s = (s * 31 + id.charCodeAt(i)) | 0;
+    return Math.abs(s);
+  }
+  // ============ FIN PATTERNS BIOLÓGICOS ============
+
   // ============ NIVEL PUENTE: DISEMINACIÓN ============
   // 5 carriles paralelos estilo PvZ. Tras vencer al boss MRSA (ola 18), la
   // infección rompió la barrera cutánea y busca órgano blanco. El jugador

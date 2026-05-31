@@ -3893,29 +3893,91 @@
   }
 
   function drawSynergyLines() {
+    // Pase 1: recolectar torres únicas involucradas en cualquier sinergia
+    // (para no duplicar halos cuando una misma torre tiene varios sinérgicos).
+    var towersInSynergy = {}; // idx → tower
+    var connections = [];
     for (var i = 0; i < state.towers.length; i++) {
       var t = state.towers[i];
       if (!t.synActiveFrom || t.synActiveFrom.length === 0) continue;
-      var pulse = 0.5 + 0.5 * Math.sin(state.time * 3);
+      towersInSynergy[i] = t;
       for (var j = 0; j < t.synActiveFrom.length; j++) {
         var s = t.synActiveFrom[j];
-        ctx.save();
-        ctx.strokeStyle = colorAlpha(t.def.color, 0.35 + pulse * 0.20);
-        ctx.lineWidth = 2;
-        ctx.setLineDash([6, 4]);
-        ctx.beginPath();
-        ctx.moveTo(t.x, t.y);
-        ctx.lineTo(s.x, s.y);
-        ctx.stroke();
-        ctx.setLineDash([]);
-        // Pequeño "+" pulsante sobre el receptor.
-        var mx = (t.x + s.x) / 2, my = (t.y + s.y) / 2;
-        ctx.fillStyle = colorAlpha(t.def.color, 0.85);
-        ctx.font = "bold " + Math.floor(11 * U) + "px Fredoka, sans-serif";
-        ctx.textAlign = "center"; ctx.textBaseline = "middle";
-        ctx.fillText("✦", mx, my);
-        ctx.restore();
+        var sIdx = state.towers.indexOf(s);
+        if (sIdx !== -1) towersInSynergy[sIdx] = s;
+        connections.push({ receiver: t, source: s });
       }
+    }
+    if (Object.keys(towersInSynergy).length === 0) return;
+
+    var time = state.time;
+
+    // Pase 2: halos radiales pulsantes alrededor de cada torre en sinergia.
+    for (var id in towersInSynergy) {
+      var tw = towersInSynergy[id];
+      var hpulse = 0.5 + 0.5 * Math.sin(time * 2.5 + parseInt(id) * 0.7);
+      var rH = (28 + hpulse * 8) * U;
+      ctx.save();
+      var halo = ctx.createRadialGradient(tw.x, tw.y, 4 * U, tw.x, tw.y, rH);
+      halo.addColorStop(0, colorAlpha(tw.def.color, 0.55));
+      halo.addColorStop(0.45, colorAlpha(tw.def.color, 0.28 + hpulse * 0.10));
+      halo.addColorStop(1, colorAlpha(tw.def.color, 0));
+      ctx.fillStyle = halo;
+      ctx.beginPath();
+      ctx.arc(tw.x, tw.y, rH, 0, Math.PI * 2);
+      ctx.fill();
+      // Anillo fino externo pulsante.
+      ctx.strokeStyle = colorAlpha(tw.def.color, 0.45 + hpulse * 0.35);
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(tw.x, tw.y, rH * 0.85, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // Pase 3: cuerda de energía + partículas fluyentes entre las dos torres.
+    for (var c = 0; c < connections.length; c++) {
+      var conn = connections[c];
+      var ta = conn.receiver, sb = conn.source;
+      var dx = sb.x - ta.x, dy = sb.y - ta.y;
+      var distC = Math.sqrt(dx * dx + dy * dy);
+      if (distC < 2) continue;
+      var pulseC = 0.5 + 0.5 * Math.sin(time * 2 + c * 0.5);
+      ctx.save();
+      // Glow grueso debajo (con shadowBlur)
+      var grad = ctx.createLinearGradient(ta.x, ta.y, sb.x, sb.y);
+      grad.addColorStop(0, colorAlpha(ta.def.color, 0.85));
+      grad.addColorStop(0.5, "rgba(255,255,255," + (0.55 + pulseC * 0.25) + ")");
+      grad.addColorStop(1, colorAlpha(sb.def.color, 0.85));
+      ctx.strokeStyle = grad;
+      ctx.lineWidth = (2.4 + pulseC * 1.4) * U * 0.5;
+      ctx.lineCap = "round";
+      ctx.shadowColor = colorAlpha(ta.def.color, 0.55);
+      ctx.shadowBlur = 6 + pulseC * 4;
+      ctx.beginPath();
+      ctx.moveTo(ta.x, ta.y);
+      ctx.lineTo(sb.x, sb.y);
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+
+      // Partículas que fluyen del receptor al source (sentido del buff).
+      var nP = 4;
+      for (var p = 0; p < nP; p++) {
+        var phase = (time * 0.45 + p / nP) % 1;
+        var px = ta.x + dx * phase;
+        var py = ta.y + dy * phase;
+        var t01 = phase; // 0 → receptor, 1 → fuente
+        var pcol;
+        if (t01 < 0.4) pcol = ta.def.color;
+        else if (t01 > 0.6) pcol = sb.def.color;
+        else pcol = "#ffffff";
+        var pr = (2.0 + (1 - Math.abs(t01 - 0.5) * 2) * 1.5) * U;
+        ctx.fillStyle = colorAlpha(pcol, 0.85);
+        ctx.beginPath();
+        ctx.arc(px, py, pr, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
     }
   }
   // ============ FIN SINERGIAS ============

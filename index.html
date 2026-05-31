@@ -1412,25 +1412,81 @@
 
   // ============ COMPENDIO DE UNIDADES ============
   // Datos de fuerza/debilidad por unidad (defensas) y por germen.
+  // Esquema por torre: strong/weak (prosa), synergyWith (la potencian),
+  // potentiates (a quiénes potencia), bestIn (medios), affinity (lineaje).
   var TOWER_LORE = {
-    neutrofilo:    { strong: "Bacterias sin escudo, infiltraciones leves",
-                     weak:   "Virus rápidos, bacterias con cápsula gruesa" },
-    linfocitoB:    { strong: "Bacterias extracelulares con cápsula",
-                     weak:   "Virus intracelulares, daño en área no especializado" },
-    linfocitoT:    { strong: "Virus con escudo spike, células infectadas",
-                     weak:   "Hongos, bacterias agrupadas" },
-    langerhans:    { strong: "Marca al enemigo: las otras torres lo dañan más",
-                     weak:   "No hace daño propio, depende del resto del equipo" },
-    nk:            { strong: "Virus, células sospechosas (rompe escudos)",
-                     weak:   "Bacterias con biofilm muy denso" },
-    eosinofilo:    { strong: "Hongos, parásitos, infestaciones grandes",
-                     weak:   "Virus pequeños y rápidos" },
-    mastocito:     { strong: "Ralentiza ENJAMBRES: el equipo dispara más",
-                     weak:   "No mata por sí mismo (es soporte)" },
-    complemento:   { strong: "Cualquier escudo (ignora cápsula/spike/pared)",
-                     weak:   "Requiere C3b acumulado, tiro manual" },
-    macrofagoLibre:{ strong: "Bacterias detenidas / ralentizadas (fagocita)",
-                     weak:   "No la controlás, se retira al 30% HP" }
+    neutrofilo: {
+      strong: "Bacterias sin escudo, infiltraciones leves",
+      weak: "Virus rápidos, bacterias con cápsula gruesa",
+      synergyWith: ["linfocitoB"],
+      potentiates: [],
+      bestIn: ["piel"],
+      affinity: "Granulocito · Mieloide"
+    },
+    linfocitoB: {
+      strong: "Bacterias extracelulares con cápsula",
+      weak: "Virus intracelulares, daño en área no especializado",
+      synergyWith: ["langerhans"],
+      potentiates: ["neutrofilo", "complemento", "macrofagoLibre"],
+      bestIn: ["sangre"],
+      affinity: "Linfoide · Humoral"
+    },
+    linfocitoT: {
+      strong: "Virus con escudo spike, células infectadas",
+      weak: "Hongos, bacterias agrupadas",
+      synergyWith: ["langerhans"],
+      potentiates: ["mastocito"],
+      bestIn: ["tejido"],
+      affinity: "Linfoide · Celular"
+    },
+    langerhans: {
+      strong: "Marca al enemigo: las otras torres lo dañan más",
+      weak: "No hace daño propio, depende del resto del equipo",
+      synergyWith: ["nk", "eosinofilo"],
+      potentiates: ["neutrofilo", "linfocitoB", "linfocitoT", "nk", "eosinofilo", "mastocito", "complemento", "macrofagoLibre"],
+      bestIn: ["piel", "mucosa"],
+      affinity: "Dendrítica · Mieloide"
+    },
+    nk: {
+      strong: "Virus, células sospechosas (rompe escudos)",
+      weak: "Bacterias con biofilm muy denso",
+      synergyWith: ["langerhans"],
+      potentiates: ["linfocitoT"],
+      bestIn: ["sangre", "tejido"],
+      affinity: "Linfoide innata"
+    },
+    eosinofilo: {
+      strong: "Hongos, parásitos, infestaciones grandes",
+      weak: "Virus pequeños y rápidos",
+      synergyWith: ["mastocito"],
+      potentiates: [],
+      bestIn: ["piel"],
+      affinity: "Granulocito · Mieloide"
+    },
+    mastocito: {
+      strong: "Ralentiza ENJAMBRES: el equipo dispara más",
+      weak: "No mata por sí mismo (es soporte)",
+      synergyWith: ["eosinofilo"],
+      potentiates: ["neutrofilo", "linfocitoB", "linfocitoT", "nk", "eosinofilo", "complemento", "macrofagoLibre"],
+      bestIn: ["tejido", "mucosa"],
+      affinity: "Tisular · Mieloide"
+    },
+    complemento: {
+      strong: "Cualquier escudo (ignora cápsula/spike/pared)",
+      weak: "Virus (no tienen membrana lipídica plasmática)",
+      synergyWith: ["linfocitoB"],
+      potentiates: [],
+      bestIn: ["sangre"],
+      affinity: "Sistema complemento · Proteína"
+    },
+    macrofagoLibre: {
+      strong: "Gérmenes lentos / parados / heridos, residuos",
+      weak: "Gérmenes muy rápidos",
+      synergyWith: ["mastocito", "langerhans"],
+      potentiates: [],
+      bestIn: ["tejido"],
+      affinity: "Monocito · Mieloide"
+    }
   };
   var ENEMY_LORE = {
     saureus:        { strong: "Defensas directas (su cápsula amarilla resiste)",
@@ -1519,6 +1575,24 @@
   }
   function compendiumGetLore(typeId) {
     return TOWER_LORE[typeId] || ENEMY_LORE[typeId] || null;
+  }
+  function compendiumNamesOf(idList) {
+    // Mapea ["langerhans", "linfocitoB"] → "Langerhans, Linfocito B".
+    if (!idList || idList.length === 0) return "";
+    var out = [];
+    for (var i = 0; i < idList.length; i++) {
+      var d = compendiumGetDef(idList[i]);
+      if (d) out.push(d.shortName || d.name);
+    }
+    return out.join(", ");
+  }
+  // Etiquetas legibles de los medios.
+  var MEDIUM_LABELS = {
+    piel: "Piel", sangre: "Sangre", tejido: "Tejido", mucosa: "Mucosa"
+  };
+  function compendiumMediumLabels(arr) {
+    if (!arr || arr.length === 0) return "";
+    return arr.map(function (m) { return MEDIUM_LABELS[m] || m; }).join(" · ");
   }
 
   function drawCompendiumButton() {
@@ -1790,27 +1864,31 @@
         descY += Math.min(3, descLines.length) * 14 + 6;
       }
 
-      // Strong / Weak
+      // Strong / Weak / Sinergias / Potencia / Mejor medio / Afinidad
       if (lore) {
-        ctx.fillStyle = "#5ad15a";
-        ctx.font = "bold 11px Fredoka, sans-serif";
-        ctx.fillText("⚔ Fuerte:", detailX + 10, descY);
-        ctx.fillStyle = "rgba(255,255,255,0.85)";
-        ctx.font = "11px Fredoka, sans-serif";
-        var sw = wrapText(lore.strong, detailW - 78, 11);
-        for (var si = 0; si < Math.min(2, sw.length); si++) {
-          ctx.fillText(sw[si], detailX + 70, descY + si * 14);
+        var labelW = 78;        // ancho reservado para la etiqueta
+        var lineH = 13;         // alto de línea compacto
+        function drawLoreRow(emoji, label, labelColor, valueText) {
+          if (!valueText) return;
+          ctx.fillStyle = labelColor;
+          ctx.font = "bold 10px Fredoka, sans-serif";
+          ctx.textAlign = "left"; ctx.textBaseline = "top";
+          ctx.fillText(emoji + " " + label, detailX + 10, descY);
+          ctx.fillStyle = "rgba(255,255,255,0.85)";
+          ctx.font = "10px Fredoka, sans-serif";
+          var vw = wrapText(valueText, detailW - labelW - 8, 10);
+          var n = Math.min(2, vw.length);
+          for (var vi = 0; vi < n; vi++) {
+            ctx.fillText(vw[vi], detailX + labelW, descY + vi * lineH);
+          }
+          descY += Math.max(lineH, n * lineH) + 2;
         }
-        descY += Math.min(2, sw.length) * 14 + 4;
-        ctx.fillStyle = "#d9534f";
-        ctx.font = "bold 11px Fredoka, sans-serif";
-        ctx.fillText("🛡 Débil:", detailX + 10, descY);
-        ctx.fillStyle = "rgba(255,255,255,0.85)";
-        ctx.font = "11px Fredoka, sans-serif";
-        var ww = wrapText(lore.weak, detailW - 78, 11);
-        for (var wi = 0; wi < Math.min(2, ww.length); wi++) {
-          ctx.fillText(ww[wi], detailX + 70, descY + wi * 14);
-        }
+        drawLoreRow("⚔", "Fuerte:", "#5ad15a", lore.strong);
+        drawLoreRow("🛡", "Débil:",  "#d9534f", lore.weak);
+        drawLoreRow("⚡", "Sinergia:", "#ffd24a", compendiumNamesOf(lore.synergyWith));
+        drawLoreRow("✨", "Potencia:", "#b6ff3a", compendiumNamesOf(lore.potentiates));
+        drawLoreRow("🌍", "Mejor en:", "#8ec5d0", compendiumMediumLabels(lore.bestIn));
+        drawLoreRow("🧬", "Afinidad:", "#c0a0e0", lore.affinity);
       }
     }
 

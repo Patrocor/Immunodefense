@@ -1643,6 +1643,7 @@
     var modalH = Math.min(VH - 40, 640);
     var modalX = (VW - modalW) / 2;
     var modalY = (VH - modalH) / 2;
+    UI.compendiumModal = { x: modalX, y: modalY, w: modalW, h: modalH };
     ctx.fillStyle = "#241620";
     ctx.fillRect(modalX, modalY, modalW, modalH);
 
@@ -6888,9 +6889,12 @@
           }
         }
       }
-      // Tap fuera del modal cierra. Aprovechamos UI.compendiumCloseBtn como
-      // referencia del header.
-      closeCompendium();
+      // Tap FUERA del modal cierra. Tap dentro del modal pero en vacío
+      // (entre cards, área del detail) se consume sin cerrar — el usuario
+      // estaba accidentalmente cerrando al tocar zonas neutras.
+      if (UI.compendiumModal && !inRect(x, y, UI.compendiumModal)) {
+        closeCompendium();
+      }
       return;
     }
     // Botón "Compendio" arriba del dock — abre el overlay.

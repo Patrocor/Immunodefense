@@ -3886,12 +3886,35 @@
   // Cada entrada: receptor → { sourceId: { damage|range|fireRate: multiplier }}.
   // Se activa cuando "source" está dentro del rango del receptor.
   var SYNERGY_BONUSES = {
-    neutrofilo:  { linfocitoB:  { damage:   1.20 } }, // B opsoniza, neutrófilo fagocita +20%
-    linfocitoB:  { langerhans:  { fireRate: 1.25 } }, // Langerhans presenta → B +25% cadencia
-    linfocitoT:  { langerhans:  { damage:   1.30 } }, // Presentación de antígeno → T +30% daño
-    nk:          { langerhans:  { range:    1.15 } }, // NK extiende reconocimiento → +15% alcance
-    eosinofilo:  { mastocito:   { damage:   1.25 } }, // Histamina recluta granulocitos → +25%
-    complemento: { linfocitoB:  { damage:   1.20 } }  // Anticuerpos activan cascada → MAC +20%
+    // Langerhans potencia a TODAS las torres de daño (su marca es universal).
+    // Esto refleja la biología: la dendrítica presenta antígeno a todos.
+    neutrofilo:  {
+      linfocitoB: { damage:   1.20 }, // B opsoniza → neutrófilo fagocita +20%
+      langerhans: { damage:   1.20 }  // marca presenta → +20% daño
+    },
+    linfocitoB:  {
+      langerhans: { fireRate: 1.25 }  // presenta antígeno → B reconoce más rápido
+    },
+    linfocitoT:  {
+      langerhans: { damage:   1.30 }  // T citotóxico aprovecha al máximo el antígeno
+    },
+    nk:          {
+      langerhans: { range:    1.15 }  // NK extiende el reconocimiento
+    },
+    eosinofilo:  {
+      mastocito:  { damage:   1.25 }, // histamina recluta granulocitos
+      langerhans: { damage:   1.20 }  // también recibe el boost de la marca
+    },
+    mastocito:   {
+      langerhans: { damage:   1.20 }  // su DoT también escala con la presentación
+    },
+    complemento: {
+      linfocitoB: { damage:   1.20 }, // anticuerpos activan cascada → MAC +20%
+      langerhans: { damage:   1.20 }  // marcado universal
+    },
+    plaqueta:    {
+      langerhans: { damage:   1.20 }  // marcado universal
+    }
   };
 
   function computeSynergyBuffs() {
@@ -4016,6 +4039,31 @@
         ctx.arc(px, py, pr, 0, Math.PI * 2);
         ctx.fill();
       }
+      ctx.restore();
+    }
+
+    // Pase 4: texto flotante "+X%" sobre cada receptor para que el buff
+    // sea legible sin tener que abrir el compendio.
+    for (var ri = 0; ri < state.towers.length; ri++) {
+      var rt = state.towers[ri];
+      if (!rt.synBuff) continue;
+      var buffText = "";
+      if (rt.synBuff.damage > 1.001) buffText = "+" + Math.round((rt.synBuff.damage - 1) * 100) + "% DAÑO";
+      else if (rt.synBuff.fireRate > 1.001) buffText = "+" + Math.round((rt.synBuff.fireRate - 1) * 100) + "% CADENCIA";
+      else if (rt.synBuff.range > 1.001) buffText = "+" + Math.round((rt.synBuff.range - 1) * 100) + "% ALCANCE";
+      if (!buffText) continue;
+      var tp = 0.5 + 0.5 * Math.sin(time * 3 + ri * 0.6);
+      var tY = rt.y - 28 * U - tp * 3;
+      ctx.save();
+      ctx.font = "bold " + Math.floor(10 * U) + "px Fredoka, sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      // Background pill
+      var tw = ctx.measureText(buffText).width;
+      ctx.fillStyle = "rgba(20, 10, 14, 0.85)";
+      ctx.fillRect(rt.x - tw / 2 - 5, tY - 7, tw + 10, 14);
+      ctx.fillStyle = colorAlpha(rt.def.color, 0.95);
+      ctx.fillText(buffText, rt.x, tY);
       ctx.restore();
     }
   }

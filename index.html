@@ -1696,17 +1696,19 @@
 
     // Grid de tarjetas estilo álbum: ícono arriba + nombre abajo.
     var ids = (state.compendiumTab === "germs") ? compendiumGerms() : compendiumCells();
-    var gridY = tabY + tabH + 10;
+    var gridY = tabY + tabH + 8;
     var detailH = Math.round(modalH * 0.40);
-    var gridH = modalH - (gridY - modalY) - detailH - 8;
-    var gridX = modalX + 10;
-    var gridW = modalW - 20;
+    var gridH = modalH - (gridY - modalY) - detailH - 6;
+    var gridX = modalX + 8;
+    var gridW = modalW - 16;
 
-    // 3 columnas, cards cuadrados con ícono + nombre.
-    var cols = 3;
-    var cardW = (gridW - (cols - 1) * 8) / cols;
-    var cardH = cardW + 14;   // alto = ancho + espacio para el nombre
-    var iconR = cardW * 0.32;
+    // 4 columnas (antes 3) — tarjetas más chicas para que entren más
+    // elementos a medida que el álbum crece por fases.
+    var cols = 4;
+    var gridGap = 6;
+    var cardW = (gridW - (cols - 1) * gridGap) / cols;
+    var cardH = cardW + 12;   // alto = ancho + espacio para el nombre
+    var iconR = cardW * 0.34;
     UI.compendiumCards = [];
 
     ctx.save();
@@ -1715,7 +1717,7 @@
     ctx.clip();
 
     var rows = Math.ceil(ids.length / cols);
-    var totalGridH = rows * cardH + Math.max(0, rows - 1) * 8;
+    var totalGridH = rows * cardH + Math.max(0, rows - 1) * gridGap;
     var maxScroll = Math.max(0, totalGridH - gridH);
     var scroll = state.compendiumScroll || 0;
     if (scroll > maxScroll) scroll = maxScroll;
@@ -1725,8 +1727,8 @@
     for (var i = 0; i < ids.length; i++) {
       var col = i % cols;
       var row = Math.floor(i / cols);
-      var cx = gridX + col * (cardW + 8);
-      var cy = gridY + row * (cardH + 8) - scroll;
+      var cx = gridX + col * (cardW + gridGap);
+      var cy = gridY + row * (cardH + gridGap) - scroll;
       if (cy + cardH < gridY || cy > gridY + gridH) continue;
       var typeId = ids[i];
       var def = compendiumGetDef(typeId);
@@ -1781,15 +1783,15 @@
       } else {
         drawCardIcon(typeId, iconCx, iconCy, iconR, true);
       }
-      // Nombre abajo, dentro de la tarjeta
+      // Nombre abajo, dentro de la tarjeta (más chico con 4 cols).
       ctx.fillStyle = def.color || "#fff";
-      ctx.font = "bold " + Math.max(9, Math.min(12, cardW * 0.13)) + "px Fredoka, sans-serif";
+      ctx.font = "bold " + Math.max(8, Math.min(11, cardW * 0.14)) + "px Fredoka, sans-serif";
       ctx.textAlign = "center"; ctx.textBaseline = "middle";
       var name = def.shortName || def.name;
-      while (ctx.measureText(name).width > cardW - 8 && name.length > 4) {
+      while (ctx.measureText(name).width > cardW - 6 && name.length > 4) {
         name = name.slice(0, -2);
       }
-      ctx.fillText(name, cx + cardW / 2, cy + cardH - 12);
+      ctx.fillText(name, cx + cardW / 2, cy + cardH - 10);
     }
     ctx.restore();
 
@@ -5531,8 +5533,17 @@
   function triggerCinematicEnd() {
     if (state.cinematicEnd || state.dissemination) return;
     // El "100% de infección" en Fase 1 ya no es un final: es el PORTAL al
-    // nivel puente. Siempre que se alcance, redirigimos a Diseminación.
-    enterDissemination();
+    // nivel puente. Inicia primero una transición de fundido (~1.4s) y
+    // recién después llama enterDissemination — evita el corte abrupto.
+    if (!state.phaseTransition) {
+      state.phaseTransition = {
+        t: 0,
+        duration: 1.4,
+        target: "dissemination"
+      };
+      sfx("playerHurt");
+      triggerShake(0.5, 6);
+    }
   }
   // Backward-compat shim: old code may still call triggerLevelEnd().
   function triggerLevelEnd() { triggerCinematicEnd(); }
@@ -12370,6 +12381,39 @@
     }
     // Compendio: por encima de todo lo demás cuando está abierto.
     drawCompendium();
+    // Transición de fase: fundido a negro suave con texto narrativo.
+    if (state.phaseTransition) {
+      var ph = state.phaseTransition;
+      var k = ph.t / ph.duration;             // 0 → 1
+      // Curva: fade-in rápido a oscuro, hold, fade-out parcial (luego la
+      // cinemática de Diseminación toma el control).
+      var veilAlpha;
+      if (k < 0.50) veilAlpha = (k / 0.50) * 0.95;
+      else if (k < 0.85) veilAlpha = 0.95;
+      else veilAlpha = 0.95 * (1 - (k - 0.85) / 0.15);
+      ctx.save();
+      ctx.fillStyle = "rgba(8, 4, 8, " + veilAlpha + ")";
+      ctx.fillRect(0, 0, VW, VH);
+      // Texto narrativo "La barrera se rompe..." con leve aparición y latido.
+      if (k > 0.15) {
+        var ta = Math.min(1, (k - 0.15) / 0.20);
+        if (k > 0.70) ta *= Math.max(0, 1 - (k - 0.70) / 0.30);
+        ctx.globalAlpha = ta;
+        ctx.fillStyle = "#ff6868";
+        ctx.font = "bold " + Math.floor(28 * U) + "px Fredoka, sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.strokeStyle = "rgba(0,0,0,0.85)";
+        ctx.lineWidth = 3;
+        ctx.strokeText("LA BARRERA SE ROMPE", VW / 2, VH * 0.46);
+        ctx.fillText("LA BARRERA SE ROMPE", VW / 2, VH * 0.46);
+        ctx.fillStyle = "#d4a888";
+        ctx.font = "italic " + Math.floor(15 * U) + "px Fredoka, sans-serif";
+        ctx.fillText("la infección entra en sangre…", VW / 2, VH * 0.54);
+        ctx.globalAlpha = 1;
+      }
+      ctx.restore();
+    }
     drawMessage();
     drawWaveBanner();
     if (state.time - state.lastPlaceFailedAt < 0.25) {
@@ -12831,7 +12875,7 @@
     var dt = Math.min(0.05, (now - lastT) / 1000);
     lastT = now;
     state.time += dt;
-    var paused = state.confirmRestart || state.showTitle || state.showIntro || state.cinematicEnd || state.compendiumOpen;
+    var paused = state.confirmRestart || state.showTitle || state.showIntro || state.cinematicEnd || state.compendiumOpen || !!state.phaseTransition;
     // Nivel puente: pausamos la lógica al caer el primer carril (cinemática + placeholder).
     if (state.disseminationOver) {
       state.disseminationOver.t += dt;
@@ -12873,6 +12917,20 @@
     }
     if (state.showIntro && !state.showTitle) updateIntroComic(dt);
     if (state.cinematicEnd) updateCinematic(dt);
+    // Transición suave entre fases: fundido a negro, después dispara
+    // enterDissemination al cumplir la mitad de la duración.
+    if (state.phaseTransition) {
+      state.phaseTransition.t += dt;
+      if (!state.phaseTransition.fired && state.phaseTransition.t >= state.phaseTransition.duration * 0.55) {
+        state.phaseTransition.fired = true;
+        if (state.phaseTransition.target === "dissemination") {
+          enterDissemination();
+        }
+      }
+      if (state.phaseTransition.t >= state.phaseTransition.duration) {
+        state.phaseTransition = null;
+      }
+    }
     updateEffects(dt);
     if (state.msgTimer > 0) state.msgTimer -= dt;
     render();

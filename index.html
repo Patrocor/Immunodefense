@@ -4664,12 +4664,12 @@
     var rowY = FIELD_BOTTOM - rowH - 8 * U;
     var gap = 6 * U;
     var availableW = FIELD_W - 16 * U;
-    // Proporciones revisadas: medvial necesita más ancho (4 segmentos
-    // ahora con número de nivel dentro), antiséptico texto corto.
-    var totalRatio = 0.45 + 1.20 + 0.55;
+    // Proporciones equilibradas — antes el medvial dominaba (1.20×).
+    // Ahora los tres están más balanceados y la fila se siente menos cargada.
+    var totalRatio = 0.55 + 1.00 + 0.55;
     var unit = (availableW - gap * 2) / totalRatio;
-    var topicalW = Math.round(unit * 0.45);
-    var medW = Math.round(unit * 1.20);
+    var topicalW = Math.round(unit * 0.55);
+    var medW = Math.round(unit * 1.00);
     var c3bW = Math.round(unit * 0.55);
 
     var startX = FIELD_LEFT + 8 * U;
@@ -4766,12 +4766,13 @@
       ctx.strokeStyle = (f >= 1) ? col : "rgba(255,255,255,0.25)";
       ctx.lineWidth = (f >= 1) ? 2 : 1;
       ctx.strokeRect(segX + 1, v.y + 1.5, segW - 2, v.h - 3);
-      // Número de nivel (1..4) en el centro del segmento.
+      // Número de nivel (1..4) como pequeña etiqueta en la esquina sup-der,
+      // discreto. Solo se vuelve prominente cuando el tier está lleno.
       var label = "" + (i + 1);
-      ctx.font = "bold " + Math.max(11, Math.min(14, v.h * 0.42)) + "px Fredoka, sans-serif";
-      ctx.textAlign = "center"; ctx.textBaseline = "middle";
-      ctx.fillStyle = (f >= 1) ? "#fff" : "rgba(255,255,255,0.45)";
-      ctx.fillText(label, segX + segW / 2, v.y + v.h / 2);
+      ctx.font = "bold " + Math.max(8, Math.min(10, v.h * 0.26)) + "px Fredoka, sans-serif";
+      ctx.textAlign = "right"; ctx.textBaseline = "top";
+      ctx.fillStyle = (f >= 1) ? "#fff" : "rgba(255,255,255,0.35)";
+      ctx.fillText(label, segX + segW - 3, v.y + 3);
     }
     // Borde exterior fino para enmarcar todo el contenedor.
     ctx.strokeStyle = "rgba(255,255,255,0.45)"; ctx.lineWidth = 1;

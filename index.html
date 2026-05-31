@@ -3843,9 +3843,87 @@
     sfx("place");
   }
 
-  function towerStats(t) { return t.def.levels[t.level]; }
+  // ============ SINERGIAS POR PROXIMIDAD ============
+  // Cada entrada: receptor → { sourceId: { damage|range|fireRate: multiplier }}.
+  // Se activa cuando "source" está dentro del rango del receptor.
+  var SYNERGY_BONUSES = {
+    neutrofilo:  { linfocitoB:  { damage:   1.20 } }, // B opsoniza, neutrófilo fagocita +20%
+    linfocitoB:  { langerhans:  { fireRate: 1.25 } }, // Langerhans presenta → B +25% cadencia
+    linfocitoT:  { langerhans:  { damage:   1.30 } }, // Presentación de antígeno → T +30% daño
+    nk:          { langerhans:  { range:    1.15 } }, // NK extiende reconocimiento → +15% alcance
+    eosinofilo:  { mastocito:   { damage:   1.25 } }, // Histamina recluta granulocitos → +25%
+    complemento: { linfocitoB:  { damage:   1.20 } }  // Anticuerpos activan cascada → MAC +20%
+  };
+
+  function computeSynergyBuffs() {
+    for (var i = 0; i < state.towers.length; i++) {
+      var t = state.towers[i];
+      var conf = SYNERGY_BONUSES[t.def.id];
+      if (!conf) { t.synBuff = null; t.synActiveFrom = null; continue; }
+      var buff = { damage: 1, range: 1, fireRate: 1 };
+      var sources = [];
+      var rangePx = (t.def.levels[t.level] || {}).range * U || 100;
+      for (var j = 0; j < state.towers.length; j++) {
+        if (i === j) continue;
+        var other = state.towers[j];
+        var srcCfg = conf[other.def.id];
+        if (!srcCfg) continue;
+        var dx = other.x - t.x, dy = other.y - t.y;
+        if (dx * dx + dy * dy > rangePx * rangePx) continue;
+        if (srcCfg.damage)   buff.damage   *= srcCfg.damage;
+        if (srcCfg.range)    buff.range    *= srcCfg.range;
+        if (srcCfg.fireRate) buff.fireRate *= srcCfg.fireRate;
+        sources.push(other);
+      }
+      t.synBuff = (buff.damage !== 1 || buff.range !== 1 || buff.fireRate !== 1) ? buff : null;
+      t.synActiveFrom = sources.length ? sources : null;
+    }
+  }
+
+  function towerStats(t) {
+    var base = t.def.levels[t.level];
+    if (!t.synBuff) return base;
+    // Devuelve una copia con multiplicadores aplicados.
+    var out = {};
+    for (var k in base) { if (base.hasOwnProperty(k)) out[k] = base[k]; }
+    if (out.damage != null)   out.damage   = out.damage   * t.synBuff.damage;
+    if (out.range != null)    out.range    = out.range    * t.synBuff.range;
+    if (out.fireRate != null) out.fireRate = out.fireRate * t.synBuff.fireRate;
+    return out;
+  }
+
+  function drawSynergyLines() {
+    for (var i = 0; i < state.towers.length; i++) {
+      var t = state.towers[i];
+      if (!t.synActiveFrom || t.synActiveFrom.length === 0) continue;
+      var pulse = 0.5 + 0.5 * Math.sin(state.time * 3);
+      for (var j = 0; j < t.synActiveFrom.length; j++) {
+        var s = t.synActiveFrom[j];
+        ctx.save();
+        ctx.strokeStyle = colorAlpha(t.def.color, 0.35 + pulse * 0.20);
+        ctx.lineWidth = 2;
+        ctx.setLineDash([6, 4]);
+        ctx.beginPath();
+        ctx.moveTo(t.x, t.y);
+        ctx.lineTo(s.x, s.y);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        // Pequeño "+" pulsante sobre el receptor.
+        var mx = (t.x + s.x) / 2, my = (t.y + s.y) / 2;
+        ctx.fillStyle = colorAlpha(t.def.color, 0.85);
+        ctx.font = "bold " + Math.floor(11 * U) + "px Fredoka, sans-serif";
+        ctx.textAlign = "center"; ctx.textBaseline = "middle";
+        ctx.fillText("✦", mx, my);
+        ctx.restore();
+      }
+    }
+  }
+  // ============ FIN SINERGIAS ============
 
   function updateTowers(dt) {
+    // Recalcula sinergias por proximidad al inicio del frame (O(n²)
+    // pero con n<20 es trivial).
+    computeSynergyBuffs();
     for (var i = 0; i < state.towers.length; i++) {
       var t = state.towers[i];
       // Blink ticks
@@ -3907,7 +3985,21 @@
           if (Math.hypot(se.x - t.x, se.y - t.y) > rangePx) continue;
           acted = true;
           if (t.def.support === "mark") {
+            // Si el germen no estaba marcado, lanzar un dardo visual desde la
+            // Langerhans hacia el germen y dejarle un "splat" cian fijo.
+            var wasMarked = (se.markTimer || 0) > 0;
             se.markTimer = stats.markDur; se.markBonus = stats.markBonus; se.revealed = true;
+            if (!wasMarked) {
+              // Posición del splat sobre el cuerpo del germen (ángulo + radio).
+              se.markSplatAngle = Math.random() * Math.PI * 2;
+              se.markSplatR = 0.45 + Math.random() * 0.30;
+              pushEffect({
+                kind: "markDart",
+                x: t.x, y: t.y, tx: se.x, ty: se.y,
+                travel: 0.35, life: 0.35, max: 0.35,
+                color: t.def.color
+              });
+            }
           } else if (t.def.support === "slow") {
             se.slowTimer = Math.max(se.slowTimer || 0, stats.slowDur);
             if ((stats.dotPerSec || 0) > 0) damageEnemy(se, stats.dotPerSec * 0.4, t.def.id);
@@ -8384,6 +8476,32 @@
     var rad = def.radius * U * (e.radiusScale || 1);
     if (e.swallowAnim > 0) rad *= 1 + 0.35 * (e.swallowAnim / 0.45);   // se hincha al tragar
     if (e.engulfScale != null) rad *= e.engulfScale;                    // encogido al ser fagocitado
+    // Splat de Langerhans: manchita cian sobre el cuerpo del germen mientras
+    // markTimer > 0. La posición está fija (markSplatAngle/R) para que no
+    // baile con la animación del germen.
+    if ((e.markTimer || 0) > 0 && e.markSplatAngle != null) {
+      var fade = Math.min(1, e.markTimer / 0.5);  // se desvanece en el último medio segundo
+      var sa = e.markSplatAngle;
+      var sr = (e.markSplatR || 0.5) * rad;
+      var sx = e.x + Math.cos(sa) * sr;
+      var sy = e.y + Math.sin(sa) * sr;
+      var ssize = rad * 0.30;
+      var bounce = 1 + 0.10 * Math.sin(state.time * 6);
+      ctx.save();
+      ctx.fillStyle = "rgba(63, 193, 201, " + (0.85 * fade) + ")";
+      ctx.beginPath();
+      // Forma orgánica: combinar 3 elipses para que parezca manchita.
+      ctx.ellipse(sx, sy, ssize * bounce, ssize * 0.85, sa, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "rgba(140, 230, 240, " + (0.6 * fade) + ")";
+      ctx.beginPath();
+      ctx.ellipse(sx - ssize * 0.4, sy - ssize * 0.2, ssize * 0.4, ssize * 0.3, sa, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.ellipse(sx + ssize * 0.5, sy + ssize * 0.3, ssize * 0.3, ssize * 0.25, sa, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
     // Glow para gérmenes NO vistos aún: pulso amarillo invitando al tap
     // que abre el compendio. Se quita en cuanto state.vistos[id] se set.
     if (def && def.id && state.vistos && !state.vistos[def.id]) {
@@ -9935,6 +10053,32 @@
 
   function drawEffect(ef) {
     var alpha = Math.max(0, ef.life / ef.max);
+    if (ef.kind === "markDart") {
+      // Dardo cian de Langerhans que viaja hacia el germen y se "splatea".
+      var t = 1 - (ef.life / ef.max);
+      var px = ef.x + (ef.tx - ef.x) * t;
+      var py = ef.y + (ef.ty - ef.y) * t;
+      // Trail
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.strokeStyle = ef.color;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      var bx = ef.x + (ef.tx - ef.x) * Math.max(0, t - 0.15);
+      var by = ef.y + (ef.ty - ef.y) * Math.max(0, t - 0.15);
+      ctx.moveTo(bx, by);
+      ctx.lineTo(px, py);
+      ctx.stroke();
+      // Cabeza del dardo (más grande al final, simula splat).
+      var headR = (2 + t * 4) * U;
+      ctx.fillStyle = ef.color;
+      ctx.beginPath();
+      ctx.arc(px, py, headR, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+      ctx.restore();
+      return;
+    }
     if (ef.kind === "particle") {
       ctx.fillStyle = ef.color;
       ctx.globalAlpha = alpha;
@@ -11817,6 +11961,7 @@
       drawFragments();
       drawCannonShots();
       drawSeekers();
+      drawSynergyLines();   // líneas punteadas entre torres en sinergia
       drawLymphDrop();
       drawMedulaOsea();
       drawUnlockPickups();

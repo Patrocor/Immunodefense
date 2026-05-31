@@ -3140,7 +3140,9 @@
     var def = ENEMY_DEFS[typeId];
     if (!def) return;
     var diff = getDifficulty();
-    var hp = def.hp * hpMult * diff.hp;
+    // Buff global de HP: +5% para gérmenes regulares, +10% para bosses.
+    var globalHpBuff = def.isBoss ? 1.10 : 1.05;
+    var hp = def.hp * hpMult * diff.hp * globalHpBuff;
     if (def.isBoss) state.bossActive = null;  // reset; will be set after push
     var heridaIdx;
     if (state.dissemination) {
@@ -8790,32 +8792,7 @@
     var rad = def.radius * U * (e.radiusScale || 1);
     if (e.swallowAnim > 0) rad *= 1 + 0.35 * (e.swallowAnim / 0.45);   // se hincha al tragar
     if (e.engulfScale != null) rad *= e.engulfScale;                    // encogido al ser fagocitado
-    // Splat de Langerhans: manchita cian sobre el cuerpo del germen mientras
-    // markTimer > 0. La posición está fija (markSplatAngle/R) para que no
-    // baile con la animación del germen.
-    if ((e.markTimer || 0) > 0 && e.markSplatAngle != null) {
-      var fade = Math.min(1, e.markTimer / 0.5);  // se desvanece en el último medio segundo
-      var sa = e.markSplatAngle;
-      var sr = (e.markSplatR || 0.5) * rad;
-      var sx = e.x + Math.cos(sa) * sr;
-      var sy = e.y + Math.sin(sa) * sr;
-      var ssize = rad * 0.30;
-      var bounce = 1 + 0.10 * Math.sin(state.time * 6);
-      ctx.save();
-      ctx.fillStyle = "rgba(63, 193, 201, " + (0.85 * fade) + ")";
-      ctx.beginPath();
-      // Forma orgánica: combinar 3 elipses para que parezca manchita.
-      ctx.ellipse(sx, sy, ssize * bounce, ssize * 0.85, sa, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = "rgba(140, 230, 240, " + (0.6 * fade) + ")";
-      ctx.beginPath();
-      ctx.ellipse(sx - ssize * 0.4, sy - ssize * 0.2, ssize * 0.4, ssize * 0.3, sa, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.beginPath();
-      ctx.ellipse(sx + ssize * 0.5, sy + ssize * 0.3, ssize * 0.3, ssize * 0.25, sa, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
-    }
+    // (Splat de Langerhans se dibuja DESPUÉS del cuerpo del germen — ver más abajo.)
     // Glow para gérmenes NO vistos aún: pulso amarillo invitando al tap
     // que abre el compendio. Se quita en cuanto state.vistos[id] se set.
     if (def && def.id && state.vistos && !state.vistos[def.id]) {
@@ -9029,6 +9006,45 @@
     else if (kind === "hongo")          drawHongo(e, rad * scale, expression, blink);
     else if (kind === "primordial" || def.id === "boss") drawBoss(e, rad * scale, expression, blink);
     ctx.restore();
+    // Splat de Langerhans: manchita cian SOBRE el cuerpo (después del
+    // dispatch del sprite del germen). Antes se dibujaba al inicio y
+    // el cuerpo del germen la tapaba.
+    if ((e.markTimer || 0) > 0 && e.markSplatAngle != null) {
+      var fade = Math.min(1, e.markTimer / 0.5);
+      var sa = e.markSplatAngle;
+      var sr = (e.markSplatR || 0.5) * rad;
+      var sx = e.x + Math.cos(sa) * sr;
+      var sy = e.y + Math.sin(sa) * sr;
+      var ssize = rad * 0.42;       // más grande para que se note
+      var bounce = 1 + 0.12 * Math.sin(state.time * 6);
+      ctx.save();
+      // Halo glow alrededor del splat para que destaque sobre cualquier color.
+      var grd = ctx.createRadialGradient(sx, sy, ssize * 0.2, sx, sy, ssize * 1.6);
+      grd.addColorStop(0, "rgba(63, 193, 201, " + (0.85 * fade) + ")");
+      grd.addColorStop(0.6, "rgba(63, 193, 201, " + (0.35 * fade) + ")");
+      grd.addColorStop(1, "rgba(63, 193, 201, 0)");
+      ctx.fillStyle = grd;
+      ctx.beginPath();
+      ctx.arc(sx, sy, ssize * 1.6, 0, Math.PI * 2);
+      ctx.fill();
+      // Mancha principal — más opaca y con borde marcado.
+      ctx.fillStyle = "rgba(63, 193, 201, " + (0.95 * fade) + ")";
+      ctx.beginPath();
+      ctx.ellipse(sx, sy, ssize * bounce, ssize * 0.85, sa, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "rgba(30, 120, 130, " + (0.7 * fade) + ")";
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      // Brillos blancos.
+      ctx.fillStyle = "rgba(220, 250, 255, " + (0.8 * fade) + ")";
+      ctx.beginPath();
+      ctx.ellipse(sx - ssize * 0.35, sy - ssize * 0.20, ssize * 0.35, ssize * 0.25, sa, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.ellipse(sx + ssize * 0.45, sy + ssize * 0.30, ssize * 0.25, ssize * 0.18, sa, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
     // Tentáculos/puñetazos (S. epidermidis): seudópodos que extienden hacia
     // la torre objetivo con puño que vibra al golpear.
     if (def.tentacles && e.tentTarget && state.towers.indexOf(e.tentTarget) !== -1) {

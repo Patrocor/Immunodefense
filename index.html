@@ -3376,13 +3376,11 @@
         }
       }
       // Sprint 8A: lateral tooltip — first encounter goes to a queue. The
-      // NUEVO sistema: en vez de auto-tooltip, el germen recibe un glow
-      // amarillo (drawEnemy) y se muestra un mini aviso "Toca al nuevo
-      // enemigo" mientras NO esté en state.vistos. El jugador tappea y se
-      // abre el compendio. NO se marca vistos hasta que se vea el detalle.
+      // El glow del enemigo (drawEnemy) y el aviso "Toca al nuevo enemigo"
+      // (chequeado reactivamente en render) ya cubren el caso. Mantengo
+      // e.tooltipShown como flag por compatibilidad con código legado.
       if (!e.tooltipShown && e.state === "walking"
           && !state.vistos[e.def.id] && !state.showIntro && !state.cinematicEnd) {
-        state.newGermAlert = { defId: e.def.id, since: state.time };
         e.tooltipShown = true;
       }
       if (e.dying) {
@@ -6747,9 +6745,8 @@
       if (dxE * dxE + dyE * dyE <= (radE * 1.4) * (radE * 1.4)) {
         state.vistos[defE.id] = true;
         saveVistos(state.vistos);
-        if (state.newGermAlert && state.newGermAlert.defId === defE.id) {
-          state.newGermAlert = null;
-        }
+        // El aviso "Toca al nuevo enemigo" se chequea reactivamente en
+        // render, así que se autocorrige cuando este tipo entra a vistos.
         openCompendium(defE.id, "germs");
         return;
       }
@@ -12079,23 +12076,32 @@
       drawComplementMeter();
       if (state.dissemination) drawImmuneResponsePanel();
     }
-    // Mini aviso de nuevo germen: sólo si hay un alerta activa y el germen
-    // sigue sin ver. El usuario toca el germen brillante y se abre el compendio.
-    if (state.newGermAlert && state.newGermAlert.defId && !state.vistos[state.newGermAlert.defId]
-        && !state.showTitle && !state.showIntro && !state.compendiumOpen) {
-      var pulseA = 0.5 + 0.5 * Math.sin(state.time * 4);
-      var bw = Math.min(VW - 32, 260);
-      var bh = 30;
-      var bx = (VW - bw) / 2;
-      var by = FIELD_TOP + 16;
-      ctx.save();
-      ctx.fillStyle = "rgba(255, 210, 74, " + (0.85 + pulseA * 0.10) + ")";
-      ctx.fillRect(bx, by, bw, bh);
-      ctx.fillStyle = "#3a2008";
-      ctx.font = "bold 12px Fredoka, sans-serif";
-      ctx.textAlign = "center"; ctx.textBaseline = "middle";
-      ctx.fillText("¡Toca al nuevo enemigo!", bx + bw / 2, by + bh / 2);
-      ctx.restore();
+    // Mini aviso de nuevo germen: reactivo en tiempo real — se chequea cada
+    // frame si HAY al menos un germen vivo en el campo cuyo tipo no esté
+    // en vistos. Antes el aviso quedaba colgado cuando los gérmenes morían.
+    if (!state.showTitle && !state.showIntro && !state.compendiumOpen) {
+      var hasUnseenAlive = false;
+      for (var nAi = 0; nAi < state.enemies.length; nAi++) {
+        var nAe = state.enemies[nAi];
+        if (nAe.dead || nAe.dying) continue;
+        if (!nAe.def || !nAe.def.id) continue;
+        if (!state.vistos[nAe.def.id]) { hasUnseenAlive = true; break; }
+      }
+      if (hasUnseenAlive) {
+        var pulseA = 0.5 + 0.5 * Math.sin(state.time * 4);
+        var bw = Math.min(VW - 32, 260);
+        var bh = 30;
+        var bx = (VW - bw) / 2;
+        var by = FIELD_TOP + 16;
+        ctx.save();
+        ctx.fillStyle = "rgba(255, 210, 74, " + (0.85 + pulseA * 0.10) + ")";
+        ctx.fillRect(bx, by, bw, bh);
+        ctx.fillStyle = "#3a2008";
+        ctx.font = "bold 12px Fredoka, sans-serif";
+        ctx.textAlign = "center"; ctx.textBaseline = "middle";
+        ctx.fillText("¡Toca al nuevo enemigo!", bx + bw / 2, by + bh / 2);
+        ctx.restore();
+      }
     }
     // Compendio: por encima de todo lo demás cuando está abierto.
     drawCompendium();

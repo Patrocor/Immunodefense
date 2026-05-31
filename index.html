@@ -3156,8 +3156,10 @@
       }
       t += 0.6 / spawnMult;
     }
-    state.waveBannerText = wave.isBossWave ? ("¡OLEADA " + state.waveIdx + " — BOSS!") : ("OLEADA " + state.waveIdx);
-    state.waveBannerTimer = 2.2;
+    // Sin anuncio central del número de oleada — el HUD ya informa cuando
+    // se viene una oleada con el contador "PRÓXIMA OLEADA EN Ns".
+    state.waveBannerText = "";
+    state.waveBannerTimer = 0;
     sfx("wave");
   }
 
@@ -3339,8 +3341,8 @@
       }
       t += 0.6;
     }
-    state.waveBannerText = "DISEMINACIÓN — OLEADA " + (idx + 1) + " / " + DISSEMINATION_WAVE_TABLE.length;
-    state.waveBannerTimer = 2.2;
+    state.waveBannerText = "";
+    state.waveBannerTimer = 0;
     sfx("wave");
   }
   // ============ FIN NIVEL PUENTE: TRANSICIÓN ============
@@ -3520,11 +3522,7 @@
         : Math.max(2.5, 7.5 - state.waveIdx * 0.4);
       state.nextWaveAt = state.dissemination ? gapBase : (gapBase * infestWaveGapMult(state.viralLoad));
       state.waveCountdownActive = true;
-      if (state.dissemination) {
-        showMsg("Oleada " + state.disseminationWaveIdx + " contenida (+" + bonus + " ATP)");
-      } else {
-        showMsg("Oleada " + state.waveIdx + " superada (+" + bonus + " ATP)");
-      }
+      showMsg("Contenida (+" + bonus + " ATP)");
     }
   }
 
@@ -4212,19 +4210,53 @@
     }
   };
 
+  // Langerhans solo presenta antígeno a MAX_LANGERHANS_TARGETS torres por
+  // limite biológico de capacidad de presentación. Las 3 más cercanas dentro
+  // del rango ganan el buff; el resto, aunque esté en rango, no.
+  var MAX_LANGERHANS_TARGETS = 3;
+
   function computeSynergyBuffs() {
+    // Pase 1: cada Langerhans elige hasta 3 receptores (los más cercanos
+    // dentro del rango del receptor).
+    for (var li = 0; li < state.towers.length; li++) {
+      var lang = state.towers[li];
+      if (lang.def.id !== "langerhans") continue;
+      var cands = [];
+      for (var lj = 0; lj < state.towers.length; lj++) {
+        if (li === lj) continue;
+        var rcv = state.towers[lj];
+        var rconf = SYNERGY_BONUSES[rcv.def.id];
+        if (!rconf || !rconf.langerhans) continue;
+        var rRange = ((rcv.def.levels[rcv.level] || {}).range || 100) * U;
+        var ldx = lang.x - rcv.x, ldy = lang.y - rcv.y;
+        var d2 = ldx * ldx + ldy * ldy;
+        if (d2 > rRange * rRange) continue;
+        cands.push({ rcv: rcv, d2: d2 });
+      }
+      cands.sort(function (a, b) { return a.d2 - b.d2; });
+      var picked = [];
+      for (var lk = 0; lk < Math.min(MAX_LANGERHANS_TARGETS, cands.length); lk++) {
+        picked.push(cands[lk].rcv);
+      }
+      lang.langerhansTargets = picked;
+    }
+    // Pase 2: aplica los buffs respetando el cap por Langerhans.
     for (var i = 0; i < state.towers.length; i++) {
       var t = state.towers[i];
       var conf = SYNERGY_BONUSES[t.def.id];
       if (!conf) { t.synBuff = null; t.synActiveFrom = null; continue; }
       var buff = { damage: 1, range: 1, fireRate: 1 };
       var sources = [];
-      var rangePx = (t.def.levels[t.level] || {}).range * U || 100;
+      var rangePx = ((t.def.levels[t.level] || {}).range || 100) * U;
       for (var j = 0; j < state.towers.length; j++) {
         if (i === j) continue;
         var other = state.towers[j];
         var srcCfg = conf[other.def.id];
         if (!srcCfg) continue;
+        if (other.def.id === "langerhans") {
+          var picks = other.langerhansTargets || [];
+          if (picks.indexOf(t) === -1) continue;
+        }
         var dx = other.x - t.x, dy = other.y - t.y;
         if (dx * dx + dy * dy > rangePx * rangePx) continue;
         if (srcCfg.damage)   buff.damage   *= srcCfg.damage;
@@ -11462,18 +11494,18 @@
     // Viral load bar — full width below HUD, inside field area.
     drawViralBar();
 
-    // Passive wave-status indicator (replaces the old "Iniciar Oleada" button).
-    var statusText;
+    // Status del HUD: solo informa "se viene una oleada" con el contador.
+    // Sin número de oleada en curso ni de la oleada que se acerca.
+    var statusText = null;
     if (state.cinematicEnd) statusText = "INFECCIÓN ESTABLECIDA";
-    else if (state.waveActive) statusText = "OLEADA " + state.waveIdx + " EN CURSO";
+    else if (state.waveActive) statusText = null;   // sin texto durante oleada
     else if (state.waveIdx === 0 && state.nextWaveAt > 0) {
-      statusText = "PRIMERA OLEADA EN " + Math.max(0, Math.ceil(state.nextWaveAt)) + "s";
+      statusText = "PRÓXIMA OLEADA EN " + Math.max(0, Math.ceil(state.nextWaveAt)) + "s";
     } else if (state.waveCountdownActive && state.nextWaveAt > 0) {
       statusText = "PRÓXIMA OLEADA EN " + Math.max(0, Math.ceil(state.nextWaveAt)) + "s";
-    } else statusText = "OLEADA " + state.waveIdx;
+    }
     var nb = UI.nextWaveBtn;
-    if (nb) {
-      // Banner de estado sin borde — solo fill plano.
+    if (nb && statusText) {
       ctx.fillStyle = "rgba(20, 14, 18, 0.55)";
       ctx.fillRect(nb.x, nb.y, nb.w, nb.h);
       ctx.fillStyle = "#ffd6c4";

@@ -4595,11 +4595,12 @@
     var rowY = FIELD_BOTTOM - rowH - 8 * U;
     var gap = 6 * U;
     var availableW = FIELD_W - 16 * U;
-    // Proporciones: 1.0 (medvial principal) / 0.55 (antiséptico) / 0.55 (C3b)
-    var totalRatio = 1.0 + 0.55 + 0.55;
+    // Proporciones revisadas: medvial necesita más ancho (4 segmentos
+    // ahora con número de nivel dentro), antiséptico texto corto.
+    var totalRatio = 0.45 + 1.20 + 0.55;
     var unit = (availableW - gap * 2) / totalRatio;
-    var topicalW = Math.round(unit * 0.55);
-    var medW = Math.round(unit * 1.0);
+    var topicalW = Math.round(unit * 0.45);
+    var medW = Math.round(unit * 1.20);
     var c3bW = Math.round(unit * 0.55);
 
     var startX = FIELD_LEFT + 8 * U;
@@ -4677,26 +4678,36 @@
       ctx.shadowBlur = 8 + 8 * gp;
     }
     ctx.fillStyle = "rgba(20,8,12,0.55)";
-    roundRect(v.x, v.y, v.w, v.h, 0); ctx.fill();
+    ctx.fillRect(v.x, v.y, v.w, v.h);
     ctx.shadowBlur = 0;
-    // 4 bloques de izquierda (Nv1) a derecha (Nv4 = antibiótico máximo).
+    // 4 bloques de Nv1 a Nv4. Cada uno muestra su número siempre (faded si
+    // está vacío, brillante si está lleno) para que se entienda el progreso.
     for (var i = 0; i < MED_BLOCKS; i++) {
       var segX = v.x + 1 + i * segW;
       var f = Math.max(0, Math.min(1, (state.medCharge - i * perBlock) / perBlock));
       var col = MED_POWERS[i].color;
+      // Fondo tenue del color de este nivel (siempre visible, da pistas).
+      ctx.fillStyle = colorAlpha(col, 0.10);
+      ctx.fillRect(segX + 1, v.y + 2, segW - 2, v.h - 4);
+      // Llenado real proporcional.
       if (f > 0) {
-        ctx.fillStyle = colorAlpha(col, 0.35 + 0.55 * f);
+        ctx.fillStyle = colorAlpha(col, 0.40 + 0.55 * f);
         ctx.fillRect(segX + 1, v.y + 2, (segW - 2) * f, v.h - 4);
       }
-      ctx.strokeStyle = (f >= 1) ? col : "rgba(255,255,255,0.22)";
+      ctx.strokeStyle = (f >= 1) ? col : "rgba(255,255,255,0.25)";
       ctx.lineWidth = (f >= 1) ? 2 : 1;
-      roundRect(segX + 1, v.y + 1.5, segW - 2, v.h - 3, 0); ctx.stroke();
+      ctx.strokeRect(segX + 1, v.y + 1.5, segW - 2, v.h - 3);
+      // Número de nivel (1..4) en el centro del segmento.
+      var label = "" + (i + 1);
+      ctx.font = "bold " + Math.max(11, Math.min(14, v.h * 0.42)) + "px Fredoka, sans-serif";
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillStyle = (f >= 1) ? "#fff" : "rgba(255,255,255,0.45)";
+      ctx.fillText(label, segX + segW / 2, v.y + v.h / 2);
     }
-    ctx.strokeStyle = "rgba(255,255,255,0.5)"; ctx.lineWidth = 2;
-    roundRect(v.x, v.y, v.w, v.h, 0); ctx.stroke();
+    // Borde exterior fino para enmarcar todo el contenedor.
+    ctx.strokeStyle = "rgba(255,255,255,0.45)"; ctx.lineWidth = 1;
+    ctx.strokeRect(v.x, v.y, v.w, v.h);
     ctx.restore();
-    // Label flotante removido: el gauge se comunica con sus 4 segmentos de
-    // color (Nv1..Nv4) que ya indican qué medicamento está cargado.
   }
 
   function drawTopical() {
@@ -4704,30 +4715,27 @@
     var ratio = Math.max(0, Math.min(1, state.topicalCharge / TOPICAL_MAX));
     var ready = state.topicalCharge >= TOPICAL_MAX;
     ctx.save();
-    if (ready) {
-      ctx.shadowColor = "rgba(155, 224, 0, 0.9)";
-      ctx.shadowBlur = 8 + 8 * (0.5 + 0.5 * Math.sin(state.time * 5));
-    }
-    // Fondo plano horizontal.
+    // Fondo + fondo tenue del color del poder (igual estilo que medvial).
     ctx.fillStyle = "rgba(20,8,12,0.55)";
     ctx.fillRect(v.x, v.y, v.w, v.h);
-    ctx.shadowBlur = 0;
-    // Llenado HORIZONTAL de izquierda a derecha (verde ácido).
+    ctx.fillStyle = "rgba(143, 206, 46, 0.10)";
+    ctx.fillRect(v.x + 1, v.y + 1, v.w - 2, v.h - 2);
+    // Llenado HORIZONTAL.
     var lw = (v.w - 4) * ratio;
     ctx.fillStyle = ready ? "#b6ff3a" : "#8fce2e";
     ctx.fillRect(v.x + 2, v.y + 2, lw, v.h - 4);
-    ctx.strokeStyle = ready ? "#b6ff3a" : "rgba(255,255,255,0.5)";
-    ctx.lineWidth = 2;
+    ctx.strokeStyle = ready ? "#b6ff3a" : "rgba(255,255,255,0.45)";
+    ctx.lineWidth = ready ? 2 : 1;
     ctx.strokeRect(v.x, v.y, v.w, v.h);
     ctx.restore();
-    // Texto centrado dentro del rect.
+    // Texto centrado dentro del rect (igual tamaño y estilo que el resto).
     ctx.save();
     ctx.textAlign = "center"; ctx.textBaseline = "middle";
-    ctx.font = "bold " + Math.max(10, Math.min(13, v.h * 0.34)) + "px Fredoka, sans-serif";
+    ctx.font = "bold " + Math.max(10, Math.min(12, v.h * 0.32)) + "px Fredoka, sans-serif";
     ctx.fillStyle = ready
       ? "rgba(20,30,8," + (0.90 + 0.10 * (0.5 + 0.5 * Math.sin(state.time * 6))) + ")"
       : "rgba(255,255,255,0.85)";
-    var lbl = ready ? "▸ ANTISÉPTICO" : "🧴 Antiséptico " + Math.round(ratio * 100) + "%";
+    var lbl = ready ? "▸ Antiséptico" : "🧴 " + Math.round(ratio * 100) + "%";
     ctx.fillText(lbl, v.x + v.w / 2, v.y + v.h / 2);
     ctx.restore();
   }
@@ -4977,19 +4985,21 @@
     }
     var ready = n >= MAC_COST;
     ctx.save();
-    // Fondo + borde
-    ctx.fillStyle = "rgba(8,28,16,0.55)";
+    // Fondo (mismo tono base que medvial/topical, con tinte verde sutil del color del poder).
+    ctx.fillStyle = "rgba(20,8,12,0.55)";
     ctx.fillRect(v.x, v.y, v.w, v.h);
-    ctx.strokeStyle = ready ? "rgba(124,252,158,0.95)" : "rgba(124,252,158,0.35)";
+    ctx.fillStyle = "rgba(124,252,158,0.10)";
+    ctx.fillRect(v.x + 1, v.y + 1, v.w - 2, v.h - 2);
+    ctx.strokeStyle = ready ? "rgba(124,252,158,0.95)" : "rgba(255,255,255,0.45)";
     ctx.lineWidth = ready ? 2 : 1;
     ctx.strokeRect(v.x, v.y, v.w, v.h);
     // Label "C3b"
-    ctx.font = "bold " + Math.max(10, Math.min(13, v.h * 0.34)) + "px Fredoka, sans-serif";
+    ctx.font = "bold " + Math.max(10, Math.min(12, v.h * 0.32)) + "px Fredoka, sans-serif";
     ctx.textBaseline = "middle";
     ctx.textAlign = "left";
     ctx.fillStyle = "#aef7c4";
     var label = ready ? "▸ C3b" : "C3b";
-    var pad = 8;
+    var pad = 7;
     ctx.fillText(label, v.x + pad, v.y + v.h / 2);
     var lw = ctx.measureText(label).width;
     // Dots a la derecha del label, espaciados para llenar el rect.

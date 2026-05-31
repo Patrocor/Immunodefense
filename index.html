@@ -2678,12 +2678,10 @@
     };
   }
   // ---- Pathogen "vistos" persistence (Sprint 6 tooltips) ----------------
-  // _v2: el sistema viejo poblaba "vistos" automáticamente cuando aparecía un
-  // germen (tooltip auto-emergente). El sistema nuevo (estilo álbum) solo
-  // suma a vistos cuando el jugador TOQUEA al germen con glow. Cambiamos
-  // la key del storage para invalidar la colección vieja y que el álbum
-  // empiece vacío para todos.
-  var VISTOS_KEY = "immunodefense_pathogens_seen_v2";
+  // _v3: nuevo bump de versión para limpiar colecciones residuales de
+  // sesiones previas. El sistema actual solo suma a vistos cuando el
+  // jugador TOQUEA un germen brillante; el álbum debe arrancar vacío.
+  var VISTOS_KEY = "immunodefense_pathogens_seen_v3";
   function loadVistos() {
     var s = {};
     try {
@@ -2692,8 +2690,9 @@
         var arr = JSON.parse(raw);
         if (Array.isArray(arr)) for (var i = 0; i < arr.length; i++) s[arr[i]] = true;
       }
-      // Limpia la entrada vieja para liberar espacio.
+      // Limpia entradas viejas para no dejar basura en localStorage.
       try { localStorage.removeItem("immunodefense_pathogens_seen"); } catch (e2) {}
+      try { localStorage.removeItem("immunodefense_pathogens_seen_v2"); } catch (e3) {}
     } catch (e) {}
     return s;
   }
@@ -5371,7 +5370,8 @@
 
   function restartFromLevel1() {
     state = newState();
-    state.showIntro = false;  // restart skips the intro
+    state.vistos = loadVistos();  // sin esto state.vistos quedaba null y el glow check crasheaba
+    state.showIntro = false;       // restart skips the intro
     rebuildPath();
     layoutDrip();
   }
@@ -6671,6 +6671,7 @@
     if (state.confirmRestart) {
       if (inRect(x, y, UI.modalYes)) {
         state = newState();
+        state.vistos = loadVistos();  // mantener la colección al restart
         rebuildPath();
         layoutDrip();
       } else if (inRect(x, y, UI.modalNo)) {

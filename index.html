@@ -2115,20 +2115,34 @@
 
   function drawAntigenHud() {
     if (!state.dissemination || !state.antigens) return;
-    var w = 150 * U, h = 26 * U;
+    // Layout VERTICAL: columna en la esquina superior izquierda con el
+    // ícono arriba, el número grande en el medio, y la etiqueta abajo.
+    var w = 44 * U, h = 78 * U;
     var x = FIELD_LEFT + 8 * U;
-    var y = FIELD_TOP + 100 * U;
+    var y = FIELD_TOP + 60 * U;
     ctx.save();
-    // Rectángulo regular (sin ícono circular pegado que pareciera "globo de diálogo").
+    // Contenedor
     ctx.fillStyle = "rgba(30, 15, 20, 0.85)";
     ctx.strokeStyle = "#ffd24a";
     ctx.lineWidth = 2;
-    roundRect(x, y, w, h, 0);
-    ctx.fill(); ctx.stroke();
+    ctx.fillRect(x, y, w, h);
+    ctx.strokeRect(x, y, w, h);
+    // Ícono "★" arriba con halo sutil
+    ctx.fillStyle = "rgba(255, 210, 74, 0.30)";
+    ctx.beginPath(); ctx.arc(x + w / 2, y + 14 * U, 11 * U, 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = "#ffd24a";
-    ctx.font = "bold " + Math.floor(13 * U) + "px Fredoka, sans-serif";
+    ctx.font = "bold " + Math.floor(15 * U) + "px Fredoka, sans-serif";
     ctx.textAlign = "center"; ctx.textBaseline = "middle";
-    ctx.fillText("★ " + state.antigens.count + "  ANTÍGENOS", x + w / 2, y + h / 2);
+    ctx.fillText("★", x + w / 2, y + 14 * U);
+    // Número de antígenos en el medio (grande)
+    ctx.fillStyle = "#ffd24a";
+    ctx.font = "bold " + Math.floor(20 * U) + "px Fredoka, sans-serif";
+    ctx.fillText(state.antigens.count, x + w / 2, y + 38 * U);
+    // Etiqueta vertical pequeña abajo
+    ctx.fillStyle = "rgba(255, 210, 74, 0.85)";
+    ctx.font = "bold " + Math.floor(8 * U) + "px Fredoka, sans-serif";
+    ctx.fillText("ANTÍ-", x + w / 2, y + 58 * U);
+    ctx.fillText("GENOS", x + w / 2, y + 68 * U);
     ctx.restore();
   }
 
@@ -3004,8 +3018,11 @@
     // pickup, son específicas del torrente.
     if (state.unlockedTowers.indexOf("plaqueta") === -1) {
       state.unlockedTowers.push("plaqueta");
-      state.openGroups["sangre"] = true;  // abrir el grupo al entrar
     }
+    // Garantiza que el grupo "Sangre" se abra al entrar al puente — antes
+    // openGroups podía no tener la key 'sangre' y la plaqueta quedaba bajo
+    // un header colapsado. Resetea openGroups para destacar lo relevante.
+    state.openGroups = { linea: true, distancia: true, sangre: true };
     state.unlockScheduleNotified = {};
     state.unlockPickups = [];
     // Cola de pickups que la médula va a emitir en la nueva fase:

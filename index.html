@@ -4920,6 +4920,14 @@
     // Borde exterior fino para enmarcar todo el contenedor.
     ctx.strokeStyle = "rgba(255,255,255,0.45)"; ctx.lineWidth = 1;
     ctx.strokeRect(v.x, v.y, v.w, v.h);
+    // Watermark "ANTIBIÓTICO" — etiqueta tenue sobre el gauge para que el
+    // jugador sepa de qué carga se trata. Se pone después del borde para
+    // quedar por encima pero a baja opacidad (no compite con los números).
+    ctx.font = "bold " + Math.max(10, Math.min(13, v.h * 0.38)) + "px Fredoka, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = "rgba(255, 255, 255, 0.18)";
+    ctx.fillText("ANTIBIÓTICO", v.x + v.w / 2, v.y + v.h / 2);
     ctx.restore();
   }
 

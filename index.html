@@ -3525,6 +3525,30 @@
       if (e.def.isBoss && !e.enraged && e.hp / e.maxHp < 0.5) {
         e.enraged = true;
       }
+      // BOSS TOXIN PULSE: cada 12s emite una onda púrpura que ralentiza la
+      // cadencia (50%) de todas las torres en rango durante 4s. Primer pulso
+      // 5s después de aparecer, para que el jugador no sea aplastado al spawn.
+      if (e.def.isBoss) {
+        if (e.toxinNextAt == null) e.toxinNextAt = state.time + 5;
+        if (state.time >= e.toxinNextAt) {
+          e.toxinNextAt = state.time + 12;
+          var pulseR = (80 + (e.enraged ? 30 : 0)) * U;
+          pushEffect({
+            kind: "toxinPulse", x: e.x, y: e.y, r: pulseR,
+            life: 0.7, max: 0.7, color: "#9430b8"
+          });
+          for (var bi = 0; bi < state.towers.length; bi++) {
+            var bt = state.towers[bi];
+            if (bt.devouredBy) continue;
+            var bdx = bt.x - e.x, bdy = bt.y - e.y;
+            if (bdx * bdx + bdy * bdy <= pulseR * pulseR) {
+              bt.slowFireTimer = Math.max(bt.slowFireTimer || 0, 4.0);
+            }
+          }
+          triggerShake(0.10, 3);
+          sfx("playerHurt");
+        }
+      }
       var pxSpeed = e.def.speedMult * (e.speedMultLevel || 1) * BASE_SPEED * U *
                     infestSpeedMult(state.viralLoad);
       // Nivel puente: gérmenes a 0.35× la velocidad original (50% × 70%
@@ -4209,6 +4233,33 @@
 
   // Al morir, el germen ESTALLA: daño leve (5-6) a personajes en un radio 15%
   // mayor que su radio de daño de tránsito.
+  // S. epidermidis libera una "modulina" (PSM, real en su biofilm) al morir.
+  // La toxina vuela hacia la torre POTENCIADORA más cercana (Langerhans o
+  // Mastocito — las que dan buff al resto del equipo). Si no hay potenciadora
+  // a tiro, no hace nada (es un castigo dirigido a los soportes).
+  function releaseSepidermidisToxin(e) {
+    if (!state.towers || state.towers.length === 0) return;
+    var bestT = null, bestD = Infinity;
+    var reach = 220 * U;
+    for (var i = 0; i < state.towers.length; i++) {
+      var t = state.towers[i];
+      if (t.devouredBy) continue;
+      // Buscar solo potenciadoras (Langerhans, Mastocito).
+      if (t.def.id !== "langerhans" && t.def.id !== "mastocito") continue;
+      var dx = t.x - e.x, dy = t.y - e.y;
+      var d2 = dx * dx + dy * dy;
+      if (d2 > reach * reach) continue;
+      if (d2 < bestD) { bestD = d2; bestT = t; }
+    }
+    if (!bestT) return;
+    var dmg = Math.max(2, Math.round(bestT.maxHp * 0.05));
+    state.germShots.push({
+      type: "modulin", x: e.x, y: e.y, tx: bestT.x, ty: bestT.y, target: bestT,
+      color: "#c8e070", t: 0,
+      dmg: dmg, stun: 0, slowFire: 0, dead: false
+    });
+  }
+
   function germExplode(e) {
     var r = enemyAuraRadiusPx(e.def) * 1.15;
     var dmg = 5 + Math.floor(Math.random() * 2);   // 5 ó 6
@@ -4307,6 +4358,9 @@
       if (!state.dissemination) {
         state.topicalCharge = Math.min(TOPICAL_MAX, state.topicalCharge + (def.isBoss ? TOPICAL_PER_BOSS : TOPICAL_PER_KILL));
       }
+      // S. epidermidis al morir libera una "modulina" (PSM real de su biofilm)
+      // que busca la torre potenciadora más cercana y le hace 5% maxHP de daño.
+      if (def.id === "sepidermidis") releaseSepidermidisToxin(e);
       germExplode(e);   // estalla y daña a los personajes cercanos
       // Molluscum: al morir se DIVIDE en mini-molluscum (salvo que ya sea hijo).
       if (def.deathSplit && !e.noSplit && !e.absorbing) {
@@ -5271,7 +5325,12 @@
     }
   }
 
-  function shotDur(type) { return type === "burst" ? 0.4 : (type === "catapult" ? 0.9 : 0.6); }
+  function shotDur(type) {
+    if (type === "burst") return 0.4;
+    if (type === "catapult") return 0.9;
+    if (type === "modulin") return 0.8;   // serpenteo visible
+    return 0.6;
+  }
 
   function updateGermShots(dt) {
     for (var i = 0; i < state.germShots.length; i++) {
@@ -5332,6 +5391,28 @@
         ctx.shadowBlur = 0;
         ctx.fillStyle = s.color;
         ctx.beginPath(); ctx.arc(x, y, 3 * U, 0, Math.PI * 2); ctx.fill();
+      } else if (s.type === "modulin") {
+        // PSM de S. epidermidis: blob verde-amarillo serpenteante que
+        // busca la potenciadora. Trail orgánico con wobble.
+        var k0 = Math.max(0, k - 0.25);
+        var wobX = Math.sin(state.time * 8 + k * 6) * 6 * U;
+        var wx = s.x + (s.tx - s.x) * k + wobX * (1 - k);
+        var wy = s.y + (s.ty - s.y) * k;
+        // Trail
+        ctx.strokeStyle = colorAlpha(s.color, 0.45);
+        ctx.lineWidth = 3 * U;
+        ctx.beginPath();
+        var x0 = s.x + (s.tx - s.x) * k0;
+        var y0 = s.y + (s.ty - s.y) * k0;
+        ctx.moveTo(x0, y0); ctx.lineTo(wx, wy);
+        ctx.stroke();
+        // Cabeza
+        ctx.shadowColor = s.color; ctx.shadowBlur = 8;
+        ctx.fillStyle = s.color;
+        ctx.beginPath(); ctx.arc(wx, wy, 5 * U, 0, Math.PI * 2); ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = "#f0ffd0";
+        ctx.beginPath(); ctx.arc(wx, wy, 2.5 * U, 0, Math.PI * 2); ctx.fill();
       } else { // spray: nube de gas que se expande hacia la torre
         var puffs = 5;
         for (var d = 0; d < puffs; d++) {
@@ -10271,6 +10352,29 @@
 
   function drawEffect(ef) {
     var alpha = Math.max(0, ef.life / ef.max);
+    if (ef.kind === "toxinPulse") {
+      // Anillo púrpura tóxico expandiéndose desde el boss.
+      var t01 = 1 - (ef.life / ef.max);            // 0 → 1
+      var rr = ef.r * (0.20 + 0.80 * t01);
+      ctx.save();
+      ctx.globalAlpha = alpha * 0.85;
+      ctx.strokeStyle = ef.color;
+      ctx.lineWidth = 4 + 4 * (1 - t01);
+      ctx.beginPath();
+      ctx.arc(ef.x, ef.y, rr, 0, Math.PI * 2);
+      ctx.stroke();
+      // Halo interno
+      var grd = ctx.createRadialGradient(ef.x, ef.y, rr * 0.5, ef.x, ef.y, rr);
+      grd.addColorStop(0, "rgba(148, 48, 184, 0)");
+      grd.addColorStop(0.8, "rgba(148, 48, 184, " + (0.30 * alpha) + ")");
+      grd.addColorStop(1, "rgba(148, 48, 184, 0)");
+      ctx.fillStyle = grd;
+      ctx.beginPath();
+      ctx.arc(ef.x, ef.y, rr, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+      return;
+    }
     if (ef.kind === "markDart") {
       // Dardo cian de Langerhans que viaja hacia el germen y se "splatea".
       var t = 1 - (ef.life / ef.max);

@@ -4234,7 +4234,10 @@
         }
       }
       // Suelta un fragmento de complemento (C3b) que el jugador puede recoger.
-      if (state.complement < MAC_COST && Math.random() < (def.isBoss ? 1 : 0.30)) {
+      // Solo aparece cuando el jugador YA tiene MAC desbloqueado en su dock —
+      // antes era frustrante acumular C3b sin tener torre para usarlo.
+      var hasMac = state.unlockedTowers && state.unlockedTowers.indexOf("complemento") !== -1;
+      if (hasMac && state.complement < MAC_COST && Math.random() < (def.isBoss ? 1 : 0.30)) {
         spawnFragment(e.x, e.y);
       }
       pushEffect({
@@ -5072,14 +5075,17 @@
     var pad = 7;
     ctx.fillText(label, v.x + pad, v.y + v.h / 2);
     var lw = ctx.measureText(label).width;
-    // Dots a la derecha del label, espaciados para llenar el rect.
-    var dotsStart = v.x + pad + lw + 8;
+    // Dots a la derecha del label, calculados para NUNCA salirse del rect.
+    var dotsStart = v.x + pad + lw + 6;
     var dotsEnd = v.x + v.w - pad;
-    var dotsArea = dotsEnd - dotsStart;
-    var dotR = Math.max(3, Math.min(5, v.h * 0.16));
+    var dotsArea = Math.max(20, dotsEnd - dotsStart);
+    // Mínimo 1.5px de gap entre dots; el radio se calcula al revés para que
+    // todo entre en dotsArea (con un poco de aire al final).
+    var minGap = 1.5;
+    var maxRByArea = (dotsArea - (MAC_COST - 1) * minGap) / (MAC_COST * 2);
+    var dotR = Math.max(2.5, Math.min(4.5, maxRByArea));
     var totalDotsW = MAC_COST * (dotR * 2);
-    var gapDots = (dotsArea - totalDotsW) / Math.max(1, MAC_COST - 1);
-    if (gapDots < 2) gapDots = 2;
+    var gapDots = Math.max(minGap, (dotsArea - totalDotsW) / Math.max(1, MAC_COST - 1));
     for (var i = 0; i < MAC_COST; i++) {
       var cx = dotsStart + dotR + i * (dotR * 2 + gapDots);
       ctx.beginPath();

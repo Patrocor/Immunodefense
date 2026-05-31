@@ -919,16 +919,30 @@
         { range: 520, damage: 56, fireRate: 1.1, projectileSpeed: 0, splash: 58, hp: 160, acidDur: 5.0, travelTime: 0.95 }
       ],
       upgradeCost: [120, 200]
+    },
+    plaqueta: {
+      id: "plaqueta", name: "Plaqueta", shortName: "Plaqueta",
+      color: "#E8A020", colorDark: "#8A5010", cost: 30,
+      desc: "Red de fibrina: ralentiza y daña",
+      disseminationOnly: true,        // solo aparece en diseminación
+      slowOnHit: { dur: 2.0, mult: 0.40 }, // ralentiza al impactar
+      levels: [
+        { range: 100, damage:  6, fireRate: 1.2, projectileSpeed: 320, splash: 0, hp: 60 },
+        { range: 115, damage: 10, fireRate: 1.4, projectileSpeed: 360, splash: 0, hp: 80 },
+        { range: 130, damage: 14, fireRate: 1.6, projectileSpeed: 400, splash: 0, hp: 100 }
+      ],
+      upgradeCost: [40, 65]
     }
   };
   var MAC_COST = 5;   // fragmentos de complemento para ensamblar el cañón
-  var TOWER_LIST = ["neutrofilo", "linfocitoB", "linfocitoT", "langerhans", "nk", "eosinofilo", "mastocito", "complemento"];
+  var TOWER_LIST = ["neutrofilo", "linfocitoB", "linfocitoT", "langerhans", "nk", "eosinofilo", "mastocito", "complemento", "plaqueta"];
   // Cartilla por grupos desplegables (categorías de defensa).
   var TOWER_GROUPS = [
     { id: "linea",         label: "Primera línea", towers: ["neutrofilo"] },
     { id: "distancia",     label: "A distancia",   towers: ["linfocitoB", "linfocitoT"] },
     { id: "especialistas", label: "Especialistas", towers: ["nk", "eosinofilo"] },
     { id: "soporte",       label: "Soporte",       towers: ["langerhans", "mastocito"] },
+    { id: "sangre",        label: "Sangre",        towers: ["plaqueta"] },
     { id: "especial",      label: "Especial (MAC)", towers: ["complemento"] }
   ];
 
@@ -1486,6 +1500,14 @@
       potentiates: [],
       bestIn: ["tejido"],
       affinity: "Monocito · Mieloide"
+    },
+    plaqueta: {
+      strong: "Enjambres baratos: ralentiza + DoT",
+      weak: "Bosses (poco daño individual), HP frágil",
+      synergyWith: ["complemento"],
+      potentiates: ["complemento"],
+      bestIn: ["sangre"],
+      affinity: "Trombocito · Hemostasia"
     }
   };
   var ENEMY_LORE = {
@@ -2823,9 +2845,16 @@
     UI.groupHeaders = [];
     var cyc = 0;
     // Filtra solo torres desbloqueadas (las nuevas se añaden via pickups
-    // de la médula ósea durante el juego).
+    // de la médula ósea durante el juego). Las marcadas como
+    // disseminationOnly NO aparecen en Fase 1 aunque estén en unlockedTowers.
     var unlocked = (state && state.unlockedTowers) || ["neutrofilo", "linfocitoB", "linfocitoT"];
-    function isUnlocked(typeId) { return unlocked.indexOf(typeId) !== -1; }
+    var inDiss = !!(state && state.dissemination);
+    function isUnlocked(typeId) {
+      if (unlocked.indexOf(typeId) === -1) return false;
+      var d = TOWER_DEFS[typeId];
+      if (d && d.disseminationOnly && !inDiss) return false;
+      return true;
+    }
     for (var gi = 0; gi < TOWER_GROUPS.length; gi++) {
       var grp = TOWER_GROUPS[gi];
       // Filtrar el grupo a las torres desbloqueadas. Si ninguna está
@@ -2967,6 +2996,12 @@
       });
     } else {
       state.unlockedTowers = BASIC_TOWERS.slice();
+    }
+    // Auto-unlock de torres disseminationOnly (Plaqueta) — no requieren
+    // pickup, son específicas del torrente.
+    if (state.unlockedTowers.indexOf("plaqueta") === -1) {
+      state.unlockedTowers.push("plaqueta");
+      state.openGroups["sangre"] = true;  // abrir el grupo al entrar
     }
     state.unlockScheduleNotified = {};
     state.unlockPickups = [];
@@ -4117,6 +4152,7 @@
         color: t.def.color,
         towerId: t.def.id,
         attackerType: t.def.id,
+        slowOnHit: t.def.slowOnHit || null,   // {dur, mult} — Plaqueta lo usa
         rot: 0,
         dead: false
       });
@@ -5286,6 +5322,10 @@
           pushEffect({ kind: "explosion", x: p.target.x, y: p.target.y, r: 0, max: splashPx, life: 0.4, color: p.color });
         } else {
           damageEnemy(p.target, p.damage, p.attackerType);
+          // Aplica el efecto adicional de ralentización (Plaqueta).
+          if (p.slowOnHit && p.target && !p.target.dead) {
+            p.target.slowTimer = Math.max(p.target.slowTimer || 0, p.slowOnHit.dur);
+          }
           pushEffect({ kind: "hit", x: p.target.x, y: p.target.y, life: 0.2, max: 0.2, color: p.color });
         }
         p.dead = true;
@@ -8034,6 +8074,7 @@
     else if (t.def.id === "eosinofilo") drawEosinofilo(t, pulse, expression, blink);
     else if (t.def.id === "mastocito") drawMastocito(t, pulse, expression, blink);
     else if (t.def.id === "complemento") drawComplementCannon(t, pulse, expression, blink);
+    else if (t.def.id === "plaqueta") drawPlaqueta(t, pulse, expression, blink);
     else drawLinfocitoT(t, pulse, expression, blink);
     // Level-up sparkles
     if (levelup) {
@@ -8358,6 +8399,51 @@
   }
 
   // MASTOCITO — cuerpo GRUMOSO (borde con bultos) repleto de gránulos (alerta).
+  function drawPlaqueta(t, pulse, expression, blink) {
+    var R = 13 * U * pulse;     // más chica que el resto (es frágil)
+    ctx.save(); ctx.translate(t.x, t.y);
+    // Sombra
+    ctx.fillStyle = "rgba(0,0,0,0.25)";
+    ctx.beginPath(); ctx.ellipse(0, R * 0.5, R * 1.05, R * 0.35, 0, 0, Math.PI * 2); ctx.fill();
+    if ((t.attackAnim || 0) > 0) {
+      var pp = 1 - (t.attackAnim / 0.2);
+      ctx.strokeStyle = colorAlpha(t.def.color, 0.55 * (1 - pp));
+      ctx.lineWidth = 2 * U;
+      ctx.beginPath(); ctx.arc(0, 0, R * (1.1 + pp * 0.7), 0, Math.PI * 2); ctx.stroke();
+    }
+    // Cuerpo principal (disco amarillo bicóncavo simulado con dos óvalos)
+    var grad = ctx.createRadialGradient(-R * 0.3, -R * 0.3, R * 0.2, 0, 0, R);
+    grad.addColorStop(0, "#ffe4a0");
+    grad.addColorStop(0.6, t.def.color);
+    grad.addColorStop(1, t.def.colorDark);
+    ctx.fillStyle = grad;
+    ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = t.def.colorDark;
+    ctx.lineWidth = Math.max(1.2, 1.5 * U);
+    ctx.stroke();
+    // 5 pseudópodos como bumps
+    for (var pl = 0; pl < 5; pl++) {
+      var pla = pl * Math.PI * 2 / 5 - Math.PI / 2;
+      ctx.fillStyle = t.def.colorDark;
+      ctx.beginPath();
+      ctx.arc(Math.cos(pla) * R * 0.85, Math.sin(pla) * R * 0.85, R * 0.20, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // Líneas de fibrina radiando ligeramente
+    ctx.strokeStyle = "rgba(232,160,32,0.50)";
+    ctx.lineWidth = Math.max(0.8, R * 0.07);
+    for (var fl = 0; fl < 6; fl++) {
+      var fla = fl * Math.PI / 3 + state.time * 0.3;
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(fla) * R * 1.0, Math.sin(fla) * R * 1.0);
+      ctx.lineTo(Math.cos(fla) * R * 1.35, Math.sin(fla) * R * 1.35);
+      ctx.stroke();
+    }
+    // Cara pequeña en el centro
+    towerFace(R * 0.75, expression, blink, "neutral", "neutral");
+    ctx.restore();
+  }
+
   function drawMastocito(t, pulse, expression, blink) {
     var R = 18 * U * pulse;
     ctx.save(); ctx.translate(t.x, t.y);
@@ -10361,6 +10447,31 @@
       ctx.beginPath(); ctx.arc(0, 0, R * 0.6, 0, Math.PI * 2); ctx.stroke();
       ctx.beginPath(); ctx.arc(0, 0, R * 0.95, 0, Math.PI * 2); ctx.stroke();
       ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(0, 0, R * 0.28, 0, Math.PI * 2); ctx.fill();
+    } else if (typeId === "plaqueta") {
+      // Plaqueta: disco amarillo con bumps + líneas de fibrina radiales
+      ctx.fillStyle = "#F0C060";
+      ctx.beginPath(); ctx.arc(0, 0, R * 0.78, 0, Math.PI * 2); ctx.fill();
+      // 5 lobes / pseudópodos
+      for (var pl = 0; pl < 5; pl++) {
+        var pla = pl * Math.PI * 2 / 5 - Math.PI / 2;
+        ctx.fillStyle = "#D89030";
+        ctx.beginPath();
+        ctx.arc(Math.cos(pla) * R * 0.55, Math.sin(pla) * R * 0.55, R * 0.22, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      // Centro brillante
+      ctx.fillStyle = "rgba(255,240,180,0.85)";
+      ctx.beginPath(); ctx.arc(0, 0, R * 0.30, 0, Math.PI * 2); ctx.fill();
+      // Líneas de fibrina (radiales finas)
+      ctx.strokeStyle = "rgba(232,160,32,0.65)";
+      ctx.lineWidth = Math.max(1, R * 0.06);
+      for (var fl = 0; fl < 6; fl++) {
+        var fla = fl * Math.PI / 3;
+        ctx.beginPath();
+        ctx.moveTo(Math.cos(fla) * R * 0.85, Math.sin(fla) * R * 0.85);
+        ctx.lineTo(Math.cos(fla) * R * 1.10, Math.sin(fla) * R * 1.10);
+        ctx.stroke();
+      }
     } else {
       // Macrofago: small bumps
       for (var b = 0; b < 5; b++) {
@@ -10954,6 +11065,7 @@
     else if (def.id === "nk") drawNK(fakeTower, 1, "idle", false);
     else if (def.id === "eosinofilo") drawEosinofilo(fakeTower, 1, "idle", false);
     else if (def.id === "mastocito") drawMastocito(fakeTower, 1, "idle", false);
+    else if (def.id === "plaqueta") drawPlaqueta(fakeTower, 1, "idle", false);
     else if (def.id === "complemento") drawComplementCannon(fakeTower, 1, "idle", false);
     else drawLinfocitoT(fakeTower, 1, "idle", false);
     ctx.globalAlpha = 1;

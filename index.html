@@ -418,6 +418,11 @@
       DRIP_R.h = 22 * U;
       DRIP_R.mouthY = DRIP_R.y + DRIP_R.h * 0.85;
       DRIP_R.active = true;
+      // Megacariocito: estructura productora de plaquetas, lateral izquierdo bajo.
+      if (state.megakaryocyte) {
+        state.megakaryocyte.x = FIELD_LEFT + FIELD_W * 0.06;
+        state.megakaryocyte.y = FIELD_TOP + FIELD_H * 0.85;
+      }
     } else {
       // Fase 1: una sola mitocondria a la derecha del campo.
       DRIP.x = FIELD_LEFT + FIELD_W * 0.84;
@@ -1237,6 +1242,182 @@
   };
   var PER_PHASE_TOWERS = ["langerhans", "nk", "eosinofilo"]; // re-emiten al cambiar fase
   var PERSISTENT_UNLOCKABLES = ["mastocito", "complemento"]; // si no llegó a unlocked, también re-aparece
+
+  // === MEGACARIOCITO: produce plaquetas maduras periódicamente ===
+  function updateMegakaryocyte(dt) {
+    var mk = state.megakaryocyte;
+    if (!mk || !state.dissemination) return;
+    if (!state.plaquetaPickups) state.plaquetaPickups = [];
+    if (state.plaquetaPickups.length >= mk.max) return; // pausa si lleno
+    mk.maturing += dt / mk.period;
+    if (mk.maturing >= 1) {
+      mk.maturing = 0;
+      // Posición orbital alrededor del megacariocito
+      var n = state.plaquetaPickups.length;
+      var angle = -Math.PI / 2 + (n - 1.5) * 0.55;
+      var orbit = 36 * U;
+      state.plaquetaPickups.push({
+        x: mk.x + Math.cos(angle) * orbit,
+        y: mk.y + Math.sin(angle) * orbit,
+        baseX: mk.x + Math.cos(angle) * orbit,
+        baseY: mk.y + Math.sin(angle) * orbit,
+        phase: Math.random() * Math.PI * 2,
+        bornAt: state.time
+      });
+      sfx("upgrade");
+    }
+    // Reorganiza orbitales para que se vean ordenados
+    for (var i = 0; i < state.plaquetaPickups.length; i++) {
+      var p = state.plaquetaPickups[i];
+      var a = -Math.PI / 2 + (i - (state.plaquetaPickups.length - 1) / 2) * 0.55;
+      var or = 36 * U;
+      p.baseX = mk.x + Math.cos(a) * or;
+      p.baseY = mk.y + Math.sin(a) * or;
+      // Pequeño bobbing
+      p.phase += dt * 1.5;
+      p.x = p.baseX + Math.sin(p.phase) * 2 * U;
+      p.y = p.baseY + Math.cos(p.phase * 0.8) * 2 * U;
+    }
+  }
+
+  function tryTapPlaquetaPickup(x, y) {
+    if (!state.plaquetaPickups) return false;
+    var arr = state.plaquetaPickups;
+    for (var i = 0; i < arr.length; i++) {
+      var p = arr[i];
+      var dx = x - p.x, dy = y - p.y;
+      var R = 18 * U;
+      if (dx * dx + dy * dy <= R * R) {
+        // Entrar en modo colocar (consumirá una al colocar exitosamente)
+        state.selectedToBuild = "plaqueta";
+        state.selectedTower = null;
+        sfx("tap");
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function drawMegakaryocyte() {
+    if (!state.megakaryocyte || !state.dissemination) return;
+    var mk = state.megakaryocyte;
+    ctx.save();
+    ctx.translate(mk.x, mk.y);
+    // Sombra
+    ctx.fillStyle = "rgba(0,0,0,0.30)";
+    ctx.beginPath();
+    ctx.ellipse(0, 18 * U, 28 * U, 9 * U, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // Cuerpo: célula grande con núcleo multilobulado (característica real)
+    var R = 24 * U;
+    var bodyGrad = ctx.createRadialGradient(-R * 0.3, -R * 0.3, R * 0.2, 0, 0, R);
+    bodyGrad.addColorStop(0, "#FFE8D0");
+    bodyGrad.addColorStop(0.6, "#E8B888");
+    bodyGrad.addColorStop(1, "#8A5030");
+    ctx.fillStyle = bodyGrad;
+    ctx.beginPath();
+    ctx.arc(0, 0, R, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "#5A3010";
+    ctx.lineWidth = Math.max(1.2, 1.6 * U);
+    ctx.stroke();
+    // Núcleo multilobulado (4-5 lóbulos conectados)
+    var lobes = 5;
+    ctx.fillStyle = "#7A3050";
+    ctx.strokeStyle = "#4A1830";
+    ctx.lineWidth = Math.max(0.9, 1.2 * U);
+    for (var l = 0; l < lobes; l++) {
+      var la = (l / lobes) * Math.PI * 2 + state.time * 0.15;
+      var lr = R * 0.32;
+      var lx = Math.cos(la) * R * 0.38;
+      var ly = Math.sin(la) * R * 0.38;
+      ctx.beginPath();
+      ctx.arc(lx, ly, lr, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    }
+    // Anillo de maduración (progreso) — alrededor del cuerpo
+    var prog = Math.min(1, state.megakaryocyte.maturing);
+    var ringR = R + 5 * U;
+    ctx.strokeStyle = "rgba(60, 30, 20, 0.45)";
+    ctx.lineWidth = Math.max(2, 3 * U);
+    ctx.beginPath();
+    ctx.arc(0, 0, ringR, 0, Math.PI * 2);
+    ctx.stroke();
+    if (state.plaquetaPickups && state.plaquetaPickups.length < state.megakaryocyte.max) {
+      ctx.strokeStyle = "#E8A020";
+      ctx.lineWidth = Math.max(2, 3 * U);
+      ctx.beginPath();
+      ctx.arc(0, 0, ringR, -Math.PI / 2, -Math.PI / 2 + prog * Math.PI * 2);
+      ctx.stroke();
+    }
+    // Etiqueta
+    ctx.fillStyle = "rgba(60, 30, 20, 0.85)";
+    ctx.font = "bold " + Math.floor(9 * U) + "px Fredoka, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "top";
+    ctx.fillText("MEGACARIOCITO", 0, R + 14 * U);
+    ctx.restore();
+  }
+
+  function drawPlaquetaPickups() {
+    if (!state.plaquetaPickups || !state.dissemination) return;
+    for (var i = 0; i < state.plaquetaPickups.length; i++) {
+      var p = state.plaquetaPickups[i];
+      var pulse = 0.5 + 0.5 * Math.sin(state.time * 4 + i);
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      // Halo dorado pulsante (tappable)
+      ctx.fillStyle = "rgba(232, 160, 32, " + (0.22 + pulse * 0.18) + ")";
+      ctx.beginPath();
+      ctx.arc(0, 0, 22 * U, 0, Math.PI * 2);
+      ctx.fill();
+      // Mini racimo (replica de la plaqueta torre, escalado)
+      var gR = 4 * U;
+      var rows = [
+        { y: -gR * 1.6, n: 1 },
+        { y: -gR * 0.4, n: 2 },
+        { y:  gR * 0.8, n: 3 },
+        { y:  gR * 2.0, n: 2 }
+      ];
+      // Tallito
+      ctx.strokeStyle = "#7a5a18";
+      ctx.lineWidth = Math.max(0.9, 1.0 * U);
+      ctx.beginPath();
+      ctx.moveTo(0, -gR * 3.2);
+      ctx.lineTo(0, -gR * 2.0);
+      ctx.stroke();
+      for (var r = 0; r < rows.length; r++) {
+        var row = rows[r];
+        var totalW = (row.n - 1) * gR * 1.7;
+        for (var c = 0; c < row.n; c++) {
+          var gx = -totalW / 2 + c * gR * 1.7;
+          var gy = row.y;
+          var grd = ctx.createRadialGradient(gx - gR * 0.35, gy - gR * 0.35, gR * 0.15, gx, gy, gR);
+          grd.addColorStop(0, "#FFEBB0");
+          grd.addColorStop(0.55, "#E8A020");
+          grd.addColorStop(1, "#8A5010");
+          ctx.fillStyle = grd;
+          ctx.beginPath();
+          ctx.arc(gx, gy, gR, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.strokeStyle = "#5A3408";
+          ctx.lineWidth = Math.max(0.7, 0.9 * U);
+          ctx.stroke();
+        }
+      }
+      // Badge "TAP" sutil cuando lleva tiempo madura
+      if (state.time - p.bornAt > 0.6) {
+        var blinkAlpha = 0.5 + 0.5 * Math.sin(state.time * 3 + i);
+        ctx.fillStyle = "rgba(255, 230, 130, " + (0.45 + blinkAlpha * 0.35) + ")";
+        ctx.font = "bold " + Math.floor(8 * U) + "px Fredoka, sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "top";
+        ctx.fillText("TAP", 0, gR * 3.2);
+      }
+      ctx.restore();
+    }
+  }
 
   function spawnUnlockPickup(typeId) {
     if (!state.medulaOsea) return;
@@ -3002,6 +3183,13 @@
     state.thrombi = [];
     state.dendriticStains = [];
     state.necroticPatches = [];
+    state.megakaryocyte = {
+      x: 0, y: 0,
+      maturing: 0.5,    // arranca medio cargado
+      period: 14.0,     // 14s entre plaquetas maduras
+      max: 4
+    };
+    state.plaquetaPickups = [];
     state.armedResponse = null;
     state.medCharge = 0;
     state.topicalCharge = 0;
@@ -3942,9 +4130,19 @@
   // -------- TOWERS --------------------------------------------------------
   // Coste en ATP o en fragmentos de complemento, según la torre.
   function towerAffordable(def) {
+    // Plaqueta requiere una unidad madura del megacariocito (no usa ATP).
+    if (def.id === "plaqueta") {
+      return !!(state.plaquetaPickups && state.plaquetaPickups.length > 0);
+    }
     return def.currency === "complement" ? (state.complement >= def.cost) : (state.atp >= def.cost);
   }
   function payTower(def) {
+    if (def.id === "plaqueta") {
+      if (state.plaquetaPickups && state.plaquetaPickups.length > 0) {
+        state.plaquetaPickups.shift();
+      }
+      return;
+    }
     if (def.currency === "complement") state.complement = Math.max(0, state.complement - def.cost);
     else state.atp -= def.cost;
   }
@@ -7107,6 +7305,10 @@
     if (tryTapUnlockPickup(x, y)) {
       return;
     }
+    // Plaqueta madura del megacariocito: tap entra en modo colocar.
+    if (state.dissemination && tryTapPlaquetaPickup(x, y)) {
+      return;
+    }
     // Tap sobre un GERMEN con glow (no visto aún): abre el compendio y lo
     // marca como visto.
     for (var enei = 0; enei < state.enemies.length; enei++) {
@@ -7385,6 +7587,11 @@
     if (DRIP_R && DRIP_R.active &&
         Math.abs(x - DRIP_R.x) < DRIP_R.w + 10 * U &&
         Math.abs(y - DRIP_R.y) < DRIP_R.h + 10 * U) return false;
+    // Megacariocito.
+    if (state.megakaryocyte) {
+      var dxMk = x - state.megakaryocyte.x, dyMk = y - state.megakaryocyte.y;
+      if (dxMk * dxMk + dyMk * dyMk < (38 * U) * (38 * U)) return false;
+    }
     // Grietas (spawn arriba).
     if (PATH.wounds) {
       for (var w = 0; w < PATH.wounds.length; w++) {
@@ -8798,33 +9005,52 @@
       ctx.fill();
     }
 
-    // Filas: 1 + 2 + 3 + 2 + 1 (forma de racimo)
-    var rows = [
-      { y: -R * 0.45, n: 1, depth: 0.4 },
-      { y: -R * 0.18, n: 2, depth: 0.7 },
-      { y:  R * 0.10, n: 3, depth: 1.0 },
-      { y:  R * 0.38, n: 2, depth: 0.7 },
-      { y:  R * 0.65, n: 1, depth: 0.5 }
+    // Filas: 1 + 2 + 3 + 2 + 1 (forma de racimo).
+    // Lista plana de uvas con prioridad: las primeras desaparecen primero
+    // cuando la plaqueta pierde vida (de afuera hacia el centro).
+    // priority 0..n; uvas con priority alta se ocultan primero.
+    var grapes = [
+      // (front) — orden: filas extremas primero (más periferia)
+      { x: 0,                 y: -R * 0.45, depth: 0.4, layer: "f", priority: 9 },  // top
+      { x: 0,                 y:  R * 0.65, depth: 0.5, layer: "f", priority: 8 },  // bottom
+      { x: -grapeR * 0.475,   y: -R * 0.18, depth: 0.7, layer: "f", priority: 7 },
+      { x:  grapeR * 0.475,   y: -R * 0.18, depth: 0.7, layer: "f", priority: 6 },
+      { x: -grapeR * 0.475,   y:  R * 0.38, depth: 0.7, layer: "f", priority: 5 },
+      { x:  grapeR * 0.475,   y:  R * 0.38, depth: 0.7, layer: "f", priority: 4 },
+      { x: -grapeR * 0.95,    y:  R * 0.10, depth: 1.0, layer: "f", priority: 3 },
+      { x:  grapeR * 0.95,    y:  R * 0.10, depth: 1.0, layer: "f", priority: 2 },
+      { x: 0,                 y:  R * 0.10, depth: 1.0, layer: "f", priority: 1 }   // center (último en irse)
     ];
-    // Capa trasera (más oscura, ligeramente desplazada)
-    for (var r0 = 0; r0 < rows.length; r0++) {
-      var row0 = rows[r0];
-      var rowW0 = (row0.n - 1) * grapeR * 0.95;
-      for (var c0 = 0; c0 < row0.n; c0++) {
-        var gx0 = -rowW0 / 2 + c0 * grapeR * 0.95 + grapeR * 0.20;
-        var gy0 = row0.y + grapeR * 0.15;
-        drawGrape(gx0, gy0, grapeR * 0.92, row0.depth * 0.6);
+    // Capa trasera (8 uvas) — replica los offsets de la frontal con shift.
+    var backGrapes = [];
+    for (var bg = 0; bg < grapes.length - 1; bg++) {
+      var g = grapes[bg];
+      backGrapes.push({
+        x: g.x + grapeR * 0.20,
+        y: g.y + grapeR * 0.15,
+        depth: g.depth * 0.6,
+        priority: g.priority
+      });
+    }
+    var totalGrapes = grapes.length;
+    var hpFrac = (t.maxHp && t.hp > 0) ? Math.max(0, t.hp / t.maxHp) : 1;
+    // Cuántas uvas mostrar (mínimo 1 si aún vive).
+    var visibleCount = Math.max(t.hp > 0 ? 1 : 0, Math.round(totalGrapes * hpFrac));
+    // Capa trasera primero (visible solo si hpFrac > 0.5).
+    if (hpFrac > 0.5) {
+      var backVisible = Math.round(backGrapes.length * (hpFrac - 0.5) * 2);
+      // Ordenar capa trasera por priority desc (igual que frontal).
+      backGrapes.sort(function (a, b) { return a.priority - b.priority; });
+      for (var ib = 0; ib < backVisible; ib++) {
+        var bgo = backGrapes[ib];
+        drawGrape(bgo.x, bgo.y, grapeR * 0.92, bgo.depth);
       }
     }
-    // Capa frontal
-    for (var r1 = 0; r1 < rows.length; r1++) {
-      var row1 = rows[r1];
-      var rowW1 = (row1.n - 1) * grapeR * 0.95;
-      for (var c1 = 0; c1 < row1.n; c1++) {
-        var gx1 = -rowW1 / 2 + c1 * grapeR * 0.95;
-        var gy1 = row1.y;
-        drawGrape(gx1, gy1, grapeR, row1.depth);
-      }
+    // Capa frontal — ordenar por priority asc (mantener las de menor priority).
+    grapes.sort(function (a, b) { return a.priority - b.priority; });
+    for (var fi = 0; fi < visibleCount; fi++) {
+      var gf = grapes[fi];
+      drawGrape(gf.x, gf.y, grapeR, gf.depth);
     }
 
     // Indicador de daño global del racimo (HP bar)
@@ -11494,7 +11720,12 @@
         var isComp = def.currency === "complement";
         ctx.fillStyle = canAfford ? (isComp ? "#7CFC9E" : "#f5d76e") : "#d9534f";
         ctx.font = "bold " + Math.max(10, Math.min(12, cw * 0.09)) + "px Fredoka, sans-serif";
-        ctx.fillText((isComp ? "🧬 " : "⚡ ") + def.cost, textX, cardY + ch * 0.70);
+        if (typeId === "plaqueta") {
+          var rdy = (state.plaquetaPickups || []).length;
+          ctx.fillText("🍇 " + rdy + " listas", textX, cardY + ch * 0.70);
+        } else {
+          ctx.fillText((isComp ? "🧬 " : "⚡ ") + def.cost, textX, cardY + ch * 0.70);
+        }
       }
       ctx.restore();
       // Edge-fade indicators (arriba/abajo) cuando hay contenido oculto.
@@ -12690,6 +12921,8 @@
       drawSlicks();
       drawNecroticPatches();
       drawAcidSplats();
+      drawMegakaryocyte();
+      drawPlaquetaPickups();
       drawRangeHint();
       for (var j = 0; j < state.enemies.length; j++) {
         var ej = state.enemies[j];
@@ -13286,6 +13519,7 @@
       updateAcidSplats(dt);
       updateSeekers(dt);
       updateNecroticPatches(dt);
+      updateMegakaryocyte(dt);
       updateAntigenDrops(dt);
       updateNets(dt);
       updateThrombi(dt);

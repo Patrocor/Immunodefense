@@ -249,14 +249,15 @@
     if (vv) {
       VW = vv.width;
       VH = vv.height;
-      canvas.style.left = vv.offsetLeft + "px";
-      canvas.style.top  = vv.offsetTop  + "px";
     } else {
       VW = window.innerWidth;
       VH = window.innerHeight;
-      canvas.style.left = "0px";
-      canvas.style.top  = "0px";
     }
+    // SIEMPRE forzar top:0 left:0 — no usar vv.offsetTop/Left (en iOS Chrome
+    // ese offset puede ser non-cero durante transiciones de la URL bar y
+    // termina empujando el canvas fuera del viewport visible).
+    canvas.style.top    = "0px";
+    canvas.style.left   = "0px";
     canvas.style.width  = VW + "px";
     canvas.style.height = VH + "px";
     isPortrait = VH > VW;
@@ -11416,24 +11417,28 @@
     ctx.fillRect(0, 0, VW, FIELD_TOP);
     ctx.fillStyle = "rgba(255,255,255,0.06)";
     ctx.fillRect(0, FIELD_TOP - 2, VW, 2);
-    // DEBUG temporal: overlay de dimensiones FIJADO AL TOPE del canvas en
-    // coords del transform (siempre visible si el canvas en sí está visible).
+    // DEBUG temporal: overlay con dimensiones + offsets del visualViewport.
     var dbgRect = canvas.getBoundingClientRect();
-    var dbgLine = "VW=" + Math.round(VW) + " VH=" + Math.round(VH)
+    var dvv = window.visualViewport;
+    var dbgLine1 = "VW=" + Math.round(VW) + " VH=" + Math.round(VH)
       + " rect=" + Math.round(dbgRect.width) + "x" + Math.round(dbgRect.height)
-      + " FT=" + Math.round(FIELD_TOP) + " FB=" + Math.round(FIELD_BOTTOM)
-      + " sT=" + Math.round(safeTop) + " sB=" + Math.round(safeBottom)
-      + " t=" + Math.round(state.time);
+      + " FT=" + Math.round(FIELD_TOP);
+    var dbgLine2 = "rectTop=" + Math.round(dbgRect.top) + " rectLeft=" + Math.round(dbgRect.left)
+      + " vvOT=" + (dvv ? Math.round(dvv.offsetTop) : "-")
+      + " vvOL=" + (dvv ? Math.round(dvv.offsetLeft) : "-")
+      + " scY=" + Math.round(window.scrollY || 0);
     ctx.save();
     ctx.font = "bold 11px monospace";
     ctx.textAlign = "left";
     ctx.textBaseline = "top";
-    var tw = ctx.measureText(dbgLine).width;
-    // Banda magenta brillante para que destaque sin importar el color de fondo.
+    var tw1 = ctx.measureText(dbgLine1).width;
+    var tw2 = ctx.measureText(dbgLine2).width;
+    var tw = Math.max(tw1, tw2);
     ctx.fillStyle = "#ff00cc";
-    ctx.fillRect(0, 0, tw + 8, 18);
+    ctx.fillRect(0, 0, tw + 8, 36);
     ctx.fillStyle = "#000000";
-    ctx.fillText(dbgLine, 4, 3);
+    ctx.fillText(dbgLine1, 4, 3);
+    ctx.fillText(dbgLine2, 4, 19);
     ctx.restore();
 
     var leftX = safeLeft + 12;
@@ -12874,14 +12879,10 @@
   }
 
   function render() {
-    // Defensive: iOS Chrome/Safari pueden cambiar el visualViewport sin
-    // disparar resize. Si VW/VH o offsetTop cambiaron, forzar relayout.
     var vv = window.visualViewport;
     if (vv) {
       if (Math.abs(vv.width  - VW) > 0.5 ||
-          Math.abs(vv.height - VH) > 0.5 ||
-          parseFloat(canvas.style.top  || "0") !== vv.offsetTop ||
-          parseFloat(canvas.style.left || "0") !== vv.offsetLeft) {
+          Math.abs(vv.height - VH) > 0.5) {
         resize();
       }
     } else {

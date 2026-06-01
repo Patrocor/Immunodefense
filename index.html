@@ -3235,9 +3235,11 @@
         nUnlocked++;
       }
     }
-    // Recalcular layout para que UI.responsePanel y el strip de torres se
-    // dimensionen para esta fase (sino quedaban con la geometría de Fase 1).
-    layoutUI();
+    // Recalcular layout completo: el navegador móvil puede haber mostrado/
+    // ocultado la barra de URL durante la transición, dejando FIELD_W/FIELD_H
+    // desincronizados. resize() vuelve a leer window.innerWidth/Height y
+    // recalcula todas las dimensiones derivadas (UI + DRIPs + medicamento).
+    resize();
     // Limpieza del campo de Fase 1.
     state.enemies.length = 0;
     state.towers.length = 0;
@@ -12895,6 +12897,11 @@
   }
 
   function render() {
+    // Defensive: iOS Safari oculta/muestra la barra de URL sin disparar
+    // 'resize' siempre. Detectamos cambio de viewport y forzamos relayout.
+    if (window.innerWidth !== VW || window.innerHeight !== VH) {
+      resize();
+    }
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
     // Shake offset for life loss only (defeat overlay is calm/elegant per spec).

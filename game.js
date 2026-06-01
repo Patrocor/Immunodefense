@@ -11404,6 +11404,23 @@
     ctx.fillRect(0, 0, VW, FIELD_TOP);
     ctx.fillStyle = "rgba(255,255,255,0.06)";
     ctx.fillRect(0, FIELD_TOP - 2, VW, 2);
+    // DEBUG temporal: overlay de dimensiones en esquina inferior izquierda.
+    // Quita esto cuando el bug de layout esté confirmado/arreglado.
+    var dbgRect = canvas.getBoundingClientRect();
+    var dbgLine = "VW=" + Math.round(VW) + " VH=" + Math.round(VH)
+      + " rect=" + Math.round(dbgRect.width) + "x" + Math.round(dbgRect.height)
+      + " FT=" + Math.round(FIELD_TOP) + " FB=" + Math.round(FIELD_BOTTOM)
+      + " sT=" + Math.round(safeTop) + " sB=" + Math.round(safeBottom);
+    ctx.save();
+    ctx.font = "bold 10px monospace";
+    ctx.textAlign = "left";
+    ctx.textBaseline = "bottom";
+    var tw = ctx.measureText(dbgLine).width;
+    ctx.fillStyle = "rgba(0,0,0,0.85)";
+    ctx.fillRect(2, VH - 16, tw + 6, 14);
+    ctx.fillStyle = "#ffd24a";
+    ctx.fillText(dbgLine, 4, VH - 4);
+    ctx.restore();
 
     var leftX = safeLeft + 12;
     if (isPortrait) {

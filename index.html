@@ -16,7 +16,8 @@
     margin: 0; padding: 0;
     overflow: hidden;
     background: #1a0e12;
-    width: 100%; height: 100%;
+    width: 100%;
+    height: 100%;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Fredoka, sans-serif;
     color: #fff;
     user-select: none;
@@ -24,12 +25,10 @@
     touch-action: none;
     overscroll-behavior: none;
   }
-  /* Canvas position/size se controla 100% desde JS via visualViewport para
-     evitar quirks de iOS Chrome con position:fixed + URL bar transitions. */
   #canvas {
     display: block;
-    position: fixed;
-    top: 0; left: 0;
+    width: 100%;
+    height: 100%;
     background: #1a0e12;
     touch-action: none;
   }
@@ -49,6 +48,12 @@
 <body>
 <canvas id="canvas"></canvas>
 <div id="__safe_probe"></div>
+<!-- DEBUG: medida ground-truth en HTML, fuera del canvas. Tres barras de
+     color en TOP/MID/BOTTOM del viewport. Si el canvas está bien alineado,
+     la banda magenta (canvas y=0) debería coincidir con la barra ROJA arriba. -->
+<div id="dbg-top"    style="position:fixed; top:0;    left:0; right:0; height:6px; background:#ff0000; z-index:9999; pointer-events:none;"></div>
+<div id="dbg-mid"    style="position:fixed; top:50%;  left:0; right:0; height:6px; background:#00ff00; z-index:9999; pointer-events:none; transform:translateY(-3px);"></div>
+<div id="dbg-bottom" style="position:fixed; bottom:0; left:0; right:0; height:6px; background:#0080ff; z-index:9999; pointer-events:none;"></div>
 <script src="game.js" defer></script>
 </body>
 </html>

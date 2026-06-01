@@ -245,22 +245,12 @@
     // resize: top/left absolutos, width/height del viewport visual. Cubre
     // iOS Chrome (que ignora position:fixed durante transiciones de la URL
     // bar) y iOS Safari por igual.
-    var vv = window.visualViewport;
-    if (vv) {
-      VW = vv.width;
-      VH = vv.height;
-    } else {
-      VW = window.innerWidth;
-      VH = window.innerHeight;
-    }
-    // SIEMPRE forzar top:0 left:0 — no usar vv.offsetTop/Left (en iOS Chrome
-    // ese offset puede ser non-cero durante transiciones de la URL bar y
-    // termina empujando el canvas fuera del viewport visible).
-    canvas.style.top    = "0px";
-    canvas.style.left   = "0px";
-    canvas.style.width  = VW + "px";
-    canvas.style.height = VH + "px";
+    // Tamaño RENDERIZADO real del canvas (lo decide el CSS: 100%/100%).
+    var rect = canvas.getBoundingClientRect();
+    VW = rect.width  || window.innerWidth;
+    VH = rect.height || window.innerHeight;
     isPortrait = VH > VW;
+    // Solo ajustamos el pixel buffer; nunca tocamos canvas.style.
     canvas.width  = Math.max(1, Math.floor(VW * dpr));
     canvas.height = Math.max(1, Math.floor(VH * dpr));
     readSafeAreas();

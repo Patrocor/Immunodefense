@@ -12849,16 +12849,15 @@
   }
 
   function render() {
-    var vv = window.visualViewport;
-    if (vv) {
-      if (Math.abs(vv.width  - VW) > 0.5 ||
-          Math.abs(vv.height - VH) > 0.5) {
-        resize();
-      }
-    } else {
-      if (window.innerWidth !== VW || window.innerHeight !== VH) {
-        resize();
-      }
+    // Comparamos rect del canvas con VW/VH (que fue derivado del mismo rect
+    // en resize). Si difieren, el body cambió de tamaño y hay que reflotar.
+    // NUNCA comparar contra visualViewport — esa métrica difiere del tamaño
+    // real renderizado del canvas y dispararía resize() en cada frame.
+    var rect = canvas.getBoundingClientRect();
+    if (rect.width  > 0 && rect.height > 0 &&
+        (Math.abs(rect.width  - VW) > 0.5 ||
+         Math.abs(rect.height - VH) > 0.5)) {
+      resize();
     }
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
@@ -12912,27 +12911,16 @@
       drawMegakaryocyte();
       drawPlaquetaPickups();
       drawRangeHint();
-      // SAFETY: reset entre cada entidad para que un translate sin restore
-      // dentro de un drawEnemy/drawTower no contamine al siguiente.
       for (var j = 0; j < state.enemies.length; j++) {
         var ej = state.enemies[j];
-        if (!ej.absorbing) {
-          ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-          drawEnemy(ej);
-        }
+        if (!ej.absorbing) drawEnemy(ej);
       }
       if (!state.dissemination) drawVessel();
       for (var jb = 0; jb < state.enemies.length; jb++) {
         var ejb = state.enemies[jb];
-        if (ejb.absorbing) {
-          ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-          drawEnemy(ejb);
-        }
+        if (ejb.absorbing) drawEnemy(ejb);
       }
-      for (var i = 0; i < state.towers.length; i++) {
-        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-        drawTower(state.towers[i]);
-      }
+      for (var i = 0; i < state.towers.length; i++) drawTower(state.towers[i]);
       drawGuardians();
       drawFragments();
       drawCannonShots();

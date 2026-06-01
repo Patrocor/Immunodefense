@@ -1356,7 +1356,7 @@
         ctx.font = "bold " + Math.floor(8 * U) + "px Fredoka, sans-serif";
         ctx.textAlign = "center";
         ctx.textBaseline = "top";
-        ctx.fillText("TAP", 0, gR * 3.2);
+        ctx.fillText("TAP", 0, hR * 3.2);
       }
       ctx.restore();
     }
@@ -11408,21 +11408,6 @@
     ctx.fillRect(0, 0, VW, FIELD_TOP);
     ctx.fillStyle = "rgba(255,255,255,0.06)";
     ctx.fillRect(0, FIELD_TOP - 2, VW, 2);
-    // DEBUG: si hay un error reciente de rendering, mostrarlo arriba.
-    if (window.__rerr && (state.time - window.__rerr.at) < 30) {
-      ctx.save();
-      var dbgTxt = "ERR " + window.__rerr.name + ": " + window.__rerr.msg;
-      if (dbgTxt.length > 80) dbgTxt = dbgTxt.substring(0, 80);
-      ctx.font = "bold 10px monospace";
-      ctx.textAlign = "left";
-      ctx.textBaseline = "top";
-      var tw = ctx.measureText(dbgTxt).width;
-      ctx.fillStyle = "#ff00cc";
-      ctx.fillRect(0, 0, tw + 6, 16);
-      ctx.fillStyle = "#000";
-      ctx.fillText(dbgTxt, 3, 3);
-      ctx.restore();
-    }
 
     var leftX = safeLeft + 12;
     if (isPortrait) {

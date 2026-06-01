@@ -11403,37 +11403,13 @@
   }
 
   function drawHUD() {
-    // SAFETY: resetear cualquier transform acumulado por draw calls
-    // anteriores. Si alguna función olvidó un ctx.restore(), el HUD
-    // termina shifteado y aparece donde no debe.
+    // SAFETY: setTransform reset al inicio. Si algún draw del field dejó
+    // un translate sin restore, el HUD no se dibuja shifteado.
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.fillStyle = "#3a2530";
     ctx.fillRect(0, 0, VW, FIELD_TOP);
     ctx.fillStyle = "rgba(255,255,255,0.06)";
     ctx.fillRect(0, FIELD_TOP - 2, VW, 2);
-    // DEBUG temporal: overlay con dimensiones + offsets del visualViewport.
-    var dbgRect = canvas.getBoundingClientRect();
-    var dvv = window.visualViewport;
-    var dbgLine1 = "VW=" + Math.round(VW) + " VH=" + Math.round(VH)
-      + " rect=" + Math.round(dbgRect.width) + "x" + Math.round(dbgRect.height)
-      + " FT=" + Math.round(FIELD_TOP);
-    var dbgLine2 = "rectTop=" + Math.round(dbgRect.top) + " rectLeft=" + Math.round(dbgRect.left)
-      + " vvOT=" + (dvv ? Math.round(dvv.offsetTop) : "-")
-      + " vvOL=" + (dvv ? Math.round(dvv.offsetLeft) : "-")
-      + " scY=" + Math.round(window.scrollY || 0);
-    ctx.save();
-    ctx.font = "bold 11px monospace";
-    ctx.textAlign = "left";
-    ctx.textBaseline = "top";
-    var tw1 = ctx.measureText(dbgLine1).width;
-    var tw2 = ctx.measureText(dbgLine2).width;
-    var tw = Math.max(tw1, tw2);
-    ctx.fillStyle = "#ff00cc";
-    ctx.fillRect(0, 0, tw + 8, 36);
-    ctx.fillStyle = "#000000";
-    ctx.fillText(dbgLine1, 4, 3);
-    ctx.fillText(dbgLine2, 4, 19);
-    ctx.restore();
 
     var leftX = safeLeft + 12;
     if (isPortrait) {

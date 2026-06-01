@@ -48,12 +48,6 @@
 <body>
 <canvas id="canvas"></canvas>
 <div id="__safe_probe"></div>
-<!-- DEBUG: medida ground-truth en HTML, fuera del canvas. Tres barras de
-     color en TOP/MID/BOTTOM del viewport. Si el canvas está bien alineado,
-     la banda magenta (canvas y=0) debería coincidir con la barra ROJA arriba. -->
-<div id="dbg-top"    style="position:fixed; top:0;    left:0; right:0; height:6px; background:#ff0000; z-index:9999; pointer-events:none;"></div>
-<div id="dbg-mid"    style="position:fixed; top:50%;  left:0; right:0; height:6px; background:#00ff00; z-index:9999; pointer-events:none; transform:translateY(-3px);"></div>
-<div id="dbg-bottom" style="position:fixed; bottom:0; left:0; right:0; height:6px; background:#0080ff; z-index:9999; pointer-events:none;"></div>
 <script src="game.js" defer></script>
 </body>
 </html>

@@ -11404,22 +11404,24 @@
     ctx.fillRect(0, 0, VW, FIELD_TOP);
     ctx.fillStyle = "rgba(255,255,255,0.06)";
     ctx.fillRect(0, FIELD_TOP - 2, VW, 2);
-    // DEBUG temporal: overlay de dimensiones en esquina inferior izquierda.
-    // Quita esto cuando el bug de layout esté confirmado/arreglado.
+    // DEBUG temporal: overlay de dimensiones FIJADO AL TOPE del canvas en
+    // coords del transform (siempre visible si el canvas en sí está visible).
     var dbgRect = canvas.getBoundingClientRect();
     var dbgLine = "VW=" + Math.round(VW) + " VH=" + Math.round(VH)
       + " rect=" + Math.round(dbgRect.width) + "x" + Math.round(dbgRect.height)
       + " FT=" + Math.round(FIELD_TOP) + " FB=" + Math.round(FIELD_BOTTOM)
-      + " sT=" + Math.round(safeTop) + " sB=" + Math.round(safeBottom);
+      + " sT=" + Math.round(safeTop) + " sB=" + Math.round(safeBottom)
+      + " t=" + Math.round(state.time);
     ctx.save();
-    ctx.font = "bold 10px monospace";
+    ctx.font = "bold 11px monospace";
     ctx.textAlign = "left";
-    ctx.textBaseline = "bottom";
+    ctx.textBaseline = "top";
     var tw = ctx.measureText(dbgLine).width;
-    ctx.fillStyle = "rgba(0,0,0,0.85)";
-    ctx.fillRect(2, VH - 16, tw + 6, 14);
-    ctx.fillStyle = "#ffd24a";
-    ctx.fillText(dbgLine, 4, VH - 4);
+    // Banda magenta brillante para que destaque sin importar el color de fondo.
+    ctx.fillStyle = "#ff00cc";
+    ctx.fillRect(0, 0, tw + 8, 18);
+    ctx.fillStyle = "#000000";
+    ctx.fillText(dbgLine, 4, 3);
     ctx.restore();
 
     var leftX = safeLeft + 12;

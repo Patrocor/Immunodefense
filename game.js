@@ -241,14 +241,26 @@
   function resize() {
     var oldPathTotal = PATH.total || 0;
     dpr = Math.max(1, window.devicePixelRatio || 1);
-    // Leer el TAMAÑO REAL del canvas via getBoundingClientRect — el CSS
-    // (100%/100%) lo dimensiona contra el body. Esto evita el mismatch entre
-    // VH stale (innerHeight/visualViewport) y el tamaño real renderizado.
-    var rect = canvas.getBoundingClientRect();
-    VW = rect.width  || window.innerWidth;
-    VH = rect.height || window.innerHeight;
+    // Posicionamos y dimensionamos el canvas vía visualViewport en cada
+    // resize: top/left absolutos, width/height del viewport visual. Cubre
+    // iOS Chrome (que ignora position:fixed durante transiciones de la URL
+    // bar) y iOS Safari por igual.
+    var vv = window.visualViewport;
+    if (vv) {
+      VW = vv.width;
+      VH = vv.height;
+      canvas.style.left = vv.offsetLeft + "px";
+      canvas.style.top  = vv.offsetTop  + "px";
+    } else {
+      VW = window.innerWidth;
+      VH = window.innerHeight;
+      canvas.style.left = "0px";
+      canvas.style.top  = "0px";
+    }
+    canvas.style.width  = VW + "px";
+    canvas.style.height = VH + "px";
     isPortrait = VH > VW;
-    canvas.width = Math.max(1, Math.floor(VW * dpr));
+    canvas.width  = Math.max(1, Math.floor(VW * dpr));
     canvas.height = Math.max(1, Math.floor(VH * dpr));
     readSafeAreas();
     layout();
@@ -12862,12 +12874,20 @@
   }
 
   function render() {
-    // Defensive: iOS Safari puede cambiar el tamaño del canvas (URL bar
-    // mostrar/ocultar) sin disparar resize. Comparamos contra rect real.
-    var rect = canvas.getBoundingClientRect();
-    if (rect.width && rect.height &&
-        (Math.abs(rect.width - VW) > 0.5 || Math.abs(rect.height - VH) > 0.5)) {
-      resize();
+    // Defensive: iOS Chrome/Safari pueden cambiar el visualViewport sin
+    // disparar resize. Si VW/VH o offsetTop cambiaron, forzar relayout.
+    var vv = window.visualViewport;
+    if (vv) {
+      if (Math.abs(vv.width  - VW) > 0.5 ||
+          Math.abs(vv.height - VH) > 0.5 ||
+          parseFloat(canvas.style.top  || "0") !== vv.offsetTop ||
+          parseFloat(canvas.style.left || "0") !== vv.offsetLeft) {
+        resize();
+      }
+    } else {
+      if (window.innerWidth !== VW || window.innerHeight !== VH) {
+        resize();
+      }
     }
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 

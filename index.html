@@ -926,17 +926,17 @@
       upgradeCost: [120, 200]
     },
     plaqueta: {
-      id: "plaqueta", name: "Plaqueta", shortName: "Plaqueta",
+      id: "plaqueta", name: "Malla de fibrina", shortName: "Fibrina",
       color: "#E8A020", colorDark: "#8A5010", cost: 30,
-      desc: "Racimo obstructor: tanque que frena gérmenes",
-      disseminationOnly: true,        // solo aparece en diseminación
-      obstructs: true,                // bloquea el avance del germen al contacto
-      obstructRadius: 24,             // radio (en px base, multiplicado por U) de obstrucción
-      slowOnHit: { dur: 2.0, mult: 0.40 }, // ralentiza al impactar
+      desc: "Panal hemostático: barrera larga que obstruye el carril",
+      disseminationOnly: true,
+      obstructs: true,
+      obstructRX: 52, obstructRY: 18,   // elipse de obstrucción (forma larga)
+      slowOnHit: { dur: 2.0, mult: 0.40 },
       levels: [
-        { range:  90, damage: 1, fireRate: 1.0, projectileSpeed: 300, splash: 0, hp: 150 },
-        { range: 100, damage: 2, fireRate: 1.2, projectileSpeed: 340, splash: 0, hp: 220 },
-        { range: 110, damage: 3, fireRate: 1.4, projectileSpeed: 380, splash: 0, hp: 320 }
+        { range:  90, damage: 1, fireRate: 1.0, projectileSpeed: 300, splash: 0, hp: 200 },
+        { range: 100, damage: 2, fireRate: 1.2, projectileSpeed: 340, splash: 0, hp: 300 },
+        { range: 110, damage: 3, fireRate: 1.4, projectileSpeed: 380, splash: 0, hp: 420 }
       ],
       upgradeCost: [40, 65]
     }
@@ -1372,39 +1372,35 @@
       ctx.beginPath();
       ctx.arc(0, 0, 22 * U, 0, Math.PI * 2);
       ctx.fill();
-      // Mini racimo (replica de la plaqueta torre, escalado)
-      var gR = 4 * U;
-      var rows = [
-        { y: -gR * 1.6, n: 1 },
-        { y: -gR * 0.4, n: 2 },
-        { y:  gR * 0.8, n: 3 },
-        { y:  gR * 2.0, n: 2 }
+      // Mini malla de fibrina (3 hexágonos en triángulo)
+      var hR = 5 * U;
+      var hW = hR * Math.sqrt(3);
+      var hH = hR * 1.5;
+      var miniCells = [
+        { x: -hW * 0.5, y: -hH * 0.25 },
+        { x:  hW * 0.5, y: -hH * 0.25 },
+        { x: 0,         y:  hH * 0.75 }
       ];
-      // Tallito
-      ctx.strokeStyle = "#7a5a18";
-      ctx.lineWidth = Math.max(0.9, 1.0 * U);
-      ctx.beginPath();
-      ctx.moveTo(0, -gR * 3.2);
-      ctx.lineTo(0, -gR * 2.0);
-      ctx.stroke();
-      for (var r = 0; r < rows.length; r++) {
-        var row = rows[r];
-        var totalW = (row.n - 1) * gR * 1.7;
-        for (var c = 0; c < row.n; c++) {
-          var gx = -totalW / 2 + c * gR * 1.7;
-          var gy = row.y;
-          var grd = ctx.createRadialGradient(gx - gR * 0.35, gy - gR * 0.35, gR * 0.15, gx, gy, gR);
-          grd.addColorStop(0, "#FFEBB0");
-          grd.addColorStop(0.55, "#E8A020");
-          grd.addColorStop(1, "#8A5010");
-          ctx.fillStyle = grd;
-          ctx.beginPath();
-          ctx.arc(gx, gy, gR, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.strokeStyle = "#5A3408";
-          ctx.lineWidth = Math.max(0.7, 0.9 * U);
-          ctx.stroke();
+      for (var mc = 0; mc < miniCells.length; mc++) {
+        var cell = miniCells[mc];
+        var grd = ctx.createRadialGradient(cell.x - hR * 0.3, cell.y - hR * 0.3, hR * 0.15, cell.x, cell.y, hR);
+        grd.addColorStop(0, "#FFEBB0");
+        grd.addColorStop(0.55, "#E8A020");
+        grd.addColorStop(1, "#8A5010");
+        ctx.fillStyle = grd;
+        ctx.beginPath();
+        for (var hh = 0; hh < 6; hh++) {
+          var ha = (Math.PI / 3) * hh + Math.PI / 6;
+          var hx = cell.x + Math.cos(ha) * hR;
+          var hy = cell.y + Math.sin(ha) * hR;
+          if (hh === 0) ctx.moveTo(hx, hy);
+          else ctx.lineTo(hx, hy);
         }
+        ctx.closePath();
+        ctx.fill();
+        ctx.strokeStyle = "#5A3408";
+        ctx.lineWidth = Math.max(0.7, 0.9 * U);
+        ctx.stroke();
       }
       // Badge "TAP" sutil cuando lleva tiempo madura
       if (state.time - p.bornAt > 0.6) {
@@ -1685,12 +1681,12 @@
       affinity: "Monocito · Mieloide"
     },
     plaqueta: {
-      strong: "Tanque obstructor: bloquea y aguanta mucho",
+      strong: "Panal hemostático: barrera larga que obstruye el carril",
       weak: "Daño mínimo — necesita acompañantes que rematen",
       synergyWith: ["complemento", "neutrofilo"],
       potentiates: ["complemento", "neutrofilo"],
       bestIn: ["sangre"],
-      affinity: "Trombocito · Hemostasia"
+      affinity: "Fibrina · Coagulación"
     }
   };
   var ENEMY_LORE = {
@@ -3796,25 +3792,23 @@
       if (state.dissemination && e.thrombusUntil && state.time < e.thrombusUntil) {
         pxSpeed = 0;
       }
-      // Plaqueta: si el germen entra en su radio de obstrucción, se detiene
+      // Fibrina: si el germen entra en su elipse de obstrucción, se detiene
       // y aplica daño de contacto recíproco (mínimo al germen, mayor a la
-      // plaqueta — su HP alta lo soporta).
+      // malla — su HP alta lo soporta).
       if (state.dissemination) {
         for (var pli = 0; pli < state.towers.length; pli++) {
           var ptw = state.towers[pli];
           if (!ptw.def.obstructs || ptw.hp <= 0) continue;
-          var oR = (ptw.def.obstructRadius || 22) * U;
-          var ddx = ptw.x - e.x, ddy = ptw.y - e.y;
-          if (ddx * ddx + ddy * ddy <= oR * oR) {
+          var oRX = (ptw.def.obstructRX || 22) * U;
+          var oRY = (ptw.def.obstructRY || 22) * U;
+          var ddx = (ptw.x - e.x) / oRX;
+          var ddy = (ptw.y - e.y) / oRY;
+          if (ddx * ddx + ddy * ddy <= 1) {
             pxSpeed = 0;
-            // Daño de contacto: germen pierde 0.6 dmg/s, plaqueta pierde 4 dmg/s.
             e.hp -= 0.6 * dt;
             ptw.hp -= 4 * dt;
             ptw.dmgAccum = (ptw.dmgAccum || 0) + 4 * dt;
             ptw.hitFlash = 0.10;
-            if (e.hp <= 0 && !e.dying) {
-              // muerte por contacto — re-usa flujo estándar más abajo
-            }
             break;
           }
         }
@@ -8974,132 +8968,148 @@
 
   // MASTOCITO — cuerpo GRUMOSO (borde con bultos) repleto de gránulos (alerta).
   function drawPlaqueta(t, pulse, expression, blink) {
-    // Racimo de plaquetas: cluster de "uvas" doradas — tanque/obstructor.
-    var R = 22 * U * pulse;   // mayor tamaño que antes (es voluminoso)
+    // MALLA DE FIBRINA: panal hexagonal largo — tanque obstructor.
+    // Forma horizontal con 3 filas offset de hexágonos, ~3x tamaño anterior.
     ctx.save(); ctx.translate(t.x, t.y);
-    // Sombra ancha
-    ctx.fillStyle = "rgba(0,0,0,0.28)";
-    ctx.beginPath(); ctx.ellipse(0, R * 0.55, R * 1.20, R * 0.35, 0, 0, Math.PI * 2); ctx.fill();
-    // Halo de obstrucción sutil (indica el área que bloquea)
+
+    var hexR = 8 * U * pulse;                  // radio de cada celda
+    var hexW = hexR * Math.sqrt(3);            // ancho flat-top
+    var hexH = hexR * 1.5;                     // paso vertical (flat-top stagger)
+    // Layout: 3 filas, columnas 6/7/6 → forma larga
+    var cols = [6, 7, 6];
+    var rows = cols.length;
+    var totalW = 7 * hexW;                     // ancho dominante
+    var totalH = 3 * hexH + hexR * 0.5;
+
+    // Sombra ancha bajo la malla
+    ctx.fillStyle = "rgba(0,0,0,0.30)";
+    ctx.beginPath();
+    ctx.ellipse(0, totalH * 0.40, totalW * 0.55, totalH * 0.30, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Halo de obstrucción elíptico (área que bloquea)
     if (t.def.obstructs) {
       var bpulse = 0.5 + 0.5 * Math.sin(state.time * 2.5 + (t.idlePhase || 0));
       ctx.strokeStyle = "rgba(232, 160, 32, " + (0.22 + bpulse * 0.10) + ")";
       ctx.lineWidth = Math.max(1.0, 1.4 * U);
       ctx.beginPath();
-      ctx.arc(0, 0, (t.def.obstructRadius || 22) * U, 0, Math.PI * 2);
+      ctx.ellipse(0, 0, (t.def.obstructRX || 50) * U, (t.def.obstructRY || 18) * U, 0, 0, Math.PI * 2);
       ctx.stroke();
     }
-    // Animación de "disparo": pulso radial débil (daño minúsculo).
+
+    // Animación de "disparo": brillo pulsante en toda la malla
+    var shootGlow = 0;
     if ((t.attackAnim || 0) > 0) {
-      var pp = 1 - (t.attackAnim / 0.2);
-      ctx.strokeStyle = colorAlpha(t.def.color, 0.55 * (1 - pp));
-      ctx.lineWidth = 2 * U;
-      ctx.beginPath(); ctx.arc(0, 0, R * (0.9 + pp * 0.5), 0, Math.PI * 2); ctx.stroke();
+      shootGlow = (t.attackAnim / 0.2);
     }
 
-    // Tallo/pedúnculo arriba (verdoso)
-    ctx.strokeStyle = "#7a5a18";
-    ctx.lineWidth = Math.max(1.2, 1.6 * U);
-    ctx.beginPath();
-    ctx.moveTo(0, -R * 1.05);
-    ctx.quadraticCurveTo(R * 0.10, -R * 0.85, R * 0.05, -R * 0.65);
-    ctx.stroke();
-    // Hojita
-    ctx.fillStyle = "#6a8a3a";
-    ctx.beginPath();
-    ctx.ellipse(R * 0.30, -R * 0.95, R * 0.22, R * 0.10, -0.5, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = "#3a5a1a";
-    ctx.lineWidth = Math.max(0.8, 1.0 * U);
-    ctx.stroke();
-
-    // Racimo de plaquetas — patrón piramidal invertido (5 filas).
-    // Cada "uva" es una plaqueta pequeña con highlight propio.
-    var grapeR = R * 0.30;
-    function drawGrape(gx, gy, gr, depth) {
-      // depth 0..1 = más cerca / más al frente (más claro)
-      var grad = ctx.createRadialGradient(gx - gr * 0.4, gy - gr * 0.4, gr * 0.15, gx, gy, gr);
-      var hi = 0.7 + 0.3 * depth;
-      grad.addColorStop(0, "rgba(255, 235, 170, " + hi + ")");
-      grad.addColorStop(0.55, t.def.color);
-      grad.addColorStop(1, t.def.colorDark);
-      ctx.fillStyle = grad;
+    // Helper hexágono flat-top (lado plano arriba)
+    function drawHex(cx, cy, r, fillGrad, strokeColor, broken) {
       ctx.beginPath();
-      ctx.arc(gx, gy, gr, 0, Math.PI * 2);
+      for (var i = 0; i < 6; i++) {
+        var ang = (Math.PI / 3) * i + Math.PI / 6;
+        var x = cx + Math.cos(ang) * r;
+        var y = cy + Math.sin(ang) * r;
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.closePath();
+      if (broken) {
+        ctx.fillStyle = "rgba(20, 8, 4, 0.85)";
+        ctx.fill();
+        ctx.strokeStyle = "rgba(70, 30, 10, 0.55)";
+        ctx.lineWidth = Math.max(0.7, 0.9 * U);
+        ctx.stroke();
+        return;
+      }
+      ctx.fillStyle = fillGrad;
       ctx.fill();
-      ctx.strokeStyle = t.def.colorDark;
-      ctx.lineWidth = Math.max(0.9, 1.2 * U);
+      ctx.strokeStyle = strokeColor;
+      ctx.lineWidth = Math.max(1.0, 1.3 * U);
       ctx.stroke();
-      // Brillo
-      ctx.fillStyle = "rgba(255, 250, 220, 0.55)";
+      // Brillo interior superior izquierdo
+      ctx.fillStyle = "rgba(255, 245, 200, 0.45)";
       ctx.beginPath();
-      ctx.arc(gx - gr * 0.35, gy - gr * 0.40, gr * 0.30, 0, Math.PI * 2);
+      ctx.arc(cx - r * 0.30, cy - r * 0.30, r * 0.28, 0, Math.PI * 2);
       ctx.fill();
     }
 
-    // Filas: 1 + 2 + 3 + 2 + 1 (forma de racimo).
-    // Lista plana de uvas con prioridad: las primeras desaparecen primero
-    // cuando la plaqueta pierde vida (de afuera hacia el centro).
-    // priority 0..n; uvas con priority alta se ocultan primero.
-    var grapes = [
-      // (front) — orden: filas extremas primero (más periferia)
-      { x: 0,                 y: -R * 0.45, depth: 0.4, layer: "f", priority: 9 },  // top
-      { x: 0,                 y:  R * 0.65, depth: 0.5, layer: "f", priority: 8 },  // bottom
-      { x: -grapeR * 0.475,   y: -R * 0.18, depth: 0.7, layer: "f", priority: 7 },
-      { x:  grapeR * 0.475,   y: -R * 0.18, depth: 0.7, layer: "f", priority: 6 },
-      { x: -grapeR * 0.475,   y:  R * 0.38, depth: 0.7, layer: "f", priority: 5 },
-      { x:  grapeR * 0.475,   y:  R * 0.38, depth: 0.7, layer: "f", priority: 4 },
-      { x: -grapeR * 0.95,    y:  R * 0.10, depth: 1.0, layer: "f", priority: 3 },
-      { x:  grapeR * 0.95,    y:  R * 0.10, depth: 1.0, layer: "f", priority: 2 },
-      { x: 0,                 y:  R * 0.10, depth: 1.0, layer: "f", priority: 1 }   // center (último en irse)
-    ];
-    // Capa trasera (8 uvas) — replica los offsets de la frontal con shift.
-    var backGrapes = [];
-    for (var bg = 0; bg < grapes.length - 1; bg++) {
-      var g = grapes[bg];
-      backGrapes.push({
-        x: g.x + grapeR * 0.20,
-        y: g.y + grapeR * 0.15,
-        depth: g.depth * 0.6,
-        priority: g.priority
-      });
-    }
-    var totalGrapes = grapes.length;
-    var hpFrac = (t.maxHp && t.hp > 0) ? Math.max(0, t.hp / t.maxHp) : 1;
-    // Cuántas uvas mostrar (mínimo 1 si aún vive).
-    var visibleCount = Math.max(t.hp > 0 ? 1 : 0, Math.round(totalGrapes * hpFrac));
-    // Capa trasera primero (visible solo si hpFrac > 0.5).
-    if (hpFrac > 0.5) {
-      var backVisible = Math.round(backGrapes.length * (hpFrac - 0.5) * 2);
-      // Ordenar capa trasera por priority desc (igual que frontal).
-      backGrapes.sort(function (a, b) { return a.priority - b.priority; });
-      for (var ib = 0; ib < backVisible; ib++) {
-        var bgo = backGrapes[ib];
-        drawGrape(bgo.x, bgo.y, grapeR * 0.92, bgo.depth);
+    // Construir lista de celdas con su posición y prioridad (afuera→adentro)
+    // Para que al perder HP las celdas se rompan empezando por el borde.
+    var cells = [];
+    var startY = -totalH / 2 + hexR;
+    for (var ri = 0; ri < rows; ri++) {
+      var cy = startY + ri * hexH;
+      var nCols = cols[ri];
+      var rowStartX = -((nCols - 1) / 2) * hexW;
+      // Filas impares offset horizontal a la izquierda (stagger)
+      var rowOffset = (ri % 2 === 0) ? 0 : -hexW / 2;
+      for (var ci = 0; ci < nCols; ci++) {
+        var cx = rowStartX + ci * hexW + rowOffset;
+        // Prioridad: alta = se rompe primero. Distancia al centro normalizada.
+        var dCx = Math.abs(cx) / (totalW / 2);
+        var dCy = Math.abs(cy) / (totalH / 2);
+        var priority = dCx * 0.7 + dCy * 1.2;
+        cells.push({ x: cx, y: cy, p: priority });
       }
     }
-    // Capa frontal — ordenar por priority asc (mantener las de menor priority).
-    grapes.sort(function (a, b) { return a.priority - b.priority; });
-    for (var fi = 0; fi < visibleCount; fi++) {
-      var gf = grapes[fi];
-      drawGrape(gf.x, gf.y, grapeR, gf.depth);
+    // Orden ascendente por prioridad = mantenemos las centrales más tiempo
+    cells.sort(function (a, b) { return a.p - b.p; });
+
+    var hpFrac = (t.maxHp && t.hp > 0) ? Math.max(0, t.hp / t.maxHp) : 1;
+    var totalCells = cells.length;
+    var intactCount = Math.max(t.hp > 0 ? 1 : 0, Math.round(totalCells * hpFrac));
+
+    // Gradiente compartido para celdas vivas (estilo cera)
+    var cellFillBase = "#E8B040";
+    var cellStroke = t.def.colorDark;
+    for (var k = 0; k < totalCells; k++) {
+      var cell = cells[k];
+      var isIntact = k < intactCount;
+      if (isIntact) {
+        var fg = ctx.createRadialGradient(cell.x - hexR * 0.3, cell.y - hexR * 0.3, hexR * 0.15, cell.x, cell.y, hexR);
+        var glow = 0.85 + shootGlow * 0.40;
+        fg.addColorStop(0, "rgba(255, 235, 160, " + Math.min(1, glow) + ")");
+        fg.addColorStop(0.55, t.def.color);
+        fg.addColorStop(1, "#A06820");
+        drawHex(cell.x, cell.y, hexR, fg, cellStroke, false);
+      } else {
+        drawHex(cell.x, cell.y, hexR, null, null, true);
+      }
     }
 
-    // Indicador de daño global del racimo (HP bar)
+    // Hebras de fibrina conectando vértices (líneas finas radiales)
+    if (hpFrac > 0.2) {
+      ctx.strokeStyle = "rgba(232, 160, 32, " + (0.35 * hpFrac) + ")";
+      ctx.lineWidth = Math.max(0.6, 0.8 * U);
+      for (var s = 0; s < 6; s++) {
+        var ang = (Math.PI / 3) * s;
+        var x0 = Math.cos(ang) * totalW * 0.50;
+        var y0 = Math.sin(ang) * totalH * 0.55;
+        var x1 = Math.cos(ang) * totalW * 0.58;
+        var y1 = Math.sin(ang) * totalH * 0.65;
+        ctx.beginPath();
+        ctx.moveTo(x0, y0);
+        ctx.lineTo(x1, y1);
+        ctx.stroke();
+      }
+    }
+
+    // HP bar
     if (t.maxHp && t.hp < t.maxHp) {
-      var hpFrac = Math.max(0, t.hp / t.maxHp);
-      var hpW = R * 1.4;
+      var hpW = totalW * 0.7;
       ctx.fillStyle = "rgba(0,0,0,0.55)";
-      ctx.fillRect(-hpW / 2, -R * 1.30, hpW, 3 * U);
+      ctx.fillRect(-hpW / 2, -totalH * 0.65, hpW, 3 * U);
       ctx.fillStyle = hpFrac > 0.5 ? "#7adb8a" : hpFrac > 0.25 ? "#e8c84a" : "#e85a4a";
-      ctx.fillRect(-hpW / 2, -R * 1.30, hpW * hpFrac, 3 * U);
+      ctx.fillRect(-hpW / 2, -totalH * 0.65, hpW * hpFrac, 3 * U);
     }
 
-    // Cara minúscula en la uva central (depth máximo)
+    // Cara minúscula en la celda central
     ctx.save();
-    ctx.translate(0, R * 0.10);
-    towerFace(grapeR * 0.85, expression, blink, "neutral", "neutral");
+    ctx.translate(0, 0);
+    towerFace(hexR * 0.75, expression, blink, "neutral", "neutral");
     ctx.restore();
+
     ctx.restore();
   }
 
@@ -11234,47 +11244,33 @@
       ctx.beginPath(); ctx.arc(0, 0, R * 0.95, 0, Math.PI * 2); ctx.stroke();
       ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(0, 0, R * 0.28, 0, Math.PI * 2); ctx.fill();
     } else if (typeId === "plaqueta") {
-      // Plaqueta: mini racimo de uvas doradas (3 filas).
-      var gR = R * 0.26;
-      var minirows = [
-        { y: -R * 0.40, n: 1 },
-        { y: -R * 0.10, n: 2 },
-        { y:  R * 0.20, n: 3 },
-        { y:  R * 0.50, n: 2 }
-      ];
-      // Tallito
-      ctx.strokeStyle = "#7a5a18";
-      ctx.lineWidth = Math.max(1, R * 0.06);
-      ctx.beginPath();
-      ctx.moveTo(0, -R * 0.85);
-      ctx.lineTo(0, -R * 0.50);
-      ctx.stroke();
-      // Hojita
-      ctx.fillStyle = "#6a8a3a";
-      ctx.beginPath();
-      ctx.ellipse(R * 0.20, -R * 0.78, R * 0.18, R * 0.08, -0.5, 0, Math.PI * 2);
-      ctx.fill();
-      for (var mr = 0; mr < minirows.length; mr++) {
-        var rw = minirows[mr];
-        var totalW = (rw.n - 1) * gR * 0.95;
-        for (var mc = 0; mc < rw.n; mc++) {
-          var mgx = -totalW / 2 + mc * gR * 0.95;
-          var mgy = rw.y;
-          var grd2 = ctx.createRadialGradient(mgx - gR * 0.35, mgy - gR * 0.35, gR * 0.15, mgx, mgy, gR);
+      // Malla de fibrina: panal hexagonal pequeño (icono compendio).
+      var hxR = R * 0.32;
+      var hxW = hxR * Math.sqrt(3);
+      var hxH = hxR * 1.5;
+      // 2 filas de 3 hexágonos
+      for (var pri = 0; pri < 2; pri++) {
+        for (var pci = 0; pci < 3; pci++) {
+          var ox = (pci - 1) * hxW + (pri % 2 === 1 ? -hxW / 2 : 0);
+          var oy = (pri - 0.5) * hxH;
+          var grd2 = ctx.createRadialGradient(ox - hxR * 0.3, oy - hxR * 0.3, hxR * 0.15, ox, oy, hxR);
           grd2.addColorStop(0, "#FFEBB0");
           grd2.addColorStop(0.55, "#E8A020");
           grd2.addColorStop(1, "#8A5010");
           ctx.fillStyle = grd2;
           ctx.beginPath();
-          ctx.arc(mgx, mgy, gR, 0, Math.PI * 2);
+          for (var hi = 0; hi < 6; hi++) {
+            var ang = (Math.PI / 3) * hi + Math.PI / 6;
+            var hxx = ox + Math.cos(ang) * hxR;
+            var hxy = oy + Math.sin(ang) * hxR;
+            if (hi === 0) ctx.moveTo(hxx, hxy);
+            else ctx.lineTo(hxx, hxy);
+          }
+          ctx.closePath();
           ctx.fill();
           ctx.strokeStyle = "#5A3408";
           ctx.lineWidth = Math.max(0.8, 1.0 * U);
           ctx.stroke();
-          ctx.fillStyle = "rgba(255,250,220,0.55)";
-          ctx.beginPath();
-          ctx.arc(mgx - gR * 0.35, mgy - gR * 0.40, gR * 0.30, 0, Math.PI * 2);
-          ctx.fill();
         }
       }
     } else {
@@ -11754,7 +11750,7 @@
         ctx.font = "bold " + Math.max(10, Math.min(12, cw * 0.09)) + "px Fredoka, sans-serif";
         if (typeId === "plaqueta") {
           var rdy = (state.plaquetaPickups || []).length;
-          ctx.fillText("🍇 " + rdy + " listas", textX, cardY + ch * 0.70);
+          ctx.fillText("🔶 " + rdy + " listas", textX, cardY + ch * 0.70);
         } else {
           ctx.fillText((isComp ? "🧬 " : "⚡ ") + def.cost, textX, cardY + ch * 0.70);
         }

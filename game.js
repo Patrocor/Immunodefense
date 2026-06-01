@@ -11403,6 +11403,10 @@
   }
 
   function drawHUD() {
+    // SAFETY: resetear cualquier transform acumulado por draw calls
+    // anteriores. Si alguna función olvidó un ctx.restore(), el HUD
+    // termina shifteado y aparece donde no debe.
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.fillStyle = "#3a2530";
     ctx.fillRect(0, 0, VW, FIELD_TOP);
     ctx.fillStyle = "rgba(255,255,255,0.06)";
@@ -12972,6 +12976,9 @@
     // propio overlay). La cinemática vieja ya no se usa (era el placeholder
     // pre-puente); mantenerlo oculto rompía la jugabilidad si quedaba activo.
     if (!state.showTitle && !state.showIntro) {
+      // SAFETY: resetear el transform antes de UI. Si algún draw del field
+      // dejó un translate/save sin restore, la UI no se dibuja shifteada.
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       drawHUD();
       drawPanel();
       drawCompendiumButton();

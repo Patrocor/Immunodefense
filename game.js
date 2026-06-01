@@ -241,20 +241,15 @@
   function resize() {
     var oldPathTotal = PATH.total || 0;
     dpr = Math.max(1, window.devicePixelRatio || 1);
-    // visualViewport (Safari iOS) refleja URL bar reall; innerHeight a veces
-    // mantiene el alto previo de la barra colapsada y no se actualiza.
-    if (window.visualViewport) {
-      VW = window.visualViewport.width;
-      VH = window.visualViewport.height;
-    } else {
-      VW = window.innerWidth;
-      VH = window.innerHeight;
-    }
+    // Leer el TAMAÑO REAL del canvas via getBoundingClientRect — el CSS
+    // (100%/100%) lo dimensiona contra el body. Esto evita el mismatch entre
+    // VH stale (innerHeight/visualViewport) y el tamaño real renderizado.
+    var rect = canvas.getBoundingClientRect();
+    VW = rect.width  || window.innerWidth;
+    VH = rect.height || window.innerHeight;
     isPortrait = VH > VW;
     canvas.width = Math.max(1, Math.floor(VW * dpr));
     canvas.height = Math.max(1, Math.floor(VH * dpr));
-    canvas.style.width = VW + "px";
-    canvas.style.height = VH + "px";
     readSafeAreas();
     layout();
     rebuildPath();
@@ -12848,11 +12843,11 @@
   }
 
   function render() {
-    // Defensive: iOS Safari oculta/muestra la barra de URL sin disparar
-    // 'resize' siempre. Detectamos cambio de viewport y forzamos relayout.
-    var curW = window.visualViewport ? window.visualViewport.width  : window.innerWidth;
-    var curH = window.visualViewport ? window.visualViewport.height : window.innerHeight;
-    if (curW !== VW || curH !== VH) {
+    // Defensive: iOS Safari puede cambiar el tamaño del canvas (URL bar
+    // mostrar/ocultar) sin disparar resize. Comparamos contra rect real.
+    var rect = canvas.getBoundingClientRect();
+    if (rect.width && rect.height &&
+        (Math.abs(rect.width - VW) > 0.5 || Math.abs(rect.height - VH) > 0.5)) {
       resize();
     }
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -13542,16 +13537,9 @@
 
   window.addEventListener("resize", resize);
   window.addEventListener("orientationchange", resize);
-  // iOS Safari: visualViewport refleja la URL bar real, mejor que innerHeight.
   if (window.visualViewport) {
     window.visualViewport.addEventListener("resize", resize);
-    window.visualViewport.addEventListener("scroll", function () {
-      // Fuerza scroll a 0 — Safari a veces "desliza" la página aunque overflow:hidden.
-      window.scrollTo(0, 0);
-    });
   }
-  // Defensa final contra scroll inesperado del documento.
-  window.addEventListener("scroll", function () { window.scrollTo(0, 0); }, { passive: true });
   resize();
   requestAnimationFrame(loop);
 })();

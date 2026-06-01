@@ -12936,16 +12936,27 @@
       drawMegakaryocyte();
       drawPlaquetaPickups();
       drawRangeHint();
+      // SAFETY: reset entre cada entidad para que un translate sin restore
+      // dentro de un drawEnemy/drawTower no contamine al siguiente.
       for (var j = 0; j < state.enemies.length; j++) {
         var ej = state.enemies[j];
-        if (!ej.absorbing) drawEnemy(ej);
+        if (!ej.absorbing) {
+          ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+          drawEnemy(ej);
+        }
       }
       if (!state.dissemination) drawVessel();
       for (var jb = 0; jb < state.enemies.length; jb++) {
         var ejb = state.enemies[jb];
-        if (ejb.absorbing) drawEnemy(ejb);
+        if (ejb.absorbing) {
+          ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+          drawEnemy(ejb);
+        }
       }
-      for (var i = 0; i < state.towers.length; i++) drawTower(state.towers[i]);
+      for (var i = 0; i < state.towers.length; i++) {
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        drawTower(state.towers[i]);
+      }
       drawGuardians();
       drawFragments();
       drawCannonShots();
@@ -12976,19 +12987,26 @@
     // propio overlay). La cinemática vieja ya no se usa (era el placeholder
     // pre-puente); mantenerlo oculto rompía la jugabilidad si quedaba activo.
     if (!state.showTitle && !state.showIntro) {
-      // SAFETY: resetear el transform antes de UI. Si algún draw del field
-      // dejó un translate/save sin restore, la UI no se dibuja shifteada.
+      // SAFETY: resetear el transform antes de CADA función de UI. Si algún
+      // draw del field dejó un translate sin restore, ninguna UI se shiftea.
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       drawHUD();
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       drawPanel();
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       drawCompendiumButton();
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       drawComplementMeter();
-      if (state.dissemination) drawImmuneResponsePanel();
+      if (state.dissemination) {
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        drawImmuneResponsePanel();
+      }
     }
     // Mini aviso de nuevo germen: reactivo en tiempo real — se chequea cada
     // frame si HAY al menos un germen vivo en el campo cuyo tipo no esté
     // en vistos. Antes el aviso quedaba colgado cuando los gérmenes morían.
     if (!state.showTitle && !state.showIntro && !state.compendiumOpen) {
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       var hasUnseenAlive = false;
       for (var nAi = 0; nAi < state.enemies.length; nAi++) {
         var nAe = state.enemies[nAi];
@@ -13013,6 +13031,7 @@
       }
     }
     // Compendio: por encima de todo lo demás cuando está abierto.
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     drawCompendium();
     // Transición de fase: fundido a negro suave con texto narrativo.
     if (state.phaseTransition) {

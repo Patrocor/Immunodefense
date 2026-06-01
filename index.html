@@ -36,7 +36,7 @@
     width: 100vw;
     height: 100vh;
     height: 100dvh;
-    background: #f8e8e0;
+    background: #1a0e12;
     touch-action: none;
   }
   #__safe_probe {
@@ -7790,7 +7790,9 @@
 
   // -------- RENDER --------------------------------------------------------
   function clearCanvas() {
-    ctx.fillStyle = "#f8e8e0";
+    // Fondo oscuro siempre — evita que el canvas color se cuele por encima del
+    // HUD si VH cambia (URL bar de Safari iOS).
+    ctx.fillStyle = state.dissemination ? "#1a0e12" : "#f8e8e0";
     ctx.fillRect(0, 0, VW, VH);
     // Tissue speckles only over field area.
     ctx.fillStyle = "rgba(200, 140, 130, 0.18)";

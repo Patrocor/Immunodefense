@@ -11472,20 +11472,15 @@
       cx += ctx.measureText(atpStr).width + 14;
       ctx.font = "600 12px Fredoka, sans-serif";
       ctx.fillStyle = "rgba(220, 200, 200, 0.9)";
-      ctx.fillText("FASE 1", cx, midY);
-      cx += ctx.measureText("FASE 1").width + 14;
-      ctx.font = "700 13px Fredoka, sans-serif";
-      ctx.fillStyle = "#e0e0e0";
-      ctx.fillText("⌖ " + state.waveIdx, cx, midY);
+      var phaseLabel = state.dissemination ? "DISEMINACIÓN" : "FASE 1";
+      ctx.fillText(phaseLabel, cx, midY);
     } else {
       var statsY = safeTop + 8;
       var fontStat = Math.max(14, Math.min(20, VW * 0.018));
       var fontLabel = Math.max(10, Math.min(13, VW * 0.012));
       drawHudStat("⚡ ATP", state.atp, leftX, statsY, "#f5d76e", fontStat, fontLabel);
-      drawHudStat("⊛ Acto", "I — Invasion",
+      drawHudStat("⊛ Acto", state.dissemination ? "II — Diseminación" : "I — Invasión",
         leftX + Math.min(160, VW * 0.22), statsY, "#d6c0a0", fontStat, fontLabel);
-      drawHudStat("⌖ Oleada", "" + state.waveIdx,
-        leftX + Math.min(330, VW * 0.46), statsY, "#e0e0e0", fontStat, fontLabel);
     }
     // Viral load bar — full width below HUD, inside field area.
     drawViralBar();

@@ -11403,13 +11403,26 @@
   }
 
   function drawHUD() {
-    // SAFETY: setTransform reset al inicio. Si algún draw del field dejó
-    // un translate sin restore, el HUD no se dibuja shifteado.
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.fillStyle = "#3a2530";
     ctx.fillRect(0, 0, VW, FIELD_TOP);
     ctx.fillStyle = "rgba(255,255,255,0.06)";
     ctx.fillRect(0, FIELD_TOP - 2, VW, 2);
+    // DEBUG: si hay un error reciente de rendering, mostrarlo arriba.
+    if (window.__rerr && (state.time - window.__rerr.at) < 30) {
+      ctx.save();
+      var dbgTxt = "ERR " + window.__rerr.name + ": " + window.__rerr.msg;
+      if (dbgTxt.length > 80) dbgTxt = dbgTxt.substring(0, 80);
+      ctx.font = "bold 10px monospace";
+      ctx.textAlign = "left";
+      ctx.textBaseline = "top";
+      var tw = ctx.measureText(dbgTxt).width;
+      ctx.fillStyle = "#ff00cc";
+      ctx.fillRect(0, 0, tw + 6, 16);
+      ctx.fillStyle = "#000";
+      ctx.fillText(dbgTxt, 3, 3);
+      ctx.restore();
+    }
 
     var leftX = safeLeft + 12;
     if (isPortrait) {
@@ -12877,76 +12890,84 @@
     ctx.setTransform(dpr, 0, 0, dpr, shakeOff.x * dpr, shakeOff.y * dpr);
 
     // Strict render order per Sprint 4A spec.
-    // Wrapper: si algo en el field crashea, atrapamos para que HUD/Panel
-    // sigan visibles (clave en Safari iOS, más estricto que Chrome).
+    // Cada draw call envuelto individualmente — si uno tira excepción,
+    // el resto del frame sigue dibujando. Antes un solo error abortaba
+    // todo el field (gérmenes, torres, etc desaparecían).
     clearCanvas();
-    try {
-      if (state.dissemination) {
-        drawDisseminationField();
-        drawAntigenDrops();
-        drawDendriticStains();
-        drawNets();
-        if (state.dissemination) drawThrombi();
-      } else {
-        drawExteriorZone();
-        drawSkinZone();
-        drawSkinLayers();
-        drawCirculatoryZone();
-      }
-      drawAmbient();
-      if (!state.dissemination) drawMitosis();
-      if (!state.dissemination) drawPatrol();
-      drawTissue();
-      drawInflammation();
-      drawPath();
-      if (!state.dissemination) drawPlasmaFlow();
-      if (!state.dissemination) drawWound();
-      drawLymphNode();
-      drawRestos();
-      drawCollectors();
-      drawBarricada();
-      drawSlicks();
-      drawNecroticPatches();
-      drawAcidSplats();
-      drawMegakaryocyte();
-      drawPlaquetaPickups();
-      drawRangeHint();
-      for (var j = 0; j < state.enemies.length; j++) {
-        var ej = state.enemies[j];
-        if (!ej.absorbing) drawEnemy(ej);
-      }
-      if (!state.dissemination) drawVessel();
-      for (var jb = 0; jb < state.enemies.length; jb++) {
-        var ejb = state.enemies[jb];
-        if (ejb.absorbing) drawEnemy(ejb);
-      }
-      for (var i = 0; i < state.towers.length; i++) drawTower(state.towers[i]);
-      drawGuardians();
-      drawFragments();
-      drawCannonShots();
-      drawSeekers();
-      drawSynergyLines();   // líneas punteadas entre torres en sinergia
-      drawLymphDrop();
-      drawMedulaOsea();
-      drawUnlockPickups();
-      if (!state.dissemination) drawMedVial();
-      if (!state.dissemination) drawTopical();
-      for (var k = 0; k < state.projectiles.length; k++) drawProjectile(state.projectiles[k]);
-      drawGermShots();
-      for (var m = 0; m < state.effects.length; m++) drawEffect(state.effects[m]);
-      drawAcid();
-      drawGas();
-      drawGhost();
-      drawDamageNumbers();
-      drawAtmosphere();
-    } catch (e) {
-      // Si el field crashea, dejamos el HUD/Panel intactos. Solo registramos
-      // (la primera vez) para no inundar.
-      if (!window.__renderErrorLogged) {
-        window.__renderErrorLogged = true;
-        try { console.error("Render field error:", e); } catch (_) {}
+    function safeDraw(name, fn) {
+      try { fn(); }
+      catch (e) {
+        if (!window.__rerr || window.__rerr.name !== name) {
+          window.__rerr = { name: name, msg: String(e && (e.message || e)), at: state.time };
+          try { console.error("draw error:", name, e); } catch (_) {}
+        }
       }
     }
+    if (state.dissemination) {
+      safeDraw("DisseminationField", drawDisseminationField);
+      safeDraw("AntigenDrops", drawAntigenDrops);
+      safeDraw("DendriticStains", drawDendriticStains);
+      safeDraw("Nets", drawNets);
+      safeDraw("Thrombi", drawThrombi);
+    } else {
+      safeDraw("ExteriorZone", drawExteriorZone);
+      safeDraw("SkinZone", drawSkinZone);
+      safeDraw("SkinLayers", drawSkinLayers);
+      safeDraw("CirculatoryZone", drawCirculatoryZone);
+    }
+    safeDraw("Ambient", drawAmbient);
+    if (!state.dissemination) { safeDraw("Mitosis", drawMitosis); safeDraw("Patrol", drawPatrol); }
+    safeDraw("Tissue", drawTissue);
+    safeDraw("Inflammation", drawInflammation);
+    safeDraw("Path", drawPath);
+    if (!state.dissemination) { safeDraw("PlasmaFlow", drawPlasmaFlow); safeDraw("Wound", drawWound); }
+    safeDraw("LymphNode", drawLymphNode);
+    safeDraw("Restos", drawRestos);
+    safeDraw("Collectors", drawCollectors);
+    safeDraw("Barricada", drawBarricada);
+    safeDraw("Slicks", drawSlicks);
+    safeDraw("NecroticPatches", drawNecroticPatches);
+    safeDraw("AcidSplats", drawAcidSplats);
+    safeDraw("Megakaryocyte", drawMegakaryocyte);
+    safeDraw("PlaquetaPickups", drawPlaquetaPickups);
+    safeDraw("RangeHint", drawRangeHint);
+    // Loops de entidades: cada una en su propio try.
+    for (var j = 0; j < state.enemies.length; j++) {
+      var ej = state.enemies[j];
+      if (!ej.absorbing) safeDraw("Enemy:" + (ej.def && ej.def.id), function () { drawEnemy(ej); });
+    }
+    if (!state.dissemination) safeDraw("Vessel", drawVessel);
+    for (var jb = 0; jb < state.enemies.length; jb++) {
+      var ejb = state.enemies[jb];
+      if (ejb.absorbing) safeDraw("Enemy:" + (ejb.def && ejb.def.id), function () { drawEnemy(ejb); });
+    }
+    for (var i = 0; i < state.towers.length; i++) {
+      var tw = state.towers[i];
+      safeDraw("Tower:" + (tw.def && tw.def.id), function () { drawTower(tw); });
+    }
+    safeDraw("Guardians", drawGuardians);
+    safeDraw("Fragments", drawFragments);
+    safeDraw("CannonShots", drawCannonShots);
+    safeDraw("Seekers", drawSeekers);
+    safeDraw("SynergyLines", drawSynergyLines);
+    safeDraw("LymphDrop", drawLymphDrop);
+    safeDraw("MedulaOsea", drawMedulaOsea);
+    safeDraw("UnlockPickups", drawUnlockPickups);
+    if (!state.dissemination) { safeDraw("MedVial", drawMedVial); safeDraw("Topical", drawTopical); }
+    for (var k = 0; k < state.projectiles.length; k++) {
+      var pr = state.projectiles[k];
+      safeDraw("Projectile", function () { drawProjectile(pr); });
+    }
+    safeDraw("GermShots", drawGermShots);
+    for (var m = 0; m < state.effects.length; m++) {
+      var ef = state.effects[m];
+      safeDraw("Effect:" + (ef && ef.kind), function () { drawEffect(ef); });
+    }
+    safeDraw("Acid", drawAcid);
+    safeDraw("Gas", drawGas);
+    safeDraw("Ghost", drawGhost);
+    safeDraw("DamageNumbers", drawDamageNumbers);
+    safeDraw("Atmosphere", drawAtmosphere);
     // HUD y panel SIEMPRE visibles (excepto en title/intro, que tienen su
     // propio overlay). La cinemática vieja ya no se usa (era el placeholder
     // pre-puente); mantenerlo oculto rompía la jugabilidad si quedaba activo.

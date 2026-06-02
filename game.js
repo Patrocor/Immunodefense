@@ -13579,7 +13579,10 @@
 
   function enterHeroLevel(organId) {
     var def = HERO_LEVEL_ORGANS[organId] || HERO_LEVEL_ORGANS.corazon;
-    var startX = VW * 0.45;
+    // World-space: el nivel es más largo que el viewport (~3x). Cámara
+    // sigue al héroe, fondos parallax dan profundidad estilo Aladdin.
+    var levelWidth = VW * 3.0;
+    var startX = 60;                          // entrada izquierda del nivel
     var groundY = VH * 0.78;
     state.heroLevel = {
       active: true,
@@ -13587,6 +13590,10 @@
       def: def,
       time: 0,
       phase: "playing",
+      // Dimensiones del nivel + cámara.
+      levelWidth: levelWidth,
+      cameraX: 0,
+      finishX: levelWidth - 80,               // donde termina el nivel
       // Solo el ACTIVO está en el escenario. El otro espera "en reserva".
       // Al swap, el reserve aparece donde estaba el activo. Estilo DKC.
       activeHero: "denk",
@@ -13691,9 +13698,15 @@
       hero.grounded = true;
       hero.usedDoubleJump = false;
     }
-    // Bordes laterales del campo.
+    // Bordes del NIVEL (world-space, no viewport).
     if (hero.x < 14) hero.x = 14;
-    if (hero.x > VW - 14) hero.x = VW - 14;
+    if (hero.x > hl.levelWidth - 14) hero.x = hl.levelWidth - 14;
+
+    // Cámara: sigue al héroe activo manteniéndolo cerca del centro-izquierda.
+    var targetCamX = hero.x - VW * 0.35;
+    targetCamX = Math.max(0, Math.min(hl.levelWidth - VW, targetCamX));
+    // Lerp suave (smooth follow).
+    hl.cameraX += (targetCamX - hl.cameraX) * Math.min(1, dt * 6);
 
     // Reset edge-trigger.
     input.jumpPressedThisFrame = false;
@@ -13850,33 +13863,117 @@
     var hl = state.heroLevel;
     var def = hl.def;
 
-    // Fondo del órgano.
-    ctx.fillStyle = def.bg;
-    ctx.fillRect(0, 0, VW, VH);
+    // ──── ESCENA SCROLLEABLE ESTILO ALADDIN ────
+    // Mundo es 3x el viewport; cámara sigue al héroe. Parallax: 3 capas
+    // de fondo a velocidades distintas.
+    var cx = hl.cameraX;
+    var groundY = hl.groundY + 14;
 
-    // Pulso/latido sutil de fondo (más suave en piel, más fuerte en órganos).
-    var beat = 0.5 + 0.5 * Math.sin(hl.time * Math.PI * 2);
+    // Capa 0: gradiente vertical del cielo/tejido profundo (no scroll).
+    var skyGrad = ctx.createLinearGradient(0, 0, 0, groundY);
     if (hl.organ === "piel") {
-      // Piel: capas horizontales semitransparentes (epidermis/dermis/hipodermis).
-      ctx.fillStyle = "rgba(120, 60, 50, 0.30)";
-      ctx.fillRect(0, VH * 0.15, VW, VH * 0.15);
-      ctx.fillStyle = "rgba(160, 100, 80, 0.22)";
-      ctx.fillRect(0, VH * 0.30, VW, VH * 0.25);
-      ctx.fillStyle = "rgba(200, 160, 130, 0.16)";
-      ctx.fillRect(0, VH * 0.55, VW, VH * 0.23);
-      // Partículas de escombros flotantes (debris)
-      for (var dp = 0; dp < 14; dp++) {
-        var px = (dp * 71 + hl.time * 8) % VW;
-        var py = ((dp * 53) % (VH - 100)) + 80;
-        ctx.fillStyle = "rgba(80, 30, 25, 0.25)";
+      skyGrad.addColorStop(0, "#3a1410");        // arriba: tejido profundo
+      skyGrad.addColorStop(0.5, "#7a3a2e");
+      skyGrad.addColorStop(1, "#a06050");        // cerca del piso
+    } else {
+      skyGrad.addColorStop(0, def.bg);
+      skyGrad.addColorStop(1, def.bg);
+    }
+    ctx.fillStyle = skyGrad;
+    ctx.fillRect(0, 0, VW, groundY);
+
+    // Capa 1 (lejana, parallax 0.20x): siluetas de tejido + luz filtrada.
+    var p1x = -(cx * 0.20);
+    ctx.save();
+    ctx.translate(p1x, 0);
+    if (hl.organ === "piel") {
+      // Folículos pilosos lejanos (formas tubulares verticales).
+      ctx.fillStyle = "rgba(40, 15, 12, 0.55)";
+      for (var f1 = 0; f1 < 18; f1++) {
+        var fx = f1 * 220 - 60;
+        var fw = 24 + (f1 % 3) * 12;
+        var fh = 140 + (f1 % 4) * 60;
+        ctx.fillRect(fx, groundY - fh, fw, fh);
+        // base más ancha
         ctx.beginPath();
-        ctx.arc(px, py, 2 + (dp % 3), 0, Math.PI * 2);
+        ctx.ellipse(fx + fw/2, groundY - fh + 8, fw * 0.7, 14, 0, 0, Math.PI * 2);
         ctx.fill();
       }
-    } else {
-      ctx.fillStyle = "rgba(255, 100, 120, " + (0.04 + beat * 0.06) + ")";
-      ctx.fillRect(0, 0, VW, VH);
+      // Glándulas sebáceas como burbujas
+      ctx.fillStyle = "rgba(60, 25, 20, 0.45)";
+      for (var g1 = 0; g1 < 14; g1++) {
+        var gx = g1 * 280 + 90;
+        var gy = groundY - 60 - (g1 % 3) * 30;
+        ctx.beginPath();
+        ctx.arc(gx, gy, 22 + (g1 % 2) * 10, 0, Math.PI * 2);
+        ctx.fill();
+      }
     }
+    ctx.restore();
+
+    // Capa 2 (media, parallax 0.50x): vasos capilares cruzando, células.
+    var p2x = -(cx * 0.50);
+    ctx.save();
+    ctx.translate(p2x, 0);
+    if (hl.organ === "piel") {
+      // Vasos capilares onduladas (líneas rojizas serpenteando).
+      ctx.strokeStyle = "rgba(180, 40, 50, 0.55)";
+      ctx.lineWidth = 3;
+      for (var v = 0; v < 6; v++) {
+        var vy = 60 + v * 70;
+        ctx.beginPath();
+        ctx.moveTo(-50, vy);
+        for (var vx = 0; vx <= hl.levelWidth + 100; vx += 30) {
+          var wob = Math.sin(vx * 0.02 + v) * 10;
+          ctx.lineTo(vx, vy + wob);
+        }
+        ctx.stroke();
+      }
+      // Eritrocitos drifting.
+      ctx.fillStyle = "rgba(200, 50, 60, 0.60)";
+      for (var er = 0; er < 22; er++) {
+        var ex = (er * 170 + hl.time * 12) % (hl.levelWidth + 200) - 100;
+        var ey = 80 + (er * 47) % 380;
+        ctx.beginPath();
+        ctx.ellipse(ex, ey, 8, 5, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    ctx.restore();
+
+    // Capa 3 (cercana, parallax 0.85x): estrías de fibras de colágeno + zonas dañadas.
+    var p3x = -(cx * 0.85);
+    ctx.save();
+    ctx.translate(p3x, 0);
+    if (hl.organ === "piel") {
+      // Fibras de colágeno horizontales (líneas finas).
+      ctx.strokeStyle = "rgba(240, 200, 180, 0.18)";
+      ctx.lineWidth = 1;
+      for (var fb = 0; fb < 40; fb++) {
+        var fy = 100 + (fb * 23) % (groundY - 200);
+        var fxs = (fb * 137) % 400;
+        ctx.beginPath();
+        ctx.moveTo(fxs, fy);
+        ctx.lineTo(fxs + 250 + (fb % 3) * 80, fy + (fb % 5 - 2) * 4);
+        ctx.stroke();
+      }
+      // Zonas dañadas (manchas oscuras irregulares = escombros de la infección).
+      ctx.fillStyle = "rgba(15, 5, 8, 0.55)";
+      var damageSpots = [
+        { x: VW * 0.35, y: groundY - 220, r: 38 },
+        { x: VW * 1.10, y: groundY - 60, r: 50 },
+        { x: VW * 1.80, y: groundY - 140, r: 32 },
+        { x: VW * 2.30, y: groundY - 200, r: 44 },
+        { x: VW * 2.75, y: groundY - 100, r: 30 }
+      ];
+      for (var ds = 0; ds < damageSpots.length; ds++) {
+        var dsp = damageSpots[ds];
+        ctx.beginPath();
+        ctx.arc(dsp.x, dsp.y, dsp.r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    ctx.restore();
 
     // Header con título del órgano.
     ctx.fillStyle = def.accent;
@@ -13888,9 +13985,8 @@
     ctx.font = "italic " + Math.max(12, Math.min(16, VW * 0.035)) + "px Fredoka, sans-serif";
     ctx.fillText(def.sub, VW / 2, 100);
 
-    // Suelo: línea de "endocardio" (membrana cardíaca interna).
-    var groundY = VH * 0.78 + 14;
-    ctx.fillStyle = "rgba(20, 8, 12, 0.85)";
+    // ──── SUELO + ESCOMBROS EN EL PISO (foreground, scroll 1x) ────
+    ctx.fillStyle = "rgba(20, 8, 12, 0.92)";
     ctx.fillRect(0, groundY, VW, VH - groundY);
     ctx.strokeStyle = def.accent;
     ctx.lineWidth = 2;
@@ -13899,18 +13995,82 @@
     ctx.lineTo(VW, groundY);
     ctx.stroke();
 
-    // Solo el héroe ACTIVO está en el escenario (estilo DKC).
+    // Escombros en el piso: posiciones FIJAS en world-space.
+    var floorDebris = [
+      { wx: 280,  type: "fibrin" },
+      { wx: 480,  type: "rock"   },
+      { wx: 720,  type: "fibrin" },
+      { wx: 980,  type: "pus"    },
+      { wx: 1200, type: "rock"   },
+      { wx: 1380, type: "fibrin" },
+      { wx: 1620, type: "rock"   },
+      { wx: 1840, type: "pus"    },
+      { wx: 2050, type: "fibrin" },
+      { wx: 2240, type: "rock"   }
+    ];
+    for (var fd = 0; fd < floorDebris.length; fd++) {
+      var deb = floorDebris[fd];
+      var sx = deb.wx - cx;
+      if (sx < -40 || sx > VW + 40) continue;
+      if (deb.type === "fibrin") {
+        ctx.strokeStyle = "rgba(220, 200, 180, 0.65)";
+        ctx.lineWidth = 1.5;
+        for (var fk = 0; fk < 5; fk++) {
+          var ang = fk * 0.7;
+          ctx.beginPath();
+          ctx.moveTo(sx, groundY - 2);
+          ctx.lineTo(sx + Math.cos(ang) * 22 + 8, groundY - 16 - Math.sin(ang) * 8);
+          ctx.stroke();
+        }
+      } else if (deb.type === "rock") {
+        ctx.fillStyle = "rgba(70, 30, 25, 0.95)";
+        ctx.strokeStyle = "rgba(40, 15, 12, 1)";
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.ellipse(sx, groundY - 6, 14, 9, 0, 0, Math.PI * 2);
+        ctx.fill(); ctx.stroke();
+      } else if (deb.type === "pus") {
+        ctx.fillStyle = "rgba(190, 200, 120, 0.65)";
+        ctx.beginPath();
+        ctx.ellipse(sx, groundY - 2, 22, 5, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    // Marcador de FIN del nivel (donde la infección bajó al vaso).
+    var finSx = hl.finishX - cx;
+    if (finSx > -40 && finSx < VW + 40) {
+      ctx.fillStyle = "rgba(180, 30, 40, 0.85)";
+      ctx.fillRect(finSx - 4, groundY - 90, 8, 90);
+      ctx.fillStyle = "rgba(255, 90, 80, 0.95)";
+      ctx.font = "bold 11px Fredoka, sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText("🩸 VASO", finSx, groundY - 96);
+    }
+
+    // ──── HÉROE ACTIVO (foreground) ────
     var active = hl[hl.activeHero];
+    var heroScreenX = active.x - cx;
     if (hl.activeHero === "denk") {
-      drawDenK(active.x, active.y, true, active.anim, active.facing);
+      drawDenK(heroScreenX, active.y, true, active.anim, active.facing);
     } else {
-      drawMac(active.x, active.y, true, active.anim, active.facing);
+      drawMac(heroScreenX, active.y, true, active.anim, active.facing);
     }
     ctx.fillStyle = "rgba(255, 230, 100, 0.95)";
     ctx.font = "bold 10px Fredoka, sans-serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "bottom";
-    ctx.fillText(hl.activeHero === "denk" ? "DenK" : "Mac", active.x, active.y - 40);
+    ctx.fillText(hl.activeHero === "denk" ? "DenK" : "Mac", heroScreenX, active.y - 40);
+
+    // Indicador de progreso del nivel (barra fina abajo del título).
+    var prog = Math.min(1, active.x / hl.levelWidth);
+    var pBarW = VW * 0.55;
+    var pBarX = (VW - pBarW) / 2;
+    var pBarY = 130;
+    ctx.fillStyle = "rgba(0, 0, 0, 0.45)";
+    ctx.fillRect(pBarX, pBarY, pBarW, 5);
+    ctx.fillStyle = def.accent;
+    ctx.fillRect(pBarX, pBarY, pBarW * prog, 5);
 
     // HP bars arriba izquierda — 2 personajes.
     var hpY = 24;

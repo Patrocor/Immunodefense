@@ -7663,6 +7663,12 @@
     ensureAudio();
     var p = canvasPosFromEvent(evt);
     state.pointer.x = p.x; state.pointer.y = p.y; state.pointer.isOver = true;
+    // Hero level: rutear tap a sus botones — los direccionales/jump son
+    // held (multi-touch), SWAP/SALIR son tap simple.
+    if (state.heroLevel && state.heroLevel.active) {
+      handleHeroLevelPointerDown(evt.pointerId, p.x, p.y);
+      return;
+    }
     // Cancelar momentum si seguía corriendo cuando el dedo vuelve a tocar.
     state.panelMomentum = 0;
     if (pointInCardStrip(p.x, p.y) && !state.showIntro && !state.cinematicEnd && !state.confirmRestart) {
@@ -7709,13 +7715,16 @@
     }
   }
   function onPointerUp(evt) {
+    if (state.heroLevel && state.heroLevel.active) {
+      handleHeroLevelPointerUp(evt.pointerId);
+      return;
+    }
     if (state.panelDragPending) {
       var dp = state.panelDragPending;
       state.panelDragPending = null;
       if (!dp.dragged) {
         handleClick(dp.startX, dp.startY);
       } else if (Math.abs(dp.velocity) > 80) {
-        // Inertial flick: arranca con la velocidad final del drag.
         state.panelMomentum = dp.velocity;
       }
     }
@@ -13557,7 +13566,6 @@
 
   function enterHeroLevel(organId) {
     var def = HERO_LEVEL_ORGANS[organId] || HERO_LEVEL_ORGANS.corazon;
-    // Posición inicial: centro del campo, anclados al suelo.
     var startX = VW * 0.45;
     var groundY = VH * 0.78;
     state.heroLevel = {
@@ -13566,23 +13574,45 @@
       def: def,
       time: 0,
       phase: "playing",
-      // Personajes — los dos siempre presentes; "active" cambia con SWAP.
+      // Solo el ACTIVO está en el escenario. El otro espera "en reserva".
+      // Al swap, el reserve aparece donde estaba el activo. Estilo DKC.
       activeHero: "denk",
       denk: {
         x: startX, y: groundY,
         vx: 0, vy: 0,
         hp: 3, hpMax: 3,
-        facing: 1,                   // 1 = derecha, -1 = izquierda
-        anim: 0                      // bobbing/breathing phase
+        facing: 1,
+        anim: 0,
+        grounded: true,
+        moveSpeed: 220,          // px/s
+        jumpV: -480,             // velocidad inicial salto (negativa = arriba)
+        canDoubleJump: true,     // DenK tiene doble salto
+        usedDoubleJump: false
       },
       mac: {
-        x: startX + 30, y: groundY,
+        x: startX, y: groundY,
         vx: 0, vy: 0,
         hp: 5, hpMax: 5,
         facing: 1,
-        anim: 0
+        anim: 0,
+        grounded: true,
+        moveSpeed: 150,          // más lento
+        jumpV: -420,             // salto más bajo
+        canDoubleJump: false,
+        usedDoubleJump: false
       },
-      swapCooldown: 0
+      swapCooldown: 0,
+      gravity: 1200,
+      groundY: groundY,
+      // Input state — set por pointer handlers, leído por update.
+      input: {
+        left: false,
+        right: false,
+        jumpPressedThisFrame: false,
+        jumpHeld: false
+      },
+      // Track pointer touches: pointerId → buttonName ('left'/'right'/'jump').
+      activeTouches: {}
     };
   }
 
@@ -13601,12 +13631,73 @@
     if (hl.swapCooldown > 0) hl.swapCooldown -= dt;
     hl.denk.anim += dt;
     hl.mac.anim += dt;
+
+    // Físicas — solo el ACTIVO se mueve.
+    var hero = hl[hl.activeHero];
+    var input = hl.input;
+
+    // Movimiento horizontal.
+    if (input.left && !input.right) {
+      hero.vx = -hero.moveSpeed;
+      hero.facing = -1;
+    } else if (input.right && !input.left) {
+      hero.vx = hero.moveSpeed;
+      hero.facing = 1;
+    } else {
+      hero.vx = 0;
+    }
+
+    // Salto (single + double para DenK).
+    if (input.jumpPressedThisFrame) {
+      if (hero.grounded) {
+        hero.vy = hero.jumpV;
+        hero.grounded = false;
+        hero.usedDoubleJump = false;
+        sfx("tick");
+      } else if (hero.canDoubleJump && !hero.usedDoubleJump) {
+        hero.vy = hero.jumpV * 0.85;
+        hero.usedDoubleJump = true;
+        sfx("tick");
+      }
+    }
+    // Glide de DenK: mientras mantiene saltar y cayendo, frenar gravedad.
+    var gravScale = 1;
+    if (hl.activeHero === "denk" && input.jumpHeld && hero.vy > 0) {
+      gravScale = 0.35;
+    }
+    hero.vy += hl.gravity * gravScale * dt;
+
+    // Aplicar velocidad.
+    hero.x += hero.vx * dt;
+    hero.y += hero.vy * dt;
+
+    // Colisión con piso plano (por ahora).
+    if (hero.y >= hl.groundY) {
+      hero.y = hl.groundY;
+      hero.vy = 0;
+      hero.grounded = true;
+      hero.usedDoubleJump = false;
+    }
+    // Bordes laterales del campo.
+    if (hero.x < 14) hero.x = 14;
+    if (hero.x > VW - 14) hero.x = VW - 14;
+
+    // Reset edge-trigger.
+    input.jumpPressedThisFrame = false;
   }
 
   function swapActiveHero() {
     var hl = state.heroLevel;
     if (!hl || hl.swapCooldown > 0) return;
+    var prev = hl[hl.activeHero];
     hl.activeHero = (hl.activeHero === "denk") ? "mac" : "denk";
+    var now = hl[hl.activeHero];
+    // El nuevo activo aparece donde estaba el viejo. Velocidad reseteada.
+    now.x = prev.x;
+    now.y = prev.y;
+    now.vx = 0; now.vy = 0;
+    now.grounded = prev.grounded;
+    now.facing = prev.facing;
     hl.swapCooldown = 0.30;
   }
 
@@ -13776,17 +13867,18 @@
     ctx.lineTo(VW, groundY);
     ctx.stroke();
 
-    // Héroes: DenK + Mac al centro-suelo.
-    drawDenK(hl.denk.x, hl.denk.y, hl.activeHero === "denk", hl.denk.anim, hl.denk.facing);
-    drawMac(hl.mac.x, hl.mac.y, hl.activeHero === "mac", hl.mac.anim, hl.mac.facing);
-
-    // Indicador "ACTIVO" arriba del héroe activo.
+    // Solo el héroe ACTIVO está en el escenario (estilo DKC).
     var active = hl[hl.activeHero];
+    if (hl.activeHero === "denk") {
+      drawDenK(active.x, active.y, true, active.anim, active.facing);
+    } else {
+      drawMac(active.x, active.y, true, active.anim, active.facing);
+    }
     ctx.fillStyle = "rgba(255, 230, 100, 0.95)";
     ctx.font = "bold 10px Fredoka, sans-serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "bottom";
-    ctx.fillText("▼ " + (hl.activeHero === "denk" ? "DenK" : "Mac"), active.x, active.y - 40);
+    ctx.fillText(hl.activeHero === "denk" ? "DenK" : "Mac", active.x, active.y - 40);
 
     // HP bars arriba izquierda — 2 personajes.
     var hpY = 24;
@@ -13827,37 +13919,97 @@
     ctx.textBaseline = "middle";
     ctx.fillText("↻ SWAP", sbtnX + sbtnW / 2, sbtnY + sbtnH / 2);
 
-    // Botón EXIT (esquina inferior derecha).
-    var btnW = Math.min(120, VW * 0.30);
-    var btnH = Math.max(40, Math.min(54, VH * 0.06));
-    var btnX = VW - btnW - 16;
-    var btnY = VH - btnH - 24;
-    state.heroLevel.exitBtn = { x: btnX, y: btnY, w: btnW, h: btnH };
+    // ──── Controles virtuales ────
+    var pbH = Math.max(54, Math.min(72, VH * 0.085));
+    var pbW = pbH;
+    var pbBot = VH - pbH - 16;
+    // Bottom-left: ◄ ►
+    var leftBtnX = 16;
+    var rightBtnX = leftBtnX + pbW + 8;
+    hl.leftBtn  = { x: leftBtnX,  y: pbBot, w: pbW, h: pbH };
+    hl.rightBtn = { x: rightBtnX, y: pbBot, w: pbW, h: pbH };
+    // Bottom-right: JUMP
+    var jumpBtnX = VW - pbW - 16;
+    hl.jumpBtn = { x: jumpBtnX, y: pbBot, w: pbW, h: pbH };
+
+    function drawCtrlBtn(b, label, held) {
+      ctx.fillStyle = held ? "rgba(180, 100, 130, 0.85)" : "rgba(40, 22, 32, 0.78)";
+      ctx.fillRect(b.x, b.y, b.w, b.h);
+      ctx.strokeStyle = held ? "#ffd24a" : "rgba(255, 255, 255, 0.25)";
+      ctx.lineWidth = held ? 3 : 2;
+      ctx.strokeRect(b.x, b.y, b.w, b.h);
+      ctx.fillStyle = "#fff";
+      ctx.font = "bold " + Math.max(20, pbH * 0.45) + "px Fredoka, sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(label, b.x + b.w / 2, b.y + b.h / 2);
+    }
+    drawCtrlBtn(hl.leftBtn,  "◄",  hl.input.left);
+    drawCtrlBtn(hl.rightBtn, "►",  hl.input.right);
+    drawCtrlBtn(hl.jumpBtn,  "▲",  hl.input.jumpHeld);
+
+    // Pequeño botón SALIR esquina inferior-derecha encima de JUMP.
+    var exitBtnW = 70;
+    var exitBtnH = 28;
+    var exitBtnX = VW - exitBtnW - 16;
+    var exitBtnY = pbBot - exitBtnH - 8;
+    hl.exitBtn = { x: exitBtnX, y: exitBtnY, w: exitBtnW, h: exitBtnH };
     ctx.fillStyle = "rgba(60, 30, 40, 0.92)";
-    ctx.fillRect(btnX, btnY, btnW, btnH);
+    ctx.fillRect(exitBtnX, exitBtnY, exitBtnW, exitBtnH);
     ctx.strokeStyle = def.accent;
-    ctx.lineWidth = 2;
-    ctx.strokeRect(btnX, btnY, btnW, btnH);
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(exitBtnX, exitBtnY, exitBtnW, exitBtnH);
     ctx.fillStyle = "#fff";
-    ctx.font = "bold " + Math.max(13, Math.min(16, btnH * 0.42)) + "px Fredoka, sans-serif";
+    ctx.font = "bold 11px Fredoka, sans-serif";
     ctx.textBaseline = "middle";
-    ctx.fillText("◄ SALIR", btnX + btnW / 2, btnY + btnH / 2);
+    ctx.fillText("◄ SALIR", exitBtnX + exitBtnW / 2, exitBtnY + exitBtnH / 2);
   }
 
-  function handleHeroLevelTap(x, y) {
-    if (!state.heroLevel || !state.heroLevel.active) return false;
+  function _inBtn(b, x, y) {
+    return b && x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h;
+  }
+
+  function handleHeroLevelPointerDown(pointerId, x, y) {
     var hl = state.heroLevel;
-    if (hl.exitBtn && x >= hl.exitBtn.x && x <= hl.exitBtn.x + hl.exitBtn.w &&
-        y >= hl.exitBtn.y && y <= hl.exitBtn.y + hl.exitBtn.h) {
+    if (!hl) return;
+    // Botones de acción inmediata (tap): SALIR y SWAP.
+    if (_inBtn(hl.exitBtn, x, y)) {
       exitHeroLevel("abort");
-      return true;
+      return;
     }
-    if (hl.swapBtn && x >= hl.swapBtn.x && x <= hl.swapBtn.x + hl.swapBtn.w &&
-        y >= hl.swapBtn.y && y <= hl.swapBtn.y + hl.swapBtn.h) {
+    if (_inBtn(hl.swapBtn, x, y)) {
       swapActiveHero();
       sfx("tick");
-      return true;
+      return;
     }
+    // Botones HELD: izquierda, derecha, salto. Cada pointerId puede
+    // mantener uno distinto (multi-touch real).
+    if (_inBtn(hl.leftBtn, x, y)) {
+      hl.input.left = true;
+      hl.activeTouches[pointerId] = "left";
+    } else if (_inBtn(hl.rightBtn, x, y)) {
+      hl.input.right = true;
+      hl.activeTouches[pointerId] = "right";
+    } else if (_inBtn(hl.jumpBtn, x, y)) {
+      hl.input.jumpHeld = true;
+      hl.input.jumpPressedThisFrame = true;
+      hl.activeTouches[pointerId] = "jump";
+    }
+  }
+
+  function handleHeroLevelPointerUp(pointerId) {
+    var hl = state.heroLevel;
+    if (!hl) return;
+    var btn = hl.activeTouches[pointerId];
+    if (btn === "left")  hl.input.left = false;
+    if (btn === "right") hl.input.right = false;
+    if (btn === "jump")  hl.input.jumpHeld = false;
+    delete hl.activeTouches[pointerId];
+  }
+
+  // Legacy tap router (en caso de algún flow que llame handleClick directo).
+  function handleHeroLevelTap(x, y) {
+    handleHeroLevelPointerDown(0, x, y);
     return true;
   }
 

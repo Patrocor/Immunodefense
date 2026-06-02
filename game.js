@@ -2353,53 +2353,52 @@
   // ============ FIN RESPUESTAS (sub-task 5.1) ============
 
   // ============ NETOSIS ============
-  // Una sola respuesta inmune: el jugador toca un carril y un neutrófilo
-  // se autoinmola lanzando una red de cromatina (DNA + histonas) que
-  // ocupa todo el carril vertical, paraliza y daña a los gérmenes que
-  // atrapa. Mecanismo biológico real (Brinkmann et al. 2004).
+  // Una sola respuesta inmune: el jugador toca un punto del carril y un
+  // neutrófilo aparece ahí, muere (queda solo su envoltura membranosa) y
+  // brotan hebras de cromatina (DNA + histonas) hacia ARRIBA y ABAJO desde
+  // ese punto, ocupando el carril. Mecanismo biológico real
+  // (Brinkmann et al. 2004).
   //
-  // Cinemática 3 fases (age en segundos):
-  //   [0.00-0.30]  DETONACIÓN  - flash blanco-azul + fragmentos al aire
-  //   [0.30-0.80]  DESPLIEGUE  - hebras se desenrollan hacia abajo
-  //   [0.80-9.00]  TRAMPA      - red estable, atrapa + DoT
-  //   [9.00-10.0]  DISIPACIÓN  - fade out
+  // Cinemática (age en segundos):
+  //   [0.00-0.30]  NEUTRÓFILO MUERE  - cuerpo intacto → ruptura → solo shell
+  //   [0.30-0.80]  HEBRAS BROTAN     - se despliegan ↑ y ↓ desde el shell
+  //   [0.80-9.00]  TRAMPA ACTIVA     - red estable cubriendo el carril
+  //   [9.00-10.0]  DISIPACIÓN        - fade out
   function spawnNet(laneX, laneY) {
-    // Punto de detonación: en lo alto del carril (donde "nace" el neutrófilo).
-    var topY = FIELD_TOP + FIELD_H * 0.08;
-    var bottomY = FIELD_TOP + FIELD_H * 0.88;
-    // Pre-generar trayectorias de las hebras para que el dibujo sea
-    // consistente entre frames (no jitter aleatorio).
+    var topY = FIELD_TOP + FIELD_H * 0.06;
+    var bottomY = FIELD_TOP + FIELD_H * 0.92;
     var laneW = (FIELD_W / 5) * 0.78;
-    var nStrands = 9;
+    // Hebras: mitad brotan hacia arriba, mitad hacia abajo desde el tap.
+    var nUp = 5, nDown = 5;
     var strands = [];
-    for (var s = 0; s < nStrands; s++) {
-      var phaseSeed = Math.random() * Math.PI * 2;
-      var xOffset0 = (Math.random() - 0.5) * laneW * 0.7;
-      var xOffset1 = (Math.random() - 0.5) * laneW * 0.7;
-      var wave = 0.6 + Math.random() * 0.8;       // amplitud lateral
-      strands.push({ x0: xOffset0, x1: xOffset1, phase: phaseSeed, wave: wave });
+    for (var s = 0; s < nUp + nDown; s++) {
+      var dir = s < nUp ? -1 : 1;            // -1 = arriba, +1 = abajo
+      var endX = (Math.random() - 0.5) * laneW * 0.85;
+      var phase = Math.random() * Math.PI * 2;
+      var wave = 0.6 + Math.random() * 0.8;
+      strands.push({ endX: endX, dir: dir, phase: phase, wave: wave });
     }
-    // Puntos brillantes de histona/DNA condensado distribuidos sobre las hebras.
+    // Puntos brillantes de histona/DNA condensado.
     var beads = [];
-    for (var b = 0; b < 22; b++) {
+    for (var b = 0; b < 24; b++) {
       beads.push({
-        strand: Math.floor(Math.random() * nStrands),
-        t: Math.random(),               // 0..1 a lo largo de la hebra
+        strand: Math.floor(Math.random() * strands.length),
+        t: 0.10 + Math.random() * 0.90,    // posición a lo largo (0..1)
         offset: (Math.random() - 0.5) * 4 * U,
         size: (1.4 + Math.random() * 1.2) * U,
         pulse: Math.random() * Math.PI * 2
       });
     }
     state.nets.push({
-      x: laneX, y: (topY + bottomY) / 2,
+      x: laneX, y: laneY,                   // ← origen = punto de tap
       topY: topY, bottomY: bottomY,
       laneW: laneW,
       strands: strands,
       beads: beads,
       ttl: 10.0,
       age: 0,
-      dpsTrapped: 6,                    // daño por segundo a gérmenes atrapados
-      lastDmgTime: 0
+      dpsTrapped: 6,
+      seed: Math.random() * 1000            // para detalles del shell
     });
   }
 
@@ -2408,7 +2407,8 @@
     for (var i = state.nets.length - 1; i >= 0; i--) {
       var n = state.nets[i];
       n.age += dt;
-      // Active solo después de que la red termine de desplegarse (0.8s).
+      // Active solo después que las hebras se desplieguen (0.8s).
+      // Cubre el carril desde topY a bottomY.
       if (n.age >= 0.8 && n.age < n.ttl - 0.8) {
         var halfW = n.laneW * 0.5;
         for (var ei = 0; ei < state.enemies.length; ei++) {
@@ -2417,7 +2417,6 @@
           var dx = en.x - n.x;
           if (Math.abs(dx) > halfW) continue;
           if (en.y < n.topY - 10 * U || en.y > n.bottomY + 10 * U) continue;
-          // Germen ATRAPADO: paraliza casi por completo + DoT.
           en.nettedUntil = state.time + 0.2;
           en.hp = (en.hp || 1) - n.dpsTrapped * dt;
           if (en.hp <= 0 && !en.dead) {
@@ -2438,95 +2437,177 @@
     for (var i = 0; i < state.nets.length; i++) {
       var n = state.nets[i];
       var halfW = n.laneW * 0.5;
-      var laneH = n.bottomY - n.topY;
       var ageT = n.age;
-      // Progreso de despliegue (0..1) durante los primeros 0.8s.
+      // Deploy 0..1 durante 0.30s-0.80s (cuanto se han extendido las hebras).
       var deploy = Math.min(1, Math.max(0, (ageT - 0.30) / 0.50));
-      // Fade out al final.
       var fadeOut = ageT > n.ttl - 0.8 ? Math.max(0, 1 - (ageT - (n.ttl - 0.8)) / 0.8) : 1;
+      // Distancias máximas de despliegue (cuando deploy=1, llegan al borde).
+      var upMax = n.y - n.topY;
+      var downMax = n.bottomY - n.y;
 
       ctx.save();
 
-      // === FASE 1: DETONACIÓN (0.00-0.30s) ===
+      // ─────────────────────────────────────────────────────────────
+      // FASE 1: NEUTRÓFILO MUERE (0.00-0.30s)
+      // 0.00-0.15: célula intacta vibrando
+      // 0.15-0.30: ruptura visible, núcleo extruyéndose
+      // ─────────────────────────────────────────────────────────────
+      var cellR = 14 * U;
+      var nucR = cellR * 0.55;
       if (ageT < 0.30) {
+        // Flash radial blanco-azul desde el punto de tap.
         var dt0 = ageT / 0.30;
-        // Flash blanco-azul radial en el punto de detonación.
-        var flashR = (40 + dt0 * 80) * U;
-        var fg = ctx.createRadialGradient(n.x, n.topY, 2, n.x, n.topY, flashR);
-        fg.addColorStop(0, "rgba(220, 240, 255, " + (1 - dt0) + ")");
-        fg.addColorStop(0.4, "rgba(180, 200, 255, " + ((1 - dt0) * 0.6) + ")");
+        var flashR = (28 + dt0 * 56) * U;
+        var fg = ctx.createRadialGradient(n.x, n.y, 2, n.x, n.y, flashR);
+        fg.addColorStop(0, "rgba(220, 240, 255, " + (0.9 * (1 - dt0)) + ")");
+        fg.addColorStop(0.5, "rgba(180, 200, 255, " + (0.5 * (1 - dt0)) + ")");
         fg.addColorStop(1, "rgba(180, 200, 255, 0)");
         ctx.fillStyle = fg;
         ctx.beginPath();
-        ctx.arc(n.x, n.topY, flashR, 0, Math.PI * 2);
+        ctx.arc(n.x, n.y, flashR, 0, Math.PI * 2);
         ctx.fill();
-        // Anillo de choque expandiéndose.
-        ctx.strokeStyle = "rgba(255, 255, 255, " + (1 - dt0) + ")";
-        ctx.lineWidth = Math.max(1, 2 * U);
-        ctx.beginPath();
-        ctx.arc(n.x, n.topY, flashR * 0.85, 0, Math.PI * 2);
-        ctx.stroke();
-        // Fragmentos eyectados (DNA volando).
-        for (var fr = 0; fr < 10; fr++) {
-          var fa = (fr / 10) * Math.PI * 2;
-          var fd = flashR * 1.2 * dt0;
-          var fx = n.x + Math.cos(fa) * fd;
-          var fy = n.topY + Math.sin(fa) * fd;
-          ctx.fillStyle = "rgba(200, 180, 240, " + (1 - dt0) + ")";
+
+        // Neutrófilo intacto (0-0.15s): cuerpo redondo blanco con núcleo lobulado.
+        if (ageT < 0.15) {
+          var vib = Math.sin(ageT * 90) * U * 0.7;          // vibra
+          var bodyGrad = ctx.createRadialGradient(n.x - cellR * 0.3, n.y - cellR * 0.3, cellR * 0.2, n.x, n.y, cellR);
+          bodyGrad.addColorStop(0, "rgba(255, 250, 245, 0.95)");
+          bodyGrad.addColorStop(0.7, "rgba(245, 220, 215, 0.90)");
+          bodyGrad.addColorStop(1, "rgba(200, 165, 175, 0.85)");
+          ctx.fillStyle = bodyGrad;
           ctx.beginPath();
-          ctx.arc(fx, fy, 2 * U, 0, Math.PI * 2);
+          ctx.arc(n.x + vib, n.y, cellR, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.strokeStyle = "rgba(140, 100, 130, 0.75)";
+          ctx.lineWidth = Math.max(1, 1.4 * U);
+          ctx.stroke();
+          // Núcleo multilobulado (5 lóbulos pequeños interconectados).
+          ctx.fillStyle = "rgba(110, 70, 130, 0.85)";
+          for (var l = 0; l < 5; l++) {
+            var la = (l / 5) * Math.PI * 2 + ageT * 2;
+            var lx = n.x + vib + Math.cos(la) * cellR * 0.30;
+            var ly = n.y + Math.sin(la) * cellR * 0.30;
+            ctx.beginPath();
+            ctx.arc(lx, ly, nucR * 0.45, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        } else {
+          // Fase de ruptura (0.15-0.30s).
+          var rup = (ageT - 0.15) / 0.15;                   // 0..1
+          // Membrana fracturándose (outline irregular punteado).
+          ctx.strokeStyle = "rgba(140, 100, 130, " + (0.85 - rup * 0.5) + ")";
+          ctx.lineWidth = Math.max(1, 1.4 * U);
+          ctx.setLineDash([3 * U, 2 * U]);
+          ctx.beginPath();
+          ctx.arc(n.x, n.y, cellR * (1 + rup * 0.15), 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.setLineDash([]);
+          // Cuerpo translúcido difuminándose.
+          ctx.fillStyle = "rgba(255, 240, 240, " + (0.4 * (1 - rup)) + ")";
+          ctx.beginPath();
+          ctx.arc(n.x, n.y, cellR, 0, Math.PI * 2);
+          ctx.fill();
+          // Núcleo extruyéndose como una mancha oscura central.
+          ctx.fillStyle = "rgba(90, 50, 110, " + (0.6 + rup * 0.3) + ")";
+          ctx.beginPath();
+          ctx.arc(n.x, n.y, nucR * (1 + rup * 0.5), 0, Math.PI * 2);
           ctx.fill();
         }
+      } else {
+        // ─────────────────────────────────────────────────────────────
+        // SHELL DEL NEUTRÓFILO MUERTO (visible durante toda la trampa)
+        // ─────────────────────────────────────────────────────────────
+        var sa = fadeOut;
+        // Halo sutil de cromatina extruida.
+        var halo = ctx.createRadialGradient(n.x, n.y, 2, n.x, n.y, cellR * 2.0);
+        halo.addColorStop(0, "rgba(180, 140, 220, " + (0.20 * sa) + ")");
+        halo.addColorStop(1, "rgba(180, 140, 220, 0)");
+        ctx.fillStyle = halo;
+        ctx.beginPath();
+        ctx.arc(n.x, n.y, cellR * 2.0, 0, Math.PI * 2);
+        ctx.fill();
+        // Envoltura membranosa: outline punteado irregular, casi transparente.
+        ctx.strokeStyle = "rgba(180, 150, 175, " + (0.55 * sa) + ")";
+        ctx.lineWidth = Math.max(1, 1.2 * U);
+        ctx.setLineDash([3 * U, 3 * U]);
+        ctx.beginPath();
+        for (var sh = 0; sh <= 22; sh++) {
+          var sa1 = (sh / 22) * Math.PI * 2;
+          var jitter = 1 + 0.08 * Math.sin(sa1 * 4 + n.seed);
+          var sx = n.x + Math.cos(sa1) * cellR * 1.1 * jitter;
+          var sy = n.y + Math.sin(sa1) * cellR * 1.1 * jitter;
+          if (sh === 0) ctx.moveTo(sx, sy); else ctx.lineTo(sx, sy);
+        }
+        ctx.closePath();
+        ctx.stroke();
+        ctx.setLineDash([]);
+        // Mancha oscura central — restos del núcleo lisado.
+        ctx.fillStyle = "rgba(90, 50, 110, " + (0.55 * sa) + ")";
+        ctx.beginPath();
+        ctx.arc(n.x, n.y, nucR * 1.2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "rgba(140, 90, 170, " + (0.35 * sa) + ")";
+        ctx.beginPath();
+        ctx.arc(n.x, n.y, nucR * 1.8, 0, Math.PI * 2);
+        ctx.fill();
       }
 
-      // === FASE 2-3: HEBRAS DESPLEGÁNDOSE + TRAMPA ACTIVA ===
+      // ─────────────────────────────────────────────────────────────
+      // FASE 2-3: HEBRAS DE CROMATINA BROTANDO desde la shell hacia
+      // arriba y hacia abajo del carril.
+      // ─────────────────────────────────────────────────────────────
       if (deploy > 0) {
         var alpha = fadeOut;
-        // Halo sutil del área entera.
-        var ag = ctx.createLinearGradient(n.x - halfW, 0, n.x + halfW, 0);
-        ag.addColorStop(0, "rgba(140, 100, 200, 0)");
-        ag.addColorStop(0.5, "rgba(180, 160, 220, " + (0.08 * alpha) + ")");
-        ag.addColorStop(1, "rgba(140, 100, 200, 0)");
-        ctx.fillStyle = ag;
-        ctx.fillRect(n.x - halfW, n.topY, halfW * 2, laneH * deploy);
+        // Halo vertical sutil sobre el área cubierta por las hebras.
+        var coveredTop = n.y - upMax * deploy;
+        var coveredBot = n.y + downMax * deploy;
+        ctx.fillStyle = "rgba(180, 160, 220, " + (0.07 * alpha) + ")";
+        ctx.fillRect(n.x - halfW, coveredTop, halfW * 2, coveredBot - coveredTop);
 
-        // Hebras de cromatina (DNA blanco-azulado).
+        // Hebras: cada una sale del shell (n.x, n.y) y se extiende
+        // hacia su endpoint en topY (dir=-1) o bottomY (dir=+1).
         for (var si = 0; si < n.strands.length; si++) {
           var st = n.strands[si];
-          ctx.strokeStyle = "rgba(245, 235, 255, " + (0.78 * alpha) + ")";
-          ctx.lineWidth = Math.max(1, 1.6 * U);
-          ctx.lineCap = "round";
-          ctx.beginPath();
-          var endY = n.topY + laneH * deploy;
-          var steps = 24;
-          for (var k = 0; k <= steps; k++) {
-            var t = k / steps;
-            var y = n.topY + (endY - n.topY) * t;
-            // Interpolación cubic-ish del offset x + ondulación viva.
-            var baseX = n.x + (st.x0 * (1 - t) + st.x1 * t);
-            var wob = Math.sin(st.phase + t * 4 + ageT * 2.5) * (8 * U) * st.wave;
-            var x = baseX + wob;
-            if (k === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+          var endY = (st.dir < 0)
+            ? (n.y - upMax * deploy)
+            : (n.y + downMax * deploy);
+          var steps = 18;
+          // Pasada 1: glow exterior azul-claro (gruesa, alpha baja).
+          for (var pass = 0; pass < 2; pass++) {
+            if (pass === 0) {
+              ctx.strokeStyle = "rgba(170, 200, 255, " + (0.35 * alpha) + ")";
+              ctx.lineWidth = Math.max(2, 3 * U);
+            } else {
+              ctx.strokeStyle = "rgba(245, 235, 255, " + (0.80 * alpha) + ")";
+              ctx.lineWidth = Math.max(1, 1.6 * U);
+            }
+            ctx.lineCap = "round";
+            ctx.beginPath();
+            for (var k = 0; k <= steps; k++) {
+              var t = k / steps;
+              var y = n.y + (endY - n.y) * t;
+              // x: empieza en n.x (origen), termina cerca de st.endX.
+              var baseX = n.x + st.endX * t;
+              var wob = Math.sin(st.phase + t * 4 + ageT * 2.5) * (7 * U) * st.wave * t;
+              var x = baseX + wob;
+              if (k === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+            }
+            ctx.stroke();
           }
-          ctx.stroke();
-          // Glow exterior sutil sobre la hebra (segunda pasada azul claro).
-          ctx.strokeStyle = "rgba(170, 200, 255, " + (0.35 * alpha) + ")";
-          ctx.lineWidth = Math.max(2, 3 * U);
-          ctx.stroke();
         }
 
-        // Puntos brillantes de histona (DNA condensado) a lo largo de las hebras.
+        // Puntos brillantes de histona/DNA condensado.
         for (var bi = 0; bi < n.beads.length; bi++) {
           var bd = n.beads[bi];
-          if (bd.t > deploy) continue; // aún no se desplegó hasta aquí
+          if (bd.t > deploy) continue;
           var st2 = n.strands[bd.strand];
           var t2 = bd.t;
-          var by = n.topY + laneH * t2;
-          var baseX2 = n.x + (st2.x0 * (1 - t2) + st2.x1 * t2);
-          var wob2 = Math.sin(st2.phase + t2 * 4 + ageT * 2.5) * (8 * U) * st2.wave;
+          var maxDist = st2.dir < 0 ? upMax : downMax;
+          var by = n.y + st2.dir * maxDist * t2;
+          var baseX2 = n.x + st2.endX * t2;
+          var wob2 = Math.sin(st2.phase + t2 * 4 + ageT * 2.5) * (7 * U) * st2.wave * t2;
           var bx = baseX2 + wob2 + bd.offset;
           var pulse = 0.7 + 0.3 * Math.sin(ageT * 5 + bd.pulse);
-          // Punto morado interior con halo blanco-azul.
           ctx.fillStyle = "rgba(220, 200, 255, " + (0.50 * alpha) + ")";
           ctx.beginPath();
           ctx.arc(bx, by, bd.size * 1.8 * pulse, 0, Math.PI * 2);
@@ -2537,13 +2618,13 @@
           ctx.fill();
         }
 
-        // Etiqueta "NET" en el tope una vez activa.
+        // Etiqueta "NET" sobre el shell mientras está activa.
         if (ageT > 0.8 && ageT < n.ttl - 1.5) {
           ctx.fillStyle = "rgba(255, 255, 255, " + (0.65 * alpha) + ")";
-          ctx.font = "bold " + Math.floor(10 * U) + "px Fredoka, sans-serif";
+          ctx.font = "bold " + Math.floor(9 * U) + "px Fredoka, sans-serif";
           ctx.textAlign = "center";
           ctx.textBaseline = "bottom";
-          ctx.fillText("NET", n.x, n.topY - 4 * U);
+          ctx.fillText("NET", n.x, n.y - cellR * 1.4);
         }
       }
 

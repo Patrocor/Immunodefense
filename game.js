@@ -2788,6 +2788,8 @@
       goldParticles: [],
       ambient: [],
       circulatory: [],
+      heroLevel: null,                  // null o { active, organ, time, ... }
+      heroLevelMedals: {},              // organId → true cuando se ganó el nivel
       selectedToBuild: null,
       openGroups: { linea: true, distancia: true }, // grupos abiertos por defecto
       unlockedTowers: ["neutrofilo", "linfocitoB", "linfocitoT"], // resto se desbloquea con pickups
@@ -7222,6 +7224,11 @@
   }
 
   function handleClick(x, y) {
+    // Hero level activo: el tap se rutea a su propio handler.
+    if (state.heroLevel && state.heroLevel.active) {
+      handleHeroLevelTap(x, y);
+      return;
+    }
     // Pantalla de título: un clic en cualquier lado arranca el cómic.
     if (state.showTitle) {
       state.showTitle = false;
@@ -7408,6 +7415,12 @@
       if (inRect(x, y, UI.muteBtn)) {
         setMuted(!audio.muted);
         sfx("tick");
+        return;
+      }
+      // DEBUG: entrar al hero level del corazón.
+      if (UI.heroDebugBtn && inRect(x, y, UI.heroDebugBtn)) {
+        enterHeroLevel("corazon");
+        sfx("upgrade");
         return;
       }
       // Next-wave button removed in Sprint 5 (waves auto-spawn).
@@ -11494,6 +11507,19 @@
     ctx.fillRect(mb.x, mb.y, mb.w, mb.h);
     drawSpeakerIcon(mb.x + mb.w / 2, mb.y + mb.h / 2, mb.h * 0.36, audio.muted, "#fff");
     if (state.dissemination) drawAntigenHud();
+    // DEBUG: botón "TEST HÉROE" visible en diseminación, abre el nivel
+    // Corazón directamente sin esperar a que caiga un órgano.
+    if (state.dissemination && !state.heroLevel) {
+      var hb = { x: mb.x - mb.w - 6, y: mb.y, w: mb.w, h: mb.h };
+      UI.heroDebugBtn = hb;
+      ctx.fillStyle = "#8a3050";
+      ctx.fillRect(hb.x, hb.y, hb.w, hb.h);
+      ctx.fillStyle = "#fff";
+      ctx.font = "bold " + Math.max(10, Math.min(13, hb.h * 0.4)) + "px Fredoka, sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("♥", hb.x + hb.w / 2, hb.y + hb.h / 2);
+    }
   }
 
   function drawSpeakerIcon(cx, cy, r, muted, color) {
@@ -13514,12 +13540,124 @@
   }
   // -------- FIN NIVEL PUENTE: RENDER --------------------------------------
 
+  // ========================================================================
+  // ====================== HERO LEVEL — CORAZÓN ============================
+  // ========================================================================
+  // Spec: docs/superpowers/specs/2026-06-02-hero-level-corazon-design.md
+  // Implementación incremental por commits. Este es el step 1: scene routing
+  // skeleton. Sólo entra/sale del scene, render placeholder.
+
+  var HERO_LEVEL_ORGANS = {
+    corazon:    { label: "CORAZÓN",      sub: "Aurícula derecha",   bg: "#5a1820", accent: "#c1416a" },
+    pulmon:     { label: "PULMÓN",       sub: "Alvéolos inflamados", bg: "#2f4858", accent: "#a8d8e8" },
+    sangre:     { label: "SANGRE",       sub: "Endotelio dañado",    bg: "#3a1015", accent: "#dc3545" },
+    hueso:      { label: "HUESO",        sub: "Médula necrótica",    bg: "#3a2a18", accent: "#c8a070" },
+    articulacion:{ label: "ARTICULACIÓN", sub: "Cápsula sinovial",   bg: "#1a2a3a", accent: "#8ec5d0" }
+  };
+
+  function enterHeroLevel(organId) {
+    var def = HERO_LEVEL_ORGANS[organId] || HERO_LEVEL_ORGANS.corazon;
+    state.heroLevel = {
+      active: true,
+      organ: organId,
+      def: def,
+      time: 0,
+      phase: "playing"   // "intro" | "playing" | "win" | "lose"
+    };
+  }
+
+  function exitHeroLevel(outcome) {
+    // outcome: "win" | "lose" | "abort" (debug)
+    if (outcome === "win" && state.heroLevel) {
+      state.heroLevelMedals[state.heroLevel.organ] = true;
+    }
+    state.heroLevel = null;
+  }
+
+  function updateHeroLevel(dt) {
+    if (!state.heroLevel) return;
+    state.heroLevel.time += dt;
+  }
+
+  function renderHeroLevel() {
+    // Defensive viewport check (igual que render()).
+    var rect = canvas.getBoundingClientRect();
+    if (rect.width  > 0 && rect.height > 0 &&
+        (Math.abs(rect.width  - VW) > 0.5 ||
+         Math.abs(rect.height - VH) > 0.5)) {
+      resize();
+    }
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    var hl = state.heroLevel;
+    var def = hl.def;
+
+    // Fondo del órgano.
+    ctx.fillStyle = def.bg;
+    ctx.fillRect(0, 0, VW, VH);
+
+    // Latido sutil de fondo (intensity bobbing).
+    var beat = 0.5 + 0.5 * Math.sin(hl.time * Math.PI * 2);
+    ctx.fillStyle = "rgba(255, 100, 120, " + (0.04 + beat * 0.06) + ")";
+    ctx.fillRect(0, 0, VW, VH);
+
+    // Header con título del órgano.
+    ctx.fillStyle = def.accent;
+    ctx.font = "bold " + Math.max(20, Math.min(32, VW * 0.07)) + "px Fredoka, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "top";
+    ctx.fillText(def.label, VW / 2, 60);
+    ctx.fillStyle = "rgba(240, 220, 220, 0.85)";
+    ctx.font = "italic " + Math.max(12, Math.min(16, VW * 0.035)) + "px Fredoka, sans-serif";
+    ctx.fillText(def.sub, VW / 2, 100);
+
+    // Placeholder texto centro.
+    ctx.fillStyle = "rgba(255, 255, 255, 0.45)";
+    ctx.font = "bold " + Math.max(14, Math.min(20, VW * 0.045)) + "px Fredoka, sans-serif";
+    ctx.fillText("Nivel Castlevania en construcción", VW / 2, VH * 0.45);
+    ctx.font = Math.max(11, Math.min(14, VW * 0.03)) + "px Fredoka, sans-serif";
+    ctx.fillText("(steps 2-4 vienen después)", VW / 2, VH * 0.50);
+
+    // Botón EXIT (esquina inferior derecha).
+    var btnW = Math.min(120, VW * 0.30);
+    var btnH = Math.max(40, Math.min(54, VH * 0.06));
+    var btnX = VW - btnW - 16;
+    var btnY = VH - btnH - 24;
+    state.heroLevel.exitBtn = { x: btnX, y: btnY, w: btnW, h: btnH };
+    ctx.fillStyle = "rgba(60, 30, 40, 0.92)";
+    ctx.fillRect(btnX, btnY, btnW, btnH);
+    ctx.strokeStyle = def.accent;
+    ctx.lineWidth = 2;
+    ctx.strokeRect(btnX, btnY, btnW, btnH);
+    ctx.fillStyle = "#fff";
+    ctx.font = "bold " + Math.max(13, Math.min(16, btnH * 0.42)) + "px Fredoka, sans-serif";
+    ctx.textBaseline = "middle";
+    ctx.fillText("◄ SALIR", btnX + btnW / 2, btnY + btnH / 2);
+  }
+
+  function handleHeroLevelTap(x, y) {
+    if (!state.heroLevel || !state.heroLevel.active) return false;
+    var btn = state.heroLevel.exitBtn;
+    if (btn && x >= btn.x && x <= btn.x + btn.w && y >= btn.y && y <= btn.y + btn.h) {
+      exitHeroLevel("abort");
+      return true;
+    }
+    return true;  // consume el tap aunque no haya sido sobre el botón
+  }
+
   // -------- LOOP ----------------------------------------------------------
   var lastT = performance.now();
   function loop(now) {
     var dt = Math.min(0.05, (now - lastT) / 1000);
     lastT = now;
     state.time += dt;
+    // Hero level: si está activo, corre su propio update + render, no TD.
+    if (state.heroLevel && state.heroLevel.active) {
+      updateHeroLevel(dt);
+      renderHeroLevel();
+      requestAnimationFrame(loop);
+      return;
+    }
     var paused = state.confirmRestart || state.showTitle || state.showIntro || state.cinematicEnd || state.compendiumOpen || !!state.phaseTransition;
     // Nivel puente: pausamos la lógica al caer el primer carril (cinemática + placeholder).
     if (state.disseminationOver) {

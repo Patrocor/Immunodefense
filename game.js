@@ -4,6 +4,31 @@
   var canvas = document.getElementById("canvas");
   var ctx = canvas.getContext("2d");
 
+  // ============ ASSETS (imágenes opcionales con fallback) ===================
+  // Sistema de carga lazy de imágenes externas. Si una imagen no existe o
+  // falla la carga, ASSETS.get() retorna null y el render usa la primitiva
+  // de canvas. Esto significa que se pueden agregar imágenes a /assets/ sin
+  // tocar código — y si una falta, todo sigue funcionando.
+  var ASSETS = (function () {
+    var cache = {};   // path → { img, loaded, failed }
+    function get(path) {
+      if (cache[path]) {
+        var entry = cache[path];
+        if (entry.loaded && !entry.failed) return entry.img;
+        return null;
+      }
+      // Primera vez que se pide: arrancar carga.
+      var img = new Image();
+      var entry2 = { img: img, loaded: false, failed: false };
+      cache[path] = entry2;
+      img.onload  = function () { entry2.loaded = true; };
+      img.onerror = function () { entry2.failed = true; };
+      img.src = path;
+      return null;
+    }
+    return { get: get };
+  })();
+
   // -------- AUDIO (Web Audio API, all synthesized) -----------------------
   var audio = {
     ctx: null,
@@ -13884,6 +13909,19 @@
 
     // Capa 1 (lejana, parallax 0.20x): siluetas de tejido + luz filtrada.
     var p1x = -(cx * 0.20);
+    var img1 = (hl.organ === "piel") ? ASSETS.get("assets/piel/bg-far.png") : null;
+    if (img1) {
+      // Tile horizontalmente a través del nivel.
+      var tw1 = img1.width;
+      var th1 = img1.height;
+      var aspect1 = th1 / tw1;
+      var renderH1 = groundY;
+      var renderW1 = renderH1 / aspect1;
+      var startX1 = Math.floor(cx * 0.20 / renderW1) * renderW1 - cx * 0.20;
+      for (var tx1 = startX1; tx1 < VW + renderW1; tx1 += renderW1) {
+        ctx.drawImage(img1, tx1, 0, renderW1, renderH1);
+      }
+    } else {
     ctx.save();
     ctx.translate(p1x, 0);
     if (hl.organ === "piel") {
@@ -13910,9 +13948,22 @@
       }
     }
     ctx.restore();
+    }
 
     // Capa 2 (media, parallax 0.50x): vasos capilares cruzando, células.
     var p2x = -(cx * 0.50);
+    var img2 = (hl.organ === "piel") ? ASSETS.get("assets/piel/bg-mid.png") : null;
+    if (img2) {
+      var tw2 = img2.width;
+      var th2 = img2.height;
+      var aspect2 = th2 / tw2;
+      var renderH2 = groundY;
+      var renderW2 = renderH2 / aspect2;
+      var startX2 = Math.floor(cx * 0.50 / renderW2) * renderW2 - cx * 0.50;
+      for (var tx2 = startX2; tx2 < VW + renderW2; tx2 += renderW2) {
+        ctx.drawImage(img2, tx2, 0, renderW2, renderH2);
+      }
+    } else {
     ctx.save();
     ctx.translate(p2x, 0);
     if (hl.organ === "piel") {
@@ -13940,9 +13991,22 @@
       }
     }
     ctx.restore();
+    }
 
     // Capa 3 (cercana, parallax 0.85x): estrías de fibras de colágeno + zonas dañadas.
     var p3x = -(cx * 0.85);
+    var img3 = (hl.organ === "piel") ? ASSETS.get("assets/piel/bg-near.png") : null;
+    if (img3) {
+      var tw3 = img3.width;
+      var th3 = img3.height;
+      var aspect3 = th3 / tw3;
+      var renderH3 = groundY;
+      var renderW3 = renderH3 / aspect3;
+      var startX3 = Math.floor(cx * 0.85 / renderW3) * renderW3 - cx * 0.85;
+      for (var tx3 = startX3; tx3 < VW + renderW3; tx3 += renderW3) {
+        ctx.drawImage(img3, tx3, 0, renderW3, renderH3);
+      }
+    } else {
     ctx.save();
     ctx.translate(p3x, 0);
     if (hl.organ === "piel") {
@@ -13974,6 +14038,7 @@
       }
     }
     ctx.restore();
+    }
 
     // Header con título del órgano.
     ctx.fillStyle = def.accent;

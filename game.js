@@ -2833,7 +2833,7 @@
       disseminationWaveIdx: 0,         // 0..2 dentro del puente
       disseminationOver: null,         // { germ, organ } cuando un órgano llena
       disseminationIntroTimer: 0,      // banner de entrada al puente
-      disseminationOrganLoad: [0,0,0,0,0],   // 0..5 por órgano (cada germen +1)
+      disseminationOrganLoad: [0,0,0,0,0],   // 0..10 (germenes pasando tras romper barrera)
       disseminationFlash: [0,0,0,0,0],       // brillo de impacto al recibir germen
       disseminationBarrierHP:     [0, 0, 0, 0, 0],
       disseminationBarrierMax:    [0, 0, 0, 0, 0],
@@ -3150,8 +3150,11 @@
     state.disseminationFlash = [0, 0, 0, 0, 0];
     // HP biológico por órgano (orden = DISSEMINATION_ORGANS):
     // [corazón=pericardio, pulmón=pleura, sangre=endotelio, hueso=periostio, articulación=cápsula sinovial]
-    state.disseminationBarrierMax    = [12, 8, 6, 10, 7];
-    state.disseminationBarrierHP     = [12, 8, 6, 10, 7];
+    // Barrera por órgano: 5 germenes uniformes la rompen. Cada choque dropea
+    // 1 antígeno (5 por barrera). Después de romperse, empieza el conteo de
+    // 10 germenes pasando para llegar al órgano (game over).
+    state.disseminationBarrierMax    = [5, 5, 5, 5, 5];
+    state.disseminationBarrierHP     = [5, 5, 5, 5, 5];
     state.disseminationBarrierBroken = [false, false, false, false, false];
     state.disseminationBarrierBreakAt = 0;
     state.disseminationBarrierBreakLane = -1;
@@ -3955,15 +3958,15 @@
             continue;
           }
 
-          // Barrera rota: el germen entra al órgano. Suma al organ load
-          // y dropea 1 antígeno (5 germes = 5 antígenos antes del game over).
+          // Barrera rota: el germen ya no choca, sino que entra al órgano.
+          // Aquí NO hay antígeno (ese se daba con el choque a la barrera).
+          // Conteo 0..10: al 10 = game over en ese órgano.
           state.disseminationOrganLoad[lane] = (state.disseminationOrganLoad[lane] || 0) + 1;
           spawnEffect("escape", e.x, e.y, organ.color);
-          spawnAntigenDrop(e.x, e.y);
           state.disseminationFlash[lane] = 0.6;
           triggerShake(0.12, 3);
           if (audio && audio.ctx) sfx("playerHurt");
-          if (state.disseminationOrganLoad[lane] >= 5 && !state.disseminationOver) {
+          if (state.disseminationOrganLoad[lane] >= 10 && !state.disseminationOver) {
             state.disseminationOver = { germ: e.def, organ: organ, t: 0 };
             triggerShake(0.5, 9);
             state.waveActive = false;
@@ -13329,7 +13332,7 @@
   function drawOrganDoor(x, y, organ, load, flash) {
     load = load || 0;
     flash = flash || 0;
-    var pct = Math.min(1, load / 5);
+    var pct = Math.min(1, load / 10);
     ctx.save();
     var r = 20 * U;
     // Halo de color del órgano (más intenso con load y con flash).
@@ -13374,7 +13377,7 @@
     ctx.font = "bold " + Math.floor(11 * U) + "px Fredoka, sans-serif";
     var loadColor = pct >= 0.7 ? "#ff7a7a" : (pct >= 0.4 ? "#ffd24a" : "rgba(240, 220, 200, 0.95)");
     ctx.fillStyle = loadColor;
-    ctx.fillText(load + " / 5", x, y - r - 8 * U);
+    ctx.fillText(load + " / 10", x, y - r - 8 * U);
     // Etiqueta del órgano más arriba.
     ctx.font = "bold " + Math.floor(10 * U) + "px Fredoka, sans-serif";
     ctx.fillStyle = "rgba(240, 220, 200, 0.80)";

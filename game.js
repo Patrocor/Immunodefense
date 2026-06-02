@@ -13557,12 +13557,32 @@
 
   function enterHeroLevel(organId) {
     var def = HERO_LEVEL_ORGANS[organId] || HERO_LEVEL_ORGANS.corazon;
+    // Posición inicial: centro del campo, anclados al suelo.
+    var startX = VW * 0.45;
+    var groundY = VH * 0.78;
     state.heroLevel = {
       active: true,
       organ: organId,
       def: def,
       time: 0,
-      phase: "playing"   // "intro" | "playing" | "win" | "lose"
+      phase: "playing",
+      // Personajes — los dos siempre presentes; "active" cambia con SWAP.
+      activeHero: "denk",
+      denk: {
+        x: startX, y: groundY,
+        vx: 0, vy: 0,
+        hp: 3, hpMax: 3,
+        facing: 1,                   // 1 = derecha, -1 = izquierda
+        anim: 0                      // bobbing/breathing phase
+      },
+      mac: {
+        x: startX + 30, y: groundY,
+        vx: 0, vy: 0,
+        hp: 5, hpMax: 5,
+        facing: 1,
+        anim: 0
+      },
+      swapCooldown: 0
     };
   }
 
@@ -13576,7 +13596,141 @@
 
   function updateHeroLevel(dt) {
     if (!state.heroLevel) return;
-    state.heroLevel.time += dt;
+    var hl = state.heroLevel;
+    hl.time += dt;
+    if (hl.swapCooldown > 0) hl.swapCooldown -= dt;
+    hl.denk.anim += dt;
+    hl.mac.anim += dt;
+  }
+
+  function swapActiveHero() {
+    var hl = state.heroLevel;
+    if (!hl || hl.swapCooldown > 0) return;
+    hl.activeHero = (hl.activeHero === "denk") ? "mac" : "denk";
+    hl.swapCooldown = 0.30;
+  }
+
+  // ---- Sprites de los héroes ----
+  function drawDenK(x, y, isActive, animT, facing) {
+    var R = 14;
+    var pulse = 1 + Math.sin(animT * 3) * 0.04;
+    ctx.save();
+    ctx.translate(x, y);
+    // Sombra
+    ctx.fillStyle = "rgba(0,0,0,0.35)";
+    ctx.beginPath();
+    ctx.ellipse(0, R * 0.85, R * 0.95, R * 0.30, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // Halo si está activo
+    if (isActive) {
+      var glow = 0.5 + 0.5 * Math.sin(animT * 4);
+      ctx.strokeStyle = "rgba(140, 220, 255, " + (0.5 + glow * 0.4) + ")";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(0, 0, R * 1.6, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    // Dendritas (los procesos que dan nombre a la célula): 6 brazos radiales.
+    ctx.strokeStyle = "#6ec0d6";
+    ctx.lineWidth = 2;
+    ctx.lineCap = "round";
+    for (var d = 0; d < 6; d++) {
+      var da = (d / 6) * Math.PI * 2 + animT * 0.3;
+      var len = R * (0.9 + 0.15 * Math.sin(animT * 2 + d));
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(da) * R * 0.7, Math.sin(da) * R * 0.7);
+      ctx.lineTo(Math.cos(da) * (R + len * 0.5), Math.sin(da) * (R + len * 0.5));
+      ctx.stroke();
+    }
+    // Cuerpo celeste
+    var grad = ctx.createRadialGradient(-R * 0.3, -R * 0.3, R * 0.2, 0, 0, R);
+    grad.addColorStop(0, "#b8eaf6");
+    grad.addColorStop(0.6, "#7ec5d8");
+    grad.addColorStop(1, "#3a7d92");
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(0, 0, R * pulse, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "#2a5a6e";
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    // Cara estilo anime: ojos grandes
+    ctx.fillStyle = "#fff";
+    ctx.beginPath();
+    ctx.arc(-R * 0.30 + facing * 1.5, -R * 0.10, R * 0.30, 0, Math.PI * 2);
+    ctx.arc( R * 0.30 + facing * 1.5, -R * 0.10, R * 0.30, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#1a2030";
+    ctx.beginPath();
+    ctx.arc(-R * 0.30 + facing * 3, -R * 0.05, R * 0.15, 0, Math.PI * 2);
+    ctx.arc( R * 0.30 + facing * 3, -R * 0.05, R * 0.15, 0, Math.PI * 2);
+    ctx.fill();
+    // Sonrisita
+    ctx.strokeStyle = "#2a5a6e";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(0, R * 0.20, R * 0.30, 0.2 * Math.PI, 0.8 * Math.PI);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawMac(x, y, isActive, animT, facing) {
+    var R = 21;
+    var pulse = 1 + Math.sin(animT * 2.5) * 0.05;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.fillStyle = "rgba(0,0,0,0.40)";
+    ctx.beginPath();
+    ctx.ellipse(0, R * 0.85, R * 1.10, R * 0.32, 0, 0, Math.PI * 2);
+    ctx.fill();
+    if (isActive) {
+      var glow = 0.5 + 0.5 * Math.sin(animT * 4);
+      ctx.strokeStyle = "rgba(255, 180, 100, " + (0.5 + glow * 0.4) + ")";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(0, 0, R * 1.45, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    // Pseudópodos (bumps irregulares en el contorno)
+    var grad = ctx.createRadialGradient(-R * 0.3, -R * 0.3, R * 0.2, 0, 0, R);
+    grad.addColorStop(0, "#ffd0a0");
+    grad.addColorStop(0.6, "#d68040");
+    grad.addColorStop(1, "#7a3010");
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    var bumps = 8;
+    for (var i = 0; i <= bumps; i++) {
+      var a = (i / bumps) * Math.PI * 2;
+      var rr = R * pulse * (0.92 + 0.10 * Math.sin(a * 3 + animT * 0.5));
+      var px = Math.cos(a) * rr;
+      var py = Math.sin(a) * rr;
+      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = "#5a2010";
+    ctx.lineWidth = 1.8;
+    ctx.stroke();
+    // Ojos grandes (fiero, decidido)
+    ctx.fillStyle = "#fff";
+    ctx.beginPath();
+    ctx.arc(-R * 0.28 + facing * 2, -R * 0.10, R * 0.28, 0, Math.PI * 2);
+    ctx.arc( R * 0.28 + facing * 2, -R * 0.10, R * 0.28, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#1a1010";
+    ctx.beginPath();
+    ctx.arc(-R * 0.28 + facing * 4, -R * 0.05, R * 0.14, 0, Math.PI * 2);
+    ctx.arc( R * 0.28 + facing * 4, -R * 0.05, R * 0.14, 0, Math.PI * 2);
+    ctx.fill();
+    // Boca firme (línea horizontal)
+    ctx.strokeStyle = "#5a2010";
+    ctx.lineWidth = 2;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(-R * 0.20, R * 0.30);
+    ctx.lineTo( R * 0.20, R * 0.30);
+    ctx.stroke();
+    ctx.restore();
   }
 
   function renderHeroLevel() {
@@ -13611,12 +13765,67 @@
     ctx.font = "italic " + Math.max(12, Math.min(16, VW * 0.035)) + "px Fredoka, sans-serif";
     ctx.fillText(def.sub, VW / 2, 100);
 
-    // Placeholder texto centro.
-    ctx.fillStyle = "rgba(255, 255, 255, 0.45)";
-    ctx.font = "bold " + Math.max(14, Math.min(20, VW * 0.045)) + "px Fredoka, sans-serif";
-    ctx.fillText("Nivel Castlevania en construcción", VW / 2, VH * 0.45);
-    ctx.font = Math.max(11, Math.min(14, VW * 0.03)) + "px Fredoka, sans-serif";
-    ctx.fillText("(steps 2-4 vienen después)", VW / 2, VH * 0.50);
+    // Suelo: línea de "endocardio" (membrana cardíaca interna).
+    var groundY = VH * 0.78 + 14;
+    ctx.fillStyle = "rgba(20, 8, 12, 0.85)";
+    ctx.fillRect(0, groundY, VW, VH - groundY);
+    ctx.strokeStyle = def.accent;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(0, groundY);
+    ctx.lineTo(VW, groundY);
+    ctx.stroke();
+
+    // Héroes: DenK + Mac al centro-suelo.
+    drawDenK(hl.denk.x, hl.denk.y, hl.activeHero === "denk", hl.denk.anim, hl.denk.facing);
+    drawMac(hl.mac.x, hl.mac.y, hl.activeHero === "mac", hl.mac.anim, hl.mac.facing);
+
+    // Indicador "ACTIVO" arriba del héroe activo.
+    var active = hl[hl.activeHero];
+    ctx.fillStyle = "rgba(255, 230, 100, 0.95)";
+    ctx.font = "bold 10px Fredoka, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "bottom";
+    ctx.fillText("▼ " + (hl.activeHero === "denk" ? "DenK" : "Mac"), active.x, active.y - 40);
+
+    // HP bars arriba izquierda — 2 personajes.
+    var hpY = 24;
+    ctx.font = "bold 11px Fredoka, sans-serif";
+    ctx.textAlign = "left";
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = "#b8eaf6";
+    ctx.fillText("DenK", 14, hpY + 5);
+    for (var hd = 0; hd < hl.denk.hpMax; hd++) {
+      ctx.fillStyle = hd < hl.denk.hp ? "#7ec5d8" : "rgba(126, 197, 216, 0.20)";
+      ctx.beginPath();
+      ctx.arc(58 + hd * 14, hpY + 5, 5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.fillStyle = "#ffd0a0";
+    ctx.fillText("Mac", 14, hpY + 24);
+    for (var hm = 0; hm < hl.mac.hpMax; hm++) {
+      ctx.fillStyle = hm < hl.mac.hp ? "#d68040" : "rgba(214, 128, 64, 0.20)";
+      ctx.beginPath();
+      ctx.arc(58 + hm * 14, hpY + 24, 5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Botón SWAP (esquina superior derecha).
+    var sbtnW = Math.min(90, VW * 0.22);
+    var sbtnH = Math.max(36, Math.min(46, VH * 0.05));
+    var sbtnX = VW - sbtnW - 16;
+    var sbtnY = 50;
+    state.heroLevel.swapBtn = { x: sbtnX, y: sbtnY, w: sbtnW, h: sbtnH };
+    ctx.fillStyle = "rgba(30, 15, 25, 0.92)";
+    ctx.fillRect(sbtnX, sbtnY, sbtnW, sbtnH);
+    ctx.strokeStyle = hl.activeHero === "denk" ? "#7ec5d8" : "#d68040";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(sbtnX, sbtnY, sbtnW, sbtnH);
+    ctx.fillStyle = "#fff";
+    ctx.font = "bold " + Math.max(11, Math.min(14, sbtnH * 0.38)) + "px Fredoka, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("↻ SWAP", sbtnX + sbtnW / 2, sbtnY + sbtnH / 2);
 
     // Botón EXIT (esquina inferior derecha).
     var btnW = Math.min(120, VW * 0.30);
@@ -13637,12 +13846,19 @@
 
   function handleHeroLevelTap(x, y) {
     if (!state.heroLevel || !state.heroLevel.active) return false;
-    var btn = state.heroLevel.exitBtn;
-    if (btn && x >= btn.x && x <= btn.x + btn.w && y >= btn.y && y <= btn.y + btn.h) {
+    var hl = state.heroLevel;
+    if (hl.exitBtn && x >= hl.exitBtn.x && x <= hl.exitBtn.x + hl.exitBtn.w &&
+        y >= hl.exitBtn.y && y <= hl.exitBtn.y + hl.exitBtn.h) {
       exitHeroLevel("abort");
       return true;
     }
-    return true;  // consume el tap aunque no haya sido sobre el botón
+    if (hl.swapBtn && x >= hl.swapBtn.x && x <= hl.swapBtn.x + hl.swapBtn.w &&
+        y >= hl.swapBtn.y && y <= hl.swapBtn.y + hl.swapBtn.h) {
+      swapActiveHero();
+      sfx("tick");
+      return true;
+    }
+    return true;
   }
 
   // -------- LOOP ----------------------------------------------------------

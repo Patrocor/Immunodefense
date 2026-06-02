@@ -4,6 +4,8 @@
 **Estado**: aprobado para prototipo
 **Scope**: prototipo de un (1) nivel; replicar fórmula a los otros 4 órganos si funciona.
 
+**ACTUALIZACIÓN 2026-06-02 (post-prototipo)**: el PRIMER hero level es **PIEL** (la herida en fase 1 donde entró la infección), no Corazón. Cuando se dispara diseminación, los héroes activan su búsqueda y aparecen recorriendo los escombros que la infección dejó al entrar. Corazón pasa a ser un nivel posterior. El motor genérico (HERO_LEVEL_ORGANS, movimiento, swap) sirve igual.
+
 ---
 
 ## 1. Concepto

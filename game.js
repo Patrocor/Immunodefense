@@ -2790,6 +2790,8 @@
       circulatory: [],
       heroLevel: null,                  // null o { active, organ, time, ... }
       heroLevelMedals: {},              // organId → true cuando se ganó el nivel
+      heroLevelPlayed: {},              // organId → true después del primer juego (no se repite)
+      pendingHeroLevel: null,           // { organ, delay } encolado, se dispara cuando delay≤0
       selectedToBuild: null,
       openGroups: { linea: true, distancia: true }, // grupos abiertos por defecto
       unlockedTowers: ["neutrofilo", "linfocitoB", "linfocitoT"], // resto se desbloquea con pickups
@@ -3148,6 +3150,13 @@
     state.disseminationWaveIdx = 0;
     state.disseminationOver = null;
     state.disseminationIntroTimer = 4.0;
+    // Activar la búsqueda de los héroes: al entrar a diseminación se
+    // dispara el primer hero level (PIEL — los héroes recorren los
+    // escombros que dejó la infección al entrar). Solo se juega 1 vez por run.
+    if (!state.heroLevelMedals.piel && !state.heroLevelPlayed) {
+      state.heroLevelPlayed = state.heroLevelPlayed || {};
+      state.pendingHeroLevel = { organ: "piel", delay: 4.5 };
+    }
     state.disseminationOrganLoad = [0, 0, 0, 0, 0];
     state.disseminationFlash = [0, 0, 0, 0, 0];
     // HP biológico por órgano (orden = DISSEMINATION_ORGANS):
@@ -7417,9 +7426,9 @@
         sfx("tick");
         return;
       }
-      // DEBUG: entrar al hero level del corazón.
+      // DEBUG: entrar al primer hero level (PIEL — el rastro de la invasión).
       if (UI.heroDebugBtn && inRect(x, y, UI.heroDebugBtn)) {
-        enterHeroLevel("corazon");
+        enterHeroLevel("piel");
         sfx("upgrade");
         return;
       }
@@ -13556,12 +13565,16 @@
   // Implementación incremental por commits. Este es el step 1: scene routing
   // skeleton. Sólo entra/sale del scene, render placeholder.
 
+  // Hero levels: definición visual de cada zona del recorrido del héroe.
+  // PIEL es la PRIMERA fase (donde entró la infección originalmente).
+  // Los demás (órganos Diana) vienen después en la secuencia.
   var HERO_LEVEL_ORGANS = {
-    corazon:    { label: "CORAZÓN",      sub: "Aurícula derecha",   bg: "#5a1820", accent: "#c1416a" },
-    pulmon:     { label: "PULMÓN",       sub: "Alvéolos inflamados", bg: "#2f4858", accent: "#a8d8e8" },
-    sangre:     { label: "SANGRE",       sub: "Endotelio dañado",    bg: "#3a1015", accent: "#dc3545" },
-    hueso:      { label: "HUESO",        sub: "Médula necrótica",    bg: "#3a2a18", accent: "#c8a070" },
-    articulacion:{ label: "ARTICULACIÓN", sub: "Cápsula sinovial",   bg: "#1a2a3a", accent: "#8ec5d0" }
+    piel:        { label: "PIEL",         sub: "Herida — rastro de la invasión", bg: "#7a3a2e", accent: "#f3d5c8" },
+    corazon:     { label: "CORAZÓN",      sub: "Aurícula derecha",        bg: "#5a1820", accent: "#c1416a" },
+    pulmon:      { label: "PULMÓN",       sub: "Alvéolos inflamados",     bg: "#2f4858", accent: "#a8d8e8" },
+    sangre:      { label: "SANGRE",       sub: "Endotelio dañado",        bg: "#3a1015", accent: "#dc3545" },
+    hueso:       { label: "HUESO",        sub: "Médula necrótica",        bg: "#3a2a18", accent: "#c8a070" },
+    articulacion:{ label: "ARTICULACIÓN", sub: "Cápsula sinovial",        bg: "#1a2a3a", accent: "#8ec5d0" }
   };
 
   function enterHeroLevel(organId) {
@@ -13841,10 +13854,29 @@
     ctx.fillStyle = def.bg;
     ctx.fillRect(0, 0, VW, VH);
 
-    // Latido sutil de fondo (intensity bobbing).
+    // Pulso/latido sutil de fondo (más suave en piel, más fuerte en órganos).
     var beat = 0.5 + 0.5 * Math.sin(hl.time * Math.PI * 2);
-    ctx.fillStyle = "rgba(255, 100, 120, " + (0.04 + beat * 0.06) + ")";
-    ctx.fillRect(0, 0, VW, VH);
+    if (hl.organ === "piel") {
+      // Piel: capas horizontales semitransparentes (epidermis/dermis/hipodermis).
+      ctx.fillStyle = "rgba(120, 60, 50, 0.30)";
+      ctx.fillRect(0, VH * 0.15, VW, VH * 0.15);
+      ctx.fillStyle = "rgba(160, 100, 80, 0.22)";
+      ctx.fillRect(0, VH * 0.30, VW, VH * 0.25);
+      ctx.fillStyle = "rgba(200, 160, 130, 0.16)";
+      ctx.fillRect(0, VH * 0.55, VW, VH * 0.23);
+      // Partículas de escombros flotantes (debris)
+      for (var dp = 0; dp < 14; dp++) {
+        var px = (dp * 71 + hl.time * 8) % VW;
+        var py = ((dp * 53) % (VH - 100)) + 80;
+        ctx.fillStyle = "rgba(80, 30, 25, 0.25)";
+        ctx.beginPath();
+        ctx.arc(px, py, 2 + (dp % 3), 0, Math.PI * 2);
+        ctx.fill();
+      }
+    } else {
+      ctx.fillStyle = "rgba(255, 100, 120, " + (0.04 + beat * 0.06) + ")";
+      ctx.fillRect(0, 0, VW, VH);
+    }
 
     // Header con título del órgano.
     ctx.fillStyle = def.accent;
@@ -14033,6 +14065,17 @@
       paused = true;
     }
     if (state.disseminationIntroTimer > 0) state.disseminationIntroTimer -= dt;
+    // Hero level encolado: cuenta atrás y dispara cuando el delay llega a 0.
+    if (state.pendingHeroLevel) {
+      state.pendingHeroLevel.delay -= dt;
+      if (state.pendingHeroLevel.delay <= 0) {
+        var pending = state.pendingHeroLevel;
+        state.pendingHeroLevel = null;
+        state.heroLevelPlayed = state.heroLevelPlayed || {};
+        state.heroLevelPlayed[pending.organ] = true;
+        enterHeroLevel(pending.organ);
+      }
+    }
     if (state.disseminationFlash) {
       for (var dFi = 0; dFi < state.disseminationFlash.length; dFi++) {
         if (state.disseminationFlash[dFi] > 0) state.disseminationFlash[dFi] -= dt;

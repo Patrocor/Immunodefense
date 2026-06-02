@@ -14094,5 +14094,19 @@
     window.visualViewport.addEventListener("resize", resize);
   }
   resize();
+
+  // === ACCESO DIRECTO via URL hash ===
+  // #hero=corazon | pulmon | sangre | hueso | articulacion
+  // Bookmark friendly: immunodefense.vercel.app/#hero=corazon
+  (function checkDirectAccess() {
+    var hash = (window.location.hash || "").toLowerCase();
+    var m = hash.match(/hero=(\w+)/);
+    if (m && HERO_LEVEL_ORGANS[m[1]]) {
+      state.showTitle = false;
+      state.showIntro = false;
+      enterHeroLevel(m[1]);
+    }
+  })();
+
   requestAnimationFrame(loop);
 })();

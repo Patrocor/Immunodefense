@@ -2290,12 +2290,13 @@
   // ============ FIN ANTÍGENOS ============
 
   // ============ RESPUESTAS INMUNES (panel inferior nuevo) ============
+  // Una sola respuesta inmune para mayor claridad: NETosis. Biológicamente
+  // espectacular (un neutrófilo se autoinmola lanzando una red de cromatina
+  // que atrapa todo lo que pase por el carril).
   var RESPONSE_DEFS = {
-    dendritica: { cost: 4, color: "#a872d8", label: "Dendrítica",  icon: "▼T", auto: true  },
-    netosis:    { cost: 3, color: "#f0a050", label: "NETosis",     icon: "◈",  auto: false },
-    plaquetas:  { cost: 5, color: "#e8a020", label: "Plaquetas",   icon: "●●", auto: false }
+    netosis: { cost: 4, color: "#f0a050", label: "NETosis", icon: "◈", auto: false }
   };
-  var RESPONSE_ORDER = ["dendritica", "netosis", "plaquetas"];
+  var RESPONSE_ORDER = ["netosis"];
 
   function drawImmuneResponsePanel() {
     if (!state.dissemination || !UI.responsePanel) return;
@@ -2351,124 +2352,54 @@
   }
   // ============ FIN RESPUESTAS (sub-task 5.1) ============
 
-  function spawnDendriticStain() {
-    if (!state.dendriticStains) state.dendriticStains = [];
-    // Centroide aproximado de los gérmenes vivos para que la mancha caiga
-    // donde está la presión inmune; si no hay, centro del campo.
-    var cx = FIELD_LEFT + FIELD_W * 0.5, cy = FIELD_TOP + FIELD_H * 0.5, n = 0;
-    for (var ei = 0; ei < state.enemies.length; ei++) {
-      var en = state.enemies[ei];
-      if (en.dead) continue;
-      if (n === 0) { cx = en.x; cy = en.y; }
-      else { cx = (cx * n + en.x) / (n + 1); cy = (cy * n + en.y) / (n + 1); }
-      n++;
-    }
-    // Generar polígono irregular (mancha orgánica).
-    var nVerts = 18;
-    var baseR = 60 * U;
-    var seed = Math.random() * 1000;
-    var pts = [];
-    for (var i = 0; i < nVerts; i++) {
-      var ang = (i / nVerts) * Math.PI * 2;
-      var rr = baseR * (0.75 + 0.32 * Math.sin(ang * 3 + seed) + 0.15 * Math.sin(ang * 5 - seed * 0.7));
-      pts.push({ a: ang, r: rr });
-    }
-    state.dendriticStains.push({
-      x: cx, y: cy,
-      pts: pts,
-      baseR: baseR,
-      ttl: 16.0,
-      age: 0,
-      dmgInterval: 1.0,
-      lastTick: 0,
-      damagePerTick: 6
-    });
-  }
-
-  function updateDendriticStains(dt) {
-    if (!state.dendriticStains) return;
-    for (var i = state.dendriticStains.length - 1; i >= 0; i--) {
-      var s = state.dendriticStains[i];
-      s.age += dt;
-      // Tick de daño cada 1s a todos los gérmenes dentro del radio efectivo.
-      if (s.age - s.lastTick >= s.dmgInterval) {
-        s.lastTick = s.age;
-        for (var ei = 0; ei < state.enemies.length; ei++) {
-          var en = state.enemies[ei];
-          if (en.dead) continue;
-          var dx = en.x - s.x, dy = en.y - s.y;
-          if (dx * dx + dy * dy <= s.baseR * s.baseR) {
-            en.hp = (en.hp || 1) - s.damagePerTick;
-            if (en.hp <= 0 && !en.dead) {
-              if (!en.antigenSpawned) {
-                spawnAntigenDrop(en.x, en.y);
-                en.antigenSpawned = true;
-              }
-              en.dead = true;
-            }
-          }
-        }
-      }
-      if (s.age >= s.ttl) state.dendriticStains.splice(i, 1);
-    }
-  }
-
-  function drawDendriticStains() {
-    if (!state.dendriticStains) return;
-    for (var i = 0; i < state.dendriticStains.length; i++) {
-      var s = state.dendriticStains[i];
-      var fadeIn = Math.min(1, s.age / 0.4);
-      var fadeOut = s.age > s.ttl - 1 ? Math.max(0, 1 - (s.age - (s.ttl - 1))) : 1;
-      var alpha = fadeIn * fadeOut;
-      ctx.save();
-      ctx.globalAlpha = alpha;
-      // Halo radial púrpura
-      var grd = ctx.createRadialGradient(s.x, s.y, s.baseR * 0.25, s.x, s.y, s.baseR * 1.15);
-      grd.addColorStop(0, "rgba(168, 114, 216, 0.50)");
-      grd.addColorStop(0.65, "rgba(168, 114, 216, 0.22)");
-      grd.addColorStop(1, "rgba(168, 114, 216, 0)");
-      ctx.fillStyle = grd;
-      ctx.beginPath();
-      ctx.arc(s.x, s.y, s.baseR * 1.15, 0, Math.PI * 2);
-      ctx.fill();
-      // Mancha irregular (polígono con wobble)
-      ctx.fillStyle = "rgba(157, 92, 208, 0.55)";
-      ctx.strokeStyle = "rgba(106, 56, 168, 0.90)";
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      for (var p = 0; p < s.pts.length; p++) {
-        var pt = s.pts[p];
-        var wob = 1 + 0.07 * Math.sin(p * 0.7 + s.age * 1.5);
-        var rr = pt.r * wob;
-        var px = s.x + Math.cos(pt.a) * rr;
-        var py = s.y + Math.sin(pt.a) * rr;
-        if (p === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
-      }
-      ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
-      // Pulso de daño visible al tick (~150ms post-tick)
-      var sinceTick = s.age - s.lastTick;
-      if (sinceTick < 0.18) {
-        var k = 1 - sinceTick / 0.18;
-        ctx.strokeStyle = "rgba(220, 180, 255, " + (k * 0.7) + ")";
-        ctx.lineWidth = 2.5;
-        ctx.beginPath();
-        ctx.arc(s.x, s.y, s.baseR * (0.85 + (1 - k) * 0.25), 0, Math.PI * 2);
-        ctx.stroke();
-      }
-      ctx.restore();
-    }
-  }
-
+  // ============ NETOSIS ============
+  // Una sola respuesta inmune: el jugador toca un carril y un neutrófilo
+  // se autoinmola lanzando una red de cromatina (DNA + histonas) que
+  // ocupa todo el carril vertical, paraliza y daña a los gérmenes que
+  // atrapa. Mecanismo biológico real (Brinkmann et al. 2004).
+  //
+  // Cinemática 3 fases (age en segundos):
+  //   [0.00-0.30]  DETONACIÓN  - flash blanco-azul + fragmentos al aire
+  //   [0.30-0.80]  DESPLIEGUE  - hebras se desenrollan hacia abajo
+  //   [0.80-9.00]  TRAMPA      - red estable, atrapa + DoT
+  //   [9.00-10.0]  DISIPACIÓN  - fade out
   function spawnNet(laneX, laneY) {
+    // Punto de detonación: en lo alto del carril (donde "nace" el neutrófilo).
+    var topY = FIELD_TOP + FIELD_H * 0.08;
+    var bottomY = FIELD_TOP + FIELD_H * 0.88;
+    // Pre-generar trayectorias de las hebras para que el dibujo sea
+    // consistente entre frames (no jitter aleatorio).
+    var laneW = (FIELD_W / 5) * 0.78;
+    var nStrands = 9;
+    var strands = [];
+    for (var s = 0; s < nStrands; s++) {
+      var phaseSeed = Math.random() * Math.PI * 2;
+      var xOffset0 = (Math.random() - 0.5) * laneW * 0.7;
+      var xOffset1 = (Math.random() - 0.5) * laneW * 0.7;
+      var wave = 0.6 + Math.random() * 0.8;       // amplitud lateral
+      strands.push({ x0: xOffset0, x1: xOffset1, phase: phaseSeed, wave: wave });
+    }
+    // Puntos brillantes de histona/DNA condensado distribuidos sobre las hebras.
+    var beads = [];
+    for (var b = 0; b < 22; b++) {
+      beads.push({
+        strand: Math.floor(Math.random() * nStrands),
+        t: Math.random(),               // 0..1 a lo largo de la hebra
+        offset: (Math.random() - 0.5) * 4 * U,
+        size: (1.4 + Math.random() * 1.2) * U,
+        pulse: Math.random() * Math.PI * 2
+      });
+    }
     state.nets.push({
-      x: laneX, y: laneY,
-      radius: 42 * U,
-      ttl: 8.0,
+      x: laneX, y: (topY + bottomY) / 2,
+      topY: topY, bottomY: bottomY,
+      laneW: laneW,
+      strands: strands,
+      beads: beads,
+      ttl: 10.0,
       age: 0,
-      damagePerSec: 4,
-      lastDmgTick: 0
+      dpsTrapped: 6,                    // daño por segundo a gérmenes atrapados
+      lastDmgTime: 0
     });
   }
 
@@ -2477,13 +2408,18 @@
     for (var i = state.nets.length - 1; i >= 0; i--) {
       var n = state.nets[i];
       n.age += dt;
-      for (var ei = 0; ei < state.enemies.length; ei++) {
-        var en = state.enemies[ei];
-        if (en.dead) continue;
-        var dx = en.x - n.x, dy = en.y - n.y;
-        if (dx*dx + dy*dy <= n.radius * n.radius) {
+      // Active solo después de que la red termine de desplegarse (0.8s).
+      if (n.age >= 0.8 && n.age < n.ttl - 0.8) {
+        var halfW = n.laneW * 0.5;
+        for (var ei = 0; ei < state.enemies.length; ei++) {
+          var en = state.enemies[ei];
+          if (en.dead) continue;
+          var dx = en.x - n.x;
+          if (Math.abs(dx) > halfW) continue;
+          if (en.y < n.topY - 10 * U || en.y > n.bottomY + 10 * U) continue;
+          // Germen ATRAPADO: paraliza casi por completo + DoT.
           en.nettedUntil = state.time + 0.2;
-          en.hp = (en.hp || 1) - n.damagePerSec * dt;
+          en.hp = (en.hp || 1) - n.dpsTrapped * dt;
           if (en.hp <= 0 && !en.dead) {
             if (!en.antigenSpawned) {
               spawnAntigenDrop(en.x, en.y);
@@ -2501,113 +2437,127 @@
     if (!state.nets) return;
     for (var i = 0; i < state.nets.length; i++) {
       var n = state.nets[i];
-      var fadeIn = Math.min(1, n.age / 0.3);
-      var fadeOut = n.age > n.ttl - 1 ? Math.max(0, 1 - (n.age - (n.ttl - 1))) : 1;
-      var alpha = fadeIn * fadeOut;
+      var halfW = n.laneW * 0.5;
+      var laneH = n.bottomY - n.topY;
+      var ageT = n.age;
+      // Progreso de despliegue (0..1) durante los primeros 0.8s.
+      var deploy = Math.min(1, Math.max(0, (ageT - 0.30) / 0.50));
+      // Fade out al final.
+      var fadeOut = ageT > n.ttl - 0.8 ? Math.max(0, 1 - (ageT - (n.ttl - 0.8)) / 0.8) : 1;
+
       ctx.save();
-      ctx.globalAlpha = alpha;
-      ctx.strokeStyle = "rgba(255, 220, 180, 0.7)";
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.arc(n.x, n.y, n.radius, 0, Math.PI * 2);
-      ctx.stroke();
-      for (var li = 0; li < 8; li++) {
-        var a = (li / 8) * Math.PI * 2 + n.age * 0.5;
+
+      // === FASE 1: DETONACIÓN (0.00-0.30s) ===
+      if (ageT < 0.30) {
+        var dt0 = ageT / 0.30;
+        // Flash blanco-azul radial en el punto de detonación.
+        var flashR = (40 + dt0 * 80) * U;
+        var fg = ctx.createRadialGradient(n.x, n.topY, 2, n.x, n.topY, flashR);
+        fg.addColorStop(0, "rgba(220, 240, 255, " + (1 - dt0) + ")");
+        fg.addColorStop(0.4, "rgba(180, 200, 255, " + ((1 - dt0) * 0.6) + ")");
+        fg.addColorStop(1, "rgba(180, 200, 255, 0)");
+        ctx.fillStyle = fg;
         ctx.beginPath();
-        ctx.moveTo(n.x, n.y);
-        ctx.lineTo(n.x + Math.cos(a) * n.radius, n.y + Math.sin(a) * n.radius);
+        ctx.arc(n.x, n.topY, flashR, 0, Math.PI * 2);
+        ctx.fill();
+        // Anillo de choque expandiéndose.
+        ctx.strokeStyle = "rgba(255, 255, 255, " + (1 - dt0) + ")";
+        ctx.lineWidth = Math.max(1, 2 * U);
+        ctx.beginPath();
+        ctx.arc(n.x, n.topY, flashR * 0.85, 0, Math.PI * 2);
         ctx.stroke();
-      }
-      ctx.beginPath();
-      for (var t = 0; t <= Math.PI * 2; t += 0.2) {
-        var r = n.radius * 0.5 * (1 + 0.4 * Math.sin(t * 4));
-        var x = n.x + Math.cos(t) * r, y = n.y + Math.sin(t) * r;
-        if (t === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-      }
-      ctx.stroke();
-      ctx.restore();
-    }
-  }
-
-  function spawnThrombus(laneX, laneY) {
-    state.thrombi.push({
-      x: laneX, y: laneY,
-      radius: 46 * U,
-      ttl: 18.0,
-      age: 0,
-      damagePerSec: 8
-    });
-  }
-
-  function updateThrombi(dt) {
-    if (!state.thrombi) return;
-    for (var i = state.thrombi.length - 1; i >= 0; i--) {
-      var th = state.thrombi[i];
-      th.age += dt;
-      for (var ei = 0; ei < state.enemies.length; ei++) {
-        var en = state.enemies[ei];
-        if (en.dead) continue;
-        var dx = en.x - th.x, dy = en.y - th.y;
-        if (dx*dx + dy*dy <= th.radius * th.radius) {
-          en.thrombusUntil = state.time + 0.2;
-          en.hp = (en.hp || 1) - th.damagePerSec * dt;
-          if (en.hp <= 0 && !en.dead) {
-            if (!en.antigenSpawned) {
-              spawnAntigenDrop(en.x, en.y);
-              en.antigenSpawned = true;
-            }
-            en.dead = true;
-          }
+        // Fragmentos eyectados (DNA volando).
+        for (var fr = 0; fr < 10; fr++) {
+          var fa = (fr / 10) * Math.PI * 2;
+          var fd = flashR * 1.2 * dt0;
+          var fx = n.x + Math.cos(fa) * fd;
+          var fy = n.topY + Math.sin(fa) * fd;
+          ctx.fillStyle = "rgba(200, 180, 240, " + (1 - dt0) + ")";
+          ctx.beginPath();
+          ctx.arc(fx, fy, 2 * U, 0, Math.PI * 2);
+          ctx.fill();
         }
       }
-      if (th.age >= th.ttl) state.thrombi.splice(i, 1);
-    }
-  }
 
-  function drawThrombi() {
-    if (!state.thrombi) return;
-    for (var i = 0; i < state.thrombi.length; i++) {
-      var th = state.thrombi[i];
-      var fadeIn = Math.min(1, th.age / 0.3);
-      var fadeOut = th.age > th.ttl - 1 ? Math.max(0, 1 - (th.age - (th.ttl - 1))) : 1;
-      var alpha = fadeIn * fadeOut;
-      ctx.save();
-      ctx.globalAlpha = alpha;
-      var pulse = 0.5 + 0.5 * Math.sin(state.time * 4);
-      ctx.strokeStyle = "rgba(232, 160, 32, " + (0.6 + pulse * 0.3) + ")";
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      ctx.arc(th.x, th.y, th.radius + pulse * 4, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.fillStyle = "rgba(160, 32, 48, 0.65)";
-      ctx.beginPath();
-      ctx.ellipse(th.x, th.y, th.radius * 0.6, th.radius * 0.45, 0, 0, Math.PI * 2);
-      ctx.fill();
-      var plats = [[-15,-8],[12,-12],[18,6],[-8,12],[-22,4]];
-      ctx.fillStyle = "#e8a020";
-      ctx.strokeStyle = "#8a5010";
-      ctx.lineWidth = 1;
-      for (var pi = 0; pi < plats.length; pi++) {
-        ctx.beginPath();
-        ctx.arc(th.x + plats[pi][0] * U, th.y + plats[pi][1] * U, 4 * U, 0, Math.PI * 2);
-        ctx.fill(); ctx.stroke();
+      // === FASE 2-3: HEBRAS DESPLEGÁNDOSE + TRAMPA ACTIVA ===
+      if (deploy > 0) {
+        var alpha = fadeOut;
+        // Halo sutil del área entera.
+        var ag = ctx.createLinearGradient(n.x - halfW, 0, n.x + halfW, 0);
+        ag.addColorStop(0, "rgba(140, 100, 200, 0)");
+        ag.addColorStop(0.5, "rgba(180, 160, 220, " + (0.08 * alpha) + ")");
+        ag.addColorStop(1, "rgba(140, 100, 200, 0)");
+        ctx.fillStyle = ag;
+        ctx.fillRect(n.x - halfW, n.topY, halfW * 2, laneH * deploy);
+
+        // Hebras de cromatina (DNA blanco-azulado).
+        for (var si = 0; si < n.strands.length; si++) {
+          var st = n.strands[si];
+          ctx.strokeStyle = "rgba(245, 235, 255, " + (0.78 * alpha) + ")";
+          ctx.lineWidth = Math.max(1, 1.6 * U);
+          ctx.lineCap = "round";
+          ctx.beginPath();
+          var endY = n.topY + laneH * deploy;
+          var steps = 24;
+          for (var k = 0; k <= steps; k++) {
+            var t = k / steps;
+            var y = n.topY + (endY - n.topY) * t;
+            // Interpolación cubic-ish del offset x + ondulación viva.
+            var baseX = n.x + (st.x0 * (1 - t) + st.x1 * t);
+            var wob = Math.sin(st.phase + t * 4 + ageT * 2.5) * (8 * U) * st.wave;
+            var x = baseX + wob;
+            if (k === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+          }
+          ctx.stroke();
+          // Glow exterior sutil sobre la hebra (segunda pasada azul claro).
+          ctx.strokeStyle = "rgba(170, 200, 255, " + (0.35 * alpha) + ")";
+          ctx.lineWidth = Math.max(2, 3 * U);
+          ctx.stroke();
+        }
+
+        // Puntos brillantes de histona (DNA condensado) a lo largo de las hebras.
+        for (var bi = 0; bi < n.beads.length; bi++) {
+          var bd = n.beads[bi];
+          if (bd.t > deploy) continue; // aún no se desplegó hasta aquí
+          var st2 = n.strands[bd.strand];
+          var t2 = bd.t;
+          var by = n.topY + laneH * t2;
+          var baseX2 = n.x + (st2.x0 * (1 - t2) + st2.x1 * t2);
+          var wob2 = Math.sin(st2.phase + t2 * 4 + ageT * 2.5) * (8 * U) * st2.wave;
+          var bx = baseX2 + wob2 + bd.offset;
+          var pulse = 0.7 + 0.3 * Math.sin(ageT * 5 + bd.pulse);
+          // Punto morado interior con halo blanco-azul.
+          ctx.fillStyle = "rgba(220, 200, 255, " + (0.50 * alpha) + ")";
+          ctx.beginPath();
+          ctx.arc(bx, by, bd.size * 1.8 * pulse, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = "rgba(160, 100, 220, " + (0.95 * alpha) + ")";
+          ctx.beginPath();
+          ctx.arc(bx, by, bd.size * pulse, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        // Etiqueta "NET" en el tope una vez activa.
+        if (ageT > 0.8 && ageT < n.ttl - 1.5) {
+          ctx.fillStyle = "rgba(255, 255, 255, " + (0.65 * alpha) + ")";
+          ctx.font = "bold " + Math.floor(10 * U) + "px Fredoka, sans-serif";
+          ctx.textAlign = "center";
+          ctx.textBaseline = "bottom";
+          ctx.fillText("NET", n.x, n.topY - 4 * U);
+        }
       }
+
       ctx.restore();
     }
-  }
-
-  function hasResponseInLane(lane, type) {
-    var arr = (type === "net") ? state.nets : state.thrombi;
-    if (!arr || !PATH.organDoors || !PATH.organDoors[lane]) return false;
-    var laneX = PATH.organDoors[lane].x;
-    for (var i = 0; i < arr.length; i++) {
-      if (Math.abs(arr[i].x - laneX) < (FIELD_W / 5) * 0.45) return true;
-    }
-    return false;
   }
 
   function hasResponseInLaneAny(lane) {
-    return hasResponseInLane(lane, "net") || hasResponseInLane(lane, "thrombus");
+    if (!state.nets || !PATH.organDoors || !PATH.organDoors[lane]) return false;
+    var laneX = PATH.organDoors[lane].x;
+    for (var i = 0; i < state.nets.length; i++) {
+      if (Math.abs(state.nets[i].x - laneX) < (FIELD_W / 5) * 0.45) return true;
+    }
+    return false;
   }
 
   function laneAt(x) {
@@ -2838,8 +2788,6 @@
       vistos: null,                      // populated below from localStorage
       antigens: { count: 0, drops: [] },
       nets: [],
-      thrombi: [],
-      dendriticStains: [],
       armedResponse: null
     };
   }
@@ -2954,10 +2902,13 @@
     UI.responsePanel = null;
     var responsesReservedH = 0;
     if (state && state.dissemination) {
-      var rpCardH = Math.round(40 * U);
+      // Una sola card de respuesta (NETosis). Antes había 3 (dendritica,
+      // netosis, plaquetas) — se simplificó para que el jugador no se
+      // pierda en opciones similares.
+      var rpCardH = Math.round(50 * U);
       var rpGap = Math.round(6 * U);
       var rpPad = Math.round(6 * U);
-      var rpInnerH = 3 * rpCardH + 2 * rpGap;
+      var rpInnerH = 1 * rpCardH;
       var rpH = rpInnerH + 2 * rpPad;
       responsesReservedH = rpH + dockPad;
       UI.responsePanel = {
@@ -3125,8 +3076,6 @@
     state.disseminationBarrierBreakLane = -1;
     state.antigens = { count: 0, drops: [] };
     state.nets = [];
-    state.thrombi = [];
-    state.dendriticStains = [];
     state.necroticPatches = [];
     state.megakaryocyte = {
       x: 0, y: 0,
@@ -3738,9 +3687,7 @@
       if (state.dissemination && e.nettedUntil && state.time < e.nettedUntil) {
         pxSpeed = 0;
       }
-      if (state.dissemination && e.thrombusUntil && state.time < e.thrombusUntil) {
-        pxSpeed = 0;
-      }
+      // (response thrombus removida — antes seteaba thrombusUntil al germen)
       // Fibrina: si el germen entra en su elipse de obstrucción, se detiene
       // y aplica daño de contacto recíproco (mínimo al germen, mayor a la
       // malla — su HP alta lo soporta).
@@ -7304,7 +7251,7 @@
         return;
       }
     }
-    // Respuestas inmunes: tap sobre una carta del panel.
+    // Respuesta inmune: tap sobre la carta de NETosis.
     if (state.dissemination && UI.responseCards) {
       for (var rci = 0; rci < UI.responseCards.length; rci++) {
         var rc = UI.responseCards[rci];
@@ -7312,25 +7259,18 @@
             y >= rc.y && y <= rc.y + rc.h) {
           var def = RESPONSE_DEFS[rc.key];
           if (state.antigens.count < def.cost) return;
-          if (rc.key === "dendritica") {
-            state.antigens.count -= def.cost;
-            spawnDendriticStain();
-            sfx("upgrade");
-            return;
-          } else {
-            state.armedResponse = (state.armedResponse === rc.key) ? null : rc.key;
-            return;
-          }
+          state.armedResponse = (state.armedResponse === rc.key) ? null : rc.key;
+          return;
         }
       }
     }
-    // Respuesta armada: tap en un carril para colocar NET o Trombosis.
+    // Respuesta armada: tap en un carril para detonar NETosis.
     if (state.armedResponse && state.dissemination) {
       var lane = laneAt(x);
       var type = state.armedResponse;
       var def2 = RESPONSE_DEFS[type];
       if (hasResponseInLaneAny(lane)) {
-        showMsg("Ya hay un efecto en este carril");
+        showMsg("Ya hay una NET en este carril");
         state.armedResponse = null;
         return;
       }
@@ -7341,8 +7281,7 @@
       var laneX = PATH.organDoors ? PATH.organDoors[lane].x : x;
       var laneY = y;
       state.antigens.count -= def2.cost;
-      if (type === "netosis") spawnNet(laneX, laneY);
-      else if (type === "plaquetas") spawnThrombus(laneX, laneY);
+      spawnNet(laneX, laneY);
       state.armedResponse = null;
       sfx("upgrade");
       return;
@@ -12891,9 +12830,7 @@
     if (state.dissemination) {
       safeDraw("DisseminationField", drawDisseminationField);
       safeDraw("AntigenDrops", drawAntigenDrops);
-      safeDraw("DendriticStains", drawDendriticStains);
       safeDraw("Nets", drawNets);
-      safeDraw("Thrombi", drawThrombi);
     } else {
       safeDraw("ExteriorZone", drawExteriorZone);
       safeDraw("SkinZone", drawSkinZone);
@@ -13526,8 +13463,6 @@
       updateMegakaryocyte(dt);
       updateAntigenDrops(dt);
       updateNets(dt);
-      updateThrombi(dt);
-      updateDendriticStains(dt);
       updateUnlockPickups(dt);
       // Spawneo retardado de pickups per-fase al cambiar de fase.
       if (state.pendingPhaseUnlocks && state.pendingPhaseUnlocks.length > 0) {

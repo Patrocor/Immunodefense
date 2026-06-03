@@ -14032,15 +14032,20 @@
     var p2x = -(cx * 0.50);
     var img2 = (hl.organ === "piel") ? ASSETS.get("assets/piel/bg-mid.png") : null;
     if (img2) {
+      // Capa media atmosférica: escalada al doble (menos tiling) y muy
+      // baja opacidad para que no compita con bg-far.
       var tw2 = img2.width;
       var th2 = img2.height;
       var aspect2 = th2 / tw2;
-      var renderH2 = groundY;
+      var renderH2 = groundY * 1.5;        // más grande → menos repetición visual
       var renderW2 = renderH2 / aspect2;
       var startX2 = Math.floor(cx * 0.50 / renderW2) * renderW2 - cx * 0.50;
+      ctx.save();
+      ctx.globalAlpha = 0.32;              // muy sutil, atmósfera
       for (var tx2 = startX2; tx2 < VW + renderW2; tx2 += renderW2) {
-        ctx.drawImage(img2, tx2, 0, renderW2, renderH2);
+        ctx.drawImage(img2, tx2, -renderH2 * 0.10, renderW2, renderH2);
       }
+      ctx.restore();
     } else {
     ctx.save();
     ctx.translate(p2x, 0);
@@ -14075,15 +14080,21 @@
     var p3x = -(cx * 0.85);
     var img3 = (hl.organ === "piel") ? ASSETS.get("assets/piel/bg-near.png") : null;
     if (img3) {
+      // Capa cercana atmosférica: aún más grande y baja opacidad. Sirve
+      // para sugerir fibras + manchas de daño sin saturar.
       var tw3 = img3.width;
       var th3 = img3.height;
       var aspect3 = th3 / tw3;
-      var renderH3 = groundY;
+      var renderH3 = groundY * 1.7;        // mucho más grande para menos tiling
       var renderW3 = renderH3 / aspect3;
       var startX3 = Math.floor(cx * 0.85 / renderW3) * renderW3 - cx * 0.85;
+      ctx.save();
+      ctx.globalAlpha = 0.42;              // sutil pero un poco más visible
+                                            // (las manchas de daño son narrativas)
       for (var tx3 = startX3; tx3 < VW + renderW3; tx3 += renderW3) {
-        ctx.drawImage(img3, tx3, 0, renderW3, renderH3);
+        ctx.drawImage(img3, tx3, -renderH3 * 0.15, renderW3, renderH3);
       }
+      ctx.restore();
     } else {
     ctx.save();
     ctx.translate(p3x, 0);

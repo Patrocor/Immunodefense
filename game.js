@@ -13753,6 +13753,84 @@
   }
 
   // ---- Sprites de los héroes ----
+  // Dibuja un héroe — intenta usar el sprite PNG; si no está cargado,
+  // fallback a la primitiva de canvas (drawDenK / drawMac).
+  // hero = state.heroLevel.denk o .mac
+  // type = "denk" | "mac"
+  function drawHeroSprite(hero, screenX, isActive, animT, facing, type) {
+    // Determinar estado visual.
+    var hl = state.heroLevel;
+    var stateName = "idle";
+    if (!hero.grounded) stateName = "jump";
+    else if (hero.attackingUntil && state.time < hero.attackingUntil) stateName = "attack";
+    else if (Math.abs(hero.vx) > 5) {
+      // Alternar idle/walk cada 200ms para simular ciclo de caminata.
+      stateName = (Math.floor(animT * 5) % 2 === 0) ? "walk" : "idle";
+    }
+    var assetPath = "assets/piel/" + type + "-" + stateName + ".png";
+    var img = ASSETS.get(assetPath);
+    if (img) {
+      // Dimensiones target en pantalla (matchea aproximadamente las
+      // primitivas canvas: DenK R=14 → ~50px wide; Mac R=21 → ~75px wide).
+      var targetH = (type === "denk") ? 60 : 80;
+      var aspect = img.width / img.height;
+      var targetW = targetH * aspect;
+      // Para attack: el sprite es 2:1 wide, el cuerpo está a la izquierda.
+      // El "anchor" del personaje debe quedar en screenX (no el centro del sprite).
+      var bodyOffsetX;
+      if (stateName === "attack") {
+        // En attack el cuerpo está al 35-40% del frame; alinear al body.
+        bodyOffsetX = targetW * 0.38;
+      } else {
+        // En frames cuadrados/normales el cuerpo está al centro.
+        bodyOffsetX = targetW * 0.5;
+      }
+      // Halo "activo" — pequeño anillo debajo del sprite.
+      if (isActive) {
+        var glow = 0.5 + 0.5 * Math.sin(animT * 4);
+        ctx.strokeStyle = (type === "denk")
+          ? "rgba(140, 220, 255, " + (0.5 + glow * 0.4) + ")"
+          : "rgba(255, 180, 100, " + (0.5 + glow * 0.4) + ")";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.ellipse(screenX, hero.y + targetH * 0.35, targetW * 0.30, 6, 0, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      // Bobbing suave: scale subtle según anim time.
+      var bob = 1 + Math.sin(animT * 3) * 0.03;
+      // Sombra bajo el personaje.
+      ctx.fillStyle = "rgba(0, 0, 0, 0.40)";
+      ctx.beginPath();
+      ctx.ellipse(screenX, hero.y + targetH * 0.40, targetW * 0.32, 5, 0, 0, Math.PI * 2);
+      ctx.fill();
+      // Flip horizontal si mira a la izquierda.
+      ctx.save();
+      if (facing < 0) {
+        ctx.scale(-1, 1);
+        ctx.drawImage(
+          img,
+          -(screenX + (targetW - bodyOffsetX)),
+          hero.y - targetH * 0.50 * bob,
+          targetW * bob,
+          targetH * bob
+        );
+      } else {
+        ctx.drawImage(
+          img,
+          screenX - bodyOffsetX,
+          hero.y - targetH * 0.50 * bob,
+          targetW * bob,
+          targetH * bob
+        );
+      }
+      ctx.restore();
+      return;
+    }
+    // Fallback: primitiva canvas.
+    if (type === "denk") drawDenK(screenX, hero.y, isActive, animT, facing);
+    else                  drawMac(screenX, hero.y, isActive, animT, facing);
+  }
+
   function drawDenK(x, y, isActive, animT, facing) {
     var R = 14;
     var pulse = 1 + Math.sin(animT * 3) * 0.04;
@@ -14116,11 +14194,7 @@
     // ──── HÉROE ACTIVO (foreground) ────
     var active = hl[hl.activeHero];
     var heroScreenX = active.x - cx;
-    if (hl.activeHero === "denk") {
-      drawDenK(heroScreenX, active.y, true, active.anim, active.facing);
-    } else {
-      drawMac(heroScreenX, active.y, true, active.anim, active.facing);
-    }
+    drawHeroSprite(active, heroScreenX, true, active.anim, active.facing, hl.activeHero);
     ctx.fillStyle = "rgba(255, 230, 100, 0.95)";
     ctx.font = "bold 10px Fredoka, sans-serif";
     ctx.textAlign = "center";

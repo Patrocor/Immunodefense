@@ -13659,13 +13659,16 @@
       // Estado de la entrada de Mac sobre el demodex.
       macEntry: {
         active: true,
-        targetX: VW * 0.78,           // dónde se detiene Mac (al borde dcho de la herida)
+        targetX: VW * 0.72,           // se detiene a una distancia segura del borde
         demodexSeed: Math.random() * 100
       },
-      // Zonas del wound (los héroes no pueden cruzar).
+      // Zonas del wound (los héroes no pueden cruzar). Valores más
+      // conservadores para que ningún sprite "se asome" sobre el boquete:
+      // DenK (sprite ~60px) se detiene con su borde derecho fuera del wound,
+      // Mac (sprite ~80px) idem por el lado izquierdo.
       wound: {
-        leftEdge:  VW * 0.42,         // límite por el que DenK no puede pasar
-        rightEdge: VW * 0.65          // límite por el que Mac no puede pasar
+        leftEdge:  VW * 0.33,         // DenK no puede pasar de aquí
+        rightEdge: VW * 0.70          // Mac no puede pasar de aquí
       },
       swapCooldown: 0,
       gravity: 1200,

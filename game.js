@@ -14689,9 +14689,13 @@
     var macActive = (hl.activeHero === "mac");
     var macAlpha = macActive ? 1.0 : 0.55;
     ctx.globalAlpha = macAlpha;
-    ctx.strokeText("Mac", macScreenX, hl.mac.y - 40);
-    ctx.fillStyle = "#ffb060";
-    ctx.fillText("Mac", macScreenX, hl.mac.y - 40);
+    // Mac es notablemente más alto que DenK (sprite ~100px vs ~64px).
+    // Subimos el label a -65 para que quede por encima de su cabeza
+    // en vez de superpuesto. Color: amarillo dorado, alto contraste
+    // con los tonos cálidos de la piel del bg.
+    ctx.strokeText("Mac", macScreenX, hl.mac.y - 65);
+    ctx.fillStyle = "#ffd24a";
+    ctx.fillText("Mac", macScreenX, hl.mac.y - 65);
     ctx.globalAlpha = 1;
 
     // Indicador de progreso del nivel (barra fina abajo del título).

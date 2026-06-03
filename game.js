@@ -13719,12 +13719,12 @@
         currentLine: 0,
         lineTime: 0,                   // tiempo que lleva la línea actual
         lines: [
-          { hero: "denk", text: "¡Mac, mirá la herida!" },
-          { hero: "mac",  text: "Por acá entraron…" },
-          { hero: "denk", text: "Dejaron todo destrozado." },
-          { hero: "mac",  text: "Hay que rastrearlos." },
-          { hero: "denk", text: "¿Listos para bajar?" },
-          { hero: "mac",  text: "Vamos." }
+          { hero: "denk", text: "¡Mac, mirá la herida!",     expr: "shocked" },
+          { hero: "mac",  text: "Por acá entraron…",          expr: "shocked" },
+          { hero: "denk", text: "Dejaron todo destrozado.",   expr: "shocked" },
+          { hero: "mac",  text: "Hay que rastrearlos.",       expr: "shocked" },
+          { hero: "denk", text: "¿Listos para bajar?",        expr: null      },
+          { hero: "mac",  text: "Vamos.",                     expr: null      }
         ],
         readyToEnter: false,           // al final de los diálogos
         fadingOut: false,
@@ -13926,11 +13926,22 @@
     if (!hero.grounded) stateName = "jump";
     else if (hero.attackingUntil && state.time < hero.attackingUntil) stateName = "attack";
     else if (Math.abs(hero.vx) > 5) {
-      // Alternar idle/walk cada 200ms para simular ciclo de caminata.
       stateName = (Math.floor(animT * 5) % 2 === 0) ? "walk" : "idle";
+    }
+    // Override por expresión del diálogo activo: si hay una línea en
+    // curso y es de este héroe con expr definida, usar ese sprite.
+    if (hl && hl.dialog && hl.dialog.active) {
+      var lineNow = hl.dialog.lines[hl.dialog.currentLine];
+      if (lineNow && lineNow.hero === type && lineNow.expr) {
+        stateName = lineNow.expr;       // ej. "shocked"
+      }
     }
     var assetPath = "assets/piel/" + type + "-" + stateName + ".png";
     var img = ASSETS.get(assetPath);
+    // Si la imagen de expresión no existe, fallback a idle.
+    if (!img && stateName !== "idle") {
+      img = ASSETS.get("assets/piel/" + type + "-idle.png");
+    }
     if (img) {
       // Dimensiones target en pantalla (matchea aproximadamente las
       // primitivas canvas: DenK R=14 → ~50px wide; Mac R=21 → ~75px wide).

@@ -13627,8 +13627,9 @@
       levelWidth: levelWidth,
       cameraX: 0,
       finishX: levelWidth - 80,               // donde termina el nivel
-      // Solo el ACTIVO está en el escenario. El otro espera "en reserva".
-      // Al swap, el reserve aparece donde estaba el activo. Estilo DKC.
+      // Escena 1: AMBOS héroes visibles. DenK arranca a la izquierda
+      // (player-controlled), Mac entra desde la derecha montado en el
+      // demodex (auto-cinematic). Se encuentran en los bordes del wound.
       activeHero: "denk",
       denk: {
         x: startX, y: groundY,
@@ -13637,22 +13638,34 @@
         facing: 1,
         anim: 0,
         grounded: true,
-        moveSpeed: 220,          // px/s
-        jumpV: -480,             // velocidad inicial salto (negativa = arriba)
-        canDoubleJump: true,     // DenK tiene doble salto
+        moveSpeed: 220,
+        jumpV: -480,
+        canDoubleJump: true,
         usedDoubleJump: false
       },
       mac: {
-        x: startX, y: groundY,
+        x: VW + 80,                   // OFF-SCREEN right — entra después
+        y: groundY,
         vx: 0, vy: 0,
         hp: 5, hpMax: 5,
-        facing: 1,
+        facing: -1,                   // mira a la izquierda al entrar
         anim: 0,
         grounded: true,
-        moveSpeed: 150,          // más lento
-        jumpV: -420,             // salto más bajo
+        moveSpeed: 150,
+        jumpV: -420,
         canDoubleJump: false,
         usedDoubleJump: false
+      },
+      // Estado de la entrada de Mac sobre el demodex.
+      macEntry: {
+        active: true,
+        targetX: VW * 0.78,           // dónde se detiene Mac (al borde dcho de la herida)
+        demodexSeed: Math.random() * 100
+      },
+      // Zonas del wound (los héroes no pueden cruzar).
+      wound: {
+        leftEdge:  VW * 0.42,         // límite por el que DenK no puede pasar
+        rightEdge: VW * 0.65          // límite por el que Mac no puede pasar
       },
       swapCooldown: 0,
       gravity: 1200,
@@ -13779,9 +13792,23 @@
       hero.grounded = true;
       hero.usedDoubleJump = false;
     }
-    // Bordes del NIVEL (world-space, no viewport).
+    // Bordes del NIVEL.
     if (hero.x < 14) hero.x = 14;
     if (hero.x > hl.levelWidth - 14) hero.x = hl.levelWidth - 14;
+
+    // WOUND BLOCK: cada héroe no puede cruzar al lado opuesto de la herida.
+    // DenK queda confinado a la izquierda (x <= wound.leftEdge).
+    // Mac queda confinado a la derecha (x >= wound.rightEdge).
+    if (hl.wound) {
+      if (hl.activeHero === "denk" && hero.x > hl.wound.leftEdge) {
+        hero.x = hl.wound.leftEdge;
+        hero.vx = 0;
+      }
+      if (hl.activeHero === "mac" && hero.x < hl.wound.rightEdge) {
+        hero.x = hl.wound.rightEdge;
+        hero.vx = 0;
+      }
+    }
 
     // Cámara: sigue al héroe activo manteniéndolo cerca del centro-izquierda.
     var targetCamX = hero.x - VW * 0.35;
@@ -13792,16 +13819,38 @@
     // Reset edge-trigger.
     input.jumpPressedThisFrame = false;
 
-    // Trigger del diálogo: cuando el héroe activo cruza la X de la herida.
+    // Mac entrada cinemática: viene desde la derecha sobre el demodex,
+    // camina automáticamente hasta su posición de descanso.
+    if (hl.macEntry && hl.macEntry.active) {
+      var macHero = hl.mac;
+      var dx = hl.macEntry.targetX - macHero.x;
+      if (Math.abs(dx) > 2) {
+        macHero.vx = Math.sign(dx) * 110;       // walking speed
+        macHero.x += macHero.vx * dt;
+        macHero.facing = -1;                     // mira a la izquierda
+        macHero.anim += dt;                      // walk cycle anim
+      } else {
+        macHero.x = hl.macEntry.targetX;
+        macHero.vx = 0;
+        hl.macEntry.active = false;              // llegó
+        macHero.facing = -1;                     // mira a la herida
+      }
+    }
+
+    // Trigger del diálogo: cuando DenK llega al borde izquierdo de la herida
+    // Y Mac ya terminó su entrada (los dos están en sus bordes).
     if (hl.dialog && !hl.dialog.triggered) {
-      if (hero.x >= hl.woundTriggerX) {
+      var denkAtEdge = hl.denk.x >= hl.wound.leftEdge - 2;
+      var macAtRest = !hl.macEntry.active;
+      if (denkAtEdge && macAtRest) {
         hl.dialog.triggered = true;
         hl.dialog.active = true;
         hl.dialog.currentLine = 0;
         hl.dialog.lineTime = 0;
-        // Detener héroe al borde de la herida (efecto "se queda mirando").
-        hero.x = hl.woundTriggerX;
-        hero.vx = 0;
+        hl.denk.facing = 1;                      // DenK mira a la herida (a la dcha)
+        hl.mac.facing = -1;                      // Mac mira a la herida (a la izq)
+        hl.denk.vx = 0;
+        hl.mac.vx = 0;
         input.left = false;
         input.right = false;
       }
@@ -14177,26 +14226,93 @@
     // (Floor strip y debris canvas removidos — la imagen bg ya muestra
     // el corte dérmico completo y los escombros pintados.)
 
-    // ──── HÉROE ACTIVO (foreground) ────
+    // ──── DEMODEX (placeholder canvas) bajo Mac mientras entra ────
+    if (hl.organ === "piel") {
+      var dmdHero = hl.mac;
+      var dmdScreenX = dmdHero.x - cx;
+      // Solo dibujar si está cerca del viewport
+      if (dmdScreenX > -50 && dmdScreenX < VW + 50) {
+        var dmdAnim = hl.macEntry && hl.macEntry.active ? hl.time * 8 : hl.time * 2;
+        var legWiggle = Math.sin(dmdAnim) * 3;
+        // Cuerpo elongado del demodex (cream-cream-pálido)
+        ctx.save();
+        ctx.translate(dmdScreenX + 8, dmdHero.y + 16);
+        // Sombra
+        ctx.fillStyle = "rgba(0, 0, 0, 0.30)";
+        ctx.beginPath();
+        ctx.ellipse(0, 6, 32, 5, 0, 0, Math.PI * 2);
+        ctx.fill();
+        // Cuerpo segmentado
+        var dmdGrad = ctx.createLinearGradient(-30, 0, 30, 0);
+        dmdGrad.addColorStop(0,   "#d8c098");
+        dmdGrad.addColorStop(0.5, "#e8d8b8");
+        dmdGrad.addColorStop(1,   "#b89868");
+        ctx.fillStyle = dmdGrad;
+        ctx.beginPath();
+        ctx.ellipse(0, 0, 30, 9, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = "#7a6038";
+        ctx.lineWidth = 1.2;
+        ctx.stroke();
+        // Segmentaciones
+        for (var sg = -2; sg <= 2; sg++) {
+          ctx.beginPath();
+          ctx.moveTo(sg * 8, -8);
+          ctx.lineTo(sg * 8, 8);
+          ctx.stroke();
+        }
+        // Cabeza con ojitos chicos
+        ctx.fillStyle = "#a88060";
+        ctx.beginPath();
+        ctx.arc(-26, -1, 7, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "#1a1010";
+        ctx.beginPath();
+        ctx.arc(-29, -3, 1.5, 0, Math.PI * 2);
+        ctx.arc(-25, -3, 1.5, 0, Math.PI * 2);
+        ctx.fill();
+        // 8 patas (4 a cada lado, animadas con legWiggle)
+        ctx.strokeStyle = "#7a6038";
+        ctx.lineWidth = 1.6;
+        for (var lg = 0; lg < 4; lg++) {
+          var lgx = -18 + lg * 12;
+          var lgPhaseTop = Math.sin(dmdAnim + lg * 1.2) * 4;
+          var lgPhaseBot = Math.sin(dmdAnim + lg * 1.2 + Math.PI) * 4;
+          ctx.beginPath();
+          ctx.moveTo(lgx, -7);
+          ctx.lineTo(lgx + 2 + lgPhaseTop, -14);
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.moveTo(lgx, 7);
+          ctx.lineTo(lgx + 2 + lgPhaseBot, 14);
+          ctx.stroke();
+        }
+        ctx.restore();
+      }
+    }
+
+    // ──── AMBOS HÉROES VISIBLES (foreground) ────
+    var denkScreenX = hl.denk.x - cx;
+    var macScreenX = hl.mac.x - cx;
+    drawHeroSprite(hl.denk, denkScreenX, hl.activeHero === "denk", hl.denk.anim, hl.denk.facing, "denk");
+    drawHeroSprite(hl.mac, macScreenX, hl.activeHero === "mac", hl.mac.anim, hl.mac.facing, "mac");
     var active = hl[hl.activeHero];
     var heroScreenX = active.x - cx;
-    drawHeroSprite(active, heroScreenX, true, active.anim, active.facing, hl.activeHero);
 
     // ──── DIÁLOGO: burbuja sobre el héroe que habla ────
     if (hl.dialog && hl.dialog.active) {
       var d = hl.dialog;
       var line = d.lines[d.currentLine];
       if (line) {
-        // Posición de la burbuja: sobre el héroe que habla.
+        // Posición de la burbuja: directamente sobre el héroe que habla
+        // (ahora AMBOS están en pantalla, no hay "héroe inactivo invisible").
         var speakerX, speakerY;
-        if (line.hero === hl.activeHero) {
-          // El héroe que habla es el activo, sobre él.
-          speakerX = heroScreenX;
-          speakerY = active.y - 60;
+        if (line.hero === "denk") {
+          speakerX = denkScreenX;
+          speakerY = hl.denk.y - 60;
         } else {
-          // Otro héroe habla. Para v1, dibujarlo a un costado del activo.
-          speakerX = heroScreenX - 50;
-          speakerY = active.y - 60;
+          speakerX = macScreenX;
+          speakerY = hl.mac.y - 60;
         }
         // Caja medida según texto.
         ctx.save();

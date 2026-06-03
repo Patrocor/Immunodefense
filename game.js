@@ -13623,6 +13623,13 @@
       def: def,
       time: 0,
       phase: "playing",
+      // Frame "recuerdo anime": la escena se renderiza dentro de un
+      // recuadro centrado al 75% del viewport, con backdrop oscuro
+      // alrededor. frameFadeIn: 0→1 al entrar (~0.8s). frameTransform:
+      // se setea en render() para que el input handler pueda mapear
+      // coords de pantalla a coords de escena.
+      frameFadeIn: 0,
+      frameTransform: { x: 0, y: 0, scale: 1 },
       // Dimensiones del nivel + cámara.
       levelWidth: levelWidth,
       cameraX: 0,
@@ -13765,6 +13772,10 @@
     if (hl.swapCooldown > 0) hl.swapCooldown -= dt;
     hl.denk.anim += dt;
     hl.mac.anim += dt;
+    // Fade-in del frame "recuerdo anime" (0→1 en 0.8s).
+    if (hl.frameFadeIn < 1) {
+      hl.frameFadeIn = Math.min(1, hl.frameFadeIn + dt / 0.8);
+    }
 
     // Físicas — solo el ACTIVO se mueve.
     var hero = hl[hl.activeHero];
@@ -14253,6 +14264,16 @@
     ctx.restore();
   }
 
+  function _hlRoundedRectPath(x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y,     x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x,     y + h, r);
+    ctx.arcTo(x,     y + h, x,     y,     r);
+    ctx.arcTo(x,     y,     x + w, y,     r);
+    ctx.closePath();
+  }
+
   function renderHeroLevel() {
     // Defensive viewport check (igual que render()).
     var rect = canvas.getBoundingClientRect();
@@ -14265,6 +14286,59 @@
 
     var hl = state.heroLevel;
     var def = hl.def;
+
+    // ──── FRAME "RECUERDO ANIME" ────
+    // La escena se renderiza dentro de un recuadro centrado al 75% del
+    // viewport. Alrededor: backdrop oscuro tipo interior del cuerpo
+    // (gradiente borgoña→negro). El frame tiene esquinas redondeadas,
+    // borde cálido sutil y vignette interior. Al entrar, fade-in suave
+    // con scale-in (0.65→0.75) para sensación de memoria emergiendo.
+    var fadeIn = hl.frameFadeIn || 0;
+    var frameAlpha = Math.min(1, fadeIn * 1.4);
+    var scaleProgress = Math.min(1, Math.max(0, (fadeIn - 0.1) / 0.7));
+    var easedIn = 1 - Math.pow(1 - scaleProgress, 3);
+    var frameScale = 0.65 + 0.10 * easedIn;
+    var frameW = VW * frameScale;
+    var frameH = VH * frameScale;
+    var frameX = (VW - frameW) / 2;
+    var frameY = (VH - frameH) / 2;
+    var frameR = 14;
+    // Guarda transform para el input handler (mapeo pantalla→escena).
+    hl.frameTransform.x = frameX;
+    hl.frameTransform.y = frameY;
+    hl.frameTransform.scale = frameScale;
+
+    // Backdrop: full-screen negro + gradiente borgoña radial.
+    ctx.fillStyle = "#070306";
+    ctx.fillRect(0, 0, VW, VH);
+    ctx.save();
+    ctx.globalAlpha = Math.min(1, fadeIn * 1.8);
+    var bdGrad = ctx.createRadialGradient(VW/2, VH/2, 0, VW/2, VH/2, Math.max(VW, VH) * 0.75);
+    bdGrad.addColorStop(0,    "rgba(78, 22, 36, 0.95)");
+    bdGrad.addColorStop(0.55, "rgba(34, 10, 18, 0.85)");
+    bdGrad.addColorStop(1,    "rgba(6, 3, 5, 1)");
+    ctx.fillStyle = bdGrad;
+    ctx.fillRect(0, 0, VW, VH);
+    ctx.restore();
+
+    // Glow exterior cálido detrás del frame.
+    ctx.save();
+    ctx.globalAlpha = frameAlpha * 0.55;
+    ctx.shadowColor = "rgba(255, 195, 130, 0.85)";
+    ctx.shadowBlur = 36;
+    ctx.fillStyle = "rgba(20, 10, 14, 1)";
+    _hlRoundedRectPath(frameX, frameY, frameW, frameH, frameR);
+    ctx.fill();
+    ctx.restore();
+
+    // Clip al frame + transform para que el resto del render use coords
+    // de "escena" (0..VW, 0..VH) pero salga proyectado dentro del frame.
+    ctx.save();
+    ctx.globalAlpha = frameAlpha;
+    _hlRoundedRectPath(frameX, frameY, frameW, frameH, frameR);
+    ctx.clip();
+    ctx.translate(frameX, frameY);
+    ctx.scale(frameScale, frameScale);
 
     // ──── ESCENA SCROLLEABLE ESTILO ALADDIN ────
     // Mundo es 3x el viewport; cámara sigue al héroe. Parallax: 3 capas
@@ -14768,10 +14842,44 @@
     ctx.textBaseline = "middle";
     ctx.fillText("◄ SALIR", exitBtnX + exitBtnW / 2, exitBtnY + exitBtnH / 2);
 
+    // ──── CIERRE DEL FRAME "RECUERDO ANIME" ────
+    // Cierra el clip + transform. A partir de aquí volvemos a coords
+    // de pantalla full-screen para dibujar borde, vignette y fade-out.
+    ctx.restore();
+
+    // Vignette interior (oscurece esquinas del frame para reforzar
+    // sensación de memoria/foto antigua).
+    ctx.save();
+    ctx.globalAlpha = frameAlpha;
+    _hlRoundedRectPath(frameX, frameY, frameW, frameH, frameR);
+    ctx.clip();
+    var vgrad = ctx.createRadialGradient(
+      VW/2, VH/2, Math.min(frameW, frameH) * 0.25,
+      VW/2, VH/2, Math.min(frameW, frameH) * 0.65
+    );
+    vgrad.addColorStop(0, "rgba(0, 0, 0, 0)");
+    vgrad.addColorStop(1, "rgba(0, 0, 0, 0.42)");
+    ctx.fillStyle = vgrad;
+    ctx.fillRect(frameX, frameY, frameW, frameH);
+    ctx.restore();
+
+    // Borde sutil cálido alrededor del frame.
+    ctx.save();
+    ctx.globalAlpha = frameAlpha;
+    ctx.strokeStyle = "rgba(255, 220, 180, 0.35)";
+    ctx.lineWidth = 2;
+    _hlRoundedRectPath(frameX, frameY, frameW, frameH, frameR);
+    ctx.stroke();
+    // Línea interior más fina (acento "marco de foto").
+    ctx.strokeStyle = "rgba(255, 230, 200, 0.15)";
+    ctx.lineWidth = 1;
+    _hlRoundedRectPath(frameX + 3, frameY + 3, frameW - 6, frameH - 6, frameR - 3);
+    ctx.stroke();
+    ctx.restore();
+
     // ──── FADE OUT al entrar a la herida ────
-    // SIEMPRE al FINAL del render para cubrir TODO el HUD (nombre del
-    // héroe, HP, botones, controles). Si se dibuja antes, los overlays
-    // que vienen después se ven sobre el fade.
+    // Cubre TODO (frame + backdrop). Al apretar ENTRAR la pantalla
+    // se va a negro absoluto antes de salir del nivel.
     if (hl.dialog && hl.dialog.fadingOut) {
       var fa = Math.min(1, hl.dialog.fadeT);
       ctx.fillStyle = "rgba(0, 0, 0, " + fa + ")";
@@ -14786,6 +14894,15 @@
   function handleHeroLevelPointerDown(pointerId, x, y) {
     var hl = state.heroLevel;
     if (!hl) return;
+    // Mapeo de coords de pantalla a coords de escena: el render aplica
+    // translate(frameX, frameY) + scale(frameScale), así que para hit-
+    // test contra los botones (que se posicionan en coords de escena)
+    // hay que invertir esa transformación.
+    var ft = hl.frameTransform;
+    if (ft && ft.scale > 0) {
+      x = (x - ft.x) / ft.scale;
+      y = (y - ft.y) / ft.scale;
+    }
     // Botones de acción inmediata (tap): SALIR y SWAP.
     if (_inBtn(hl.exitBtn, x, y)) {
       exitHeroLevel("abort");

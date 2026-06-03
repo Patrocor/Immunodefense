@@ -14780,67 +14780,76 @@
       ctx.fill();
     }
 
-    // Botón SWAP (esquina superior derecha).
-    var sbtnW = Math.min(90, VW * 0.22);
-    var sbtnH = Math.max(36, Math.min(46, VH * 0.05));
-    var sbtnX = VW - sbtnW - 16;
-    var sbtnY = 50;
-    state.heroLevel.swapBtn = { x: sbtnX, y: sbtnY, w: sbtnW, h: sbtnH };
-    ctx.fillStyle = "rgba(30, 15, 25, 0.92)";
-    ctx.fillRect(sbtnX, sbtnY, sbtnW, sbtnH);
-    ctx.strokeStyle = hl.activeHero === "denk" ? "#7ec5d8" : "#d68040";
-    ctx.lineWidth = 2;
-    ctx.strokeRect(sbtnX, sbtnY, sbtnW, sbtnH);
-    ctx.fillStyle = "#fff";
-    ctx.font = "bold " + Math.max(11, Math.min(14, sbtnH * 0.38)) + "px Fredoka, sans-serif";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText("↻ SWAP", sbtnX + sbtnW / 2, sbtnY + sbtnH / 2);
+    // En la intro (escena 1) NO hay swap, salto ni salir: la cinemática
+    // es obligatoria. Solo controles direccionales ◄ ► para caminar a
+    // DenK hasta el borde de la herida. Botones no renderizados también
+    // se marcan como null para que el hit-test los ignore.
+    hl.swapBtn = null;
+    hl.jumpBtn = null;
+    hl.exitBtn = null;
 
-    // ──── Controles virtuales ────
-    var pbH = Math.max(54, Math.min(72, VH * 0.085));
-    var pbW = pbH;
-    var pbBot = VH - pbH - 16;
-    // Bottom-left: ◄ ►
-    var leftBtnX = 16;
-    var rightBtnX = leftBtnX + pbW + 8;
-    hl.leftBtn  = { x: leftBtnX,  y: pbBot, w: pbW, h: pbH };
-    hl.rightBtn = { x: rightBtnX, y: pbBot, w: pbW, h: pbH };
-    // Bottom-right: JUMP
-    var jumpBtnX = VW - pbW - 16;
-    hl.jumpBtn = { x: jumpBtnX, y: pbBot, w: pbW, h: pbH };
+    // ──── Controles direccionales (estilo circular glass) ────
+    var cbR = Math.max(36, Math.min(48, VH * 0.058));      // radio
+    var cbBot = VH - cbR - 24;                              // centro Y
+    var cbLeftX  = 24 + cbR;                                // centro X izq
+    var cbRightX = cbLeftX + cbR * 2 + 16;                  // centro X dcha
+    // Bounding box (para hit-test rect-based de _inBtn).
+    hl.leftBtn  = { x: cbLeftX  - cbR, y: cbBot - cbR, w: cbR * 2, h: cbR * 2 };
+    hl.rightBtn = { x: cbRightX - cbR, y: cbBot - cbR, w: cbR * 2, h: cbR * 2 };
 
-    function drawCtrlBtn(b, label, held) {
-      ctx.fillStyle = held ? "rgba(180, 100, 130, 0.85)" : "rgba(40, 22, 32, 0.78)";
-      ctx.fillRect(b.x, b.y, b.w, b.h);
-      ctx.strokeStyle = held ? "#ffd24a" : "rgba(255, 255, 255, 0.25)";
-      ctx.lineWidth = held ? 3 : 2;
-      ctx.strokeRect(b.x, b.y, b.w, b.h);
-      ctx.fillStyle = "#fff";
-      ctx.font = "bold " + Math.max(20, pbH * 0.45) + "px Fredoka, sans-serif";
+    function drawCircleBtn(cx_, cy_, r, label, held) {
+      // Sombra externa cuando está presionado (efecto presionado).
+      if (held) {
+        ctx.save();
+        ctx.shadowColor = "rgba(255, 200, 130, 0.65)";
+        ctx.shadowBlur = 16;
+        ctx.fillStyle = "rgba(255, 195, 120, 0.18)";
+        ctx.beginPath();
+        ctx.arc(cx_, cy_, r + 1, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+      // Fill base (glass dark).
+      var fGrad = ctx.createRadialGradient(cx_, cy_ - r * 0.35, 0, cx_, cy_, r);
+      if (held) {
+        fGrad.addColorStop(0,    "rgba(255, 220, 160, 0.95)");
+        fGrad.addColorStop(0.55, "rgba(220, 140, 70, 0.85)");
+        fGrad.addColorStop(1,    "rgba(120, 60, 40, 0.75)");
+      } else {
+        fGrad.addColorStop(0,    "rgba(60, 38, 48, 0.82)");
+        fGrad.addColorStop(0.6,  "rgba(30, 18, 26, 0.82)");
+        fGrad.addColorStop(1,    "rgba(15, 8, 14, 0.85)");
+      }
+      ctx.fillStyle = fGrad;
+      ctx.beginPath();
+      ctx.arc(cx_, cy_, r, 0, Math.PI * 2);
+      ctx.fill();
+      // Anillo de borde.
+      ctx.strokeStyle = held ? "rgba(255, 230, 180, 0.95)" : "rgba(255, 220, 180, 0.55)";
+      ctx.lineWidth = held ? 2.5 : 1.8;
+      ctx.beginPath();
+      ctx.arc(cx_, cy_, r, 0, Math.PI * 2);
+      ctx.stroke();
+      // Highlight superior (efecto glass).
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(cx_, cy_, r, 0, Math.PI * 2);
+      ctx.clip();
+      var hlGrad = ctx.createLinearGradient(0, cy_ - r, 0, cy_);
+      hlGrad.addColorStop(0, "rgba(255, 255, 255, " + (held ? 0.32 : 0.18) + ")");
+      hlGrad.addColorStop(1, "rgba(255, 255, 255, 0)");
+      ctx.fillStyle = hlGrad;
+      ctx.fillRect(cx_ - r, cy_ - r, r * 2, r);
+      ctx.restore();
+      // Glyph.
+      ctx.fillStyle = held ? "#3a1810" : "#fff";
+      ctx.font = "bold " + Math.round(r * 0.95) + "px Fredoka, sans-serif";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.fillText(label, b.x + b.w / 2, b.y + b.h / 2);
+      ctx.fillText(label, cx_, cy_ + 2);
     }
-    drawCtrlBtn(hl.leftBtn,  "◄",  hl.input.left);
-    drawCtrlBtn(hl.rightBtn, "►",  hl.input.right);
-    drawCtrlBtn(hl.jumpBtn,  "▲",  hl.input.jumpHeld);
-
-    // Pequeño botón SALIR esquina inferior-derecha encima de JUMP.
-    var exitBtnW = 70;
-    var exitBtnH = 28;
-    var exitBtnX = VW - exitBtnW - 16;
-    var exitBtnY = pbBot - exitBtnH - 8;
-    hl.exitBtn = { x: exitBtnX, y: exitBtnY, w: exitBtnW, h: exitBtnH };
-    ctx.fillStyle = "rgba(60, 30, 40, 0.92)";
-    ctx.fillRect(exitBtnX, exitBtnY, exitBtnW, exitBtnH);
-    ctx.strokeStyle = def.accent;
-    ctx.lineWidth = 1.5;
-    ctx.strokeRect(exitBtnX, exitBtnY, exitBtnW, exitBtnH);
-    ctx.fillStyle = "#fff";
-    ctx.font = "bold 11px Fredoka, sans-serif";
-    ctx.textBaseline = "middle";
-    ctx.fillText("◄ SALIR", exitBtnX + exitBtnW / 2, exitBtnY + exitBtnH / 2);
+    drawCircleBtn(cbLeftX,  cbBot, cbR, "◄", hl.input.left);
+    drawCircleBtn(cbRightX, cbBot, cbR, "►", hl.input.right);
 
     // ──── CIERRE DEL FRAME "RECUERDO ANIME" ────
     // Cierra el clip + transform. A partir de aquí volvemos a coords

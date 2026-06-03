@@ -13969,15 +13969,17 @@
     else if (Math.abs(hero.vx) > 5) {
       stateName = (Math.floor(animT * 5) % 2 === 0) ? "walk" : "idle";
     }
-    // Pre-diálogo: una vez que el héroe llegó a su posición de espera
-    // al borde, cambia a expresión "serious" (atento, esperando al otro).
-    if (hl && hl.wound && hl.dialog && !hl.dialog.active && !hl.dialog.triggered) {
+    // Default de descanso: cuando el héroe llegó a su posición al borde
+    // y está quieto, expresión "serious" (atento). Aplica TANTO pre-
+    // diálogo (esperando que el otro llegue) COMO post-diálogo (decisión
+    // tomada, listos para bajar). Solo el diálogo activo override esto.
+    if (hl && hl.wound) {
       var atEdge = false;
       if (type === "denk" && hero.x >= hl.wound.leftEdge - 3) atEdge = true;
       if (type === "mac"  && hl.macEntry && !hl.macEntry.active) atEdge = true;
       if (atEdge && Math.abs(hero.vx) < 1) stateName = "serious";
     }
-    // Override por expresión del diálogo activo.
+    // Override por expresión del diálogo ACTIVO (línea en curso).
     if (hl && hl.dialog && hl.dialog.active) {
       var lineNow = hl.dialog.lines[hl.dialog.currentLine];
       if (lineNow && lineNow.hero === type && lineNow.expr) {

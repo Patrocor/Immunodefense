@@ -14670,16 +14670,29 @@
     }
 
     // Etiquetas flotantes sobre AMBOS héroes (cada uno con su color).
-    // El activo se ve más brillante; el inactivo, más tenue.
-    ctx.font = "bold 10px Fredoka, sans-serif";
+    // Stroke oscuro de contorno para que destaquen sobre cualquier fondo
+    // (la piel del bg es cálida y se "comía" el naranja de Mac).
+    // El activo se ve a alpha 1.0; el inactivo a 0.55.
+    ctx.font = "bold 11px Fredoka, sans-serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "bottom";
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = "rgba(10, 5, 8, 0.85)";
     var denkActive = (hl.activeHero === "denk");
-    ctx.fillStyle = denkActive ? "rgba(184, 234, 246, 1.0)" : "rgba(184, 234, 246, 0.55)";
+    var denkAlpha = denkActive ? 1.0 : 0.55;
+    ctx.globalAlpha = denkAlpha;
+    ctx.strokeText("DenK", denkScreenX, hl.denk.y - 40);
+    ctx.fillStyle = "#b8eaf6";
     ctx.fillText("DenK", denkScreenX, hl.denk.y - 40);
+    ctx.globalAlpha = 1;
+
     var macActive = (hl.activeHero === "mac");
-    ctx.fillStyle = macActive ? "rgba(255, 208, 160, 1.0)" : "rgba(255, 208, 160, 0.55)";
+    var macAlpha = macActive ? 1.0 : 0.55;
+    ctx.globalAlpha = macAlpha;
+    ctx.strokeText("Mac", macScreenX, hl.mac.y - 40);
+    ctx.fillStyle = "#ffb060";
     ctx.fillText("Mac", macScreenX, hl.mac.y - 40);
+    ctx.globalAlpha = 1;
 
     // Indicador de progreso del nivel (barra fina abajo del título).
     var prog = Math.min(1, active.x / hl.levelWidth);

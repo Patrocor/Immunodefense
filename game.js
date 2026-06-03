@@ -13604,10 +13604,11 @@
 
   function enterHeroLevel(organId) {
     var def = HERO_LEVEL_ORGANS[organId] || HERO_LEVEL_ORGANS.corazon;
-    // World-space: el nivel es más largo que el viewport (~3x). Cámara
-    // sigue al héroe, fondos parallax dan profundidad estilo Aladdin.
-    var levelWidth = VW * 3.0;
-    var startX = 60;                          // entrada izquierda del nivel
+    // Escena 1 (piel): bg FIJO, no scroll. levelWidth = VW. Los héroes
+    // caminan dentro del viewport visible. Al cruzar woundTriggerX se
+    // disparan los diálogos.
+    var levelWidth = VW;
+    var startX = VW * 0.10;                   // spawn visible a la izquierda
     var groundY = VH * 0.78;
     state.heroLevel = {
       active: true,
@@ -13675,18 +13676,36 @@
       })(),
       vaporWisps: (function () {
         var arr = [];
-        // Wisps originados cerca de la herida (centro-derecha de la imagen).
-        // Cuando se renderice, la posición se calcula relativa al bg scaled.
         for (var w = 0; w < 4; w++) {
           arr.push({
-            t: Math.random() * 3.5,        // tiempo de vida actual
-            ttl: 3.0 + Math.random() * 1.5,// ciclo total
+            t: Math.random() * 3.5,
+            ttl: 3.0 + Math.random() * 1.5,
             xOff: (Math.random() - 0.5) * 30,
             seed: Math.random() * 100
           });
         }
         return arr;
-      })()
+      })(),
+      // Sistema de diálogos para la escena de llegada a la herida.
+      // Se activa al cruzar woundTriggerX. Tap avanza líneas.
+      woundTriggerX: VW * 0.55,        // donde está la herida en el bg
+      dialog: {
+        triggered: false,              // pasa a true cuando lo cruzas
+        active: false,                 // burbuja visible
+        currentLine: 0,
+        lineTime: 0,                   // tiempo que lleva la línea actual
+        lines: [
+          { hero: "denk", text: "¡Mac, mirá la herida!" },
+          { hero: "mac",  text: "Por acá entraron…" },
+          { hero: "denk", text: "Dejaron todo destrozado." },
+          { hero: "mac",  text: "Hay que rastrearlos." },
+          { hero: "denk", text: "¿Listos para bajar?" },
+          { hero: "mac",  text: "Vamos." }
+        ],
+        readyToEnter: false,           // al final de los diálogos
+        fadingOut: false,
+        fadeT: 0
+      }
     };
   }
 
@@ -13764,6 +13783,38 @@
 
     // Reset edge-trigger.
     input.jumpPressedThisFrame = false;
+
+    // Trigger del diálogo: cuando el héroe activo cruza la X de la herida.
+    if (hl.dialog && !hl.dialog.triggered) {
+      if (hero.x >= hl.woundTriggerX) {
+        hl.dialog.triggered = true;
+        hl.dialog.active = true;
+        hl.dialog.currentLine = 0;
+        hl.dialog.lineTime = 0;
+        // Detener héroe al borde de la herida (efecto "se queda mirando").
+        hero.x = hl.woundTriggerX;
+        hero.vx = 0;
+        input.left = false;
+        input.right = false;
+      }
+    }
+    // Mientras hay diálogo activo, congelar control horizontal.
+    if (hl.dialog && hl.dialog.active) {
+      hero.vx = 0;
+      input.left = false;
+      input.right = false;
+      hl.dialog.lineTime += dt;
+    }
+    // Fade out al "entrar a la herida".
+    if (hl.dialog && hl.dialog.fadingOut) {
+      hl.dialog.fadeT += dt;
+      if (hl.dialog.fadeT >= 1.0) {
+        // TODO: aquí se conectará la escena 2 (interior de la herida).
+        // Por ahora, simplemente salimos del hero level.
+        exitHeroLevel("win");
+        return;
+      }
+    }
 
     // Atmósfera: partículas drifting horizontalmente con bobbing vertical.
     if (hl.particles) {
@@ -14030,24 +14081,8 @@
     // y rayos de luz para dar vida.
     var sceneImg = (hl.organ === "piel") ? ASSETS.get("assets/piel/scene1-wound-exterior.png") : null;
     if (sceneImg) {
-      // Render el bg cubriendo todo el levelWidth × groundY, con parallax
-      // muy leve (0.7×) para que se sienta profundidad sutil.
-      var aspect = sceneImg.height / sceneImg.width;
-      var renderH = groundY;
-      var renderW = renderH / aspect;
-      // El bg ocupa el levelWidth completo si el ancho del image*aspect
-      // alcanza; si no, lo escalamos a levelWidth.
-      var bgScrollFactor = 0.85;             // un poquito más lento que el héroe
-      var bgX = -(cx * bgScrollFactor);
-      // Si la imagen no llega a cubrir el levelWidth con 1 tile, tileamos.
-      if (renderW < hl.levelWidth) {
-        var startX = Math.floor(cx * bgScrollFactor / renderW) * renderW - cx * bgScrollFactor;
-        for (var bgx = startX; bgx < VW + renderW; bgx += renderW) {
-          ctx.drawImage(sceneImg, bgx, 0, renderW, renderH);
-        }
-      } else {
-        ctx.drawImage(sceneImg, bgX, 0, renderW, renderH);
-      }
+      // BG FIJO: ocupa el viewport entero (0,0 a VW, groundY). No scroll.
+      ctx.drawImage(sceneImg, 0, 0, VW, groundY);
     } else {
       // Fallback minimalista mientras la imagen carga o falta.
       var skyGrad = ctx.createLinearGradient(0, 0, 0, groundY);
@@ -14078,46 +14113,43 @@
     }
 
     // ──── ATMÓSFERA: partículas drifting (polvo / sebo) ────
+    // BG fijo → partículas en viewport coords directamente (sin parallax).
     if (hl.particles && hl.organ === "piel") {
       for (var pp = 0; pp < hl.particles.length; pp++) {
         var pa = hl.particles[pp];
-        var psx = pa.x - cx;
-        if (psx < -10 || psx > VW + 10) continue;
+        // Como levelWidth = VW ahora, pa.x ya está en viewport coords.
+        if (pa.x < -10 || pa.x > VW + 10) continue;
         var bob = Math.sin(pa.phase) * 4;
         ctx.fillStyle = "rgba(255, 230, 200, " + pa.alpha + ")";
         ctx.beginPath();
-        ctx.arc(psx, pa.y + bob, pa.r, 0, Math.PI * 2);
+        ctx.arc(pa.x, pa.y + bob, pa.r, 0, Math.PI * 2);
         ctx.fill();
       }
     }
 
     // ──── ATMÓSFERA: wisps de vapor saliendo de la herida ────
-    // Aproximamos la posición de la herida en world coords: centro-derecha
-    // de la imagen, mid-bottom verticalmente.
+    // Posición fija: la herida está en VW * 0.55 (centro-derecha).
     if (hl.vaporWisps && hl.organ === "piel") {
-      var woundWX = hl.levelWidth * 0.55;    // aprox horizontal de la herida
-      var woundWY = groundY - 60;             // aprox vertical (sobre el suelo)
-      var woundSX = woundWX - cx * 0.85;
-      if (woundSX > -100 && woundSX < VW + 100) {
-        ctx.save();
-        for (var ws = 0; ws < hl.vaporWisps.length; ws++) {
-          var wv = hl.vaporWisps[ws];
-          var lifeT = wv.t / wv.ttl;          // 0..1
-          var fade = (lifeT < 0.15)
-            ? (lifeT / 0.15)
-            : (lifeT > 0.85 ? (1 - lifeT) / 0.15 : 1);
-          var rise = lifeT * 100;             // sube 100px en su vida
-          var swayX = Math.sin(lifeT * Math.PI * 2 + wv.seed) * 12;
-          var wx = woundSX + wv.xOff + swayX;
-          var wy = woundWY - rise;
-          var wr = 6 + lifeT * 14;
-          ctx.fillStyle = "rgba(220, 140, 150, " + (fade * 0.35) + ")";
-          ctx.beginPath();
-          ctx.arc(wx, wy, wr, 0, Math.PI * 2);
-          ctx.fill();
-        }
-        ctx.restore();
+      var woundSX = VW * 0.55;
+      var woundSY = groundY - 80;
+      ctx.save();
+      for (var ws = 0; ws < hl.vaporWisps.length; ws++) {
+        var wv = hl.vaporWisps[ws];
+        var lifeT = wv.t / wv.ttl;
+        var fade = (lifeT < 0.15)
+          ? (lifeT / 0.15)
+          : (lifeT > 0.85 ? (1 - lifeT) / 0.15 : 1);
+        var rise = lifeT * 100;
+        var swayX = Math.sin(lifeT * Math.PI * 2 + wv.seed) * 12;
+        var wx = woundSX + wv.xOff + swayX;
+        var wy = woundSY - rise;
+        var wr = 6 + lifeT * 14;
+        ctx.fillStyle = "rgba(220, 140, 150, " + (fade * 0.35) + ")";
+        ctx.beginPath();
+        ctx.arc(wx, wy, wr, 0, Math.PI * 2);
+        ctx.fill();
       }
+      ctx.restore();
     }
 
     // Header con título del órgano.
@@ -14182,21 +14214,114 @@
       }
     }
 
-    // Marcador de FIN del nivel (donde la infección bajó al vaso).
-    var finSx = hl.finishX - cx;
-    if (finSx > -40 && finSx < VW + 40) {
-      ctx.fillStyle = "rgba(180, 30, 40, 0.85)";
-      ctx.fillRect(finSx - 4, groundY - 90, 8, 90);
-      ctx.fillStyle = "rgba(255, 90, 80, 0.95)";
-      ctx.font = "bold 11px Fredoka, sans-serif";
-      ctx.textAlign = "center";
-      ctx.fillText("🩸 VASO", finSx, groundY - 96);
-    }
+    // (marker VASO removido — escena 1 ya no se scrollea)
 
     // ──── HÉROE ACTIVO (foreground) ────
     var active = hl[hl.activeHero];
     var heroScreenX = active.x - cx;
     drawHeroSprite(active, heroScreenX, true, active.anim, active.facing, hl.activeHero);
+
+    // ──── DIÁLOGO: burbuja sobre el héroe que habla ────
+    if (hl.dialog && hl.dialog.active) {
+      var d = hl.dialog;
+      var line = d.lines[d.currentLine];
+      if (line) {
+        // Posición de la burbuja: sobre el héroe que habla.
+        var speakerX, speakerY;
+        if (line.hero === hl.activeHero) {
+          // El héroe que habla es el activo, sobre él.
+          speakerX = heroScreenX;
+          speakerY = active.y - 60;
+        } else {
+          // Otro héroe habla. Para v1, dibujarlo a un costado del activo.
+          speakerX = heroScreenX - 50;
+          speakerY = active.y - 60;
+        }
+        // Caja medida según texto.
+        ctx.save();
+        ctx.font = "bold 13px Fredoka, sans-serif";
+        var textW = ctx.measureText(line.text).width;
+        var bubW = textW + 24;
+        var bubH = 34;
+        var bubX = speakerX - bubW / 2;
+        var bubY = speakerY - bubH;
+        // Clamp dentro del viewport.
+        if (bubX < 8) bubX = 8;
+        if (bubX + bubW > VW - 8) bubX = VW - 8 - bubW;
+        // Color de la burbuja según el héroe que habla.
+        var bgCol = line.hero === "denk" ? "#b8eaf6" : "#ffd0a0";
+        var fgCol = line.hero === "denk" ? "#1a2030" : "#5a2010";
+        // Burbuja con redondeo.
+        ctx.fillStyle = bgCol;
+        ctx.strokeStyle = fgCol;
+        ctx.lineWidth = 2;
+        var r = 8;
+        ctx.beginPath();
+        ctx.moveTo(bubX + r, bubY);
+        ctx.lineTo(bubX + bubW - r, bubY);
+        ctx.quadraticCurveTo(bubX + bubW, bubY, bubX + bubW, bubY + r);
+        ctx.lineTo(bubX + bubW, bubY + bubH - r);
+        ctx.quadraticCurveTo(bubX + bubW, bubY + bubH, bubX + bubW - r, bubY + bubH);
+        ctx.lineTo(bubX + r, bubY + bubH);
+        ctx.quadraticCurveTo(bubX, bubY + bubH, bubX, bubY + bubH - r);
+        ctx.lineTo(bubX, bubY + r);
+        ctx.quadraticCurveTo(bubX, bubY, bubX + r, bubY);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        // Colita apuntando al héroe.
+        var tailX = Math.max(bubX + 16, Math.min(bubX + bubW - 16, speakerX));
+        ctx.beginPath();
+        ctx.moveTo(tailX - 6, bubY + bubH);
+        ctx.lineTo(tailX + 6, bubY + bubH);
+        ctx.lineTo(tailX, bubY + bubH + 9);
+        ctx.closePath();
+        ctx.fillStyle = bgCol;
+        ctx.fill();
+        ctx.strokeStyle = fgCol;
+        ctx.stroke();
+        // Texto.
+        ctx.fillStyle = fgCol;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(line.text, bubX + bubW / 2, bubY + bubH / 2);
+        // Indicador "tap para continuar" (parpadea suave).
+        if (d.lineTime > 0.4) {
+          var blink = 0.5 + 0.5 * Math.sin(hl.time * 4);
+          ctx.fillStyle = "rgba(" + (line.hero === "denk" ? "26,32,48" : "90,32,16") + ", " + (0.4 + blink * 0.5) + ")";
+          ctx.font = "bold 10px Fredoka, sans-serif";
+          ctx.fillText("▼", bubX + bubW - 12, bubY + bubH - 7);
+        }
+        ctx.restore();
+      }
+    }
+
+    // ──── BOTÓN ENTRAR (al final del diálogo) ────
+    if (hl.dialog && hl.dialog.readyToEnter && !hl.dialog.fadingOut) {
+      var ebw = Math.min(200, VW * 0.50);
+      var ebh = 50;
+      var ebx = (VW - ebw) / 2;
+      var eby = groundY - ebh - 20;
+      hl.dialog.enterBtn = { x: ebx, y: eby, w: ebw, h: ebh };
+      var pulse = 0.5 + 0.5 * Math.sin(hl.time * 3);
+      ctx.fillStyle = "rgba(160, 30, 50, " + (0.85 + pulse * 0.15) + ")";
+      ctx.fillRect(ebx, eby, ebw, ebh);
+      ctx.strokeStyle = "#ff8090";
+      ctx.lineWidth = 2;
+      ctx.strokeRect(ebx, eby, ebw, ebh);
+      ctx.fillStyle = "#fff";
+      ctx.font = "bold 15px Fredoka, sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("▼ ENTRAR A LA HERIDA", ebx + ebw / 2, eby + ebh / 2);
+    }
+
+    // ──── FADE OUT al entrar a la herida ────
+    if (hl.dialog && hl.dialog.fadingOut) {
+      var fa = Math.min(1, hl.dialog.fadeT);
+      ctx.fillStyle = "rgba(0, 0, 0, " + fa + ")";
+      ctx.fillRect(0, 0, VW, VH);
+    }
     ctx.fillStyle = "rgba(255, 230, 100, 0.95)";
     ctx.font = "bold 10px Fredoka, sans-serif";
     ctx.textAlign = "center";
@@ -14312,6 +14437,24 @@
     }
     if (_inBtn(hl.swapBtn, x, y)) {
       swapActiveHero();
+      sfx("tick");
+      return;
+    }
+    // Botón ENTRAR (final de diálogos): inicia fade-out a escena 2.
+    if (hl.dialog && hl.dialog.readyToEnter && _inBtn(hl.dialog.enterBtn, x, y)) {
+      hl.dialog.fadingOut = true;
+      hl.dialog.fadeT = 0;
+      sfx("upgrade");
+      return;
+    }
+    // Tap durante diálogo activo: avanzar a la siguiente línea.
+    if (hl.dialog && hl.dialog.active && hl.dialog.lineTime > 0.25) {
+      hl.dialog.currentLine += 1;
+      hl.dialog.lineTime = 0;
+      if (hl.dialog.currentLine >= hl.dialog.lines.length) {
+        hl.dialog.active = false;
+        hl.dialog.readyToEnter = true;
+      }
       sfx("tick");
       return;
     }

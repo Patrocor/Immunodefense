@@ -14226,76 +14226,47 @@
     // (Floor strip y debris canvas removidos — la imagen bg ya muestra
     // el corte dérmico completo y los escombros pintados.)
 
-    // ──── DEMODEX (placeholder canvas) bajo Mac mientras entra ────
-    if (hl.organ === "piel") {
-      var dmdHero = hl.mac;
-      var dmdScreenX = dmdHero.x - cx;
-      // Solo dibujar si está cerca del viewport
-      if (dmdScreenX > -50 && dmdScreenX < VW + 50) {
-        var dmdAnim = hl.macEntry && hl.macEntry.active ? hl.time * 8 : hl.time * 2;
-        var legWiggle = Math.sin(dmdAnim) * 3;
-        // Cuerpo elongado del demodex (cream-cream-pálido)
-        ctx.save();
-        ctx.translate(dmdScreenX + 8, dmdHero.y + 16);
-        // Sombra
-        ctx.fillStyle = "rgba(0, 0, 0, 0.30)";
-        ctx.beginPath();
-        ctx.ellipse(0, 6, 32, 5, 0, 0, Math.PI * 2);
-        ctx.fill();
-        // Cuerpo segmentado
-        var dmdGrad = ctx.createLinearGradient(-30, 0, 30, 0);
-        dmdGrad.addColorStop(0,   "#d8c098");
-        dmdGrad.addColorStop(0.5, "#e8d8b8");
-        dmdGrad.addColorStop(1,   "#b89868");
-        ctx.fillStyle = dmdGrad;
-        ctx.beginPath();
-        ctx.ellipse(0, 0, 30, 9, 0, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.strokeStyle = "#7a6038";
-        ctx.lineWidth = 1.2;
-        ctx.stroke();
-        // Segmentaciones
-        for (var sg = -2; sg <= 2; sg++) {
-          ctx.beginPath();
-          ctx.moveTo(sg * 8, -8);
-          ctx.lineTo(sg * 8, 8);
-          ctx.stroke();
-        }
-        // Cabeza con ojitos chicos
-        ctx.fillStyle = "#a88060";
-        ctx.beginPath();
-        ctx.arc(-26, -1, 7, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = "#1a1010";
-        ctx.beginPath();
-        ctx.arc(-29, -3, 1.5, 0, Math.PI * 2);
-        ctx.arc(-25, -3, 1.5, 0, Math.PI * 2);
-        ctx.fill();
-        // 8 patas (4 a cada lado, animadas con legWiggle)
-        ctx.strokeStyle = "#7a6038";
-        ctx.lineWidth = 1.6;
-        for (var lg = 0; lg < 4; lg++) {
-          var lgx = -18 + lg * 12;
-          var lgPhaseTop = Math.sin(dmdAnim + lg * 1.2) * 4;
-          var lgPhaseBot = Math.sin(dmdAnim + lg * 1.2 + Math.PI) * 4;
-          ctx.beginPath();
-          ctx.moveTo(lgx, -7);
-          ctx.lineTo(lgx + 2 + lgPhaseTop, -14);
-          ctx.stroke();
-          ctx.beginPath();
-          ctx.moveTo(lgx, 7);
-          ctx.lineTo(lgx + 2 + lgPhaseBot, 14);
-          ctx.stroke();
-        }
-        ctx.restore();
-      }
-    }
-
     // ──── AMBOS HÉROES VISIBLES (foreground) ────
     var denkScreenX = hl.denk.x - cx;
     var macScreenX = hl.mac.x - cx;
     drawHeroSprite(hl.denk, denkScreenX, hl.activeHero === "denk", hl.denk.anim, hl.denk.facing, "denk");
-    drawHeroSprite(hl.mac, macScreenX, hl.activeHero === "mac", hl.mac.anim, hl.mac.facing, "mac");
+
+    // Mac: durante la entrada cinemática se renderiza con el sprite
+    // mac-demodex (montado en el mite). Al detenerse, se "desmonta" y
+    // pasa al sprite normal.
+    var macDemodexImg = ASSETS.get("assets/piel/mac-demodex.png");
+    if (hl.macEntry && hl.macEntry.active && macDemodexImg) {
+      // El sprite mac-demodex es 2:1 wide (Mac sentado encima del demodex).
+      // Lo escalamos para que el conjunto sea ~90px de alto.
+      var mdH = 95;
+      var mdW = mdH * (macDemodexImg.width / macDemodexImg.height);  // ~95 si es 1:1
+      // En realidad las dimensiones son 1024x1024 — el sprite ocupa el frame.
+      // Mac va a la derecha del frame (porque mira a la izquierda),
+      // demodex se extiende a ambos lados. Centramos el sprite al Mac.x.
+      // Bobbing sutil para el "paso" del demodex.
+      var bob = Math.sin(hl.time * 6) * 2;
+      ctx.save();
+      ctx.drawImage(
+        macDemodexImg,
+        macScreenX - mdW / 2,
+        hl.mac.y - mdH * 0.55 + bob,
+        mdW,
+        mdH
+      );
+      ctx.restore();
+      // Indicador "ACTIVO" si es el activo
+      if (hl.activeHero === "mac") {
+        var glow = 0.5 + 0.5 * Math.sin(hl.mac.anim * 4);
+        ctx.strokeStyle = "rgba(255, 180, 100, " + (0.5 + glow * 0.4) + ")";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.ellipse(macScreenX, hl.mac.y + 18, mdW * 0.35, 8, 0, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    } else {
+      // Mac normal (sin demodex)
+      drawHeroSprite(hl.mac, macScreenX, hl.activeHero === "mac", hl.mac.anim, hl.mac.facing, "mac");
+    }
     var active = hl[hl.activeHero];
     var heroScreenX = active.x - cx;
 

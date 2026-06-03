@@ -13969,12 +13969,19 @@
     else if (Math.abs(hero.vx) > 5) {
       stateName = (Math.floor(animT * 5) % 2 === 0) ? "walk" : "idle";
     }
-    // Override por expresión del diálogo activo: si hay una línea en
-    // curso y es de este héroe con expr definida, usar ese sprite.
+    // Pre-diálogo: una vez que el héroe llegó a su posición de espera
+    // al borde, cambia a expresión "serious" (atento, esperando al otro).
+    if (hl && hl.wound && hl.dialog && !hl.dialog.active && !hl.dialog.triggered) {
+      var atEdge = false;
+      if (type === "denk" && hero.x >= hl.wound.leftEdge - 3) atEdge = true;
+      if (type === "mac"  && hl.macEntry && !hl.macEntry.active) atEdge = true;
+      if (atEdge && Math.abs(hero.vx) < 1) stateName = "serious";
+    }
+    // Override por expresión del diálogo activo.
     if (hl && hl.dialog && hl.dialog.active) {
       var lineNow = hl.dialog.lines[hl.dialog.currentLine];
       if (lineNow && lineNow.hero === type && lineNow.expr) {
-        stateName = lineNow.expr;       // ej. "shocked"
+        stateName = lineNow.expr;
       }
     }
     var assetPath = "assets/piel/" + type + "-" + stateName + ".png";
@@ -13989,11 +13996,22 @@
     var nativeFacesRight = true;
     if (type === "mac" && stateName === "shocked") nativeFacesRight = false;
     if (img) {
-      // Dimensiones target en pantalla (matchea aproximadamente las
-      // primitivas canvas: DenK R=14 → ~50px wide; Mac R=21 → ~75px wide).
-      var targetH = (type === "denk") ? 60 : 80;
-      var aspect = img.width / img.height;
-      var targetW = targetH * aspect;
+      // Normalizamos por ANCHO en lugar de alto. Diferentes sprites tienen
+      // aspect distinto (1:1, 1:1.5, 2:1), pero el cuerpo del personaje
+      // tiene un ancho similar relativo al frame. Fijar el width displayed
+      // mantiene el cuerpo del personaje del mismo tamaño visual entre
+      // sprites; la altura varía para acomodar acciones (dendritas
+      // alzadas, whip, etc).
+      var targetW = (type === "denk") ? 64 : 84;
+      var aspect = img.height / img.width;
+      var targetH = targetW * aspect;
+      // Excepción: el sprite de attack es naturalmente ancho (2:1) porque
+      // incluye el whip extendido. En ese caso, mantenemos la altura como
+      // base y dejamos que el ancho crezca.
+      if (stateName === "attack") {
+        targetH = (type === "denk") ? 60 : 80;
+        targetW = targetH / aspect;
+      }
       // Para attack: el sprite es 2:1 wide, el cuerpo está a la izquierda.
       // El "anchor" del personaje debe quedar en screenX (no el centro del sprite).
       var bodyOffsetX;

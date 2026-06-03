@@ -13980,7 +13980,9 @@
       if (atEdge && Math.abs(hero.vx) < 1) stateName = "serious";
     }
     // Override por expresión del diálogo ACTIVO (línea en curso).
-    if (hl && hl.dialog && hl.dialog.active) {
+    // Mac queda SIEMPRE en serious durante todo el diálogo (no oscila),
+    // según pedido del usuario. Solo DenK varía sus expresiones.
+    if (hl && hl.dialog && hl.dialog.active && type === "denk") {
       var lineNow = hl.dialog.lines[hl.dialog.currentLine];
       if (lineNow && lineNow.hero === type && lineNow.expr) {
         stateName = lineNow.expr;
@@ -14035,8 +14037,12 @@
         ctx.ellipse(screenX, hero.y + targetH * 0.35, targetW * 0.30, 6, 0, 0, Math.PI * 2);
         ctx.stroke();
       }
-      // Bobbing suave: scale subtle según anim time.
-      var bob = 1 + Math.sin(animT * 3) * 0.03;
+      // Bobbing suave: scale subtle según anim time. Solo cuando el
+      // héroe se está moviendo. En reposo el sprite queda quieto
+      // (sin breathing) para evitar percepción de "movimiento" al
+      // estar en el borde de la herida durante el diálogo.
+      var heroAtRest = (Math.abs(hero.vx) < 1 && hero.grounded);
+      var bob = heroAtRest ? 1 : (1 + Math.sin(animT * 3) * 0.03);
       // Sombra bajo el personaje.
       ctx.fillStyle = "rgba(0, 0, 0, 0.40)";
       ctx.beginPath();

@@ -14669,12 +14669,6 @@
       ctx.fillText("▼ ENTRAR A LA HERIDA", ebx + ebw / 2, eby + ebh / 2);
     }
 
-    // ──── FADE OUT al entrar a la herida ────
-    if (hl.dialog && hl.dialog.fadingOut) {
-      var fa = Math.min(1, hl.dialog.fadeT);
-      ctx.fillStyle = "rgba(0, 0, 0, " + fa + ")";
-      ctx.fillRect(0, 0, VW, VH);
-    }
     ctx.fillStyle = "rgba(255, 230, 100, 0.95)";
     ctx.font = "bold 10px Fredoka, sans-serif";
     ctx.textAlign = "center";
@@ -14774,6 +14768,16 @@
     ctx.font = "bold 11px Fredoka, sans-serif";
     ctx.textBaseline = "middle";
     ctx.fillText("◄ SALIR", exitBtnX + exitBtnW / 2, exitBtnY + exitBtnH / 2);
+
+    // ──── FADE OUT al entrar a la herida ────
+    // SIEMPRE al FINAL del render para cubrir TODO el HUD (nombre del
+    // héroe, HP, botones, controles). Si se dibuja antes, los overlays
+    // que vienen después se ven sobre el fade.
+    if (hl.dialog && hl.dialog.fadingOut) {
+      var fa = Math.min(1, hl.dialog.fadeT);
+      ctx.fillStyle = "rgba(0, 0, 0, " + fa + ")";
+      ctx.fillRect(0, 0, VW, VH);
+    }
   }
 
   function _inBtn(b, x, y) {

@@ -14669,11 +14669,17 @@
       ctx.fillText("▼ ENTRAR A LA HERIDA", ebx + ebw / 2, eby + ebh / 2);
     }
 
-    ctx.fillStyle = "rgba(255, 230, 100, 0.95)";
+    // Etiquetas flotantes sobre AMBOS héroes (cada uno con su color).
+    // El activo se ve más brillante; el inactivo, más tenue.
     ctx.font = "bold 10px Fredoka, sans-serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "bottom";
-    ctx.fillText(hl.activeHero === "denk" ? "DenK" : "Mac", heroScreenX, active.y - 40);
+    var denkActive = (hl.activeHero === "denk");
+    ctx.fillStyle = denkActive ? "rgba(184, 234, 246, 1.0)" : "rgba(184, 234, 246, 0.55)";
+    ctx.fillText("DenK", denkScreenX, hl.denk.y - 40);
+    var macActive = (hl.activeHero === "mac");
+    ctx.fillStyle = macActive ? "rgba(255, 208, 160, 1.0)" : "rgba(255, 208, 160, 0.55)";
+    ctx.fillText("Mac", macScreenX, hl.mac.y - 40);
 
     // Indicador de progreso del nivel (barra fina abajo del título).
     var prog = Math.min(1, active.x / hl.levelWidth);

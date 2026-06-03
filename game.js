@@ -13630,6 +13630,11 @@
       // coords de pantalla a coords de escena.
       frameFadeIn: 0,
       frameTransform: { x: 0, y: 0, scale: 1 },
+      // Cinemática 100% automática: el jugador solo tapea PLAY al inicio,
+      // luego todo se reproduce solo (entrada de héroes, auto-walk hasta
+      // el borde, diálogo auto-avanza, fade-out al final).
+      awaitingPlay: true,
+      postDialogT: 0,                  // tiempo desde que terminó la última línea
       // Dimensiones del nivel + cámara.
       levelWidth: levelWidth,
       cameraX: 0,
@@ -13776,6 +13781,8 @@
     if (hl.frameFadeIn < 1) {
       hl.frameFadeIn = Math.min(1, hl.frameFadeIn + dt / 0.8);
     }
+    // Antes de tapear PLAY no se actualiza nada de la cinemática.
+    if (hl.awaitingPlay) return;
 
     // Físicas — solo el ACTIVO se mueve.
     var hero = hl[hl.activeHero];
@@ -13940,6 +13947,20 @@
       }
     }
 
+    // DenK auto-camina hasta el borde de la herida una vez que aterrizó
+    // y el dendrito se retrajo (cinemática 100% automática, sin input).
+    if (hl.denkEntry && !hl.denkEntry.active &&
+        hl.denk.x < hl.wound.leftEdge - 2 &&
+        !(hl.dialog && hl.dialog.triggered)) {
+      hl.denk.vx = hl.denk.moveSpeed;
+      hl.denk.facing = 1;
+      hl.denk.x += hl.denk.vx * dt;
+      if (hl.denk.x >= hl.wound.leftEdge) {
+        hl.denk.x = hl.wound.leftEdge;
+        hl.denk.vx = 0;
+      }
+    }
+
     // Trigger del diálogo: cuando DenK llega al borde izquierdo de la herida
     // Y Mac ya terminó su entrada Y la entrada de DenK también terminó
     // (dendrito retraído, los dos en sus bordes).
@@ -13960,8 +13981,8 @@
         input.right = false;
       }
     }
-    // Mientras hay diálogo activo, congelar control horizontal y forzar
-    // que ambos héroes se MIREN entre sí (DenK → derecha, Mac → izquierda).
+    // Mientras hay diálogo activo, congelar control horizontal, forzar
+    // que ambos héroes se miren, y AUTO-AVANZAR la línea cada ~3s.
     if (hl.dialog && hl.dialog.active) {
       hero.vx = 0;
       input.left = false;
@@ -13969,6 +13990,23 @@
       hl.dialog.lineTime += dt;
       hl.denk.facing = 1;
       hl.mac.facing = -1;
+      if (hl.dialog.lineTime > 3.0) {
+        hl.dialog.currentLine += 1;
+        hl.dialog.lineTime = 0;
+        if (hl.dialog.currentLine >= hl.dialog.lines.length) {
+          hl.dialog.active = false;
+          hl.postDialogT = 0;
+        }
+      }
+    }
+    // Tras la última línea del diálogo, esperar un poco y AUTO-DISPARAR
+    // el fade-out a escena 2 (sin botón ENTRAR).
+    if (hl.dialog && hl.dialog.triggered && !hl.dialog.active && !hl.dialog.fadingOut) {
+      hl.postDialogT += dt;
+      if (hl.postDialogT > 1.5) {
+        hl.dialog.fadingOut = true;
+        hl.dialog.fadeT = 0;
+      }
     }
     // Fade out al "entrar a la herida".
     if (hl.dialog && hl.dialog.fadingOut) {
@@ -14723,25 +14761,8 @@
       }
     }
 
-    // ──── BOTÓN ENTRAR (al final del diálogo) ────
-    if (hl.dialog && hl.dialog.readyToEnter && !hl.dialog.fadingOut) {
-      var ebw = Math.min(200, VW * 0.50);
-      var ebh = 50;
-      var ebx = (VW - ebw) / 2;
-      var eby = groundY - ebh - 20;
-      hl.dialog.enterBtn = { x: ebx, y: eby, w: ebw, h: ebh };
-      var pulse = 0.5 + 0.5 * Math.sin(hl.time * 3);
-      ctx.fillStyle = "rgba(160, 30, 50, " + (0.85 + pulse * 0.15) + ")";
-      ctx.fillRect(ebx, eby, ebw, ebh);
-      ctx.strokeStyle = "#ff8090";
-      ctx.lineWidth = 2;
-      ctx.strokeRect(ebx, eby, ebw, ebh);
-      ctx.fillStyle = "#fff";
-      ctx.font = "bold 15px Fredoka, sans-serif";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText("▼ ENTRAR A LA HERIDA", ebx + ebw / 2, eby + ebh / 2);
-    }
+    // ENTRAR removido: tras la última línea del diálogo, el fade-out
+    // se dispara automáticamente desde updateHeroLevel.
 
     // Sin etiquetas flotantes sobre los héroes: chocaban con los globos
     // de diálogo. Las barras de HP arriba ya identifican a DenK y Mac,
@@ -14780,76 +14801,60 @@
       ctx.fill();
     }
 
-    // En la intro (escena 1) NO hay swap, salto ni salir: la cinemática
-    // es obligatoria. Solo controles direccionales ◄ ► para caminar a
-    // DenK hasta el borde de la herida. Botones no renderizados también
-    // se marcan como null para que el hit-test los ignore.
+    // Cinemática 100% automática: sin controles direccionales, swap,
+    // salto ni salir. El único botón es PLAY al inicio (mientras
+    // awaitingPlay=true). Todos los demás se marcan null para que
+    // _inBtn los ignore.
     hl.swapBtn = null;
     hl.jumpBtn = null;
     hl.exitBtn = null;
+    hl.leftBtn = null;
+    hl.rightBtn = null;
 
-    // ──── Controles direccionales (estilo circular glass) ────
-    var cbR = Math.max(36, Math.min(48, VH * 0.058));      // radio
-    var cbBot = VH - cbR - 24;                              // centro Y
-    var cbLeftX  = 24 + cbR;                                // centro X izq
-    var cbRightX = cbLeftX + cbR * 2 + 16;                  // centro X dcha
-    // Bounding box (para hit-test rect-based de _inBtn).
-    hl.leftBtn  = { x: cbLeftX  - cbR, y: cbBot - cbR, w: cbR * 2, h: cbR * 2 };
-    hl.rightBtn = { x: cbRightX - cbR, y: cbBot - cbR, w: cbR * 2, h: cbR * 2 };
-
-    function drawCircleBtn(cx_, cy_, r, label, held) {
-      // Sombra externa cuando está presionado (efecto presionado).
-      if (held) {
-        ctx.save();
-        ctx.shadowColor = "rgba(255, 200, 130, 0.65)";
-        ctx.shadowBlur = 16;
-        ctx.fillStyle = "rgba(255, 195, 120, 0.18)";
-        ctx.beginPath();
-        ctx.arc(cx_, cy_, r + 1, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.restore();
-      }
-      // Fill base (glass dark).
-      var fGrad = ctx.createRadialGradient(cx_, cy_ - r * 0.35, 0, cx_, cy_, r);
-      if (held) {
-        fGrad.addColorStop(0,    "rgba(255, 220, 160, 0.95)");
-        fGrad.addColorStop(0.55, "rgba(220, 140, 70, 0.85)");
-        fGrad.addColorStop(1,    "rgba(120, 60, 40, 0.75)");
-      } else {
-        fGrad.addColorStop(0,    "rgba(60, 38, 48, 0.82)");
-        fGrad.addColorStop(0.6,  "rgba(30, 18, 26, 0.82)");
-        fGrad.addColorStop(1,    "rgba(15, 8, 14, 0.85)");
-      }
-      ctx.fillStyle = fGrad;
-      ctx.beginPath();
-      ctx.arc(cx_, cy_, r, 0, Math.PI * 2);
-      ctx.fill();
-      // Anillo de borde.
-      ctx.strokeStyle = held ? "rgba(255, 230, 180, 0.95)" : "rgba(255, 220, 180, 0.55)";
-      ctx.lineWidth = held ? 2.5 : 1.8;
-      ctx.beginPath();
-      ctx.arc(cx_, cy_, r, 0, Math.PI * 2);
-      ctx.stroke();
-      // Highlight superior (efecto glass).
+    // ──── BOTÓN PLAY (solo antes de arrancar la cinemática) ────
+    if (hl.awaitingPlay) {
+      var playR = Math.max(48, Math.min(72, VH * 0.09));
+      var playCX = VW / 2;
+      var playCY = VH / 2;
+      hl.playBtn = {
+        x: playCX - playR, y: playCY - playR,
+        w: playR * 2, h: playR * 2
+      };
+      // Pulse para invitar al tap.
+      var pPulse = 0.5 + 0.5 * Math.sin(hl.time * 2.4);
+      // Halo externo.
       ctx.save();
+      ctx.globalAlpha = 0.35 + pPulse * 0.35;
+      ctx.fillStyle = "rgba(255, 210, 140, 0.55)";
       ctx.beginPath();
-      ctx.arc(cx_, cy_, r, 0, Math.PI * 2);
-      ctx.clip();
-      var hlGrad = ctx.createLinearGradient(0, cy_ - r, 0, cy_);
-      hlGrad.addColorStop(0, "rgba(255, 255, 255, " + (held ? 0.32 : 0.18) + ")");
-      hlGrad.addColorStop(1, "rgba(255, 255, 255, 0)");
-      ctx.fillStyle = hlGrad;
-      ctx.fillRect(cx_ - r, cy_ - r, r * 2, r);
+      ctx.arc(playCX, playCY, playR + 14 + pPulse * 6, 0, Math.PI * 2);
+      ctx.fill();
       ctx.restore();
-      // Glyph.
-      ctx.fillStyle = held ? "#3a1810" : "#fff";
-      ctx.font = "bold " + Math.round(r * 0.95) + "px Fredoka, sans-serif";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText(label, cx_, cy_ + 2);
+      // Cuerpo del botón (glass dorado).
+      var playGrad = ctx.createRadialGradient(playCX, playCY - playR * 0.3, 0, playCX, playCY, playR);
+      playGrad.addColorStop(0,    "rgba(255, 230, 170, 0.98)");
+      playGrad.addColorStop(0.55, "rgba(220, 140, 70, 0.95)");
+      playGrad.addColorStop(1,    "rgba(120, 60, 40, 0.90)");
+      ctx.fillStyle = playGrad;
+      ctx.beginPath();
+      ctx.arc(playCX, playCY, playR, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "rgba(255, 235, 190, 0.95)";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(playCX, playCY, playR, 0, Math.PI * 2);
+      ctx.stroke();
+      // Triángulo PLAY.
+      ctx.fillStyle = "#2a1208";
+      ctx.beginPath();
+      ctx.moveTo(playCX - playR * 0.32, playCY - playR * 0.42);
+      ctx.lineTo(playCX + playR * 0.48, playCY);
+      ctx.lineTo(playCX - playR * 0.32, playCY + playR * 0.42);
+      ctx.closePath();
+      ctx.fill();
+    } else {
+      hl.playBtn = null;
     }
-    drawCircleBtn(cbLeftX,  cbBot, cbR, "◄", hl.input.left);
-    drawCircleBtn(cbRightX, cbBot, cbR, "►", hl.input.right);
 
     // ──── CIERRE DEL FRAME "RECUERDO ANIME" ────
     // Cierra el clip + transform. A partir de aquí volvemos a coords
@@ -14905,53 +14910,19 @@
     if (!hl) return;
     // Mapeo de coords de pantalla a coords de escena: el render aplica
     // translate(frameX, frameY) + scale(frameScale), así que para hit-
-    // test contra los botones (que se posicionan en coords de escena)
-    // hay que invertir esa transformación.
+    // test contra los botones (en coords de escena) hay que invertir
+    // esa transformación.
     var ft = hl.frameTransform;
     if (ft && ft.scale > 0) {
       x = (x - ft.x) / ft.scale;
       y = (y - ft.y) / ft.scale;
     }
-    // Botones de acción inmediata (tap): SALIR y SWAP.
-    if (_inBtn(hl.exitBtn, x, y)) {
-      exitHeroLevel("abort");
-      return;
-    }
-    if (_inBtn(hl.swapBtn, x, y)) {
-      swapActiveHero();
-      sfx("tick");
-      return;
-    }
-    // Botón ENTRAR (final de diálogos): inicia fade-out a escena 2.
-    if (hl.dialog && hl.dialog.readyToEnter && _inBtn(hl.dialog.enterBtn, x, y)) {
-      hl.dialog.fadingOut = true;
-      hl.dialog.fadeT = 0;
+    // Único botón interactivo: PLAY (al inicio). Tras tapear, arranca
+    // la cinemática y no se acepta más input.
+    if (hl.awaitingPlay && _inBtn(hl.playBtn, x, y)) {
+      hl.awaitingPlay = false;
       sfx("upgrade");
       return;
-    }
-    // Tap durante diálogo activo: avanzar a la siguiente línea.
-    if (hl.dialog && hl.dialog.active && hl.dialog.lineTime > 0.25) {
-      hl.dialog.currentLine += 1;
-      hl.dialog.lineTime = 0;
-      if (hl.dialog.currentLine >= hl.dialog.lines.length) {
-        hl.dialog.active = false;
-        hl.dialog.readyToEnter = true;
-      }
-      sfx("tick");
-      return;
-    }
-    // Botones HELD: izquierda, derecha, salto. Cada pointerId puede
-    // mantener uno distinto (multi-touch real).
-    if (_inBtn(hl.leftBtn, x, y)) {
-      hl.input.left = true;
-      hl.activeTouches[pointerId] = "left";
-    } else if (_inBtn(hl.rightBtn, x, y)) {
-      hl.input.right = true;
-      hl.activeTouches[pointerId] = "right";
-    } else if (_inBtn(hl.jumpBtn, x, y)) {
-      hl.input.jumpHeld = true;
-      hl.input.jumpPressedThisFrame = true;
-      hl.activeTouches[pointerId] = "jump";
     }
   }
 

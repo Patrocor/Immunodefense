@@ -14669,34 +14669,10 @@
       ctx.fillText("▼ ENTRAR A LA HERIDA", ebx + ebw / 2, eby + ebh / 2);
     }
 
-    // Etiquetas flotantes sobre AMBOS héroes (cada uno con su color).
-    // Stroke oscuro de contorno para que destaquen sobre cualquier fondo
-    // (la piel del bg es cálida y se "comía" el naranja de Mac).
-    // El activo se ve a alpha 1.0; el inactivo a 0.55.
-    ctx.font = "bold 11px Fredoka, sans-serif";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "bottom";
-    ctx.lineWidth = 3;
-    ctx.strokeStyle = "rgba(10, 5, 8, 0.85)";
-    var denkActive = (hl.activeHero === "denk");
-    var denkAlpha = denkActive ? 1.0 : 0.55;
-    ctx.globalAlpha = denkAlpha;
-    ctx.strokeText("DenK", denkScreenX, hl.denk.y - 40);
-    ctx.fillStyle = "#b8eaf6";
-    ctx.fillText("DenK", denkScreenX, hl.denk.y - 40);
-    ctx.globalAlpha = 1;
-
-    var macActive = (hl.activeHero === "mac");
-    var macAlpha = macActive ? 1.0 : 0.55;
-    ctx.globalAlpha = macAlpha;
-    // Mac es notablemente más alto que DenK (sprite ~100px vs ~64px).
-    // Subimos el label a -65 para que quede por encima de su cabeza
-    // en vez de superpuesto. Color: amarillo dorado, alto contraste
-    // con los tonos cálidos de la piel del bg.
-    ctx.strokeText("Mac", macScreenX, hl.mac.y - 65);
-    ctx.fillStyle = "#ffd24a";
-    ctx.fillText("Mac", macScreenX, hl.mac.y - 65);
-    ctx.globalAlpha = 1;
+    // Sin etiquetas flotantes sobre los héroes: chocaban con los globos
+    // de diálogo. Las barras de HP arriba ya identifican a DenK y Mac,
+    // y los globos usan el color propio de cada uno + colita que apunta
+    // al que habla.
 
     // Indicador de progreso del nivel (barra fina abajo del título).
     var prog = Math.min(1, active.x / hl.levelWidth);

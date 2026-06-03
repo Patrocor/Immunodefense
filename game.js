@@ -13842,12 +13842,12 @@
         // Spawn del demodex independiente: arranca al lado de Mac y
         // empieza su viaje al fondo derecho a comer algo.
         hl.demodex = {
-          x: macHero.x + 30,                     // un poco a la dcha de Mac
-          y: macHero.y + 18,                     // ras de suelo
-          state: "leaving",                      // "leaving" → "eating"
-          vx: 28,                                // walking slow hacia la dcha
-          targetX: VW * 0.94,                    // posición de "snack"
-          targetY: macHero.y + 28,               // un poco más abajo (perspectiva al fondo)
+          x: macHero.x + 35,                     // arranca al lado dcho de Mac
+          y: macHero.y + 22,                     // ras de suelo
+          state: "leaving",
+          vx: 22,                                // walking slow hacia la dcha
+          targetX: VW * 0.86,                    // posición visible, no en el borde
+          targetY: macHero.y + 30,               // ligeramente más abajo (perspectiva)
           scaleAtStart: 1.0,
           eatTimer: 0,
           legPhase: 0,
@@ -14295,17 +14295,34 @@
       var dScale = 1.0 - depthT * 0.40;          // 1.0 cerca → 0.60 al fondo
       var demoWalkImg = ASSETS.get("assets/piel/demodex-walk.png");
       if (demoWalkImg) {
-        // Sprite real (cuando lo tengamos)
-        var dH = 50 * dScale;
+        // Sprite real
+        var dH = 80 * dScale;                            // más grande (era 50)
         var dW = dH * (demoWalkImg.width / demoWalkImg.height);
         ctx.save();
-        ctx.globalAlpha = 0.55 + (1 - depthT) * 0.45;   // más opaco si está cerca
-        // Sombra
-        ctx.fillStyle = "rgba(0,0,0," + (0.25 * (1 - depthT * 0.5)) + ")";
+        ctx.globalAlpha = 0.80 + (1 - depthT) * 0.20;   // más opaco (mín 0.80)
+        ctx.fillStyle = "rgba(0,0,0," + (0.30 * (1 - depthT * 0.5)) + ")";
         ctx.beginPath();
-        ctx.ellipse(dScreenX, dmd.y + dH * 0.45, dW * 0.35, 4, 0, 0, Math.PI * 2);
+        ctx.ellipse(dScreenX, dmd.y + dH * 0.42, dW * 0.32, 5, 0, 0, Math.PI * 2);
         ctx.fill();
-        ctx.drawImage(demoWalkImg, dScreenX - dW / 2, dmd.y - dH * 0.5, dW, dH);
+        ctx.drawImage(demoWalkImg, dScreenX - dW / 2, dmd.y - dH * 0.55, dW, dH);
+        // Si está comiendo, dibuja un "snack" (gota de sebo) y miguitas.
+        if (dmd.state === "eating") {
+          var snackX = dScreenX + dW * 0.42;
+          var snackY = dmd.y + dH * 0.15;
+          ctx.fillStyle = "rgba(232, 200, 80, 0.95)";
+          ctx.beginPath();
+          ctx.ellipse(snackX, snackY, 6 * dScale, 4 * dScale, 0, 0, Math.PI * 2);
+          ctx.fill();
+          var crumbs = Math.floor((dmd.chewPhase * 0.5) % 4);
+          for (var cb = 0; cb < crumbs; cb++) {
+            var crX = snackX + (4 + cb * 5) * dScale;
+            var crY = snackY + (-3 - cb * 2) * dScale;
+            ctx.fillStyle = "rgba(220, 180, 60, " + (0.9 - cb * 0.18) + ")";
+            ctx.beginPath();
+            ctx.arc(crX, crY, 1.3 * dScale, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
         ctx.restore();
       } else {
         // Placeholder canvas (mientras no exista el sprite real)

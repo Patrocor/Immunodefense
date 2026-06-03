@@ -13608,8 +13608,15 @@
     // caminan dentro del viewport visible. Al cruzar woundTriggerX se
     // disparan los diálogos.
     var levelWidth = VW;
-    var startX = VW * 0.10;                   // spawn visible a la izquierda
-    var groundY = VH * 0.78;
+    var startX = VW * 0.10;
+    // groundY = línea de la superficie de la piel pintada en el bg
+    // (donde los héroes deben caminar). Se ajusta empíricamente al ~52%
+    // del viewport para alinear con la "plateau" del scene1 image.
+    var groundY = VH * 0.52;
+    // bgBottom = hasta dónde renderea la imagen del fondo. Llega casi
+    // hasta los controles (~92% del VH) para mostrar el corte dérmico
+    // completo (encima Y debajo de la superficie).
+    var bgBottom = VH * 0.92;
     state.heroLevel = {
       active: true,
       organ: organId,
@@ -13650,6 +13657,7 @@
       swapCooldown: 0,
       gravity: 1200,
       groundY: groundY,
+      bgBottom: bgBottom,
       // Input state — set por pointer handlers, leído por update.
       input: {
         left: false,
@@ -14079,17 +14087,20 @@
     // demasiado cargado visualmente). El fondo es un PNG único que cubre
     // todo el escenario; encima dibujamos partículas, vapor de la herida
     // y rayos de luz para dar vida.
+    var bgBottomScreen = hl.bgBottom || groundY;
     var sceneImg = (hl.organ === "piel") ? ASSETS.get("assets/piel/scene1-wound-exterior.png") : null;
     if (sceneImg) {
-      // BG FIJO: ocupa el viewport entero (0,0 a VW, groundY). No scroll.
-      ctx.drawImage(sceneImg, 0, 0, VW, groundY);
+      // BG FIJO: cubre desde el tope del campo hasta justo arriba de los
+      // controles. La imagen es el piso (incluye corte dérmico debajo de
+      // la superficie); los héroes caminan en groundY (la línea pintada
+      // del bg, no el bottom de la imagen).
+      ctx.drawImage(sceneImg, 0, 0, VW, bgBottomScreen);
     } else {
-      // Fallback minimalista mientras la imagen carga o falta.
-      var skyGrad = ctx.createLinearGradient(0, 0, 0, groundY);
+      var skyGrad = ctx.createLinearGradient(0, 0, 0, bgBottomScreen);
       skyGrad.addColorStop(0, "#3a1410");
       skyGrad.addColorStop(1, "#a06050");
       ctx.fillStyle = skyGrad;
-      ctx.fillRect(0, 0, VW, groundY);
+      ctx.fillRect(0, 0, VW, bgBottomScreen);
     }
 
     // ──── ATMÓSFERA: rayos de luz desde arriba-izquierda ────
@@ -14098,14 +14109,15 @@
       ctx.save();
       ctx.globalAlpha = 0.05 + lightPulse * 0.04;
       ctx.fillStyle = "#fff3d0";
-      // 2 rayos diagonales
+      // 2 rayos diagonales que cruzan toda la imagen vertical.
+      var rayEnd = bgBottomScreen;
       for (var lr = 0; lr < 2; lr++) {
         var rxOff = lr * 80 - 20;
         ctx.beginPath();
         ctx.moveTo(rxOff, 0);
         ctx.lineTo(rxOff + 60, 0);
-        ctx.lineTo(rxOff + 60 + groundY * 0.55, groundY);
-        ctx.lineTo(rxOff + groundY * 0.55, groundY);
+        ctx.lineTo(rxOff + 60 + rayEnd * 0.55, rayEnd);
+        ctx.lineTo(rxOff + rayEnd * 0.55, rayEnd);
         ctx.closePath();
         ctx.fill();
       }
@@ -14162,59 +14174,8 @@
     ctx.font = "italic " + Math.max(12, Math.min(16, VW * 0.035)) + "px Fredoka, sans-serif";
     ctx.fillText(def.sub, VW / 2, 100);
 
-    // ──── SUELO + ESCOMBROS EN EL PISO (foreground, scroll 1x) ────
-    ctx.fillStyle = "rgba(20, 8, 12, 0.92)";
-    ctx.fillRect(0, groundY, VW, VH - groundY);
-    ctx.strokeStyle = def.accent;
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(0, groundY);
-    ctx.lineTo(VW, groundY);
-    ctx.stroke();
-
-    // Escombros en el piso: posiciones FIJAS en world-space.
-    var floorDebris = [
-      { wx: 280,  type: "fibrin" },
-      { wx: 480,  type: "rock"   },
-      { wx: 720,  type: "fibrin" },
-      { wx: 980,  type: "pus"    },
-      { wx: 1200, type: "rock"   },
-      { wx: 1380, type: "fibrin" },
-      { wx: 1620, type: "rock"   },
-      { wx: 1840, type: "pus"    },
-      { wx: 2050, type: "fibrin" },
-      { wx: 2240, type: "rock"   }
-    ];
-    for (var fd = 0; fd < floorDebris.length; fd++) {
-      var deb = floorDebris[fd];
-      var sx = deb.wx - cx;
-      if (sx < -40 || sx > VW + 40) continue;
-      if (deb.type === "fibrin") {
-        ctx.strokeStyle = "rgba(220, 200, 180, 0.65)";
-        ctx.lineWidth = 1.5;
-        for (var fk = 0; fk < 5; fk++) {
-          var ang = fk * 0.7;
-          ctx.beginPath();
-          ctx.moveTo(sx, groundY - 2);
-          ctx.lineTo(sx + Math.cos(ang) * 22 + 8, groundY - 16 - Math.sin(ang) * 8);
-          ctx.stroke();
-        }
-      } else if (deb.type === "rock") {
-        ctx.fillStyle = "rgba(70, 30, 25, 0.95)";
-        ctx.strokeStyle = "rgba(40, 15, 12, 1)";
-        ctx.lineWidth = 1.5;
-        ctx.beginPath();
-        ctx.ellipse(sx, groundY - 6, 14, 9, 0, 0, Math.PI * 2);
-        ctx.fill(); ctx.stroke();
-      } else if (deb.type === "pus") {
-        ctx.fillStyle = "rgba(190, 200, 120, 0.65)";
-        ctx.beginPath();
-        ctx.ellipse(sx, groundY - 2, 22, 5, 0, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    }
-
-    // (marker VASO removido — escena 1 ya no se scrollea)
+    // (Floor strip y debris canvas removidos — la imagen bg ya muestra
+    // el corte dérmico completo y los escombros pintados.)
 
     // ──── HÉROE ACTIVO (foreground) ────
     var active = hl[hl.activeHero];

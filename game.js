@@ -13632,12 +13632,14 @@
       // demodex (auto-cinematic). Se encuentran en los bordes del wound.
       activeHero: "denk",
       denk: {
-        x: startX, y: groundY,
+        // Arranca BIEN arriba del viewport para la entrada en rappel
+        // (cuelga de un dendrito que desciende desde fuera de pantalla).
+        x: startX, y: groundY - VH * 0.85,
         vx: 0, vy: 0,
         hp: 3, hpMax: 3,
         facing: 1,
         anim: 0,
-        grounded: true,
+        grounded: false,
         moveSpeed: 220,
         jumpV: -480,
         canDoubleJump: true,
@@ -13655,6 +13657,19 @@
         jumpV: -420,
         canDoubleJump: false,
         usedDoubleJump: false
+      },
+      // Estado de la entrada de DenK en rappel: cuelga de un dendrito
+      // celeste que desciende desde arriba del canvas (off-screen) hasta
+      // la superficie de la piel. Una vez landed, el dendrito se retrae.
+      denkEntry: {
+        active: true,
+        t: 0,
+        descentTime: 2.2,             // duración del descenso
+        landed: false,
+        retractT: 0,                  // 0→1 durante la retracción del dendrito
+        startY: groundY - VH * 0.85,
+        targetY: groundY,
+        x: startX                     // X fijo durante la entrada
       },
       // Estado de la entrada de Mac sobre el demodex.
       macEntry: {
@@ -13815,6 +13830,42 @@
       }
     }
 
+    // DenK entry: rappel cinemático desde un dendrito que cae del cielo.
+    // Esta override va DESPUÉS de las físicas para machacar el efecto
+    // de gravedad/ground collision durante el descenso.
+    if (hl.denkEntry && hl.denkEntry.active) {
+      var de = hl.denkEntry;
+      if (!de.landed) {
+        de.t += dt;
+        var u = Math.min(1, de.t / de.descentTime);
+        var eased = 1 - Math.pow(1 - u, 2);          // ease-out quad
+        hl.denk.x = de.x;
+        hl.denk.y = de.startY + (de.targetY - de.startY) * eased;
+        hl.denk.vx = 0;
+        hl.denk.vy = 0;
+        hl.denk.grounded = false;
+        hl.denk.facing = 1;
+        if (u >= 1) {
+          hl.denk.y = de.targetY;
+          hl.denk.grounded = true;
+          de.landed = true;
+          de.retractT = 0;
+        }
+      } else {
+        de.retractT += dt / 0.6;                     // 0.6s retract
+        if (de.retractT >= 1) {
+          de.active = false;
+        }
+      }
+      // Anula input para DenK mientras la entrada está activa.
+      if (hl.activeHero === "denk") {
+        input.left = false;
+        input.right = false;
+        input.jumpPressedThisFrame = false;
+        input.jumpHeld = false;
+      }
+    }
+
     // Cámara: sigue al héroe activo manteniéndolo cerca del centro-izquierda.
     var targetCamX = hero.x - VW * 0.35;
     targetCamX = Math.max(0, Math.min(hl.levelWidth - VW, targetCamX));
@@ -13879,11 +13930,13 @@
     }
 
     // Trigger del diálogo: cuando DenK llega al borde izquierdo de la herida
-    // Y Mac ya terminó su entrada (los dos están en sus bordes).
+    // Y Mac ya terminó su entrada Y la entrada de DenK también terminó
+    // (dendrito retraído, los dos en sus bordes).
     if (hl.dialog && !hl.dialog.triggered) {
       var denkAtEdge = hl.denk.x >= hl.wound.leftEdge - 2;
       var macAtRest = !hl.macEntry.active;
-      if (denkAtEdge && macAtRest) {
+      var denkEntered = !(hl.denkEntry && hl.denkEntry.active);
+      if (denkAtEdge && macAtRest && denkEntered) {
         hl.dialog.triggered = true;
         hl.dialog.active = true;
         hl.dialog.currentLine = 0;
@@ -14424,6 +14477,60 @@
     // ──── AMBOS HÉROES VISIBLES (foreground) ────
     var denkScreenX = hl.denk.x - cx;
     var macScreenX = hl.mac.x - cx;
+
+    // Dendrito de DenK (entrada en rappel): línea celeste con leve onda
+    // que conecta off-screen (y=0) con la cabeza de DenK. Durante la
+    // retracción, el extremo superior baja hacia DenK hasta desaparecer.
+    if (hl.denkEntry && hl.denkEntry.active) {
+      var de2 = hl.denkEntry;
+      // Cabeza de DenK aproximada (sprite anclado al centro vertical).
+      var headY = hl.denk.y - 28;
+      var cordTopY = 0;
+      if (de2.landed) {
+        // Retract: el top baja hasta headY.
+        var rT = Math.min(1, de2.retractT);
+        cordTopY = rT * headY;
+      }
+      if (cordTopY < headY) {
+        // Trazamos la cuerda como una curva sinusoidal sutil.
+        ctx.save();
+        ctx.lineCap = "round";
+        // Glow externo (más ancho, alpha bajo).
+        ctx.strokeStyle = "rgba(140, 220, 255, 0.35)";
+        ctx.lineWidth = 5;
+        ctx.beginPath();
+        var segs = 20;
+        for (var s = 0; s <= segs; s++) {
+          var ty = cordTopY + (headY - cordTopY) * (s / segs);
+          var wave = Math.sin((ty * 0.04) + hl.time * 3) * 2.2;
+          var tx = denkScreenX + wave;
+          if (s === 0) ctx.moveTo(tx, ty);
+          else ctx.lineTo(tx, ty);
+        }
+        ctx.stroke();
+        // Línea central (nítida).
+        ctx.strokeStyle = "rgba(200, 240, 255, 0.92)";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        for (var s2 = 0; s2 <= segs; s2++) {
+          var ty2 = cordTopY + (headY - cordTopY) * (s2 / segs);
+          var wave2 = Math.sin((ty2 * 0.04) + hl.time * 3) * 2.2;
+          var tx2 = denkScreenX + wave2;
+          if (s2 === 0) ctx.moveTo(tx2, ty2);
+          else ctx.lineTo(tx2, ty2);
+        }
+        ctx.stroke();
+        // Bulbito en el extremo superior (parece raíz/cabezal del dendrito).
+        if (!de2.landed) {
+          ctx.fillStyle = "rgba(180, 230, 255, 0.85)";
+          ctx.beginPath();
+          ctx.arc(denkScreenX, cordTopY + 3, 3, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+      }
+    }
+
     drawHeroSprite(hl.denk, denkScreenX, hl.activeHero === "denk", hl.denk.anim, hl.denk.facing, "denk");
 
     // Mac: durante la entrada cinemática se renderiza con el sprite

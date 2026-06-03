@@ -13657,7 +13657,36 @@
         jumpHeld: false
       },
       // Track pointer touches: pointerId → buttonName ('left'/'right'/'jump').
-      activeTouches: {}
+      activeTouches: {},
+      // Atmósfera escénica (canvas, sutil, animada).
+      particles: (function () {
+        var arr = [];
+        for (var p = 0; p < 22; p++) {
+          arr.push({
+            x: Math.random() * levelWidth,
+            y: 60 + Math.random() * (groundY - 80),
+            r: 1 + Math.random() * 2.2,
+            vx: 4 + Math.random() * 14,       // px/s a la derecha
+            phase: Math.random() * Math.PI * 2,
+            alpha: 0.25 + Math.random() * 0.30
+          });
+        }
+        return arr;
+      })(),
+      vaporWisps: (function () {
+        var arr = [];
+        // Wisps originados cerca de la herida (centro-derecha de la imagen).
+        // Cuando se renderice, la posición se calcula relativa al bg scaled.
+        for (var w = 0; w < 4; w++) {
+          arr.push({
+            t: Math.random() * 3.5,        // tiempo de vida actual
+            ttl: 3.0 + Math.random() * 1.5,// ciclo total
+            xOff: (Math.random() - 0.5) * 30,
+            seed: Math.random() * 100
+          });
+        }
+        return arr;
+      })()
     };
   }
 
@@ -13735,6 +13764,28 @@
 
     // Reset edge-trigger.
     input.jumpPressedThisFrame = false;
+
+    // Atmósfera: partículas drifting horizontalmente con bobbing vertical.
+    if (hl.particles) {
+      for (var pi = 0; pi < hl.particles.length; pi++) {
+        var pa = hl.particles[pi];
+        pa.x += pa.vx * dt;
+        pa.phase += dt * 0.8;
+        if (pa.x > hl.levelWidth + 20) pa.x = -20;
+      }
+    }
+    // Wisps de vapor desde la herida: ciclo de vida (suben y se desvanecen).
+    if (hl.vaporWisps) {
+      for (var wi = 0; wi < hl.vaporWisps.length; wi++) {
+        var wv = hl.vaporWisps[wi];
+        wv.t += dt;
+        if (wv.t >= wv.ttl) {
+          wv.t = 0;
+          wv.xOff = (Math.random() - 0.5) * 30;
+          wv.seed = Math.random() * 100;
+        }
+      }
+    }
   }
 
   function swapActiveHero() {
@@ -13972,161 +14023,101 @@
     var cx = hl.cameraX;
     var groundY = hl.groundY + 14;
 
-    // Capa 0: gradiente vertical del cielo/tejido profundo (no scroll).
-    var skyGrad = ctx.createLinearGradient(0, 0, 0, groundY);
-    if (hl.organ === "piel") {
-      skyGrad.addColorStop(0, "#3a1410");        // arriba: tejido profundo
-      skyGrad.addColorStop(0.5, "#7a3a2e");
-      skyGrad.addColorStop(1, "#a06050");        // cerca del piso
-    } else {
-      skyGrad.addColorStop(0, def.bg);
-      skyGrad.addColorStop(1, def.bg);
-    }
-    ctx.fillStyle = skyGrad;
-    ctx.fillRect(0, 0, VW, groundY);
-
-    // Capa 1 (lejana, parallax 0.20x): siluetas de tejido + luz filtrada.
-    var p1x = -(cx * 0.20);
-    var img1 = (hl.organ === "piel") ? ASSETS.get("assets/piel/bg-far.png") : null;
-    if (img1) {
-      // Tile horizontalmente a través del nivel.
-      var tw1 = img1.width;
-      var th1 = img1.height;
-      var aspect1 = th1 / tw1;
-      var renderH1 = groundY;
-      var renderW1 = renderH1 / aspect1;
-      var startX1 = Math.floor(cx * 0.20 / renderW1) * renderW1 - cx * 0.20;
-      for (var tx1 = startX1; tx1 < VW + renderW1; tx1 += renderW1) {
-        ctx.drawImage(img1, tx1, 0, renderW1, renderH1);
-      }
-    } else {
-    ctx.save();
-    ctx.translate(p1x, 0);
-    if (hl.organ === "piel") {
-      // Folículos pilosos lejanos (formas tubulares verticales).
-      ctx.fillStyle = "rgba(40, 15, 12, 0.55)";
-      for (var f1 = 0; f1 < 18; f1++) {
-        var fx = f1 * 220 - 60;
-        var fw = 24 + (f1 % 3) * 12;
-        var fh = 140 + (f1 % 4) * 60;
-        ctx.fillRect(fx, groundY - fh, fw, fh);
-        // base más ancha
-        ctx.beginPath();
-        ctx.ellipse(fx + fw/2, groundY - fh + 8, fw * 0.7, 14, 0, 0, Math.PI * 2);
-        ctx.fill();
-      }
-      // Glándulas sebáceas como burbujas
-      ctx.fillStyle = "rgba(60, 25, 20, 0.45)";
-      for (var g1 = 0; g1 < 14; g1++) {
-        var gx = g1 * 280 + 90;
-        var gy = groundY - 60 - (g1 % 3) * 30;
-        ctx.beginPath();
-        ctx.arc(gx, gy, 22 + (g1 % 2) * 10, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    }
-    ctx.restore();
-    }
-
-    // Capa 2 (media, parallax 0.50x): vasos capilares cruzando, células.
-    var p2x = -(cx * 0.50);
-    var img2 = (hl.organ === "piel") ? ASSETS.get("assets/piel/bg-mid.png") : null;
-    if (img2) {
-      // Capa media atmosférica: escalada al doble (menos tiling) y muy
-      // baja opacidad para que no compita con bg-far.
-      var tw2 = img2.width;
-      var th2 = img2.height;
-      var aspect2 = th2 / tw2;
-      var renderH2 = groundY * 1.5;        // más grande → menos repetición visual
-      var renderW2 = renderH2 / aspect2;
-      var startX2 = Math.floor(cx * 0.50 / renderW2) * renderW2 - cx * 0.50;
-      ctx.save();
-      ctx.globalAlpha = 0.32;              // muy sutil, atmósfera
-      for (var tx2 = startX2; tx2 < VW + renderW2; tx2 += renderW2) {
-        ctx.drawImage(img2, tx2, -renderH2 * 0.10, renderW2, renderH2);
-      }
-      ctx.restore();
-    } else {
-    ctx.save();
-    ctx.translate(p2x, 0);
-    if (hl.organ === "piel") {
-      // Vasos capilares onduladas (líneas rojizas serpenteando).
-      ctx.strokeStyle = "rgba(180, 40, 50, 0.55)";
-      ctx.lineWidth = 3;
-      for (var v = 0; v < 6; v++) {
-        var vy = 60 + v * 70;
-        ctx.beginPath();
-        ctx.moveTo(-50, vy);
-        for (var vx = 0; vx <= hl.levelWidth + 100; vx += 30) {
-          var wob = Math.sin(vx * 0.02 + v) * 10;
-          ctx.lineTo(vx, vy + wob);
+    // ──── ESCENA 1: UNA SOLA IMAGEN DE FONDO + ATMÓSFERA ANIMADA ────
+    // (replaces the previous 3-layer parallax system per user feedback —
+    // demasiado cargado visualmente). El fondo es un PNG único que cubre
+    // todo el escenario; encima dibujamos partículas, vapor de la herida
+    // y rayos de luz para dar vida.
+    var sceneImg = (hl.organ === "piel") ? ASSETS.get("assets/piel/scene1-wound-exterior.png") : null;
+    if (sceneImg) {
+      // Render el bg cubriendo todo el levelWidth × groundY, con parallax
+      // muy leve (0.7×) para que se sienta profundidad sutil.
+      var aspect = sceneImg.height / sceneImg.width;
+      var renderH = groundY;
+      var renderW = renderH / aspect;
+      // El bg ocupa el levelWidth completo si el ancho del image*aspect
+      // alcanza; si no, lo escalamos a levelWidth.
+      var bgScrollFactor = 0.85;             // un poquito más lento que el héroe
+      var bgX = -(cx * bgScrollFactor);
+      // Si la imagen no llega a cubrir el levelWidth con 1 tile, tileamos.
+      if (renderW < hl.levelWidth) {
+        var startX = Math.floor(cx * bgScrollFactor / renderW) * renderW - cx * bgScrollFactor;
+        for (var bgx = startX; bgx < VW + renderW; bgx += renderW) {
+          ctx.drawImage(sceneImg, bgx, 0, renderW, renderH);
         }
-        ctx.stroke();
+      } else {
+        ctx.drawImage(sceneImg, bgX, 0, renderW, renderH);
       }
-      // Eritrocitos drifting.
-      ctx.fillStyle = "rgba(200, 50, 60, 0.60)";
-      for (var er = 0; er < 22; er++) {
-        var ex = (er * 170 + hl.time * 12) % (hl.levelWidth + 200) - 100;
-        var ey = 80 + (er * 47) % 380;
-        ctx.beginPath();
-        ctx.ellipse(ex, ey, 8, 5, 0, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    }
-    ctx.restore();
+    } else {
+      // Fallback minimalista mientras la imagen carga o falta.
+      var skyGrad = ctx.createLinearGradient(0, 0, 0, groundY);
+      skyGrad.addColorStop(0, "#3a1410");
+      skyGrad.addColorStop(1, "#a06050");
+      ctx.fillStyle = skyGrad;
+      ctx.fillRect(0, 0, VW, groundY);
     }
 
-    // Capa 3 (cercana, parallax 0.85x): estrías de fibras de colágeno + zonas dañadas.
-    var p3x = -(cx * 0.85);
-    var img3 = (hl.organ === "piel") ? ASSETS.get("assets/piel/bg-near.png") : null;
-    if (img3) {
-      // Capa cercana atmosférica: aún más grande y baja opacidad. Sirve
-      // para sugerir fibras + manchas de daño sin saturar.
-      var tw3 = img3.width;
-      var th3 = img3.height;
-      var aspect3 = th3 / tw3;
-      var renderH3 = groundY * 1.7;        // mucho más grande para menos tiling
-      var renderW3 = renderH3 / aspect3;
-      var startX3 = Math.floor(cx * 0.85 / renderW3) * renderW3 - cx * 0.85;
+    // ──── ATMÓSFERA: rayos de luz desde arriba-izquierda ────
+    if (hl.organ === "piel") {
+      var lightPulse = 0.5 + 0.5 * Math.sin(hl.time * 0.6);
       ctx.save();
-      ctx.globalAlpha = 0.42;              // sutil pero un poco más visible
-                                            // (las manchas de daño son narrativas)
-      for (var tx3 = startX3; tx3 < VW + renderW3; tx3 += renderW3) {
-        ctx.drawImage(img3, tx3, -renderH3 * 0.15, renderW3, renderH3);
+      ctx.globalAlpha = 0.05 + lightPulse * 0.04;
+      ctx.fillStyle = "#fff3d0";
+      // 2 rayos diagonales
+      for (var lr = 0; lr < 2; lr++) {
+        var rxOff = lr * 80 - 20;
+        ctx.beginPath();
+        ctx.moveTo(rxOff, 0);
+        ctx.lineTo(rxOff + 60, 0);
+        ctx.lineTo(rxOff + 60 + groundY * 0.55, groundY);
+        ctx.lineTo(rxOff + groundY * 0.55, groundY);
+        ctx.closePath();
+        ctx.fill();
       }
       ctx.restore();
-    } else {
-    ctx.save();
-    ctx.translate(p3x, 0);
-    if (hl.organ === "piel") {
-      // Fibras de colágeno horizontales (líneas finas).
-      ctx.strokeStyle = "rgba(240, 200, 180, 0.18)";
-      ctx.lineWidth = 1;
-      for (var fb = 0; fb < 40; fb++) {
-        var fy = 100 + (fb * 23) % (groundY - 200);
-        var fxs = (fb * 137) % 400;
+    }
+
+    // ──── ATMÓSFERA: partículas drifting (polvo / sebo) ────
+    if (hl.particles && hl.organ === "piel") {
+      for (var pp = 0; pp < hl.particles.length; pp++) {
+        var pa = hl.particles[pp];
+        var psx = pa.x - cx;
+        if (psx < -10 || psx > VW + 10) continue;
+        var bob = Math.sin(pa.phase) * 4;
+        ctx.fillStyle = "rgba(255, 230, 200, " + pa.alpha + ")";
         ctx.beginPath();
-        ctx.moveTo(fxs, fy);
-        ctx.lineTo(fxs + 250 + (fb % 3) * 80, fy + (fb % 5 - 2) * 4);
-        ctx.stroke();
-      }
-      // Zonas dañadas (manchas oscuras irregulares = escombros de la infección).
-      ctx.fillStyle = "rgba(15, 5, 8, 0.55)";
-      var damageSpots = [
-        { x: VW * 0.35, y: groundY - 220, r: 38 },
-        { x: VW * 1.10, y: groundY - 60, r: 50 },
-        { x: VW * 1.80, y: groundY - 140, r: 32 },
-        { x: VW * 2.30, y: groundY - 200, r: 44 },
-        { x: VW * 2.75, y: groundY - 100, r: 30 }
-      ];
-      for (var ds = 0; ds < damageSpots.length; ds++) {
-        var dsp = damageSpots[ds];
-        ctx.beginPath();
-        ctx.arc(dsp.x, dsp.y, dsp.r, 0, Math.PI * 2);
+        ctx.arc(psx, pa.y + bob, pa.r, 0, Math.PI * 2);
         ctx.fill();
       }
     }
-    ctx.restore();
+
+    // ──── ATMÓSFERA: wisps de vapor saliendo de la herida ────
+    // Aproximamos la posición de la herida en world coords: centro-derecha
+    // de la imagen, mid-bottom verticalmente.
+    if (hl.vaporWisps && hl.organ === "piel") {
+      var woundWX = hl.levelWidth * 0.55;    // aprox horizontal de la herida
+      var woundWY = groundY - 60;             // aprox vertical (sobre el suelo)
+      var woundSX = woundWX - cx * 0.85;
+      if (woundSX > -100 && woundSX < VW + 100) {
+        ctx.save();
+        for (var ws = 0; ws < hl.vaporWisps.length; ws++) {
+          var wv = hl.vaporWisps[ws];
+          var lifeT = wv.t / wv.ttl;          // 0..1
+          var fade = (lifeT < 0.15)
+            ? (lifeT / 0.15)
+            : (lifeT > 0.85 ? (1 - lifeT) / 0.15 : 1);
+          var rise = lifeT * 100;             // sube 100px en su vida
+          var swayX = Math.sin(lifeT * Math.PI * 2 + wv.seed) * 12;
+          var wx = woundSX + wv.xOff + swayX;
+          var wy = woundWY - rise;
+          var wr = 6 + lifeT * 14;
+          ctx.fillStyle = "rgba(220, 140, 150, " + (fade * 0.35) + ")";
+          ctx.beginPath();
+          ctx.arc(wx, wy, wr, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+      }
     }
 
     // Header con título del órgano.

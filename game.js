@@ -13644,7 +13644,7 @@
         usedDoubleJump: false
       },
       mac: {
-        x: VW + 80,                   // OFF-SCREEN right — entra después
+        x: VW + 220,                  // BIEN off-screen — entrada cinemática larga
         y: groundY,
         vx: 0, vy: 0,
         hp: 5, hpMax: 5,
@@ -13825,7 +13825,7 @@
       var macHero = hl.mac;
       var dx = hl.macEntry.targetX - macHero.x;
       if (Math.abs(dx) > 2) {
-        macHero.vx = Math.sign(dx) * 110;       // walking speed
+        macHero.vx = Math.sign(dx) * 75;        // walking speed (lento + cinemático)
         macHero.x += macHero.vx * dt;
         macHero.facing = -1;                     // mira a la izquierda
         macHero.anim += dt;                      // walk cycle anim

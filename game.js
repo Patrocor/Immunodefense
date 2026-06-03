@@ -13721,12 +13721,12 @@
         currentLine: 0,
         lineTime: 0,                   // tiempo que lleva la línea actual
         lines: [
-          { hero: "denk", text: "¡Mac, mirá la herida!",     expr: "shocked" },
-          { hero: "mac",  text: "Por acá entraron…",          expr: "shocked" },
-          { hero: "denk", text: "Dejaron todo destrozado.",   expr: "shocked" },
-          { hero: "mac",  text: "Hay que rastrearlos.",       expr: "shocked" },
-          { hero: "denk", text: "¿Listos para bajar?",        expr: null      },
-          { hero: "mac",  text: "Vamos.",                     expr: null      }
+          { hero: "denk", text: "¡Mac, mirá la herida!",     expr: "shocked"  },
+          { hero: "mac",  text: "Por acá entraron…",          expr: "shocked"  },
+          { hero: "denk", text: "Dejaron todo destrozado.",   expr: "angry"    },
+          { hero: "mac",  text: "Hay que rastrearlos.",       expr: "angry"    },
+          { hero: "denk", text: "¿Listos para bajar?",        expr: "serious"  },
+          { hero: "mac",  text: "Vamos.",                     expr: "serious"  }
         ],
         readyToEnter: false,           // al final de los diálogos
         fadingOut: false,
@@ -13896,12 +13896,15 @@
         input.right = false;
       }
     }
-    // Mientras hay diálogo activo, congelar control horizontal.
+    // Mientras hay diálogo activo, congelar control horizontal y forzar
+    // que ambos héroes se MIREN entre sí (DenK → derecha, Mac → izquierda).
     if (hl.dialog && hl.dialog.active) {
       hero.vx = 0;
       input.left = false;
       input.right = false;
       hl.dialog.lineTime += dt;
+      hl.denk.facing = 1;
+      hl.mac.facing = -1;
     }
     // Fade out al "entrar a la herida".
     if (hl.dialog && hl.dialog.fadingOut) {
@@ -14293,30 +14296,29 @@
       var depthT = (dmd.x - hl.mac.x) / (VW - hl.mac.x);
       depthT = Math.max(0, Math.min(1, depthT));
       var dScale = 1.0 - depthT * 0.40;          // 1.0 cerca → 0.60 al fondo
-      var demoWalkImg = ASSETS.get("assets/piel/demodex-walk.png");
-      if (demoWalkImg) {
-        // Sprite real
-        var dH = 80 * dScale;                            // más grande (era 50)
-        var dW = dH * (demoWalkImg.width / demoWalkImg.height);
+      // Sprite según estado: "leaving" usa demodex-walk, "eating" usa
+      // demodex-eating (incluye la gota de sebo ya pintada).
+      var demoImgPath = (dmd.state === "eating")
+        ? "assets/piel/demodex-eating.png"
+        : "assets/piel/demodex-walk.png";
+      var demoImg = ASSETS.get(demoImgPath);
+      if (!demoImg) demoImg = ASSETS.get("assets/piel/demodex-walk.png"); // fallback
+      if (demoImg) {
+        var dH = 80 * dScale;
+        var dW = dH * (demoImg.width / demoImg.height);
         ctx.save();
-        ctx.globalAlpha = 0.80 + (1 - depthT) * 0.20;   // más opaco (mín 0.80)
+        ctx.globalAlpha = 0.80 + (1 - depthT) * 0.20;
         ctx.fillStyle = "rgba(0,0,0," + (0.30 * (1 - depthT * 0.5)) + ")";
         ctx.beginPath();
         ctx.ellipse(dScreenX, dmd.y + dH * 0.42, dW * 0.32, 5, 0, 0, Math.PI * 2);
         ctx.fill();
-        ctx.drawImage(demoWalkImg, dScreenX - dW / 2, dmd.y - dH * 0.55, dW, dH);
-        // Si está comiendo, dibuja un "snack" (gota de sebo) y miguitas.
+        ctx.drawImage(demoImg, dScreenX - dW / 2, dmd.y - dH * 0.55, dW, dH);
+        // Miguitas (canvas) saliendo cuando mastica — el sprite ya tiene la gota.
         if (dmd.state === "eating") {
-          var snackX = dScreenX + dW * 0.42;
-          var snackY = dmd.y + dH * 0.15;
-          ctx.fillStyle = "rgba(232, 200, 80, 0.95)";
-          ctx.beginPath();
-          ctx.ellipse(snackX, snackY, 6 * dScale, 4 * dScale, 0, 0, Math.PI * 2);
-          ctx.fill();
           var crumbs = Math.floor((dmd.chewPhase * 0.5) % 4);
           for (var cb = 0; cb < crumbs; cb++) {
-            var crX = snackX + (4 + cb * 5) * dScale;
-            var crY = snackY + (-3 - cb * 2) * dScale;
+            var crX = dScreenX + (dW * 0.35 + cb * 4) * 1;
+            var crY = dmd.y + (dH * 0.10 - cb * 3) * 1;
             ctx.fillStyle = "rgba(220, 180, 60, " + (0.9 - cb * 0.18) + ")";
             ctx.beginPath();
             ctx.arc(crX, crY, 1.3 * dScale, 0, Math.PI * 2);

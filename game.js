@@ -14236,24 +14236,27 @@
     // pasa al sprite normal.
     var macDemodexImg = ASSETS.get("assets/piel/mac-demodex.png");
     if (hl.macEntry && hl.macEntry.active && macDemodexImg) {
-      // El sprite mac-demodex es 2:1 wide (Mac sentado encima del demodex).
-      // Lo escalamos para que el conjunto sea ~90px de alto.
-      var mdH = 95;
-      var mdW = mdH * (macDemodexImg.width / macDemodexImg.height);  // ~95 si es 1:1
-      // En realidad las dimensiones son 1024x1024 — el sprite ocupa el frame.
-      // Mac va a la derecha del frame (porque mira a la izquierda),
-      // demodex se extiende a ambos lados. Centramos el sprite al Mac.x.
+      // El sprite es 1024x1024 (ChatGPT no respetó el 2:1 ratio). El
+      // conjunto Mac+demodex ocupa el centro del frame. Renderizamos
+      // más grande para que las figuras tengan presencia.
+      var mdH = 140;
+      var mdW = mdH * (macDemodexImg.width / macDemodexImg.height);
       // Bobbing sutil para el "paso" del demodex.
-      var bob = Math.sin(hl.time * 6) * 2;
-      ctx.save();
+      var bob = Math.sin(hl.time * 6) * 2.5;
+      // Sombra bajo el conjunto
+      ctx.fillStyle = "rgba(0, 0, 0, 0.32)";
+      ctx.beginPath();
+      ctx.ellipse(macScreenX, hl.mac.y + 22, mdW * 0.32, 6, 0, 0, Math.PI * 2);
+      ctx.fill();
+      // El sprite tiene mac arriba y demodex abajo. Anclamos por el centro
+      // horizontal y de tal modo que la base del demodex quede sobre el suelo.
       ctx.drawImage(
         macDemodexImg,
         macScreenX - mdW / 2,
-        hl.mac.y - mdH * 0.55 + bob,
+        hl.mac.y - mdH * 0.62 + bob,
         mdW,
         mdH
       );
-      ctx.restore();
       // Indicador "ACTIVO" si es el activo
       if (hl.activeHero === "mac") {
         var glow = 0.5 + 0.5 * Math.sin(hl.mac.anim * 4);

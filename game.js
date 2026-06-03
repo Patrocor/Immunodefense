@@ -13662,6 +13662,8 @@
         targetX: VW * 0.72,           // se detiene a una distancia segura del borde
         demodexSeed: Math.random() * 100
       },
+      // El demodex después de dejar a Mac: se va al fondo a comer.
+      demodex: null,                  // se inicializa cuando termina macEntry
       // Zonas del wound (los héroes no pueden cruzar). Valores más
       // conservadores para que ningún sprite "se asome" sobre el boquete:
       // DenK (sprite ~60px) se detiene con su borde derecho fuera del wound,
@@ -13837,6 +13839,42 @@
         macHero.vx = 0;
         hl.macEntry.active = false;              // llegó
         macHero.facing = -1;                     // mira a la herida
+        // Spawn del demodex independiente: arranca al lado de Mac y
+        // empieza su viaje al fondo derecho a comer algo.
+        hl.demodex = {
+          x: macHero.x + 30,                     // un poco a la dcha de Mac
+          y: macHero.y + 18,                     // ras de suelo
+          state: "leaving",                      // "leaving" → "eating"
+          vx: 28,                                // walking slow hacia la dcha
+          targetX: VW * 0.94,                    // posición de "snack"
+          targetY: macHero.y + 28,               // un poco más abajo (perspectiva al fondo)
+          scaleAtStart: 1.0,
+          eatTimer: 0,
+          legPhase: 0,
+          chewPhase: 0
+        };
+      }
+    }
+
+    // Update del demodex independiente (cuando ya bajó de Mac).
+    if (hl.demodex) {
+      var dmd = hl.demodex;
+      dmd.legPhase += dt * 8;
+      if (dmd.state === "leaving") {
+        // Camina hacia el targetX, ajustando Y hacia targetY (efecto profundidad).
+        var dxd = dmd.targetX - dmd.x;
+        var dyd = dmd.targetY - dmd.y;
+        if (Math.abs(dxd) > 2) {
+          dmd.x += Math.sign(dxd) * dmd.vx * dt;
+          dmd.y += dyd * dt * 0.4;               // lerp suave hacia targetY
+        } else {
+          dmd.x = dmd.targetX;
+          dmd.y = dmd.targetY;
+          dmd.state = "eating";
+        }
+      } else if (dmd.state === "eating") {
+        dmd.eatTimer += dt;
+        dmd.chewPhase += dt * 6;
       }
     }
 
@@ -13938,10 +13976,15 @@
     }
     var assetPath = "assets/piel/" + type + "-" + stateName + ".png";
     var img = ASSETS.get(assetPath);
-    // Si la imagen de expresión no existe, fallback a idle.
     if (!img && stateName !== "idle") {
       img = ASSETS.get("assets/piel/" + type + "-idle.png");
     }
+    // Direccion NATIVA del sprite (en source). Los sprites base están
+    // dibujados mirando a la derecha; algunas expresiones específicas
+    // (ej. mac-shocked) fueron generadas mirando a la izquierda. Esta
+    // tabla determina si debe flipear o no para alinear con 'facing'.
+    var nativeFacesRight = true;
+    if (type === "mac" && stateName === "shocked") nativeFacesRight = false;
     if (img) {
       // Dimensiones target en pantalla (matchea aproximadamente las
       // primitivas canvas: DenK R=14 → ~50px wide; Mac R=21 → ~75px wide).
@@ -13977,8 +14020,10 @@
       ctx.ellipse(screenX, hero.y + targetH * 0.40, targetW * 0.32, 5, 0, 0, Math.PI * 2);
       ctx.fill();
       // Flip horizontal si mira a la izquierda.
+      // Flip = facing del héroe NO coincide con direccion nativa del sprite.
+      var needsFlip = (facing < 0) === nativeFacesRight;
       ctx.save();
-      if (facing < 0) {
+      if (needsFlip) {
         ctx.scale(-1, 1);
         ctx.drawImage(
           img,
@@ -14239,6 +14284,97 @@
 
     // (Floor strip y debris canvas removidos — la imagen bg ya muestra
     // el corte dérmico completo y los escombros pintados.)
+
+    // ──── DEMODEX INDEPENDIENTE (después que Mac desmonta) ────
+    if (hl.demodex) {
+      var dmd = hl.demodex;
+      var dScreenX = dmd.x - cx;
+      // Escala con la profundidad: lejos = más chico (max ~0.62)
+      var depthT = (dmd.x - hl.mac.x) / (VW - hl.mac.x);
+      depthT = Math.max(0, Math.min(1, depthT));
+      var dScale = 1.0 - depthT * 0.40;          // 1.0 cerca → 0.60 al fondo
+      var demoWalkImg = ASSETS.get("assets/piel/demodex-walk.png");
+      if (demoWalkImg) {
+        // Sprite real (cuando lo tengamos)
+        var dH = 50 * dScale;
+        var dW = dH * (demoWalkImg.width / demoWalkImg.height);
+        ctx.save();
+        ctx.globalAlpha = 0.55 + (1 - depthT) * 0.45;   // más opaco si está cerca
+        // Sombra
+        ctx.fillStyle = "rgba(0,0,0," + (0.25 * (1 - depthT * 0.5)) + ")";
+        ctx.beginPath();
+        ctx.ellipse(dScreenX, dmd.y + dH * 0.45, dW * 0.35, 4, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.drawImage(demoWalkImg, dScreenX - dW / 2, dmd.y - dH * 0.5, dW, dH);
+        ctx.restore();
+      } else {
+        // Placeholder canvas (mientras no exista el sprite real)
+        var baseAlpha = 0.55 + (1 - depthT) * 0.45;
+        ctx.save();
+        ctx.globalAlpha = baseAlpha;
+        ctx.fillStyle = "rgba(0, 0, 0, " + (0.30 * (1 - depthT * 0.5)) + ")";
+        ctx.beginPath();
+        ctx.ellipse(dScreenX, dmd.y + 5 * dScale, 22 * dScale, 4 * dScale, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.save();
+        ctx.translate(dScreenX, dmd.y);
+        ctx.scale(dScale, dScale);
+        // Cuerpo del demodex
+        var dGrad = ctx.createLinearGradient(-22, 0, 22, 0);
+        dGrad.addColorStop(0,   "#d8c098");
+        dGrad.addColorStop(0.5, "#e8d8b8");
+        dGrad.addColorStop(1,   "#b89868");
+        ctx.fillStyle = dGrad;
+        ctx.beginPath();
+        ctx.ellipse(0, 0, 22, 7, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = "#7a6038";
+        ctx.lineWidth = 1.0;
+        ctx.stroke();
+        // Cabeza con ojitos
+        var headChew = (dmd.state === "eating") ? Math.sin(dmd.chewPhase) * 1 : 0;
+        ctx.fillStyle = "#a88060";
+        ctx.beginPath();
+        ctx.arc(18, headChew, 5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "#1a1010";
+        ctx.beginPath();
+        ctx.arc(20, headChew - 1, 1.1, 0, Math.PI * 2);
+        ctx.fill();
+        // Patas
+        for (var dlg = 0; dlg < 4; dlg++) {
+          var dlx = -12 + dlg * 8;
+          var lwig = (dmd.state === "leaving") ? Math.sin(dmd.legPhase + dlg * 1.2) * 2.5 : 0;
+          ctx.strokeStyle = "#7a6038";
+          ctx.lineWidth = 1.2;
+          ctx.beginPath();
+          ctx.moveTo(dlx, 5);
+          ctx.lineTo(dlx + 1, 10 + lwig);
+          ctx.stroke();
+        }
+        ctx.restore();
+        // Si está comiendo: dibujá un "snack" (gota de sebo) y unas
+        // miguitas saliendo.
+        if (dmd.state === "eating") {
+          // Snack: gota dorada bajo la cabeza
+          ctx.fillStyle = "rgba(232, 200, 80, " + (baseAlpha * 0.9) + ")";
+          ctx.beginPath();
+          ctx.ellipse(dScreenX + 22 * dScale, dmd.y + 6 * dScale, 5 * dScale, 3 * dScale, 0, 0, Math.PI * 2);
+          ctx.fill();
+          // Miguitas/partículas al masticar
+          var crumbs = Math.floor((dmd.chewPhase * 0.5) % 4);
+          for (var cb = 0; cb < crumbs; cb++) {
+            var crX = dScreenX + (28 + cb * 4) * dScale;
+            var crY = dmd.y + (-2 - cb * 2) * dScale;
+            ctx.fillStyle = "rgba(220, 180, 60, " + (baseAlpha * (1 - cb * 0.25)) + ")";
+            ctx.beginPath();
+            ctx.arc(crX, crY, 1.2 * dScale, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+        ctx.restore();
+      }
+    }
 
     // ──── AMBOS HÉROES VISIBLES (foreground) ────
     var denkScreenX = hl.denk.x - cx;

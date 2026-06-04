@@ -12988,9 +12988,19 @@
       safeDraw("Nets", drawNets);
     } else {
       safeDraw("ExteriorZone", drawExteriorZone);
-      safeDraw("SkinZone", drawSkinZone);
-      safeDraw("SkinLayers", drawSkinLayers);
-      safeDraw("CirculatoryZone", drawCirculatoryZone);
+      // Si el PNG pictórico del field está cargado, lo usamos como fondo
+      // completo (cubre skin zone, dermis, hipodermis y vaso). Si no,
+      // fallback a las primitivas canvas históricas.
+      var fase1Bg = ASSETS.get("assets/fase1/bg-skin-field.png");
+      if (fase1Bg) {
+        safeDraw("Fase1Bg", function () {
+          ctx.drawImage(fase1Bg, FIELD_LEFT, FIELD_TOP, FIELD_W, FIELD_H);
+        });
+      } else {
+        safeDraw("SkinZone", drawSkinZone);
+        safeDraw("SkinLayers", drawSkinLayers);
+        safeDraw("CirculatoryZone", drawCirculatoryZone);
+      }
     }
     safeDraw("Ambient", drawAmbient);
     if (!state.dissemination) { safeDraw("Mitosis", drawMitosis); safeDraw("Patrol", drawPatrol); }

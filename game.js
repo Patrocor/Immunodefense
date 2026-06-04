@@ -10178,43 +10178,64 @@
       fallbackFn(e, rad, expression, blink);
       return;
     }
-    // Walk cycle del germen mientras recorre el camino. Combinamos:
-    //  - Bob vertical: paso arriba-abajo (~3Hz vivo, más lento dying)
-    //  - Rotation wobble: bamboleo lateral ±6° sincronizado con bob
-    //    (sensación de paso animado, "duck walk")
-    //  - Squash-stretch: en cada bajada se aplasta vertical y estira
-    //    horizontal (cartoon physics: vivo y elástico)
-    //  - Scale pulse de respiración (más lento que el paso)
-    // Cada germen tiene fase distinta (e.wobble) → no marchan sincronizados.
-    // Si muere: ondulación más lenta y amplitud reducida (decaimiento).
+    // Walk cycle del germen mientras recorre el camino. EVIDENTE
+    // (amplitudes generosas + frecuencia moderada para que se lea).
+    // - Bob vertical: paso arriba-abajo (~2.4Hz vivo)
+    // - Rotation wobble: bamboleo lateral ±10° sincronizado con bob
+    // - Squash-stretch: aplasta vertical / estira horizontal en cada
+    //   paso (cartoon physics elástico)
+    // - Scale pulse de respiración (independiente, más lento)
+    // Cada germen tiene fase distinta (e.wobble) → no sincronizados.
+    // Si muere: amplitudes reducidas (decaimiento).
     var phase = e.wobble || 0;
     var t     = state.time;
-    var freqStep  = dying ? 1.8 : 3.2;   // frecuencia del paso
-    var freqBreath= dying ? 1.2 : 2.0;   // respiración
-    var ampBob    = dying ? 0.05 : 0.11; // bob ±% del radio
-    var ampRot    = dying ? 0.05 : 0.11; // rotation ±rad (~±6.3°)
-    var ampSquash = dying ? 0.03 : 0.06; // squash/stretch
-    var ampBreath = dying ? 0.025: 0.045;// pulse de respiración
+    var freqStep   = dying ? 1.4 : 2.4;
+    var freqBreath = dying ? 0.9 : 1.5;
+    var ampBob     = dying ? 0.08 : 0.20; // bob ±% del radio (era 0.11)
+    var ampRot     = dying ? 0.09 : 0.20; // rotation ±rad (~±11.5°)
+    var ampSquash  = dying ? 0.05 : 0.11; // squash/stretch ±% (era 0.06)
+    var ampBreath  = dying ? 0.03 : 0.06; // respiración
 
     var step  = Math.sin(t * freqStep + phase);
     var bobY  = step * rad * ampBob;
     var rot   = Math.sin(t * freqStep + phase * 0.4) * ampRot;
-    var sqY   = 1 - step * ampSquash;        // aplasta abajo
-    var sqX   = 1 + step * (ampSquash * 0.5);// contraposición horizontal
+    var sqY   = 1 - step * ampSquash;
+    var sqX   = 1 + step * (ampSquash * 0.5);
     var pulse = 1 + Math.sin(t * freqBreath + phase * 1.3) * ampBreath;
-    // Tamaño base (incluye envoltura/cápsula/biofilm).
     var size  = rad * 2.6 * pulse;
+
     ctx.save();
     ctx.translate(e.x, e.y + bobY);
     ctx.rotate(rot);
     ctx.scale(sqX, sqY);
+
+    // Halo de daño: glow rojo-naranja vivo ALREDEDOR del germen cuando
+    // recibe un golpe (se dibuja ANTES del sprite para que el sprite
+    // quede encima del halo, dándole forma).
+    if (e.hitFlash > 0) {
+      var ha = Math.min(0.95, e.hitFlash * 3.2);
+      var hr = size * 0.55 + e.hitFlash * 16;
+      var hg = ctx.createRadialGradient(0, 0, size * 0.30, 0, 0, hr);
+      hg.addColorStop(0,    "rgba(255, 250, 90,  " + (ha * 0.85) + ")");
+      hg.addColorStop(0.35, "rgba(255, 110, 40,  " + (ha * 0.75) + ")");
+      hg.addColorStop(0.75, "rgba(255, 60,  30,  " + (ha * 0.40) + ")");
+      hg.addColorStop(1,    "rgba(255, 60,  30,  0)");
+      ctx.fillStyle = hg;
+      ctx.beginPath();
+      ctx.arc(0, 0, hr, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
     ctx.drawImage(img, -size / 2, -size / 2, size, size);
-    // Flash de daño (overlay claro encima del sprite).
+
+    // Brillo blanco encima del sprite (overlay aditivo) para reforzar
+    // el "golpe" visual.
     if (e.hitFlash > 0) {
       ctx.globalCompositeOperation = "lighter";
-      ctx.globalAlpha = Math.min(0.55, e.hitFlash * 2);
+      ctx.globalAlpha = Math.min(0.65, e.hitFlash * 2.4);
       ctx.drawImage(img, -size / 2, -size / 2, size, size);
     }
+
     ctx.restore();
   }
 

@@ -5905,16 +5905,49 @@
   // -------- EFFECTS -------------------------------------------------------
   function spawnEffect(kind, x, y, color) {
     if (kind === "death") {
-      for (var i = 0; i < 6; i++) {
+      // Splat decal en el suelo (queda unos segundos antes de desvanecerse).
+      pushEffect({
+        kind: "splat", x: x, y: y,
+        rotation: Math.random() * Math.PI * 2,
+        size: 14 * U,
+        life: 1.8, max: 1.8,
+        color: color || "#fff"
+      });
+      // Nube de polvo expansiva.
+      pushEffect({
+        kind: "dust", x: x, y: y,
+        r: 6 * U, r0: 6 * U, maxR: 32 * U,
+        life: 0.55, max: 0.55,
+        color: color || "#fff"
+      });
+      // Partículas pequeñas (rayitas de impacto).
+      for (var i = 0; i < 14; i++) {
         var ang = Math.random() * Math.PI * 2;
-        var spd = (40 + Math.random() * 60) * U;
+        var spd = (60 + Math.random() * 110) * U;
         pushEffect({
           kind: "particle",
           x: x, y: y,
           vx: Math.cos(ang) * spd,
-          vy: Math.sin(ang) * spd,
-          life: 0.4 + Math.random() * 0.2,
-          max: 0.6,
+          vy: Math.sin(ang) * spd - 30 * U,
+          life: 0.45 + Math.random() * 0.25,
+          max: 0.7,
+          color: color || "#fff"
+        });
+      }
+      // Fragmentos de cápsula (shards más grandes que rotan y caen).
+      for (var sh = 0; sh < 6; sh++) {
+        var sang = -Math.PI / 2 + (Math.random() - 0.5) * Math.PI;  // bias arriba
+        var sspd = (80 + Math.random() * 110) * U;
+        pushEffect({
+          kind: "shard",
+          x: x, y: y,
+          vx: Math.cos(sang) * sspd,
+          vy: Math.sin(sang) * sspd,
+          rot: Math.random() * Math.PI * 2,
+          rotSpd: (Math.random() - 0.5) * 12,
+          size: (4.5 + Math.random() * 4.5) * U,
+          life: 0.75 + Math.random() * 0.35,
+          max: 1.1,
           color: color || "#fff"
         });
       }
@@ -5999,6 +6032,20 @@
         ef.y += ef.vy * dt;
         ef.vx *= 0.92;
         ef.vy *= 0.92;
+      } else if (ef.kind === "shard") {
+        // Fragmentos de cápsula tras la muerte: caen con gravedad,
+        // giran, se frenan en horizontal.
+        ef.x += ef.vx * dt;
+        ef.y += ef.vy * dt;
+        ef.vy += 320 * U * dt;             // gravedad
+        ef.vx *= 0.96;
+        ef.rot += ef.rotSpd * dt;
+      } else if (ef.kind === "dust") {
+        // Nube de polvo al morir: se expande y se desvanece.
+        var ageF = 1 - ef.life / ef.max;
+        ef.r = ef.r0 + (ef.maxR - ef.r0) * ageF;
+      } else if (ef.kind === "splat") {
+        // Decal estático del splat de muerte: solo desvanece.
       } else if (ef.kind === "explosion") {
         ef.r = ef.max * (1 - ef.life / 0.4);
       } else if (ef.kind === "dmgText" || ef.kind === "atpText") {
@@ -10206,10 +10253,39 @@
     var pulse = 1 + Math.sin(t * freqBreath + phase * 1.3) * ampBreath;
     var size  = rad * 2.6 * pulse;
 
+    // ─── TELEGRAPH DEL ATAQUE ──────────────────────────────────────
+    // Si el germen tiene tentáculos y está CARGANDO un golpe (tentTarget
+    // setado, tentPunchT==0, tentPulseT contando), agregar shake +
+    // crouch extra + glow cálido. Da al jugador anticipación clara.
+    var windup = 0;
+    if (!dying && def && def.tentacles && e.tentTarget &&
+        (e.tentPunchT || 0) <= 0 && (e.tentPulseT || 0) > 0) {
+      var pg = def.tentacles.pulseGap || 0.22;
+      windup = Math.max(0, Math.min(1, 1 - (e.tentPulseT || 0) / pg));
+    }
+    var shakeX = windup > 0.25 ? (Math.random() - 0.5) * windup * 4 : 0;
+    var shakeY = windup > 0.25 ? (Math.random() - 0.5) * windup * 4 : 0;
+    var crouchSqY = 1 - windup * 0.12;     // se "agacha"
+    var crouchSqX = 1 + windup * 0.07;
+
     ctx.save();
-    ctx.translate(e.x, e.y + bobY);
+    ctx.translate(e.x + shakeX, e.y + bobY + shakeY);
     ctx.rotate(rot);
-    ctx.scale(sqX, sqY);
+    ctx.scale(sqX * crouchSqX, sqY * crouchSqY);
+
+    // Glow cálido del telegraph (debajo del sprite).
+    if (windup > 0) {
+      var wa = windup * 0.85;
+      var wr = size * 0.55 + windup * 14;
+      var wg = ctx.createRadialGradient(0, 0, size * 0.32, 0, 0, wr);
+      wg.addColorStop(0,    "rgba(255, 235, 120, " + (wa * 0.70) + ")");
+      wg.addColorStop(0.45, "rgba(255, 170, 60,  " + (wa * 0.55) + ")");
+      wg.addColorStop(1,    "rgba(255, 120, 40,  0)");
+      ctx.fillStyle = wg;
+      ctx.beginPath();
+      ctx.arc(0, 0, wr, 0, Math.PI * 2);
+      ctx.fill();
+    }
 
     // Halo de daño: glow rojo-naranja vivo ALREDEDOR del germen cuando
     // recibe un golpe (se dibuja ANTES del sprite para que el sprite
@@ -11165,6 +11241,53 @@
       ctx.arc(ef.x, ef.y, 3 * U, 0, Math.PI * 2);
       ctx.fill();
       ctx.globalAlpha = 1;
+    } else if (ef.kind === "shard") {
+      // Fragmento elíptico translúcido que gira (pedazo de cápsula).
+      ctx.save();
+      ctx.translate(ef.x, ef.y);
+      ctx.rotate(ef.rot || 0);
+      ctx.globalAlpha = alpha * 0.85;
+      ctx.fillStyle = ef.color;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, ef.size, ef.size * 0.55, 0, 0, Math.PI * 2);
+      ctx.fill();
+      // Highlight blanco en el borde superior
+      ctx.fillStyle = "rgba(255,255,255," + (alpha * 0.45) + ")";
+      ctx.beginPath();
+      ctx.ellipse(-ef.size * 0.20, -ef.size * 0.25, ef.size * 0.55, ef.size * 0.18, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+      ctx.restore();
+    } else if (ef.kind === "dust") {
+      // Nube de polvo expansiva, suave, fade out.
+      ctx.globalAlpha = alpha * 0.55;
+      var dg = ctx.createRadialGradient(ef.x, ef.y, ef.r * 0.15, ef.x, ef.y, ef.r);
+      dg.addColorStop(0,   ef.color || "#fff");
+      dg.addColorStop(0.5, "rgba(255,255,255,0.30)");
+      dg.addColorStop(1,   "rgba(255,255,255,0)");
+      ctx.fillStyle = dg;
+      ctx.beginPath();
+      ctx.arc(ef.x, ef.y, ef.r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    } else if (ef.kind === "splat") {
+      // Decal en el camino: mancha irregular que se desvanece.
+      ctx.save();
+      ctx.translate(ef.x, ef.y);
+      ctx.rotate(ef.rotation || 0);
+      ctx.globalAlpha = alpha * 0.65;
+      ctx.fillStyle = ef.color || "#fff";
+      // 5 elipses superpuestas con offsets → forma orgánica de splat.
+      var ssize = ef.size;
+      var offsets = [[0, 0, 1.0], [0.55, -0.20, 0.55], [-0.50, 0.30, 0.60], [0.30, 0.55, 0.50], [-0.45, -0.40, 0.45]];
+      for (var so = 0; so < offsets.length; so++) {
+        var o = offsets[so];
+        ctx.beginPath();
+        ctx.ellipse(o[0] * ssize, o[1] * ssize, ssize * o[2], ssize * o[2] * 0.7, so * 0.6, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+      ctx.restore();
     } else if (ef.kind === "hit") {
       ctx.strokeStyle = ef.color;
       ctx.globalAlpha = alpha;

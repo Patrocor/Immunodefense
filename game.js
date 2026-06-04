@@ -417,7 +417,7 @@
     { x: 0.50, y: 0.10 }
   ];
   var CONFLUENCE_POS = { x: 0.50, y: 0.16 };
-  var VESSEL_POS = { x: 0.50, y: 0.88 };   // vaso al fondo (zona circulatoria)
+  var VESSEL_POS = { x: 0.50, y: 0.93 };   // vaso al fondo (zona circulatoria) — alineado con la boca del vaso pintada en bg-skin-field.png
   // El germen recorre casi todo el camino antes de ser absorbido por el vaso.
   // (Antes 0.88: con la serpentina nueva, más larga, eso lo hacía entrar
   // saltándose ~12-15% del recorrido.) 0.97 deja solo un breve floreo final.
@@ -13023,7 +13023,12 @@
       var ej = state.enemies[j];
       if (!ej.absorbing) safeDraw("Enemy:" + (ej.def && ej.def.id), function () { drawEnemy(ej); });
     }
-    if (!state.dissemination) safeDraw("Vessel", drawVessel);
+    // drawVessel canvas (con label "TORRENTE") solo si el bg pictórico NO
+    // está cargado. Cuando el PNG está, el vaso ya viene pintado y el
+    // overlay canvas duplicaba/desalineaba.
+    if (!state.dissemination && !ASSETS.get("assets/fase1/bg-skin-field.png")) {
+      safeDraw("Vessel", drawVessel);
+    }
     for (var jb = 0; jb < state.enemies.length; jb++) {
       var ejb = state.enemies[jb];
       if (ejb.absorbing) safeDraw("Enemy:" + (ejb.def && ejb.def.id), function () { drawEnemy(ejb); });

@@ -9539,7 +9539,7 @@
     // regulares con morfología microbiológica). Fallback al baseKind
     // antiguo para bosses y aliases legacy.
     var kind = def.baseKind || def.bossKind || def.id;
-    if      (def.id === "saureus")      drawSaureus(e, rad * scale, expression, blink);
+    if      (def.id === "saureus")      drawSaureusOrSprite(e, rad * scale, expression, blink);
     else if (def.id === "influenza")    drawInfluenza(e, rad * scale, expression, blink);
     else if (def.id === "vih")          drawVih(e, rad * scale, expression, blink);
     else if (def.id === "candida")      drawCandida(e, rad * scale, expression, blink);
@@ -10158,6 +10158,36 @@
     else if (expression === "hurt") drawAnimeMouth(0, -offY + coR * 0.30, coR * 0.45, coR * 0.40, "open");
     else drawAnimeMouth(0, -offY + coR * 0.30, coR * 0.50, coR * 0.30, "smirk");
     ctx.restore();
+  }
+
+  // Wrapper que intenta usar el sprite PNG (vivo/muriendo según HP).
+  // Si no está cargado, cae al canvas primitive drawSaureus.
+  function drawSaureusOrSprite(e, rad, expression, blink) {
+    var def = e.def;
+    var hpFrac = (def && def.hp > 0) ? (e.hp / def.hp) : 1;
+    var dying  = hpFrac < 0.30;
+    var path   = dying
+      ? "assets/fase1/germs/saureus-dying.png"
+      : "assets/fase1/germs/saureus.png";
+    var img = ASSETS.get(path);
+    // Si la versión muriendo no cargó pero la viva sí, fallback gradual.
+    if (!img && dying) img = ASSETS.get("assets/fase1/germs/saureus.png");
+    if (!img) {
+      // Sin PNG: render canvas histórico.
+      drawSaureus(e, rad, expression, blink);
+      return;
+    }
+    // Tamaño del sprite: ~2.6x el radio para incluir la cápsula y darle aire.
+    var size = rad * 2.6;
+    ctx.drawImage(img, e.x - size / 2, e.y - size / 2, size, size);
+    // Flash de daño (overlay claro encima del sprite).
+    if (e.hitFlash > 0) {
+      ctx.save();
+      ctx.globalCompositeOperation = "lighter";
+      ctx.globalAlpha = Math.min(0.55, e.hitFlash * 2);
+      ctx.drawImage(img, e.x - size / 2, e.y - size / 2, size, size);
+      ctx.restore();
+    }
   }
 
   function drawSaureus(e, rad, expression, blink) {

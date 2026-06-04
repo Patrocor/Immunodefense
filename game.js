@@ -9539,7 +9539,8 @@
     // regulares con morfología microbiológica). Fallback al baseKind
     // antiguo para bosses y aliases legacy.
     var kind = def.baseKind || def.bossKind || def.id;
-    if      (def.id === "saureus")      drawSaureusOrSprite(e, rad * scale, expression, blink);
+    if      (def.id === "saureus")      drawGermSprite(e, rad * scale, "saureus",      drawSaureus,  expression, blink);
+    else if (def.id === "sepidermidis") drawGermSprite(e, rad * scale, "sepidermidis", drawBacteria, expression, blink);
     else if (def.id === "influenza")    drawInfluenza(e, rad * scale, expression, blink);
     else if (def.id === "vih")          drawVih(e, rad * scale, expression, blink);
     else if (def.id === "candida")      drawCandida(e, rad * scale, expression, blink);
@@ -10160,24 +10161,24 @@
     ctx.restore();
   }
 
-  // Wrapper que intenta usar el sprite PNG (vivo/muriendo según HP).
-  // Si no está cargado, cae al canvas primitive drawSaureus.
-  function drawSaureusOrSprite(e, rad, expression, blink) {
+  // Wrapper genérico: intenta dibujar el sprite PNG del germen (vivo o
+  // muriendo según HP). Si no está cargado, llama al fallback canvas.
+  // germId: id del germen (ej. "saureus"). Espera archivos en
+  //   assets/fase1/germs/<germId>.png y <germId>-dying.png
+  // fallbackFn: función canvas a llamar si las PNGs no cargan.
+  function drawGermSprite(e, rad, germId, fallbackFn, expression, blink) {
     var def = e.def;
     var hpFrac = (def && def.hp > 0) ? (e.hp / def.hp) : 1;
     var dying  = hpFrac < 0.30;
-    var path   = dying
-      ? "assets/fase1/germs/saureus-dying.png"
-      : "assets/fase1/germs/saureus.png";
-    var img = ASSETS.get(path);
-    // Si la versión muriendo no cargó pero la viva sí, fallback gradual.
-    if (!img && dying) img = ASSETS.get("assets/fase1/germs/saureus.png");
+    var base   = "assets/fase1/germs/" + germId;
+    var img    = ASSETS.get(dying ? base + "-dying.png" : base + ".png");
+    // Si la dying no cargó pero la viva sí, fallback gradual.
+    if (!img && dying) img = ASSETS.get(base + ".png");
     if (!img) {
-      // Sin PNG: render canvas histórico.
-      drawSaureus(e, rad, expression, blink);
+      fallbackFn(e, rad, expression, blink);
       return;
     }
-    // Tamaño del sprite: ~2.6x el radio para incluir la cápsula y darle aire.
+    // Tamaño del sprite: ~2.6x el radio (incluye envoltura/cápsula/biofilm).
     var size = rad * 2.6;
     ctx.drawImage(img, e.x - size / 2, e.y - size / 2, size, size);
     // Flash de daño (overlay claro encima del sprite).

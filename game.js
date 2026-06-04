@@ -417,7 +417,7 @@
     { x: 0.50, y: 0.10 }
   ];
   var CONFLUENCE_POS = { x: 0.50, y: 0.16 };
-  var VESSEL_POS = { x: 0.50, y: 0.97 };   // vaso al fondo (zona circulatoria) — alineado con el centro de la boca del vaso pintada en bg-skin-field.png
+  var VESSEL_POS = { x: 0.50, y: 0.88 };   // vaso al fondo — alineado con el CENTRO de la boca del vaso pintada en bg-skin-field.png (v2)
   // El germen recorre casi todo el camino antes de ser absorbido por el vaso.
   // (Antes 0.88: con la serpentina nueva, más larga, eso lo hacía entrar
   // saltándose ~12-15% del recorrido.) 0.97 deja solo un breve floreo final.

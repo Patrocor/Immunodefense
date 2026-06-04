@@ -10178,15 +10178,31 @@
       fallbackFn(e, rad, expression, blink);
       return;
     }
+    // Movimiento ondulante: bob vertical + respiración (scale) + sway
+    // horizontal sutil. Cada germen tiene una fase distinta (e.wobble)
+    // para que no marchen sincronizados. Si está muriendo, ondulación
+    // un poco más lenta y amplitud reducida (efecto "decaimiento").
+    var phase = e.wobble || 0;
+    var t     = state.time;
+    var freqB = dying ? 1.6 : 2.4;
+    var freqP = dying ? 1.2 : 1.8;
+    var ampB  = dying ? 0.04 : 0.07;   // bob: % del radio
+    var ampS  = dying ? 0.025 : 0.045; // scale pulse
+    var ampX  = dying ? 0.02 : 0.035;  // sway lateral
+    var bobY  = Math.sin(t * freqB + phase)        * rad * ampB;
+    var pulse = 1 + Math.sin(t * freqP + phase * 1.3) * ampS;
+    var swayX = Math.sin(t * (freqB * 0.65) + phase * 0.7) * rad * ampX;
     // Tamaño del sprite: ~2.6x el radio (incluye envoltura/cápsula/biofilm).
-    var size = rad * 2.6;
-    ctx.drawImage(img, e.x - size / 2, e.y - size / 2, size, size);
+    var size  = rad * 2.6 * pulse;
+    var drawX = e.x - size / 2 + swayX;
+    var drawY = e.y - size / 2 + bobY;
+    ctx.drawImage(img, drawX, drawY, size, size);
     // Flash de daño (overlay claro encima del sprite).
     if (e.hitFlash > 0) {
       ctx.save();
       ctx.globalCompositeOperation = "lighter";
       ctx.globalAlpha = Math.min(0.55, e.hitFlash * 2);
-      ctx.drawImage(img, e.x - size / 2, e.y - size / 2, size, size);
+      ctx.drawImage(img, drawX, drawY, size, size);
       ctx.restore();
     }
   }

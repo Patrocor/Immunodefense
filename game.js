@@ -10178,33 +10178,44 @@
       fallbackFn(e, rad, expression, blink);
       return;
     }
-    // Movimiento ondulante: bob vertical + respiración (scale) + sway
-    // horizontal sutil. Cada germen tiene una fase distinta (e.wobble)
-    // para que no marchen sincronizados. Si está muriendo, ondulación
-    // un poco más lenta y amplitud reducida (efecto "decaimiento").
+    // Walk cycle del germen mientras recorre el camino. Combinamos:
+    //  - Bob vertical: paso arriba-abajo (~3Hz vivo, más lento dying)
+    //  - Rotation wobble: bamboleo lateral ±6° sincronizado con bob
+    //    (sensación de paso animado, "duck walk")
+    //  - Squash-stretch: en cada bajada se aplasta vertical y estira
+    //    horizontal (cartoon physics: vivo y elástico)
+    //  - Scale pulse de respiración (más lento que el paso)
+    // Cada germen tiene fase distinta (e.wobble) → no marchan sincronizados.
+    // Si muere: ondulación más lenta y amplitud reducida (decaimiento).
     var phase = e.wobble || 0;
     var t     = state.time;
-    var freqB = dying ? 1.6 : 2.4;
-    var freqP = dying ? 1.2 : 1.8;
-    var ampB  = dying ? 0.04 : 0.07;   // bob: % del radio
-    var ampS  = dying ? 0.025 : 0.045; // scale pulse
-    var ampX  = dying ? 0.02 : 0.035;  // sway lateral
-    var bobY  = Math.sin(t * freqB + phase)        * rad * ampB;
-    var pulse = 1 + Math.sin(t * freqP + phase * 1.3) * ampS;
-    var swayX = Math.sin(t * (freqB * 0.65) + phase * 0.7) * rad * ampX;
-    // Tamaño del sprite: ~2.6x el radio (incluye envoltura/cápsula/biofilm).
+    var freqStep  = dying ? 1.8 : 3.2;   // frecuencia del paso
+    var freqBreath= dying ? 1.2 : 2.0;   // respiración
+    var ampBob    = dying ? 0.05 : 0.11; // bob ±% del radio
+    var ampRot    = dying ? 0.05 : 0.11; // rotation ±rad (~±6.3°)
+    var ampSquash = dying ? 0.03 : 0.06; // squash/stretch
+    var ampBreath = dying ? 0.025: 0.045;// pulse de respiración
+
+    var step  = Math.sin(t * freqStep + phase);
+    var bobY  = step * rad * ampBob;
+    var rot   = Math.sin(t * freqStep + phase * 0.4) * ampRot;
+    var sqY   = 1 - step * ampSquash;        // aplasta abajo
+    var sqX   = 1 + step * (ampSquash * 0.5);// contraposición horizontal
+    var pulse = 1 + Math.sin(t * freqBreath + phase * 1.3) * ampBreath;
+    // Tamaño base (incluye envoltura/cápsula/biofilm).
     var size  = rad * 2.6 * pulse;
-    var drawX = e.x - size / 2 + swayX;
-    var drawY = e.y - size / 2 + bobY;
-    ctx.drawImage(img, drawX, drawY, size, size);
+    ctx.save();
+    ctx.translate(e.x, e.y + bobY);
+    ctx.rotate(rot);
+    ctx.scale(sqX, sqY);
+    ctx.drawImage(img, -size / 2, -size / 2, size, size);
     // Flash de daño (overlay claro encima del sprite).
     if (e.hitFlash > 0) {
-      ctx.save();
       ctx.globalCompositeOperation = "lighter";
       ctx.globalAlpha = Math.min(0.55, e.hitFlash * 2);
-      ctx.drawImage(img, drawX, drawY, size, size);
-      ctx.restore();
+      ctx.drawImage(img, -size / 2, -size / 2, size, size);
     }
+    ctx.restore();
   }
 
   function drawSaureus(e, rad, expression, blink) {

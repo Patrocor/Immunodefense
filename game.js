@@ -9255,9 +9255,11 @@
     var c2x = tipX, c2y = tipY - arch;
     ctx.save();
     ctx.lineCap = "round"; ctx.lineJoin = "round";
-    // Sombra/contorno oscuro del tentáculo.
-    var lw = (8 + 3 * ext) * U;
-    ctx.strokeStyle = "#1f2a32"; ctx.lineWidth = lw + 2.8 * U;
+    // Sombra/contorno oscuro del tentáculo. Grosor reducido -20% para
+    // que se vea más afín a la estructura del germen (menos "flagelo
+    // grueso", más pseudópodo).
+    var lw = (6.4 + 2.4 * ext) * U;     // era (8 + 3*ext) → -20%
+    ctx.strokeStyle = "#1f2a32"; ctx.lineWidth = lw + 2.2 * U;  // contorno también -20% (2.8 → 2.2)
     ctx.beginPath();
     ctx.moveTo(baseX, baseY);
     ctx.bezierCurveTo(c1x, c1y, c2x, c2y, tipX, tipY);
@@ -10192,7 +10194,7 @@
     var freqStep   = dying ? 1.4 : 2.4;
     var freqBreath = dying ? 0.9 : 1.5;
     var ampBob     = dying ? 0.08 : 0.20; // bob ±% del radio (era 0.11)
-    var ampRot     = dying ? 0.09 : 0.20; // rotation ±rad (~±11.5°)
+    var ampRot     = dying ? 0.08 : 0.18; // rotation ±rad (~±10.3°, -10%)
     var ampSquash  = dying ? 0.05 : 0.11; // squash/stretch ±% (era 0.06)
     var ampBreath  = dying ? 0.03 : 0.06; // respiración
 

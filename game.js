@@ -9283,93 +9283,141 @@
     ctx.restore();
   }
 
-  // LATIGAZO POR ARRIBA: un tentáculo grueso sale del lomo del germen, se
-  // alza como cola de escorpión y CAE de golpe sobre la CABEZA de la torre.
+  // LATIGAZO DE BIOFILM: filamento gelatinoso translúcido sale del lomo
+  // del germen (biofilm extendiéndose) y se proyecta hacia la torre,
+  // terminando en una MASA ADHESIVA babosa (no en puño con púas).
+  // Reskin biológico — sepidermidis no tiene brazos, su arma es el biofilm.
   function drawTentaclePunch(e, t) {
     var tcfg = e.def.tentacles || { pulseGap: 0.22 };
     var pulseT = Math.max(0, e.tentPulseT || 0);
     var punchActive = (e.tentPunchT || 0) > 0;
     var punch = punchActive ? (e.tentPunchT / 0.20) : 0;
     var wind = 1 - Math.min(1, pulseT / tcfg.pulseGap);
-    var snap = wind * wind * wind;     // easing exponencial para el snap
-    var ext = punchActive ? 1 : snap;  // 0 = cargado atrás-arriba, 1 = impacto en la cabeza
+    var snap = wind * wind * wind;
+    var ext = punchActive ? 1 : snap;
     if (ext < 0.06) ext = 0.06;
     var germR = (e.def.radius || 24) * U;
     var dx = t.x - e.x, dy = t.y - e.y, dist = Math.hypot(dx, dy) || 1;
     var nx = dx / dist, ny = dy / dist;
-    // Base del tentáculo: lomo del germen.
     var baseX = e.x, baseY = e.y - germR * 0.85;
-    // Posición CARGADA: alto y un poco hacia atrás (lejos de la torre).
     var cockX = e.x - nx * 22 * U, cockY = baseY - 65 * U;
-    // Posición de IMPACTO: cabeza/parte superior de la torre.
     var headX = t.x, headY = t.y - 22 * U;
-    // Latigazo final del tip: cuando golpea, vibra un poco hacia abajo.
     var jitter = punchActive ? (Math.random() - 0.5) * 6 * U * punch : 0;
     var tipX = cockX + (headX - cockX) * ext + jitter * 0.3;
     var tipY = cockY + (headY - cockY) * ext + jitter * 0.3 + (punchActive ? Math.sin(punch * Math.PI) * 4 * U : 0);
-    // Bezier ARQUEADO: los puntos de control quedan MUY por encima de la línea
-    // base-tip, así el brazo siempre pasa por arriba del germen y la torre.
     var arch = 72 * U;
     var c1x = baseX, c1y = baseY - arch;
     var c2x = tipX, c2y = tipY - arch;
     ctx.save();
     ctx.lineCap = "round"; ctx.lineJoin = "round";
-    // Sombra/contorno oscuro del tentáculo. Grosor reducido -20% para
-    // que se vea más afín a la estructura del germen (menos "flagelo
-    // grueso", más pseudópodo).
-    var lw = (6.4 + 2.4 * ext) * U;     // era (8 + 3*ext) → -20%
-    ctx.strokeStyle = "#1f2a32"; ctx.lineWidth = lw + 2.2 * U;  // contorno también -20% (2.8 → 2.2)
+
+    // FILAMENTO DE BIOFILM (3 capas: outer glow + main gel + highlight).
+    // Grosor varía: más fino en la base, engrosa en la zona media,
+    // se afina al llegar a la masa adhesiva.
+    var lwBase = (5 + 3 * ext) * U;
+
+    // Outer glow translúcido (aura gel).
+    ctx.strokeStyle = "rgba(176, 200, 215, 0.35)";
+    ctx.lineWidth = lwBase + 4 * U;
     ctx.beginPath();
     ctx.moveTo(baseX, baseY);
     ctx.bezierCurveTo(c1x, c1y, c2x, c2y, tipX, tipY);
     ctx.stroke();
-    // Cuerpo del tentáculo.
-    ctx.strokeStyle = "#4a6271"; ctx.lineWidth = lw;
+    // Cuerpo del filamento gelatinoso (translúcido).
+    ctx.strokeStyle = "rgba(130, 160, 180, 0.72)";
+    ctx.lineWidth = lwBase;
     ctx.beginPath();
     ctx.moveTo(baseX, baseY);
     ctx.bezierCurveTo(c1x, c1y, c2x, c2y, tipX, tipY);
     ctx.stroke();
-    // Brillo en la parte superior del arco (sensación de volumen).
-    ctx.strokeStyle = "rgba(255,255,255,0.22)"; ctx.lineWidth = lw * 0.35;
+    // Núcleo interno más claro (centro gel denso).
+    ctx.strokeStyle = "rgba(200, 220, 235, 0.55)";
+    ctx.lineWidth = lwBase * 0.45;
+    ctx.beginPath();
+    ctx.moveTo(baseX, baseY);
+    ctx.bezierCurveTo(c1x, c1y, c2x, c2y, tipX, tipY);
+    ctx.stroke();
+    // Highlight especular superior (shine de gel).
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.45)";
+    ctx.lineWidth = lwBase * 0.20;
     ctx.beginPath();
     ctx.moveTo(baseX, baseY - 1);
     ctx.bezierCurveTo(c1x, c1y - 1, c2x, c2y - 1, tipX, tipY - 1);
     ctx.stroke();
-    // Líneas de velocidad CAYENDO sobre el tip durante el snap.
-    if (!punchActive && wind > 0.55) {
-      var sw = (wind - 0.55) / 0.45;
-      ctx.strokeStyle = "rgba(255,255,255," + (0.75 * sw) + ")"; ctx.lineWidth = 3;
-      for (var sl = 0; sl < 4; sl++) {
-        var ox = (sl - 1.5) * 5 * U;
-        var oy = -(8 + sl * 8) * U;
-        ctx.beginPath();
-        ctx.moveTo(tipX + ox, tipY + oy);
-        ctx.lineTo(tipX + ox + 2 * U, tipY + oy + 9 * U);
-        ctx.stroke();
-      }
+
+    // GOTITAS DE BIOFILM colgando del filamento (drips de gel pegajoso).
+    // Evalúo la curva bezier en varios t para sembrar gotitas.
+    function bezierAt(u) {
+      var iu = 1 - u;
+      var x = iu*iu*iu * baseX + 3*iu*iu*u * c1x + 3*iu*u*u * c2x + u*u*u * tipX;
+      var y = iu*iu*iu * baseY + 3*iu*iu*u * c1y + 3*iu*u*u * c2y + u*u*u * tipY;
+      return { x: x, y: y };
     }
-    // CABEZAL del látigo (esfera con espinas) en el extremo.
-    var headR = (11 + 5 * ext) * U + punch * 5 * U;
-    ctx.fillStyle = "rgba(0,0,0,0.40)";
-    ctx.beginPath(); ctx.arc(tipX + 2 * U, tipY + 2 * U, headR, 0, Math.PI * 2); ctx.fill();
-    var fg = ctx.createRadialGradient(tipX - headR * 0.35, tipY - headR * 0.35, 1, tipX, tipY, headR);
-    fg.addColorStop(0, "#e6edf1"); fg.addColorStop(0.55, e.def.color); fg.addColorStop(1, e.def.colorDark);
-    ctx.fillStyle = fg;
-    ctx.beginPath(); ctx.arc(tipX, tipY, headR, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = "#1a1a22"; ctx.lineWidth = 2.4 * U;
-    ctx.beginPath(); ctx.arc(tipX, tipY, headR, 0, Math.PI * 2); ctx.stroke();
-    // Pinchos del cabezal (amenazante).
-    ctx.fillStyle = e.def.colorDark;
-    for (var sp = 0; sp < 5; sp++) {
-      var spa = sp * (Math.PI * 2 / 5) + state.time * 0.4;
-      var sx = tipX + Math.cos(spa) * headR * 0.95, sy = tipY + Math.sin(spa) * headR * 0.95;
-      var sx2 = tipX + Math.cos(spa) * (headR + 5 * U), sy2 = tipY + Math.sin(spa) * (headR + 5 * U);
+    var dripCount = 3;
+    for (var dp = 0; dp < dripCount; dp++) {
+      var dT = 0.25 + dp * 0.22 + Math.sin(state.time * 1.5 + dp * 1.3) * 0.04;
+      var p = bezierAt(Math.min(0.95, dT));
+      var dripR = (1.6 + 0.8 * Math.sin(state.time * 2 + dp)) * U;
+      // Gotita cuelga ligeramente debajo
+      ctx.fillStyle = "rgba(176, 200, 215, 0.68)";
       ctx.beginPath();
-      ctx.moveTo(sx + Math.cos(spa + Math.PI / 2) * 2.5 * U, sy + Math.sin(spa + Math.PI / 2) * 2.5 * U);
-      ctx.lineTo(sx2, sy2);
-      ctx.lineTo(sx + Math.cos(spa - Math.PI / 2) * 2.5 * U, sy + Math.sin(spa - Math.PI / 2) * 2.5 * U);
-      ctx.closePath(); ctx.fill();
+      ctx.arc(p.x + 1 * U, p.y + 4 * U, dripR, 0, Math.PI * 2);
+      ctx.fill();
+      // Highlight en gotita
+      ctx.fillStyle = "rgba(255, 255, 255, 0.55)";
+      ctx.beginPath();
+      ctx.arc(p.x + 0.5 * U, p.y + 3 * U, dripR * 0.40, 0, Math.PI * 2);
+      ctx.fill();
     }
+
+    // MASA ADHESIVA BABOSA en el extremo (no puño con púas).
+    var headR = (9 + 5 * ext) * U + punch * 5 * U;
+    // Sombra inferior (sensación de bulbo colgante).
+    ctx.fillStyle = "rgba(60, 90, 110, 0.45)";
+    ctx.beginPath();
+    ctx.ellipse(tipX + 1 * U, tipY + headR * 0.45, headR * 0.95, headR * 0.40, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // Forma amorfa de la masa adhesiva: 3 elipses superpuestas con offsets
+    // (no un círculo perfecto, más orgánica).
+    var blobWobble = Math.sin(state.time * 4) * 0.08;
+    var blobs = [
+      { x:  0, y: 0,                    rx: headR * 1.00,           ry: headR * 0.95 + blobWobble * headR },
+      { x: -headR * 0.30, y: -headR * 0.15, rx: headR * 0.55, ry: headR * 0.50 },
+      { x:  headR * 0.30, y:  headR * 0.10, rx: headR * 0.62, ry: headR * 0.50 }
+    ];
+    // Glow externo gel.
+    ctx.fillStyle = "rgba(176, 200, 215, 0.50)";
+    ctx.beginPath();
+    ctx.arc(tipX, tipY, headR * 1.25, 0, Math.PI * 2);
+    ctx.fill();
+    // Cuerpo translúcido (gradient gel).
+    var blobGrad = ctx.createRadialGradient(tipX - headR * 0.30, tipY - headR * 0.30, headR * 0.15, tipX, tipY, headR);
+    blobGrad.addColorStop(0,    "rgba(220, 240, 250, 0.95)");
+    blobGrad.addColorStop(0.5,  "rgba(176, 200, 215, 0.88)");
+    blobGrad.addColorStop(1,    "rgba(120, 150, 175, 0.78)");
+    ctx.fillStyle = blobGrad;
+    for (var bb = 0; bb < blobs.length; bb++) {
+      var bo = blobs[bb];
+      ctx.beginPath();
+      ctx.ellipse(tipX + bo.x, tipY + bo.y, bo.rx, bo.ry, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // Highlight especular brillante arriba (shine intensa de gel).
+    ctx.fillStyle = "rgba(255, 255, 255, 0.75)";
+    ctx.beginPath();
+    ctx.ellipse(tipX - headR * 0.30, tipY - headR * 0.40, headR * 0.40, headR * 0.20, -0.3, 0, Math.PI * 2);
+    ctx.fill();
+    // Burbujas internas (textura biofilm).
+    ctx.fillStyle = "rgba(255, 255, 255, 0.40)";
+    var bubAng = state.time * 0.8;
+    for (var bx = 0; bx < 3; bx++) {
+      var ba = bubAng + bx * 2.1;
+      var br = headR * 0.50;
+      ctx.beginPath();
+      ctx.arc(tipX + Math.cos(ba) * br * 0.5, tipY + Math.sin(ba) * br * 0.5, headR * 0.10, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
     // Aro de tensión dorado justo antes de impactar.
     if (!punchActive && wind > 0.7) {
       var ta = (wind - 0.7) / 0.3;
@@ -10467,8 +10515,9 @@
       ctx.beginPath();
       ctx.arc(cx, cy, r, 0, Math.PI * 2);
       ctx.fill();
-      ctx.strokeStyle = "#3a4f5c";
-      ctx.lineWidth = Math.max(0.9, 1.2 * U);
+      // Pared celular gram+ engrosada (peptidoglicano).
+      ctx.strokeStyle = "#2e3f4b";
+      ctx.lineWidth = Math.max(1.4, 2.0 * U);
       ctx.stroke();
       // Highlight blanco arriba-izquierda
       ctx.fillStyle = "rgba(255,255,255,0.42)";
@@ -10480,59 +10529,70 @@
     for (var i = 0; i < cluster.length; i++) drawCoco(cluster[i].x, cluster[i].y, cluster[i].r);
     drawCoco(0, 0, bigR);
 
-    // Pseudópodo coiled en el lomo (solo cuando NO está disparando el
-    // tentáculo dinámico — el drawTentaclePunch toma el control cuando
-    // hay punch activo).
-    if (!e.tentTarget || (e.tentPunchT || 0) > 0) {
-      // Visible en idle Y mientras carga (telegraph). Si está punching
-      // (tentPunchT > 0), el drawTentaclePunch ya está dibujando el whip,
-      // así que ocultamos el coiled estático para evitar superposición.
-      // (Pero queremos mostrarlo en idle → permitimos cuando !tentTarget.)
+    // Hilos pegajosos de biofilm entre cocos del racimo — la matriz
+    // PNAG/PIA cohesiva que adhiere las células entre sí. Filamentos
+    // translúcidos cortos curvos uniendo los cocos.
+    ctx.strokeStyle = "rgba(176, 200, 215, 0.55)";
+    ctx.lineWidth = Math.max(1.0, 1.6 * U);
+    ctx.lineCap = "round";
+    var conns = [
+      [cluster[0], { x: 0, y: 0, r: bigR }],
+      [cluster[1], { x: 0, y: 0, r: bigR }],
+      [cluster[2], { x: 0, y: 0, r: bigR }],
+      [cluster[0], cluster[2]]
+    ];
+    for (var cn = 0; cn < conns.length; cn++) {
+      var a = conns[cn][0], b = conns[cn][1];
+      var mx = (a.x + b.x) / 2 + Math.sin(t * 1.8 + cn) * 1.2 * U;
+      var my = (a.y + b.y) / 2 + Math.cos(t * 1.6 + cn) * 1.2 * U;
+      ctx.beginPath();
+      ctx.moveTo(a.x, a.y);
+      ctx.quadraticCurveTo(mx, my, b.x, b.y);
+      ctx.stroke();
     }
-    // Ajuste: solo dibujar coiled cuando NO está en proceso de golpear.
-    var showCoiled = !(e.tentTarget && (e.tentPunchT || 0) > 0);
-    if (showCoiled) {
+
+    // RESERVORIO DE BIOFILM en el lomo (solo si NO está disparando un
+    // whip — el drawTentaclePunch toma el control cuando hay punch
+    // activo, así que ocultamos el reservorio para evitar superposición).
+    var showReservoir = !(e.tentTarget && (e.tentPunchT || 0) > 0);
+    if (showReservoir) {
       ctx.save();
-      ctx.translate(0, -bigR * 0.75);   // base en el lomo (top central coco)
-      // Durante windup el pseudópodo se tensa hacia atrás un poco más.
-      var tensionScale = 1 + windup * 0.20;
-      ctx.scale(tensionScale, tensionScale);
-      var armStrong = "#3a4f5c";
-      var armSoft   = "#5a7585";
-      ctx.lineCap = "round";
-      ctx.lineJoin = "round";
-      // Sombra/contorno del brazo coiled (arco hacia atrás-arriba).
-      ctx.strokeStyle = armStrong;
-      ctx.lineWidth = 5 * U;
+      ctx.translate(0, -bigR * 0.85);
+      // Durante windup el reservorio se hincha (carga de biofilm).
+      var swell = 1 + windup * 0.35 + Math.sin(t * 2.2 + e.wobble) * 0.05;
+      var resR = bigR * 0.32 * swell;
+      // Sombra inferior del bulbo.
+      ctx.fillStyle = "rgba(80, 110, 130, 0.55)";
       ctx.beginPath();
-      ctx.moveTo(0, 0);
-      ctx.bezierCurveTo(
-        -bigR * 0.25, -bigR * 0.55,
-        -bigR * 0.70, -bigR * 0.50,
-        -bigR * 0.50, -bigR * 0.05
-      );
-      ctx.stroke();
-      // Cuerpo del brazo.
-      ctx.strokeStyle = armSoft;
-      ctx.lineWidth = 3.2 * U;
-      ctx.beginPath();
-      ctx.moveTo(0, 0);
-      ctx.bezierCurveTo(
-        -bigR * 0.25, -bigR * 0.55,
-        -bigR * 0.70, -bigR * 0.50,
-        -bigR * 0.50, -bigR * 0.05
-      );
-      ctx.stroke();
-      // Puño en la punta (compacto gris-azul oscuro).
-      ctx.fillStyle = armStrong;
-      ctx.beginPath();
-      ctx.arc(-bigR * 0.50, -bigR * 0.05, bigR * 0.20, 0, Math.PI * 2);
+      ctx.ellipse(0, resR * 0.55, resR * 0.95, resR * 0.30, 0, 0, Math.PI * 2);
       ctx.fill();
-      // Highlight del puño.
-      ctx.fillStyle = "rgba(255,255,255,0.32)";
+      // Cuerpo gelatinoso del reservorio (translúcido).
+      var resGrad = ctx.createRadialGradient(-resR * 0.30, -resR * 0.30, resR * 0.15, 0, 0, resR);
+      resGrad.addColorStop(0,    "rgba(220, 240, 250, 0.85)");
+      resGrad.addColorStop(0.55, "rgba(176, 200, 215, 0.80)");
+      resGrad.addColorStop(1,    "rgba(140, 165, 185, 0.70)");
+      ctx.fillStyle = resGrad;
       ctx.beginPath();
-      ctx.arc(-bigR * 0.55, -bigR * 0.10, bigR * 0.09, 0, Math.PI * 2);
+      ctx.arc(0, 0, resR, 0, Math.PI * 2);
       ctx.fill();
+      // Highlight especular brillante (efecto gel).
+      ctx.fillStyle = "rgba(255, 255, 255, 0.65)";
+      ctx.beginPath();
+      ctx.ellipse(-resR * 0.30, -resR * 0.40, resR * 0.35, resR * 0.18, -0.3, 0, Math.PI * 2);
+      ctx.fill();
+      // Gotita pequeña que cuelga (suministro continuo de biofilm).
+      var dripY = resR * 0.85 + Math.sin(t * 1.4 + e.wobble) * 1.0 * U;
+      ctx.fillStyle = "rgba(190, 215, 230, 0.75)";
+      ctx.beginPath();
+      ctx.arc(resR * 0.10, dripY, resR * 0.18, 0, Math.PI * 2);
+      ctx.fill();
+      // Glow extra durante windup (carga lista para disparar).
+      if (windup > 0) {
+        ctx.fillStyle = "rgba(255, 230, 140, " + (windup * 0.45) + ")";
+        ctx.beginPath();
+        ctx.arc(0, 0, resR * 1.6, 0, Math.PI * 2);
+        ctx.fill();
+      }
       ctx.restore();
     }
 

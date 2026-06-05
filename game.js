@@ -9662,6 +9662,31 @@
       ctx.translate(-e.x, -e.y);
     }
     drawShadow(e.x, e.y + rad * 0.85, rad * 0.85 * scale, rad * 0.22 * scale);
+    // Halo de daño genérico: pulso radial amarillo→naranja→rojo que rodea
+    // al germen cuando recibe un golpe. Se dibuja ANTES del cuerpo para
+    // que quede como aura detrás. Aplica a TODOS los gérmenes y se nota
+    // mucho más que el viejo "fill blanco" de cada drawX.
+    if (e.hitFlash > 0 && !e.absorbing && !e.dying) {
+      ctx.save();
+      var ha = Math.min(0.95, e.hitFlash * 3.2);
+      var hr = rad * 1.50 + e.hitFlash * 22 * U;
+      var hg = ctx.createRadialGradient(e.x, e.y, rad * 0.45, e.x, e.y, hr);
+      hg.addColorStop(0,    "rgba(255, 250, 90,  " + (ha * 0.88) + ")");
+      hg.addColorStop(0.30, "rgba(255, 150, 60,  " + (ha * 0.78) + ")");
+      hg.addColorStop(0.70, "rgba(255, 70,  30,  " + (ha * 0.45) + ")");
+      hg.addColorStop(1,    "rgba(255, 70,  30,  0)");
+      ctx.fillStyle = hg;
+      ctx.beginPath();
+      ctx.arc(e.x, e.y, hr, 0, Math.PI * 2);
+      ctx.fill();
+      // Anillo más definido al borde del cuerpo (delinea la silueta).
+      ctx.strokeStyle = "rgba(255, 220, 80, " + (ha * 0.75) + ")";
+      ctx.lineWidth = 2 + ha * 1.5;
+      ctx.beginPath();
+      ctx.arc(e.x, e.y, rad * 1.05, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
     // Sprint 8C-1: dispatch por id real primero (los 6 patógenos
     // regulares con morfología microbiológica). Fallback al baseKind
     // antiguo para bosses y aliases legacy.
@@ -10523,22 +10548,28 @@
       ctx.fill();
     }
 
-    // Biofilm halo ELÍPTICO alargado que envuelve el gusano completo
-    // (centrado en el medio del cuerpo, no en la cabeza).
-    var biofilmCx = -bigR * 2.0;          // centro del halo desplazado a medio cuerpo
-    var biofilmRx = bigR * 3.4;           // largo (envuelve cabeza→cola)
-    var biofilmRy = bigR * 1.20;          // alto
-    var bfGrad = ctx.createRadialGradient(biofilmCx, 0, bigR * 0.60, biofilmCx, 0, biofilmRx);
-    bfGrad.addColorStop(0,    "rgba(190, 215, 230, 0.0)");
-    bfGrad.addColorStop(0.55, "rgba(176, 200, 215, 0.30)");
-    bfGrad.addColorStop(0.85, "rgba(140, 165, 185, 0.20)");
+    // Biofilm halo ELÍPTICO alargado más PROMINENTE (más opaco + borde
+    // visible para que se lea claro como matriz pegajosa).
+    var biofilmCx = -bigR * 2.0;
+    var biofilmRx = bigR * 3.5;
+    var biofilmRy = bigR * 1.28;
+    var bfGrad = ctx.createRadialGradient(biofilmCx, 0, bigR * 0.55, biofilmCx, 0, biofilmRx);
+    bfGrad.addColorStop(0,    "rgba(200, 222, 235, 0.10)");
+    bfGrad.addColorStop(0.40, "rgba(176, 200, 215, 0.55)");   // era 0.30
+    bfGrad.addColorStop(0.85, "rgba(140, 165, 185, 0.35)");   // era 0.20
     bfGrad.addColorStop(1,    "rgba(140, 165, 185, 0)");
     ctx.fillStyle = bfGrad;
     ctx.beginPath();
     ctx.ellipse(biofilmCx, 0, biofilmRx, biofilmRy, 0, 0, Math.PI * 2);
     ctx.fill();
-    // Brillo perlado superior del biofilm (a lo largo del lomo del gusano).
-    ctx.fillStyle = "rgba(225, 240, 250, 0.25)";
+    // Borde tenue del biofilm (línea que define la silueta del halo).
+    ctx.strokeStyle = "rgba(120, 150, 170, 0.45)";
+    ctx.lineWidth = Math.max(1.0, 1.4 * U);
+    ctx.beginPath();
+    ctx.ellipse(biofilmCx, 0, biofilmRx, biofilmRy, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    // Brillo perlado superior del biofilm (más intenso).
+    ctx.fillStyle = "rgba(230, 245, 252, 0.45)";       // era 0.25
     ctx.beginPath();
     ctx.ellipse(biofilmCx, -biofilmRy * 0.78, biofilmRx * 0.62, bigR * 0.20, 0, 0, Math.PI * 2);
     ctx.fill();
@@ -10586,12 +10617,14 @@
     for (var i = 0; i < cluster.length; i++) drawCoco(cluster[i].x, cluster[i].y, cluster[i].r);
     drawCoco(0, 0, bigR);
 
-    // Hilos pegajosos de biofilm entre cocos vecinos del racimo — matriz
-    // PNAG/PIA cohesiva. Conexiones diseñadas para que el "gusano" se
-    // vea unido (cadena de conexiones a lo largo del cuerpo).
-    ctx.strokeStyle = "rgba(176, 200, 215, 0.55)";
-    ctx.lineWidth = Math.max(1.0, 1.6 * U);
+    // Hilos pegajosos de biofilm entre cocos vecinos — matriz PNAG/PIA
+    // cohesiva. Doble trazo (sombra ancha translúcida + núcleo claro)
+    // para que se vea con cuerpo, no como líneas finas.
     ctx.lineCap = "round";
+    // Sombra ancha (halo gelatinoso del hilo).
+    ctx.strokeStyle = "rgba(150, 180, 200, 0.55)";
+    ctx.lineWidth = Math.max(2.6, 3.4 * U);
+    // (las conns se dibujan abajo, con doble pasada)
     var head = { x: 0, y: 0, r: bigR };
     // Cadena lineal de cabeza → cuerpo → cola (gusano segmentado).
     var conns = [
@@ -10604,6 +10637,7 @@
       // Cresta superior pegada a la cabeza
       [head, cluster[6]]
     ];
+    // Pasada 1: sombra translúcida ancha del hilo (definida arriba).
     for (var cn = 0; cn < conns.length; cn++) {
       var a = conns[cn][0], b = conns[cn][1];
       var mx = (a.x + b.x) / 2 + Math.sin(t * 1.8 + cn) * 1.2 * U;
@@ -10613,6 +10647,18 @@
       ctx.quadraticCurveTo(mx, my, b.x, b.y);
       ctx.stroke();
     }
+    // Pasada 2: núcleo claro del hilo (más opaco, encima).
+    ctx.strokeStyle = "rgba(220, 235, 245, 0.78)";
+    ctx.lineWidth = Math.max(1.4, 1.8 * U);
+    for (var cn2 = 0; cn2 < conns.length; cn2++) {
+      var a2 = conns[cn2][0], b2 = conns[cn2][1];
+      var mx2 = (a2.x + b2.x) / 2 + Math.sin(t * 1.8 + cn2) * 1.2 * U;
+      var my2 = (a2.y + b2.y) / 2 + Math.cos(t * 1.6 + cn2) * 1.2 * U;
+      ctx.beginPath();
+      ctx.moveTo(a2.x, a2.y);
+      ctx.quadraticCurveTo(mx2, my2, b2.x, b2.y);
+      ctx.stroke();
+    }
 
     // RESERVORIO DE BIOFILM en el lomo (solo si NO está disparando un
     // whip — el drawTentaclePunch toma el control cuando hay punch
@@ -10620,40 +10666,63 @@
     var showReservoir = !(e.tentTarget && (e.tentPunchT || 0) > 0);
     if (showReservoir) {
       ctx.save();
-      ctx.translate(0, -bigR * 0.85);
+      ctx.translate(0, -bigR * 0.95);
       // Durante windup el reservorio se hincha (carga de biofilm).
-      var swell = 1 + windup * 0.35 + Math.sin(t * 2.2 + e.wobble) * 0.05;
-      var resR = bigR * 0.32 * swell;
-      // Sombra inferior del bulbo.
-      ctx.fillStyle = "rgba(80, 110, 130, 0.55)";
+      var swell = 1 + windup * 0.40 + Math.sin(t * 2.2 + e.wobble) * 0.06;
+      var resR = bigR * 0.42 * swell;            // más grande (era 0.32)
+      // Glow externo permanente del reservorio (lo hace visible siempre).
+      var resGlowGrad = ctx.createRadialGradient(0, 0, resR * 0.5, 0, 0, resR * 1.9);
+      resGlowGrad.addColorStop(0, "rgba(180, 215, 230, 0.50)");
+      resGlowGrad.addColorStop(1, "rgba(180, 215, 230, 0)");
+      ctx.fillStyle = resGlowGrad;
       ctx.beginPath();
-      ctx.ellipse(0, resR * 0.55, resR * 0.95, resR * 0.30, 0, 0, Math.PI * 2);
+      ctx.arc(0, 0, resR * 1.9, 0, Math.PI * 2);
       ctx.fill();
-      // Cuerpo gelatinoso del reservorio (translúcido).
-      var resGrad = ctx.createRadialGradient(-resR * 0.30, -resR * 0.30, resR * 0.15, 0, 0, resR);
-      resGrad.addColorStop(0,    "rgba(220, 240, 250, 0.85)");
-      resGrad.addColorStop(0.55, "rgba(176, 200, 215, 0.80)");
-      resGrad.addColorStop(1,    "rgba(140, 165, 185, 0.70)");
+      // Sombra inferior del bulbo (más oscura para dar peso).
+      ctx.fillStyle = "rgba(60, 90, 110, 0.70)";
+      ctx.beginPath();
+      ctx.ellipse(0, resR * 0.55, resR * 0.95, resR * 0.32, 0, 0, Math.PI * 2);
+      ctx.fill();
+      // Cuerpo gelatinoso del reservorio (gradient más saturado).
+      var resGrad = ctx.createRadialGradient(-resR * 0.30, -resR * 0.35, resR * 0.15, 0, 0, resR);
+      resGrad.addColorStop(0,    "rgba(230, 245, 252, 0.95)");
+      resGrad.addColorStop(0.55, "rgba(176, 200, 215, 0.92)");
+      resGrad.addColorStop(1,    "rgba(110, 145, 165, 0.82)");
       ctx.fillStyle = resGrad;
       ctx.beginPath();
       ctx.arc(0, 0, resR, 0, Math.PI * 2);
       ctx.fill();
-      // Highlight especular brillante (efecto gel).
-      ctx.fillStyle = "rgba(255, 255, 255, 0.65)";
+      // Outline marcado del reservorio (lo recorta del cuerpo).
+      ctx.strokeStyle = "rgba(70, 105, 125, 0.75)";
+      ctx.lineWidth = Math.max(1.4, 1.8 * U);
       ctx.beginPath();
-      ctx.ellipse(-resR * 0.30, -resR * 0.40, resR * 0.35, resR * 0.18, -0.3, 0, Math.PI * 2);
+      ctx.arc(0, 0, resR, 0, Math.PI * 2);
+      ctx.stroke();
+      // Highlight especular brillante (efecto gel, MUY visible).
+      ctx.fillStyle = "rgba(255, 255, 255, 0.85)";
+      ctx.beginPath();
+      ctx.ellipse(-resR * 0.32, -resR * 0.42, resR * 0.40, resR * 0.22, -0.3, 0, Math.PI * 2);
       ctx.fill();
-      // Gotita pequeña que cuelga (suministro continuo de biofilm).
-      var dripY = resR * 0.85 + Math.sin(t * 1.4 + e.wobble) * 1.0 * U;
-      ctx.fillStyle = "rgba(190, 215, 230, 0.75)";
+      // Reflejo secundario más pequeño abajo-derecha.
+      ctx.fillStyle = "rgba(255, 255, 255, 0.35)";
       ctx.beginPath();
-      ctx.arc(resR * 0.10, dripY, resR * 0.18, 0, Math.PI * 2);
+      ctx.ellipse(resR * 0.25, resR * 0.20, resR * 0.18, resR * 0.10, 0.4, 0, Math.PI * 2);
+      ctx.fill();
+      // Gotita que cuelga (suministro continuo de biofilm).
+      var dripY = resR * 0.95 + Math.sin(t * 1.4 + e.wobble) * 1.2 * U;
+      ctx.fillStyle = "rgba(190, 215, 230, 0.85)";
+      ctx.beginPath();
+      ctx.arc(resR * 0.10, dripY, resR * 0.22, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "rgba(255, 255, 255, 0.55)";
+      ctx.beginPath();
+      ctx.arc(resR * 0.05, dripY - resR * 0.07, resR * 0.08, 0, Math.PI * 2);
       ctx.fill();
       // Glow extra durante windup (carga lista para disparar).
       if (windup > 0) {
-        ctx.fillStyle = "rgba(255, 230, 140, " + (windup * 0.45) + ")";
+        ctx.fillStyle = "rgba(255, 230, 140, " + (windup * 0.55) + ")";
         ctx.beginPath();
-        ctx.arc(0, 0, resR * 1.6, 0, Math.PI * 2);
+        ctx.arc(0, 0, resR * 1.7, 0, Math.PI * 2);
         ctx.fill();
       }
       ctx.restore();

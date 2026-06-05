@@ -13636,7 +13636,15 @@
     safeDraw("Tissue", drawTissue);
     safeDraw("Inflammation", drawInflammation);
     safeDraw("Path", drawPath);
-    if (!state.dissemination) { safeDraw("PlasmaFlow", drawPlasmaFlow); safeDraw("Wound", drawWound); }
+    if (!state.dissemination) {
+      safeDraw("PlasmaFlow", drawPlasmaFlow);
+      // drawWound se oculta cuando el bg pictórico está cargado: el bg
+      // ya tiene la herida pintada arriba del path. El canvas wound
+      // duplicaba/desalineaba sobre el arte.
+      if (!ASSETS.get("assets/fase1/bg-skin-field.png")) {
+        safeDraw("Wound", drawWound);
+      }
+    }
     safeDraw("LymphNode", drawLymphNode);
     safeDraw("Restos", drawRestos);
     safeDraw("Collectors", drawCollectors);

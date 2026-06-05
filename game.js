@@ -4590,7 +4590,7 @@
           var dx = g.x - p.x, dy = g.y - p.y;
           if (dx * dx + dy * dy <= p.r * p.r) {
             g.hp -= p.dmgPerSec * dt;
-            g.hitFlash = 0.10;
+            g.hitFlash = 0.25;
           }
         }
       }
@@ -4736,8 +4736,8 @@
       }
     }
     e.hp -= bodyDamage;
-    e.hitFlash = 0.18;
-    e.hurtTimer = 0.15;
+    e.hitFlash = 0.35;
+    e.hurtTimer = 0.22;
     pushDamageNumber(
       e.x + (Math.random() * 12 - 6) * U,
       e.y - e.def.radius * U - 2 * U,
@@ -5237,7 +5237,7 @@
         // MRSA es METICILINO-RESISTENTE: solo recibe el 50% del antibiótico.
         var antibioticMult = (e.def.id === "bossMRSA") ? 0.50 : 1.0;
         e.hp -= e.maxHp * 0.4 * antibioticMult;          // químico: ignora escudo
-        e.hitFlash = 0.2; e.hurtTimer = 0.3;
+        e.hitFlash = 0.40; e.hurtTimer = 0.35;
         if (e.hp <= 0 && !e.dying) {
           e.hp = 0; e.dying = true; e.dyingTimer = 0.30;
           state.atp += e.def.reward; state.pathogensDefeated += 1; META.totalPathogensDefeated += 1;
@@ -9662,29 +9662,52 @@
       ctx.translate(-e.x, -e.y);
     }
     drawShadow(e.x, e.y + rad * 0.85, rad * 0.85 * scale, rad * 0.22 * scale);
-    // Halo de daño genérico: pulso radial amarillo→naranja→rojo que rodea
-    // al germen cuando recibe un golpe. Se dibuja ANTES del cuerpo para
-    // que quede como aura detrás. Aplica a TODOS los gérmenes y se nota
-    // mucho más que el viejo "fill blanco" de cada drawX.
+    // Halo de daño genérico: pulso radial DRAMÁTICO amarillo→rojo
+    // alrededor del germen cuando recibe golpe. Combina varias capas
+    // (glow externo + flash blanco central + anillo dorado + chispas
+    // radiales) para que el impacto se LEA con claridad.
     if (e.hitFlash > 0 && !e.absorbing && !e.dying) {
       ctx.save();
-      var ha = Math.min(0.95, e.hitFlash * 3.2);
-      var hr = rad * 1.50 + e.hitFlash * 22 * U;
-      var hg = ctx.createRadialGradient(e.x, e.y, rad * 0.45, e.x, e.y, hr);
-      hg.addColorStop(0,    "rgba(255, 250, 90,  " + (ha * 0.88) + ")");
-      hg.addColorStop(0.30, "rgba(255, 150, 60,  " + (ha * 0.78) + ")");
-      hg.addColorStop(0.70, "rgba(255, 70,  30,  " + (ha * 0.45) + ")");
-      hg.addColorStop(1,    "rgba(255, 70,  30,  0)");
+      var ha = Math.min(1.0, e.hitFlash * 5.0);   // más rápido al 1.0
+      var hr = rad * 1.75 + e.hitFlash * 42 * U;  // mucho más grande
+      // Capa 1 — glow externo amplio.
+      var hg = ctx.createRadialGradient(e.x, e.y, rad * 0.35, e.x, e.y, hr);
+      hg.addColorStop(0,    "rgba(255, 255, 220, " + ha + ")");
+      hg.addColorStop(0.20, "rgba(255, 220, 80,  " + (ha * 0.95) + ")");
+      hg.addColorStop(0.45, "rgba(255, 130, 40,  " + (ha * 0.85) + ")");
+      hg.addColorStop(0.75, "rgba(255, 50,  20,  " + (ha * 0.55) + ")");
+      hg.addColorStop(1,    "rgba(255, 50,  20,  0)");
       ctx.fillStyle = hg;
       ctx.beginPath();
       ctx.arc(e.x, e.y, hr, 0, Math.PI * 2);
       ctx.fill();
-      // Anillo más definido al borde del cuerpo (delinea la silueta).
-      ctx.strokeStyle = "rgba(255, 220, 80, " + (ha * 0.75) + ")";
-      ctx.lineWidth = 2 + ha * 1.5;
+      // Capa 2 — flash blanco central (núcleo brillante del impacto).
+      var fc = ctx.createRadialGradient(e.x, e.y, 0, e.x, e.y, rad * 0.95);
+      fc.addColorStop(0, "rgba(255, 255, 255, " + (ha * 0.75) + ")");
+      fc.addColorStop(1, "rgba(255, 255, 255, 0)");
+      ctx.fillStyle = fc;
       ctx.beginPath();
-      ctx.arc(e.x, e.y, rad * 1.05, 0, Math.PI * 2);
+      ctx.arc(e.x, e.y, rad * 0.95, 0, Math.PI * 2);
+      ctx.fill();
+      // Capa 3 — anillo dorado definido al borde del cuerpo.
+      ctx.strokeStyle = "rgba(255, 240, 130, " + ha + ")";
+      ctx.lineWidth = 3 + ha * 3;
+      ctx.beginPath();
+      ctx.arc(e.x, e.y, rad * 1.12, 0, Math.PI * 2);
       ctx.stroke();
+      // Capa 4 — chispas radiales (8 rayos cortos que salen del borde).
+      ctx.strokeStyle = "rgba(255, 255, 200, " + (ha * 0.90) + ")";
+      ctx.lineWidth = 2.5;
+      ctx.lineCap = "round";
+      for (var sk = 0; sk < 8; sk++) {
+        var sa = sk * (Math.PI / 4) + state.time * 4;
+        var rIn  = rad * 1.18;
+        var rOut = rad * (1.45 + ha * 0.30);
+        ctx.beginPath();
+        ctx.moveTo(e.x + Math.cos(sa) * rIn,  e.y + Math.sin(sa) * rIn);
+        ctx.lineTo(e.x + Math.cos(sa) * rOut, e.y + Math.sin(sa) * rOut);
+        ctx.stroke();
+      }
       ctx.restore();
     }
     // Sprint 8C-1: dispatch por id real primero (los 6 patógenos

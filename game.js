@@ -6273,48 +6273,60 @@
     var pulse = 1 + Math.sin(state.time * (Math.PI * 2 / 1.8)) * 0.05;
     var rxp = rx * pulse, ryp = ry * pulse;
     ctx.save();
-    // Brillo cálido (energía).
+    // Brillo cálido (energía) — siempre, sea PNG o canvas.
     var glow = ctx.createRadialGradient(cx, cy, rxp * 0.4, cx, cy, rxp * 1.7);
     glow.addColorStop(0, "rgba(255, 200, 100, 0.32)");
     glow.addColorStop(1, "rgba(255, 200, 100, 0)");
     ctx.fillStyle = glow;
     ctx.beginPath(); ctx.arc(cx, cy, rxp * 1.7, 0, Math.PI * 2); ctx.fill();
-    // Membrana externa (óvalo).
-    ctx.fillStyle = "#3a1a0a";
-    ctx.beginPath(); ctx.ellipse(cx, cy, rxp, ryp, 0, 0, Math.PI * 2); ctx.fill();
-    // Matriz (interior cálido).
-    var grad = ctx.createRadialGradient(cx - rxp * 0.25, cy - ryp * 0.3, rxp * 0.15, cx, cy, rxp);
-    grad.addColorStop(0, "#FFD08A");
-    grad.addColorStop(0.6, "#E08A3A");
-    grad.addColorStop(1, "#9a4a18");
-    ctx.fillStyle = grad;
-    ctx.beginPath(); ctx.ellipse(cx, cy, rxp * 0.93, ryp * 0.90, 0, 0, Math.PI * 2); ctx.fill();
-    // Crestas (folded inner membrane): líneas onduladas atravesando.
-    ctx.save();
-    ctx.beginPath(); ctx.ellipse(cx, cy, rxp * 0.92, ryp * 0.89, 0, 0, Math.PI * 2); ctx.clip();
-    ctx.strokeStyle = "rgba(120, 50, 20, 0.65)"; ctx.lineWidth = 2.2; ctx.lineCap = "round";
-    var nCrest = 6, breath = Math.sin(state.time * 1.4) * 2 * U;
-    for (var i = 0; i < nCrest; i++) {
-      var py = cy - ryp * 0.75 + (i + 0.5) * (ryp * 1.5 / nCrest);
-      ctx.beginPath();
-      ctx.moveTo(cx - rxp * 1.05, py + breath * (i % 2 ? 1 : -1));
-      ctx.bezierCurveTo(
-        cx - rxp * 0.40, py + ryp * 0.20 + breath,
-        cx + rxp * 0.40, py - ryp * 0.20 - breath,
-        cx + rxp * 1.05, py + breath * (i % 2 ? -1 : 1)
-      );
-      ctx.stroke();
+
+    // Cuerpo de la mitocondria: PNG pictórico si está cargado, sino
+    // fallback al canvas histórico (membrana + matriz + crestas).
+    var mitoImg = ASSETS.get("assets/fase1/props/mitocondria.png");
+    if (mitoImg) {
+      // El PNG es horizontal 1024×640 (ratio ~1.6). Dibujamos cubriendo
+      // 2*rxp × 2*ryp con el mismo centro. La pulsación viene de rxp/ryp.
+      ctx.drawImage(mitoImg, cx - rxp, cy - ryp, rxp * 2, ryp * 2);
+    } else {
+      // FALLBACK CANVAS HISTÓRICO ─────────────────────────────────────
+      // Membrana externa (óvalo).
+      ctx.fillStyle = "#3a1a0a";
+      ctx.beginPath(); ctx.ellipse(cx, cy, rxp, ryp, 0, 0, Math.PI * 2); ctx.fill();
+      // Matriz (interior cálido).
+      var grad = ctx.createRadialGradient(cx - rxp * 0.25, cy - ryp * 0.3, rxp * 0.15, cx, cy, rxp);
+      grad.addColorStop(0, "#FFD08A");
+      grad.addColorStop(0.6, "#E08A3A");
+      grad.addColorStop(1, "#9a4a18");
+      ctx.fillStyle = grad;
+      ctx.beginPath(); ctx.ellipse(cx, cy, rxp * 0.93, ryp * 0.90, 0, 0, Math.PI * 2); ctx.fill();
+      // Crestas (folded inner membrane): líneas onduladas atravesando.
+      ctx.save();
+      ctx.beginPath(); ctx.ellipse(cx, cy, rxp * 0.92, ryp * 0.89, 0, 0, Math.PI * 2); ctx.clip();
+      ctx.strokeStyle = "rgba(120, 50, 20, 0.65)"; ctx.lineWidth = 2.2; ctx.lineCap = "round";
+      var nCrest = 6, breath = Math.sin(state.time * 1.4) * 2 * U;
+      for (var i = 0; i < nCrest; i++) {
+        var py = cy - ryp * 0.75 + (i + 0.5) * (ryp * 1.5 / nCrest);
+        ctx.beginPath();
+        ctx.moveTo(cx - rxp * 1.05, py + breath * (i % 2 ? 1 : -1));
+        ctx.bezierCurveTo(
+          cx - rxp * 0.40, py + ryp * 0.20 + breath,
+          cx + rxp * 0.40, py - ryp * 0.20 - breath,
+          cx + rxp * 1.05, py + breath * (i % 2 ? -1 : 1)
+        );
+        ctx.stroke();
+      }
+      ctx.restore();
+      // Doble membrana externa (línea + sombra interior).
+      ctx.strokeStyle = "#5a2410"; ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.ellipse(cx, cy, rxp, ryp, 0, 0, Math.PI * 2); ctx.stroke();
+      ctx.strokeStyle = "rgba(255, 230, 180, 0.45)"; ctx.lineWidth = 1.2;
+      ctx.beginPath(); ctx.ellipse(cx, cy, rxp * 0.93, ryp * 0.90, 0, 0, Math.PI * 2); ctx.stroke();
+      // Destellito superior (highlight de óvalo).
+      ctx.fillStyle = "rgba(255, 255, 220, 0.30)";
+      ctx.beginPath(); ctx.ellipse(cx - rxp * 0.10, cy - ryp * 0.50, rxp * 0.42, ryp * 0.16, 0, 0, Math.PI * 2); ctx.fill();
     }
-    ctx.restore();
-    // Doble membrana externa (línea + sombra interior).
-    ctx.strokeStyle = "#5a2410"; ctx.lineWidth = 2.5;
-    ctx.beginPath(); ctx.ellipse(cx, cy, rxp, ryp, 0, 0, Math.PI * 2); ctx.stroke();
-    ctx.strokeStyle = "rgba(255, 230, 180, 0.45)"; ctx.lineWidth = 1.2;
-    ctx.beginPath(); ctx.ellipse(cx, cy, rxp * 0.93, ryp * 0.90, 0, 0, Math.PI * 2); ctx.stroke();
-    // Destellito superior (highlight de óvalo).
-    ctx.fillStyle = "rgba(255, 255, 220, 0.30)";
-    ctx.beginPath(); ctx.ellipse(cx - rxp * 0.10, cy - ryp * 0.50, rxp * 0.42, ryp * 0.16, 0, 0, Math.PI * 2); ctx.fill();
-    // Etiqueta.
+
+    // Etiqueta — siempre.
     ctx.fillStyle = "rgba(70, 30, 10, 0.75)";
     ctx.font = "bold 10px Fredoka, sans-serif";
     ctx.textAlign = "center"; ctx.textBaseline = "top";

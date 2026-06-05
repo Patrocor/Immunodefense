@@ -9588,8 +9588,7 @@
     // regulares con morfología microbiológica). Fallback al baseKind
     // antiguo para bosses y aliases legacy.
     var kind = def.baseKind || def.bossKind || def.id;
-    if      (def.id === "saureus")      drawGermSprite(e, rad * scale, "saureus",      drawSaureus,  expression, blink);
-    else if (def.id === "sepidermidis") drawGermSprite(e, rad * scale, "sepidermidis", drawBacteria, expression, blink);
+    if      (def.id === "saureus")      drawSaureus(e, rad * scale, expression, blink);
     else if (def.id === "influenza")    drawInfluenza(e, rad * scale, expression, blink);
     else if (def.id === "vih")          drawVih(e, rad * scale, expression, blink);
     else if (def.id === "candida")      drawCandida(e, rad * scale, expression, blink);

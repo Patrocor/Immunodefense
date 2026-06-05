@@ -3958,20 +3958,35 @@
           pushPathInflammation(e.x, e.y);
         }
       }
-      // Slime trail de sepidermidis: gotitas de biofilm que va dejando
-      // mientras camina (firma biológica del germen — su biofilm pega
-      // a todas las superficies).
-      if (e.def.id === "sepidermidis" && e.state === "walking" && !e.dying && !e.absorbing) {
-        e._slimeTrailT = (e._slimeTrailT || 0) - dt;
-        if (e._slimeTrailT <= 0) {
-          e._slimeTrailT = 0.40 + Math.random() * 0.18;
-          pushEffect({
-            kind: "biofilmDrop",
-            x: e.x + (Math.random() - 0.5) * 8 * U,
-            y: e.y + (5 + Math.random() * 6) * U,
-            r: (2.2 + Math.random() * 1.6) * U,
-            life: 1.4, max: 1.4
-          });
+      // Trails biológicos al caminar (firma del germen):
+      // - sepidermidis → biofilm gris-azul (PNAG/PIA pegajoso)
+      // - cacnes → sebo amarillo grasoso (se alimenta de lípidos del poro)
+      if (e.state === "walking" && !e.dying && !e.absorbing) {
+        if (e.def.id === "sepidermidis") {
+          e._slimeTrailT = (e._slimeTrailT || 0) - dt;
+          if (e._slimeTrailT <= 0) {
+            e._slimeTrailT = 0.40 + Math.random() * 0.18;
+            pushEffect({
+              kind: "biofilmDrop",
+              x: e.x + (Math.random() - 0.5) * 8 * U,
+              y: e.y + (5 + Math.random() * 6) * U,
+              r: (2.2 + Math.random() * 1.6) * U,
+              life: 1.4, max: 1.4
+            });
+          }
+        } else if (e.def.id === "cacnes") {
+          e._sebumTrailT = (e._sebumTrailT || 0) - dt;
+          if (e._sebumTrailT <= 0) {
+            e._sebumTrailT = 0.55 + Math.random() * 0.22;   // más espaciado (lento)
+            pushEffect({
+              kind: "biofilmDrop",
+              x: e.x + (Math.random() - 0.5) * 8 * U,
+              y: e.y + (5 + Math.random() * 6) * U,
+              r: (2.6 + Math.random() * 1.6) * U,           // gotas más grandes/pesadas
+              life: 1.6, max: 1.6,
+              colors: { hi: "255, 240, 180", mid: "220, 180, 70", lo: "150, 110, 40" }
+            });
+          }
         }
       }
       if (e.sporeTimer !== undefined) {
@@ -9750,7 +9765,7 @@
     else if (def.id === "molluscum")    drawMolluscum(e, rad * scale, expression, blink);
     else if (def.id === "malassezia")   drawMalassezia(e, rad * scale, expression, blink);
     // Fase 1 piel: bacilos cutáneos reusan drawEcoli (recoloreado por def).
-    else if (def.id === "cacnes")       drawEcoli(e, rad * scale, expression, blink);
+    else if (def.id === "cacnes")       drawCacnes(e, rad * scale, expression, blink);
     else if (def.id === "pseudomonas")  drawEcoli(e, rad * scale, expression, blink);
     else if (def.id === "bossPseudomonas") drawEcoli(e, rad * scale, expression, blink);
     // Sprint 8C-2: bosses con morfología real, antes del fallback genérico.
@@ -10796,6 +10811,143 @@
     else drawAnimeEyes(0, faceY, eyeR, gap, 0, 0, bigR * 0.12, bigR * 0.06, "evil");
     if (sadFace) drawAnimeMouth(0, bigR * 0.32, bigR * 0.50, bigR * 0.42, "open");
     else drawAnimeMouth(0, bigR * 0.32, bigR * 0.45, bigR * 0.28, "smirk");
+
+    ctx.restore();
+  }
+
+  function drawCacnes(e, rad, expression, blink) {
+    // Cutibacterium acnes — BACILO gram+ del folículo pilosebáceo.
+    // Forma de bastoncillo cilíndrico (no esférico). Vive en sebo, lento,
+    // anaerobio. Toque caricaturesco: perezoso, baboso, con gotita de
+    // sebo flotando arriba y aura grasosa.
+    var hit = e.hitFlash > 0;
+    var t = state.time;
+    var def = e.def;
+
+    // Heading lerp LENTO (es torpe, no reacciona rápido).
+    if (e._lastPosX == null) { e._lastPosX = e.x; e._lastPosY = e.y; e._heading = 0; }
+    var dxM = e.x - e._lastPosX, dyM = e.y - e._lastPosY;
+    if (Math.hypot(dxM, dyM) > 0.5) {
+      var targetAng = Math.atan2(dyM, dxM);
+      var diffAng = targetAng - e._heading;
+      while (diffAng >  Math.PI) diffAng -= Math.PI * 2;
+      while (diffAng < -Math.PI) diffAng += Math.PI * 2;
+      e._heading += diffAng * 0.08;
+    }
+    e._lastPosX = e.x; e._lastPosY = e.y;
+
+    ctx.save();
+    ctx.translate(e.x, e.y);
+
+    var breathe = 1 + Math.sin(t * 1.2 + e.wobble) * 0.05;
+    var bodyL = rad * 1.45 * breathe;     // largo del bacilo (horizontal)
+    var bodyW = rad * 0.62 * breathe;     // ancho/grosor
+
+    // === BODY ROTATED ===
+    ctx.save();
+    ctx.rotate(e._heading || 0);
+
+    // 1. AURA DE SEBO: halo cálido amarillo-grasoso translúcido (su
+    // ambiente — vive bañado en sebo del folículo).
+    var sebumGrad = ctx.createRadialGradient(0, 0, bodyL * 0.55, 0, 0, bodyL * 1.55);
+    sebumGrad.addColorStop(0,    "rgba(232, 200, 100, 0.0)");
+    sebumGrad.addColorStop(0.5,  "rgba(220, 180, 70,  0.40)");
+    sebumGrad.addColorStop(1,    "rgba(180, 130, 30,  0)");
+    ctx.fillStyle = sebumGrad;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, bodyL * 1.55, bodyW * 1.85, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // Brillo perlado superior del sebo (highlight graso).
+    ctx.fillStyle = "rgba(255, 240, 180, 0.32)";
+    ctx.beginPath();
+    ctx.ellipse(0, -bodyW * 1.30, bodyL * 0.90, bodyW * 0.22, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Helper para dibujar cápsula horizontal (bastoncillo).
+    function drawBacBody(fillStyle, strokeStyle, strokeW) {
+      var rx = bodyL, ry = bodyW;
+      ctx.fillStyle = fillStyle;
+      ctx.strokeStyle = strokeStyle;
+      ctx.lineWidth = strokeW;
+      ctx.beginPath();
+      ctx.arc(-rx + ry, 0, ry,  Math.PI / 2, Math.PI * 3 / 2);
+      ctx.lineTo(rx - ry, -ry);
+      ctx.arc( rx - ry, 0, ry, -Math.PI / 2, Math.PI / 2);
+      ctx.lineTo(-rx + ry, ry);
+      ctx.closePath();
+      if (fillStyle !== null) ctx.fill();
+      if (strokeStyle !== null) ctx.stroke();
+    }
+
+    // 2. CUERPO bacilar: gradient longitudinal + pared gram+ gruesa.
+    var bodyGrad = ctx.createLinearGradient(0, -bodyW, 0, bodyW);
+    bodyGrad.addColorStop(0,   "#E8D2A8");   // claro arriba
+    bodyGrad.addColorStop(0.5, "#C9A66B");   // base dorado-marrón
+    bodyGrad.addColorStop(1,   "#7a5c33");   // sombra abajo
+    drawBacBody(hit ? "#ffffff" : bodyGrad, "#5a3a18", Math.max(1.8, 2.4 * U));
+    // Línea interior fina (sugiere doble membrana / capa de pared gruesa).
+    drawBacBody(null, "rgba(255, 220, 160, 0.50)", Math.max(0.8, 1.0 * U));
+
+    // 3. SEPTUM (división celular en proceso) — línea central vertical.
+    ctx.strokeStyle = "rgba(90, 58, 24, 0.65)";
+    ctx.lineWidth = Math.max(1.2, 1.4 * U);
+    ctx.beginPath();
+    ctx.moveTo(0, -bodyW * 0.88);
+    ctx.lineTo(0,  bodyW * 0.88);
+    ctx.stroke();
+    // Pequeños "pellizcos" del septum (constricción)
+    ctx.fillStyle = "rgba(90, 58, 24, 0.45)";
+    ctx.beginPath(); ctx.arc(0, -bodyW * 0.95, 1.6 * U, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(0,  bodyW * 0.95, 1.6 * U, 0, Math.PI * 2); ctx.fill();
+
+    // 4. Highlight especular superior (efecto cilíndrico).
+    ctx.fillStyle = "rgba(255, 250, 200, 0.45)";
+    ctx.beginPath();
+    ctx.ellipse(0, -bodyW * 0.55, bodyL * 0.78, bodyW * 0.20, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 5. GOTA DE SEBO flotando encima del bastoncillo (cómico: lo
+    // acompaña como mascota grasosa).
+    var dropFloat = Math.sin(t * 2 + e.wobble) * 2 * U;
+    var dropX = bodyL * 0.30;
+    var dropY = -bodyW * 1.65 + dropFloat;
+    var dropR = bodyW * 0.34;
+    // Sombra de la gota.
+    ctx.fillStyle = "rgba(120, 80, 20, 0.45)";
+    ctx.beginPath();
+    ctx.ellipse(dropX + 1 * U, dropY + dropR * 0.55, dropR * 0.95, dropR * 0.30, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // Cuerpo de la gota.
+    var dropGrad = ctx.createRadialGradient(dropX - dropR * 0.30, dropY - dropR * 0.30, dropR * 0.10, dropX, dropY, dropR);
+    dropGrad.addColorStop(0, "rgba(255, 245, 180, 0.95)");
+    dropGrad.addColorStop(0.6, "rgba(225, 190, 80, 0.92)");
+    dropGrad.addColorStop(1, "rgba(160, 115, 30, 0.85)");
+    ctx.fillStyle = dropGrad;
+    ctx.beginPath();
+    ctx.arc(dropX, dropY, dropR, 0, Math.PI * 2);
+    ctx.fill();
+    // Highlight de la gota.
+    ctx.fillStyle = "rgba(255, 255, 220, 0.75)";
+    ctx.beginPath();
+    ctx.arc(dropX - dropR * 0.30, dropY - dropR * 0.40, dropR * 0.30, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.restore(); // end body rotated
+
+    // === CARA UPRIGHT (en el centro del bastoncillo) ===
+    // Default: perezoso/aburrido (ojos entrecerrados, sonrisa floja).
+    // HP < 20%: derrotado.
+    var hpFracFace = (def && def.hp > 0) ? (e.hp / def.hp) : 1;
+    var lowHp = hpFracFace < 0.20;
+    var sadFace = (expression === "dying" || expression === "hurt" || lowHp);
+    var eyeR  = bodyW * 0.36;
+    var faceY = -bodyW * 0.05;
+    var gap   = bodyW * 0.55;
+    if (sadFace) drawHurtEyes(0, faceY, eyeR, gap);
+    else if (blink) drawClosedEyes(0, faceY, eyeR, gap);
+    else drawAnimeEyes(0, faceY, eyeR, gap, 0, 0, bodyW * 0.09, bodyW * 0.04, "evil");
+    if (sadFace) drawAnimeMouth(0, bodyW * 0.45, bodyW * 0.50, bodyW * 0.40, "open");
+    else drawAnimeMouth(0, bodyW * 0.45, bodyW * 0.45, bodyW * 0.18, "smirk");
 
     ctx.restore();
   }
@@ -11853,18 +12005,19 @@
       ctx.fill();
       ctx.globalAlpha = 1;
     } else if (ef.kind === "biofilmDrop") {
-      // Gotita de biofilm dejada en el path por sepidermidis al caminar.
-      // Burbuja gelatinosa translúcida con highlight perlado.
+      // Gotita gelatinosa dejada por un germen al caminar (trail).
+      // Colores parametrizables vía ef.colors {hi, mid, lo} — default:
+      // biofilm gris-azul del sepidermidis.
       var br = ef.r;
+      var cols = ef.colors || { hi: "220, 240, 250", mid: "176, 200, 215", lo: "140, 165, 185" };
       var bgrad = ctx.createRadialGradient(ef.x - br * 0.3, ef.y - br * 0.3, br * 0.15, ef.x, ef.y, br);
-      bgrad.addColorStop(0,    "rgba(220, 240, 250, " + (alpha * 0.85) + ")");
-      bgrad.addColorStop(0.6,  "rgba(176, 200, 215, " + (alpha * 0.65) + ")");
-      bgrad.addColorStop(1,    "rgba(140, 165, 185, " + (alpha * 0.40) + ")");
+      bgrad.addColorStop(0,    "rgba(" + cols.hi  + ", " + (alpha * 0.85) + ")");
+      bgrad.addColorStop(0.6,  "rgba(" + cols.mid + ", " + (alpha * 0.65) + ")");
+      bgrad.addColorStop(1,    "rgba(" + cols.lo  + ", " + (alpha * 0.40) + ")");
       ctx.fillStyle = bgrad;
       ctx.beginPath();
       ctx.arc(ef.x, ef.y, br, 0, Math.PI * 2);
       ctx.fill();
-      // Highlight especular pequeño.
       ctx.fillStyle = "rgba(255, 255, 255, " + (alpha * 0.55) + ")";
       ctx.beginPath();
       ctx.arc(ef.x - br * 0.32, ef.y - br * 0.40, br * 0.25, 0, Math.PI * 2);

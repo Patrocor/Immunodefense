@@ -9740,6 +9740,7 @@
     var kind = def.baseKind || def.bossKind || def.id;
     if      (def.id === "saureus")      drawSaureus(e, rad * scale, expression, blink);
     else if (def.id === "sepidermidis") drawSepidermidis(e, rad * scale, expression, blink);
+    else if (def.id === "hsv")          drawHsv(e, rad * scale, expression, blink);
     else if (def.id === "influenza")    drawInfluenza(e, rad * scale, expression, blink);
     else if (def.id === "vih")          drawVih(e, rad * scale, expression, blink);
     else if (def.id === "candida")      drawCandida(e, rad * scale, expression, blink);
@@ -10795,6 +10796,167 @@
     else drawAnimeEyes(0, faceY, eyeR, gap, 0, 0, bigR * 0.12, bigR * 0.06, "evil");
     if (sadFace) drawAnimeMouth(0, bigR * 0.32, bigR * 0.50, bigR * 0.42, "open");
     else drawAnimeMouth(0, bigR * 0.32, bigR * 0.45, bigR * 0.28, "smirk");
+
+    ctx.restore();
+  }
+
+  function drawHsv(e, rad, expression, blink) {
+    // Virus Herpes Simplex — estructura biológica:
+    //  · Cápside icosaédrica (162 capsómeros) → en 2D hexágono
+    //  · Tegumento (capa amorfa entre cápside y envoltura)
+    //  · Envoltura lipídica con spikes de glicoproteína (gB/gD/gH)
+    //  · DNA dsDNA en el core
+    // Toque caricaturesco: virus rápido + travieso, jitter errático,
+    // speed lines detrás, sonrisa maniática.
+    var hit = e.hitFlash > 0;
+    var t = state.time;
+    var def = e.def;
+
+    // Heading tracking (más rápido al lerp porque es ágil).
+    if (e._lastPosX == null) { e._lastPosX = e.x; e._lastPosY = e.y; e._heading = 0; }
+    var dxM = e.x - e._lastPosX, dyM = e.y - e._lastPosY;
+    var dMag = Math.hypot(dxM, dyM);
+    if (dMag > 0.5) {
+      var targetAng = Math.atan2(dyM, dxM);
+      var diffAng = targetAng - e._heading;
+      while (diffAng >  Math.PI) diffAng -= Math.PI * 2;
+      while (diffAng < -Math.PI) diffAng += Math.PI * 2;
+      e._heading += diffAng * 0.22;            // más reactivo que sepidermidis (0.15)
+    }
+    e._lastPosX = e.x; e._lastPosY = e.y;
+
+    ctx.save();
+    // Jitter: virus errático, vibra todo el tiempo.
+    var jitX = Math.sin(t * 14 + e.wobble) * 1.2 * U;
+    var jitY = Math.cos(t * 16 + e.wobble * 1.3) * 1.0 * U;
+    ctx.translate(e.x + jitX, e.y + jitY);
+
+    var breathe = 1 + Math.sin(t * 3.5 + e.wobble) * 0.05;
+    var bodyR = rad * 0.95 * breathe;
+
+    // Speed lines (detrás del virus, en dirección opuesta al heading).
+    // Sugieren la velocidad — solo si se está moviendo.
+    if (dMag > 1) {
+      ctx.save();
+      ctx.rotate(e._heading || 0);
+      ctx.strokeStyle = "rgba(200, 170, 240, 0.65)";
+      ctx.lineWidth = 1.8 * U;
+      ctx.lineCap = "round";
+      for (var sl = -1; sl <= 1; sl++) {
+        var slOff = sl * bodyR * 0.40;
+        var slLen = bodyR * (0.85 + Math.sin(t * 8 + sl) * 0.10);
+        ctx.beginPath();
+        ctx.moveTo(-bodyR * 0.95, slOff);
+        ctx.lineTo(-bodyR * 0.95 - slLen, slOff);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    // === BODY ROTATED ===
+    ctx.save();
+    ctx.rotate(e._heading || 0);
+
+    // 1. Envoltura lipídica translúcida (esfera externa).
+    var envR = bodyR * 1.30;
+    var envGrad = ctx.createRadialGradient(0, 0, bodyR * 0.7, 0, 0, envR);
+    envGrad.addColorStop(0,   "rgba(180, 155, 230, 0.0)");
+    envGrad.addColorStop(0.55,"rgba(149, 117, 205, 0.55)");
+    envGrad.addColorStop(1,   "rgba(149, 117, 205, 0)");
+    ctx.fillStyle = envGrad;
+    ctx.beginPath();
+    ctx.arc(0, 0, envR, 0, Math.PI * 2);
+    ctx.fill();
+    // Borde tenue de la envoltura.
+    ctx.strokeStyle = "rgba(110, 80, 170, 0.50)";
+    ctx.lineWidth = Math.max(1.0, 1.4 * U);
+    ctx.beginPath();
+    ctx.arc(0, 0, envR, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // 2. SPIKES de glicoproteína (12 alrededor, forma de champiñón).
+    // Tipo gB/gD/gH — los responsables del attachment + entrada celular.
+    var spikeCount = 12;
+    var spikeSpin = t * 0.3;
+    for (var s = 0; s < spikeCount; s++) {
+      var sa = s * (Math.PI * 2 / spikeCount) + spikeSpin;
+      var spikeOut = bodyR * 1.32;
+      var spikeIn  = bodyR * 0.92;
+      var stipX = Math.cos(sa) * spikeOut;
+      var stipY = Math.sin(sa) * spikeOut;
+      var sbaseX = Math.cos(sa) * spikeIn;
+      var sbaseY = Math.sin(sa) * spikeIn;
+      // Stem (tallo del spike).
+      ctx.strokeStyle = "#7c64b4";
+      ctx.lineWidth = 2.0 * U;
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.moveTo(sbaseX, sbaseY);
+      ctx.lineTo(stipX, stipY);
+      ctx.stroke();
+      // Cabeza del spike (champiñón).
+      ctx.fillStyle = "#a89bd6";
+      ctx.beginPath();
+      ctx.arc(stipX, stipY, 3.0 * U, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "#5a3f95";
+      ctx.lineWidth = 1.0 * U;
+      ctx.stroke();
+    }
+
+    // 3. CÁPSIDE icosaédrica (representada como hexágono — simetría
+    // rotacional 5-3-2 del icosaedro real, simplificado en 2D).
+    var capR = bodyR * 0.88;
+    ctx.fillStyle = hit ? "#ffffff" : "#9575CD";
+    ctx.strokeStyle = "#4527A0";
+    ctx.lineWidth = 1.8 * U;
+    ctx.beginPath();
+    var sides = 6;
+    for (var k = 0; k < sides; k++) {
+      var ang = (k * Math.PI * 2 / sides) - Math.PI / 2;
+      var px = Math.cos(ang) * capR;
+      var py = Math.sin(ang) * capR;
+      if (k === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    // 4. Facetas internas (líneas del centro a cada vértice → sugieren
+    // los triángulos que componen el icosaedro).
+    ctx.strokeStyle = "rgba(69, 39, 160, 0.50)";
+    ctx.lineWidth = 0.9 * U;
+    for (var fk = 0; fk < sides; fk++) {
+      var fang = (fk * Math.PI * 2 / sides) - Math.PI / 2;
+      var fx = Math.cos(fang) * capR;
+      var fy = Math.sin(fang) * capR;
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(fx, fy);
+      ctx.stroke();
+    }
+
+    // 5. Highlight especular (efecto envoltura brillante).
+    ctx.fillStyle = "rgba(255, 255, 255, 0.40)";
+    ctx.beginPath();
+    ctx.ellipse(-bodyR * 0.30, -bodyR * 0.45, bodyR * 0.32, bodyR * 0.16, -0.3, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.restore(); // end body rotated
+
+    // === CARA UPRIGHT ===
+    // Default: travieso/maniático. HP < 20%: derrotado.
+    var hpFracFace = (def && def.hp > 0) ? (e.hp / def.hp) : 1;
+    var lowHp = hpFracFace < 0.20;
+    var sadFace = (expression === "dying" || expression === "hurt" || lowHp);
+    var eyeR  = bodyR * 0.28;
+    var faceY = -bodyR * 0.05;
+    var gap   = bodyR * 0.32;
+    if (sadFace) drawHurtEyes(0, faceY, eyeR, gap);
+    else if (blink) drawClosedEyes(0, faceY, eyeR, gap);
+    else drawAnimeEyes(0, faceY, eyeR, gap, 0, 0, bodyR * 0.12, bodyR * 0.06, "evil");
+    if (sadFace) drawAnimeMouth(0, bodyR * 0.30, bodyR * 0.42, bodyR * 0.38, "open");
+    else drawAnimeMouth(0, bodyR * 0.30, bodyR * 0.45, bodyR * 0.30, "wicked");
 
     ctx.restore();
   }

@@ -8355,6 +8355,11 @@
       if (wd.active) drawSingleWound(wd.x, wd.y, wd.phase || 0);
       else drawCrackingWound(wd.x, wd.y, crackP);
     }
+    // Boca del vaso (PATH.exit) — mismo visual de "herida" anatómica
+    // viva en la salida del path, simétrico con las heridas de entrada.
+    if (PATH.exit) {
+      drawSingleWound(PATH.exit.x, PATH.exit.y, 1.4);
+    }
     // Occasional escaping droplet from a random ACTIVE wound.
     if (Math.random() < 0.05 && WOUND_DROPLETS.length < 8) {
       var actIdx = [];
@@ -13965,12 +13970,7 @@
     safeDraw("Path", drawPath);
     if (!state.dissemination) {
       safeDraw("PlasmaFlow", drawPlasmaFlow);
-      // drawWound se oculta cuando el bg pictórico está cargado: el bg
-      // ya tiene la herida pintada arriba del path. El canvas wound
-      // duplicaba/desalineaba sobre el arte.
-      if (!ASSETS.get("assets/fase1/bg-skin-field.png")) {
-        safeDraw("Wound", drawWound);
-      }
+      safeDraw("Wound", drawWound);
     }
     safeDraw("LymphNode", drawLymphNode);
     safeDraw("Restos", drawRestos);

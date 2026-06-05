@@ -2252,26 +2252,38 @@
   function drawAntigenDrops() {
     if (!state.antigens) return;
     var drops = state.antigens.drops;
+    var coinImg = ASSETS.get("assets/fase1/props/antigeno-coin.png");
     for (var i = 0; i < drops.length; i++) {
       var d = drops[i];
       var pulse = 0.5 + 0.5 * Math.sin(state.time * 6 + i);
       ctx.save();
+      // Glow dorado radial pulsante (siempre, sea PNG o canvas).
       ctx.fillStyle = "rgba(255, 210, 74, " + (0.25 + pulse * 0.20) + ")";
       ctx.beginPath();
       ctx.arc(d.x, d.y, ANTIGEN_RADIUS * U * 1.8, 0, Math.PI * 2);
       ctx.fill();
-      ctx.fillStyle = "#ffd24a";
-      ctx.strokeStyle = "#8a6020";
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.arc(d.x, d.y, ANTIGEN_RADIUS * U, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
-      ctx.fillStyle = "#5a3a08";
-      ctx.font = "bold " + Math.floor(11 * U) + "px Fredoka, sans-serif";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText("!", d.x, d.y);
+      if (coinImg) {
+        // Sprite PNG pictórico de la moneda (con leve flotación vertical
+        // sobre el sitio + escala oscilante para sensación de levitación).
+        var bob = Math.sin(state.time * 3 + i * 1.3) * 1.5 * U;
+        var scl = 1 + Math.sin(state.time * 2.5 + i) * 0.06;
+        var size = ANTIGEN_RADIUS * U * 2.6 * scl;   // un poco más grande que el círculo canvas (radio*2.6 vs *2)
+        ctx.drawImage(coinImg, d.x - size / 2, d.y - size / 2 + bob, size, size);
+      } else {
+        // Fallback canvas histórico (círculo dorado + "!").
+        ctx.fillStyle = "#ffd24a";
+        ctx.strokeStyle = "#8a6020";
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(d.x, d.y, ANTIGEN_RADIUS * U, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = "#5a3a08";
+        ctx.font = "bold " + Math.floor(11 * U) + "px Fredoka, sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText("!", d.x, d.y);
+      }
       ctx.restore();
     }
   }

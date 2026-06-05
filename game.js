@@ -10500,11 +10500,20 @@
     ctx.ellipse(-bigR * 0.20, -bigR * 0.90, bigR * 0.75, bigR * 0.22, -0.15, 0, Math.PI * 2);
     ctx.fill();
 
-    // Racimo: 3 cocos pequeños alrededor + 1 grande central.
+    // Racimo elongado tipo "gusano" — más cocos formando un cuerpo
+    // alargado (head al frente con cara, cola atrás). Conserva la
+    // irregularidad propia de los racimos de staphylococcus.
     var cluster = [
-      { x: -bigR * 0.80, y: -bigR * 0.35, r: bigR * 0.55 },
-      { x:  bigR * 0.85, y: -bigR * 0.15, r: bigR * 0.52 },
-      { x: -bigR * 0.40, y:  bigR * 0.85, r: bigR * 0.50 }
+      // Cola (atrás, más pequeños)
+      { x: -bigR * 1.50, y:  bigR * 0.10, r: bigR * 0.35 },
+      { x: -bigR * 1.10, y: -bigR * 0.45, r: bigR * 0.42 },
+      { x: -bigR * 0.85, y:  bigR * 0.55, r: bigR * 0.48 },
+      // Medio del cuerpo
+      { x: -bigR * 0.40, y: -bigR * 0.70, r: bigR * 0.52 },
+      { x: -bigR * 0.30, y:  bigR * 0.80, r: bigR * 0.50 },
+      // Cabeza extendida (frente — la grande con cara va en (0,0))
+      { x:  bigR * 0.65, y: -bigR * 0.60, r: bigR * 0.48 },
+      { x:  bigR * 0.80, y:  bigR * 0.45, r: bigR * 0.50 }
     ];
     function drawCoco(cx, cy, r) {
       var grad = ctx.createRadialGradient(cx - r * 0.4, cy - r * 0.4, r * 0.2, cx, cy, r);
@@ -10529,17 +10538,24 @@
     for (var i = 0; i < cluster.length; i++) drawCoco(cluster[i].x, cluster[i].y, cluster[i].r);
     drawCoco(0, 0, bigR);
 
-    // Hilos pegajosos de biofilm entre cocos del racimo — la matriz
-    // PNAG/PIA cohesiva que adhiere las células entre sí. Filamentos
-    // translúcidos cortos curvos uniendo los cocos.
+    // Hilos pegajosos de biofilm entre cocos vecinos del racimo — matriz
+    // PNAG/PIA cohesiva. Conexiones diseñadas para que el "gusano" se
+    // vea unido (cadena de conexiones a lo largo del cuerpo).
     ctx.strokeStyle = "rgba(176, 200, 215, 0.55)";
     ctx.lineWidth = Math.max(1.0, 1.6 * U);
     ctx.lineCap = "round";
+    var head = { x: 0, y: 0, r: bigR };
     var conns = [
-      [cluster[0], { x: 0, y: 0, r: bigR }],
-      [cluster[1], { x: 0, y: 0, r: bigR }],
-      [cluster[2], { x: 0, y: 0, r: bigR }],
-      [cluster[0], cluster[2]]
+      // Cadena de cola → medio → cabeza
+      [cluster[0], cluster[1]],
+      [cluster[1], cluster[2]],
+      [cluster[2], cluster[3]],
+      [cluster[2], cluster[4]],
+      [cluster[3], head],
+      [cluster[4], head],
+      // Cabeza extendida hacia adelante
+      [head, cluster[5]],
+      [head, cluster[6]]
     ];
     for (var cn = 0; cn < conns.length; cn++) {
       var a = conns[cn][0], b = conns[cn][1];
@@ -10596,16 +10612,22 @@
       ctx.restore();
     }
 
-    // UNA cara en el coco central — expresión pícara (smirk con colmillo).
+    // UNA cara en el coco central. Reglas de expresión:
+    //  - Default: malvado (ojos evil + smirk con colmillo)
+    //  - HP < 20%: triste/derrotado (drawHurtEyes + boca abierta caída)
+    //  - "dying"/"hurt": ya capturados por la lógica de HP baja o por el
+    //    estado dying explícito del juego
+    //  - blink: parpadeo
+    var hpFracFace = (def && def.hp > 0) ? (e.hp / def.hp) : 1;
+    var lowHp = hpFracFace < 0.20;
+    var sadFace = (expression === "dying" || expression === "hurt" || lowHp);
     var eyeR  = bigR * 0.30;
     var faceY = -bigR * 0.05;
     var gap   = bigR * 0.32;
-    if (expression === "dying") drawHurtEyes(0, faceY, eyeR, gap);
-    else if (expression === "hurt") drawHurtEyes(0, faceY, eyeR, gap);
+    if (sadFace) drawHurtEyes(0, faceY, eyeR, gap);
     else if (blink) drawClosedEyes(0, faceY, eyeR, gap);
     else drawAnimeEyes(0, faceY, eyeR, gap, 0, 0, bigR * 0.12, bigR * 0.06, "evil");
-    if (expression === "dying") drawAnimeMouth(0, bigR * 0.32, bigR * 0.55, bigR * 0.45, "open");
-    else if (expression === "hurt") drawAnimeMouth(0, bigR * 0.32, bigR * 0.40, bigR * 0.40, "open");
+    if (sadFace) drawAnimeMouth(0, bigR * 0.32, bigR * 0.50, bigR * 0.42, "open");
     else drawAnimeMouth(0, bigR * 0.32, bigR * 0.45, bigR * 0.28, "smirk");
 
     ctx.restore();

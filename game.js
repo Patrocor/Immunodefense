@@ -9601,6 +9601,7 @@
     // antiguo para bosses y aliases legacy.
     var kind = def.baseKind || def.bossKind || def.id;
     if      (def.id === "saureus")      drawSaureus(e, rad * scale, expression, blink);
+    else if (def.id === "sepidermidis") drawSepidermidis(e, rad * scale, expression, blink);
     else if (def.id === "influenza")    drawInfluenza(e, rad * scale, expression, blink);
     else if (def.id === "vih")          drawVih(e, rad * scale, expression, blink);
     else if (def.id === "candida")      drawCandida(e, rad * scale, expression, blink);
@@ -10387,6 +10388,166 @@
     if (expression === "dying") drawAnimeMouth(0, bigR * 0.32, bigR * 0.55, bigR * 0.45, "open");
     else if (expression === "hurt") drawAnimeMouth(0, bigR * 0.32, bigR * 0.45, bigR * 0.40, "open");
     else drawAnimeMouth(0, bigR * 0.32, bigR * 0.50, bigR * 0.28, "wicked");
+    ctx.restore();
+  }
+
+  function drawSepidermidis(e, rad, expression, blink) {
+    // Coco gram+ en racimo IRREGULAR pequeño (3-4 esferas gris-azuladas),
+    // biofilm baboso translúcido, pseudópodo único coiled en el lomo,
+    // cara pícara de "ladrón callejero" y TELEGRAPH cuando carga golpe.
+    var hit = e.hitFlash > 0;
+    var t = state.time;
+    var def = e.def;
+
+    // Telegraph del ataque: detectar windup (target seleccionado +
+    // tentPulseT contando + sin punch activo aún).
+    var windup = 0;
+    if (def && def.tentacles && e.tentTarget &&
+        (e.tentPunchT || 0) <= 0 && (e.tentPulseT || 0) > 0) {
+      var pg = def.tentacles.pulseGap || 0.22;
+      windup = Math.max(0, Math.min(1, 1 - (e.tentPulseT || 0) / pg));
+    }
+    var shakeX = windup > 0.25 ? (Math.random() - 0.5) * windup * 4 : 0;
+    var shakeY = windup > 0.25 ? (Math.random() - 0.5) * windup * 4 : 0;
+
+    ctx.save();
+    ctx.translate(e.x + shakeX, e.y + shakeY);
+    // Crouch: se agacha en preparación al golpe.
+    var crouchX = 1 + windup * 0.06;
+    var crouchY = 1 - windup * 0.10;
+    ctx.scale(crouchX, crouchY);
+
+    var breathe = 1 + Math.sin(t * 1.7 + e.wobble) * 0.05;
+    var bigR    = rad * 0.65 * breathe;
+
+    // Glow cálido del telegraph (debajo de todo).
+    if (windup > 0) {
+      var wa = windup * 0.80;
+      var wr = bigR * 1.95 + windup * 14;
+      var wg = ctx.createRadialGradient(0, 0, bigR * 0.55, 0, 0, wr);
+      wg.addColorStop(0,    "rgba(255, 230, 110, " + (wa * 0.65) + ")");
+      wg.addColorStop(0.5,  "rgba(255, 170, 60,  " + (wa * 0.50) + ")");
+      wg.addColorStop(1,    "rgba(255, 120, 40,  0)");
+      ctx.fillStyle = wg;
+      ctx.beginPath();
+      ctx.arc(0, 0, wr, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Biofilm halo: gel polisacárido baboso translúcido alrededor del
+    // racimo (característica distintiva del epidermidis).
+    var biofilmR = bigR * 1.55;
+    var bfGrad = ctx.createRadialGradient(0, 0, bigR * 0.70, 0, 0, biofilmR);
+    bfGrad.addColorStop(0,    "rgba(190, 215, 230, 0.0)");
+    bfGrad.addColorStop(0.55, "rgba(176, 200, 215, 0.32)");
+    bfGrad.addColorStop(0.85, "rgba(140, 165, 185, 0.22)");
+    bfGrad.addColorStop(1,    "rgba(140, 165, 185, 0)");
+    ctx.fillStyle = bfGrad;
+    ctx.beginPath();
+    ctx.arc(0, 0, biofilmR, 0, Math.PI * 2);
+    ctx.fill();
+    // Brillo perlado del biofilm (highlight en la parte superior).
+    ctx.fillStyle = "rgba(225, 240, 250, 0.25)";
+    ctx.beginPath();
+    ctx.ellipse(-bigR * 0.20, -bigR * 0.90, bigR * 0.75, bigR * 0.22, -0.15, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Racimo: 3 cocos pequeños alrededor + 1 grande central.
+    var cluster = [
+      { x: -bigR * 0.80, y: -bigR * 0.35, r: bigR * 0.55 },
+      { x:  bigR * 0.85, y: -bigR * 0.15, r: bigR * 0.52 },
+      { x: -bigR * 0.40, y:  bigR * 0.85, r: bigR * 0.50 }
+    ];
+    function drawCoco(cx, cy, r) {
+      var grad = ctx.createRadialGradient(cx - r * 0.4, cy - r * 0.4, r * 0.2, cx, cy, r);
+      grad.addColorStop(0,    "#D5DDE3");   // highlight gris pálido
+      grad.addColorStop(0.55, "#90A4AE");   // base gris-azul
+      grad.addColorStop(1,    "#546E7A");   // sombra gris-azul oscuro
+      ctx.fillStyle = hit ? "#ffffff" : grad;
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "#3a4f5c";
+      ctx.lineWidth = Math.max(0.9, 1.2 * U);
+      ctx.stroke();
+      // Highlight blanco arriba-izquierda
+      ctx.fillStyle = "rgba(255,255,255,0.42)";
+      ctx.beginPath();
+      ctx.arc(cx - r * 0.35, cy - r * 0.35, r * 0.30, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // Pequeños primero (atrás), grande al frente.
+    for (var i = 0; i < cluster.length; i++) drawCoco(cluster[i].x, cluster[i].y, cluster[i].r);
+    drawCoco(0, 0, bigR);
+
+    // Pseudópodo coiled en el lomo (solo cuando NO está disparando el
+    // tentáculo dinámico — el drawTentaclePunch toma el control cuando
+    // hay punch activo).
+    if (!e.tentTarget || (e.tentPunchT || 0) > 0) {
+      // Visible en idle Y mientras carga (telegraph). Si está punching
+      // (tentPunchT > 0), el drawTentaclePunch ya está dibujando el whip,
+      // así que ocultamos el coiled estático para evitar superposición.
+      // (Pero queremos mostrarlo en idle → permitimos cuando !tentTarget.)
+    }
+    // Ajuste: solo dibujar coiled cuando NO está en proceso de golpear.
+    var showCoiled = !(e.tentTarget && (e.tentPunchT || 0) > 0);
+    if (showCoiled) {
+      ctx.save();
+      ctx.translate(0, -bigR * 0.75);   // base en el lomo (top central coco)
+      // Durante windup el pseudópodo se tensa hacia atrás un poco más.
+      var tensionScale = 1 + windup * 0.20;
+      ctx.scale(tensionScale, tensionScale);
+      var armStrong = "#3a4f5c";
+      var armSoft   = "#5a7585";
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      // Sombra/contorno del brazo coiled (arco hacia atrás-arriba).
+      ctx.strokeStyle = armStrong;
+      ctx.lineWidth = 5 * U;
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.bezierCurveTo(
+        -bigR * 0.25, -bigR * 0.55,
+        -bigR * 0.70, -bigR * 0.50,
+        -bigR * 0.50, -bigR * 0.05
+      );
+      ctx.stroke();
+      // Cuerpo del brazo.
+      ctx.strokeStyle = armSoft;
+      ctx.lineWidth = 3.2 * U;
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.bezierCurveTo(
+        -bigR * 0.25, -bigR * 0.55,
+        -bigR * 0.70, -bigR * 0.50,
+        -bigR * 0.50, -bigR * 0.05
+      );
+      ctx.stroke();
+      // Puño en la punta (compacto gris-azul oscuro).
+      ctx.fillStyle = armStrong;
+      ctx.beginPath();
+      ctx.arc(-bigR * 0.50, -bigR * 0.05, bigR * 0.20, 0, Math.PI * 2);
+      ctx.fill();
+      // Highlight del puño.
+      ctx.fillStyle = "rgba(255,255,255,0.32)";
+      ctx.beginPath();
+      ctx.arc(-bigR * 0.55, -bigR * 0.10, bigR * 0.09, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    // UNA cara en el coco central — expresión pícara (smirk con colmillo).
+    var eyeR  = bigR * 0.30;
+    var faceY = -bigR * 0.05;
+    var gap   = bigR * 0.32;
+    if (expression === "dying") drawHurtEyes(0, faceY, eyeR, gap);
+    else if (expression === "hurt") drawHurtEyes(0, faceY, eyeR, gap);
+    else if (blink) drawClosedEyes(0, faceY, eyeR, gap);
+    else drawAnimeEyes(0, faceY, eyeR, gap, 0, 0, bigR * 0.12, bigR * 0.06, "evil");
+    if (expression === "dying") drawAnimeMouth(0, bigR * 0.32, bigR * 0.55, bigR * 0.45, "open");
+    else if (expression === "hurt") drawAnimeMouth(0, bigR * 0.32, bigR * 0.40, bigR * 0.40, "open");
+    else drawAnimeMouth(0, bigR * 0.32, bigR * 0.45, bigR * 0.28, "smirk");
+
     ctx.restore();
   }
 

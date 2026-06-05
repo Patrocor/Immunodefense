@@ -1478,7 +1478,7 @@
     var s = U;
     ctx.save();
     ctx.translate(m.x, m.y);
-    // Pulso suave si hay pickup esperando
+    // Pulso suave si hay pickup esperando (siempre, sea PNG o canvas).
     var pendingPulse = 0;
     if (state.unlockPickups && state.unlockPickups.length > 0) {
       pendingPulse = 0.5 + 0.5 * Math.sin(state.time * 3);
@@ -1489,26 +1489,38 @@
       ctx.arc(0, 0, 40 * s, 0, Math.PI * 2);
       ctx.fill();
     }
-    // Forma de hueso
-    ctx.fillStyle = "#e8d8a8";
-    ctx.strokeStyle = "#8a6f3a";
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.ellipse(0, 0, 28 * s, 14 * s, 0, 0, Math.PI * 2);
-    ctx.fill(); ctx.stroke();
-    // Bulbos extremos
-    var bulbs = [[-28, -10], [-28, 10], [28, -10], [28, 10]];
-    for (var b = 0; b < bulbs.length; b++) {
+    // Cuerpo de la médula: PNG pictórico si está cargado, sino fallback
+    // al canvas histórico (hueso + bulbos + centro rosado).
+    var medulaImg = ASSETS.get("assets/fase1/props/medula.png");
+    if (medulaImg) {
+      // PNG horizontal 1024×512 (ratio 2:1). El canvas original abarca
+      // ~72×36 unidades (28*2 + bulbos a -38..+38 horizontal, ±18 vertical).
+      // Dibujamos centrado al mismo footprint.
+      var medW = 78 * s;
+      var medH = medW * 0.50;
+      ctx.drawImage(medulaImg, -medW / 2, -medH / 2, medW, medH);
+    } else {
+      // FALLBACK CANVAS ────────────────────────────────────────────
+      ctx.fillStyle = "#e8d8a8";
+      ctx.strokeStyle = "#8a6f3a";
+      ctx.lineWidth = 1.5;
       ctx.beginPath();
-      ctx.arc(bulbs[b][0] * s, bulbs[b][1] * s, 8 * s, 0, Math.PI * 2);
+      ctx.ellipse(0, 0, 28 * s, 14 * s, 0, 0, Math.PI * 2);
       ctx.fill(); ctx.stroke();
+      // Bulbos extremos
+      var bulbs = [[-28, -10], [-28, 10], [28, -10], [28, 10]];
+      for (var b = 0; b < bulbs.length; b++) {
+        ctx.beginPath();
+        ctx.arc(bulbs[b][0] * s, bulbs[b][1] * s, 8 * s, 0, Math.PI * 2);
+        ctx.fill(); ctx.stroke();
+      }
+      // Centro rosado (médula)
+      ctx.fillStyle = "#c08080";
+      ctx.beginPath();
+      ctx.ellipse(0, 0, 18 * s, 8 * s, 0, 0, Math.PI * 2);
+      ctx.fill();
     }
-    // Centro rosado (médula)
-    ctx.fillStyle = "#c08080";
-    ctx.beginPath();
-    ctx.ellipse(0, 0, 18 * s, 8 * s, 0, 0, Math.PI * 2);
-    ctx.fill();
-    // Etiqueta
+    // Etiqueta — siempre.
     ctx.fillStyle = "rgba(80, 50, 30, 0.8)";
     ctx.font = "bold " + Math.floor(9 * s) + "px Fredoka, sans-serif";
     ctx.textAlign = "center";

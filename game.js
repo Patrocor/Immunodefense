@@ -3934,6 +3934,22 @@
           pushPathInflammation(e.x, e.y);
         }
       }
+      // Slime trail de sepidermidis: gotitas de biofilm que va dejando
+      // mientras camina (firma biológica del germen — su biofilm pega
+      // a todas las superficies).
+      if (e.def.id === "sepidermidis" && e.state === "walking" && !e.dying && !e.absorbing) {
+        e._slimeTrailT = (e._slimeTrailT || 0) - dt;
+        if (e._slimeTrailT <= 0) {
+          e._slimeTrailT = 0.40 + Math.random() * 0.18;
+          pushEffect({
+            kind: "biofilmDrop",
+            x: e.x + (Math.random() - 0.5) * 8 * U,
+            y: e.y + (5 + Math.random() * 6) * U,
+            r: (2.2 + Math.random() * 1.6) * U,
+            life: 1.4, max: 1.4
+          });
+        }
+      }
       if (e.sporeTimer !== undefined) {
         e.sporeTimer -= dt;
         if (e.def.id === "hongo" && e.sporeTimer <= 0) {
@@ -6046,6 +6062,8 @@
         ef.r = ef.r0 + (ef.maxR - ef.r0) * ageF;
       } else if (ef.kind === "splat") {
         // Decal estático del splat de muerte: solo desvanece.
+      } else if (ef.kind === "biofilmDrop") {
+        // Gotita estática del slime trail: solo desvanece.
       } else if (ef.kind === "explosion") {
         ef.r = ef.max * (1 - ef.life / 0.4);
       } else if (ef.kind === "dmgText" || ef.kind === "atpText") {
@@ -10465,8 +10483,31 @@
     var crouchY = 1 - windup * 0.10;
     ctx.scale(crouchX, crouchY);
 
+    // ── HEADING (orientación del cuerpo según movimiento) ──
+    // Smooth-LERP del ángulo basado en la dirección de movimiento real.
+    // Mantiene la cabeza al frente del path; el cuerpo se arrastra detrás.
+    if (e._lastPosX == null) {
+      e._lastPosX = e.x; e._lastPosY = e.y; e._heading = 0;
+    }
+    var dxM = e.x - e._lastPosX;
+    var dyM = e.y - e._lastPosY;
+    var dM  = Math.hypot(dxM, dyM);
+    if (dM > 0.5) {
+      var targetAng = Math.atan2(dyM, dxM);
+      var diffAng = targetAng - e._heading;
+      while (diffAng >  Math.PI) diffAng -= Math.PI * 2;
+      while (diffAng < -Math.PI) diffAng += Math.PI * 2;
+      e._heading += diffAng * 0.15;
+    }
+    e._lastPosX = e.x;
+    e._lastPosY = e.y;
+
     var breathe = 1 + Math.sin(t * 1.7 + e.wobble) * 0.05;
     var bigR    = rad * 0.65 * breathe;
+
+    // === BODY ROTATED (la cara va FUERA del save+rotate, upright) ===
+    ctx.save();
+    ctx.rotate(e._heading || 0);
 
     // Glow cálido del telegraph (debajo de todo).
     if (windup > 0) {
@@ -10618,7 +10659,10 @@
       ctx.restore();
     }
 
-    // UNA cara en el coco central. Reglas de expresión:
+    // === END BODY ROTATED ===
+    ctx.restore();   // undo rotation antes de dibujar la cara
+
+    // UNA cara en el coco central (UPRIGHT — siempre mira a la cámara).
     //  - Default: malvado (ojos evil + smirk con colmillo)
     //  - HP < 20%: triste/derrotado (drawHurtEyes + boca abierta caída)
     //  - "dying"/"hurt": ya capturados por la lógica de HP baja o por el
@@ -11530,6 +11574,23 @@
       ctx.arc(ef.x, ef.y, ef.r, 0, Math.PI * 2);
       ctx.fill();
       ctx.globalAlpha = 1;
+    } else if (ef.kind === "biofilmDrop") {
+      // Gotita de biofilm dejada en el path por sepidermidis al caminar.
+      // Burbuja gelatinosa translúcida con highlight perlado.
+      var br = ef.r;
+      var bgrad = ctx.createRadialGradient(ef.x - br * 0.3, ef.y - br * 0.3, br * 0.15, ef.x, ef.y, br);
+      bgrad.addColorStop(0,    "rgba(220, 240, 250, " + (alpha * 0.85) + ")");
+      bgrad.addColorStop(0.6,  "rgba(176, 200, 215, " + (alpha * 0.65) + ")");
+      bgrad.addColorStop(1,    "rgba(140, 165, 185, " + (alpha * 0.40) + ")");
+      ctx.fillStyle = bgrad;
+      ctx.beginPath();
+      ctx.arc(ef.x, ef.y, br, 0, Math.PI * 2);
+      ctx.fill();
+      // Highlight especular pequeño.
+      ctx.fillStyle = "rgba(255, 255, 255, " + (alpha * 0.55) + ")";
+      ctx.beginPath();
+      ctx.arc(ef.x - br * 0.32, ef.y - br * 0.40, br * 0.25, 0, Math.PI * 2);
+      ctx.fill();
     } else if (ef.kind === "splat") {
       // Decal en el camino: mancha irregular que se desvanece.
       ctx.save();

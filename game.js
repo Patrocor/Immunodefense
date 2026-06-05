@@ -10482,38 +10482,45 @@
       ctx.fill();
     }
 
-    // Biofilm halo: gel polisacárido baboso translúcido alrededor del
-    // racimo (característica distintiva del epidermidis).
-    var biofilmR = bigR * 1.55;
-    var bfGrad = ctx.createRadialGradient(0, 0, bigR * 0.70, 0, 0, biofilmR);
+    // Biofilm halo ELÍPTICO alargado que envuelve el gusano completo
+    // (centrado en el medio del cuerpo, no en la cabeza).
+    var biofilmCx = -bigR * 2.0;          // centro del halo desplazado a medio cuerpo
+    var biofilmRx = bigR * 3.4;           // largo (envuelve cabeza→cola)
+    var biofilmRy = bigR * 1.20;          // alto
+    var bfGrad = ctx.createRadialGradient(biofilmCx, 0, bigR * 0.60, biofilmCx, 0, biofilmRx);
     bfGrad.addColorStop(0,    "rgba(190, 215, 230, 0.0)");
-    bfGrad.addColorStop(0.55, "rgba(176, 200, 215, 0.32)");
-    bfGrad.addColorStop(0.85, "rgba(140, 165, 185, 0.22)");
+    bfGrad.addColorStop(0.55, "rgba(176, 200, 215, 0.30)");
+    bfGrad.addColorStop(0.85, "rgba(140, 165, 185, 0.20)");
     bfGrad.addColorStop(1,    "rgba(140, 165, 185, 0)");
     ctx.fillStyle = bfGrad;
     ctx.beginPath();
-    ctx.arc(0, 0, biofilmR, 0, Math.PI * 2);
+    ctx.ellipse(biofilmCx, 0, biofilmRx, biofilmRy, 0, 0, Math.PI * 2);
     ctx.fill();
-    // Brillo perlado del biofilm (highlight en la parte superior).
+    // Brillo perlado superior del biofilm (a lo largo del lomo del gusano).
     ctx.fillStyle = "rgba(225, 240, 250, 0.25)";
     ctx.beginPath();
-    ctx.ellipse(-bigR * 0.20, -bigR * 0.90, bigR * 0.75, bigR * 0.22, -0.15, 0, Math.PI * 2);
+    ctx.ellipse(biofilmCx, -biofilmRy * 0.78, biofilmRx * 0.62, bigR * 0.20, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    // Racimo elongado tipo "gusano" — más cocos formando un cuerpo
-    // alargado (head al frente con cara, cola atrás). Conserva la
-    // irregularidad propia de los racimos de staphylococcus.
+    // Cuerpo ALARGADO tipo gusano: cadena de cocos de cabeza→cola con
+    // pequeñas oscilaciones verticales (curvatura tipo serpiente).
+    // Aspect ratio horizontal aprox 4:1. Head con cara va en (0,0).
+    // Sutil "wriggle" (cada coco oscila con phase distinta) para que
+    // el cuerpo se sienta vivo y reptante. Bias horizontal: head al
+    // FRENTE (derecha), cola atrás (izquierda).
+    function wrig(i, amp) { return Math.sin(t * 2.0 + i * 0.9 + e.wobble) * amp * U; }
     var cluster = [
-      // Cola (atrás, más pequeños)
-      { x: -bigR * 1.50, y:  bigR * 0.10, r: bigR * 0.35 },
-      { x: -bigR * 1.10, y: -bigR * 0.45, r: bigR * 0.42 },
-      { x: -bigR * 0.85, y:  bigR * 0.55, r: bigR * 0.48 },
-      // Medio del cuerpo
-      { x: -bigR * 0.40, y: -bigR * 0.70, r: bigR * 0.52 },
-      { x: -bigR * 0.30, y:  bigR * 0.80, r: bigR * 0.50 },
-      // Cabeza extendida (frente — la grande con cara va en (0,0))
-      { x:  bigR * 0.65, y: -bigR * 0.60, r: bigR * 0.48 },
-      { x:  bigR * 0.80, y:  bigR * 0.45, r: bigR * 0.50 }
+      // Justo atrás de la cabeza
+      { x: -bigR * 0.95, y:  bigR * 0.12 + wrig(1, 1.5), r: bigR * 0.65 },
+      // Cuerpo medio (tres cocos a lo largo del eje X, ondulando Y)
+      { x: -bigR * 1.80, y: -bigR * 0.15 + wrig(2, 1.8), r: bigR * 0.58 },
+      { x: -bigR * 2.55, y:  bigR * 0.20 + wrig(3, 1.8), r: bigR * 0.50 },
+      { x: -bigR * 3.20, y: -bigR * 0.10 + wrig(4, 1.6), r: bigR * 0.42 },
+      // Cola (más pequeños hacia atrás)
+      { x: -bigR * 3.75, y:  bigR * 0.18 + wrig(5, 1.4), r: bigR * 0.32 },
+      { x: -bigR * 4.20, y: -bigR * 0.05 + wrig(6, 1.2), r: bigR * 0.24 },
+      // Cresta sobre la cabeza (mini coco asomando arriba, da volumen)
+      { x: -bigR * 0.25, y: -bigR * 0.95,                   r: bigR * 0.32 }
     ];
     function drawCoco(cx, cy, r) {
       var grad = ctx.createRadialGradient(cx - r * 0.4, cy - r * 0.4, r * 0.2, cx, cy, r);
@@ -10545,16 +10552,15 @@
     ctx.lineWidth = Math.max(1.0, 1.6 * U);
     ctx.lineCap = "round";
     var head = { x: 0, y: 0, r: bigR };
+    // Cadena lineal de cabeza → cuerpo → cola (gusano segmentado).
     var conns = [
-      // Cadena de cola → medio → cabeza
+      [head, cluster[0]],
       [cluster[0], cluster[1]],
       [cluster[1], cluster[2]],
       [cluster[2], cluster[3]],
-      [cluster[2], cluster[4]],
-      [cluster[3], head],
-      [cluster[4], head],
-      // Cabeza extendida hacia adelante
-      [head, cluster[5]],
+      [cluster[3], cluster[4]],
+      [cluster[4], cluster[5]],
+      // Cresta superior pegada a la cabeza
       [head, cluster[6]]
     ];
     for (var cn = 0; cn < conns.length; cn++) {

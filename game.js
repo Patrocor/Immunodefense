@@ -798,6 +798,10 @@
       colorDark: "#7E5FB0",
       cost: 55,
       desc: "Cuerpo a cuerpo",
+      // Ultimate: MARTILLAZO CELULAR — al cargar, tap dispara un mazo
+      // proteico contra el germen más cercano en su rango (damage 8x).
+      specialChargeSec: 28,
+      specialName: "Martillazo",
       levels: [
         { range:  90, damage: 25, fireRate: 1.0, projectileSpeed:   0, splash:  0, hp: 120 },
         { range: 100, damage: 45, fireRate: 1.2, projectileSpeed:   0, splash:  0, hp: 160 },
@@ -4212,6 +4216,88 @@
     else state.atp -= def.cost;
   }
 
+  // ════════════════════════════════════════════════════════════════
+  // PODERES ESPECIALES POR TORRE (ultimates con carga circular)
+  // ════════════════════════════════════════════════════════════════
+  function triggerTowerSpecial(t) {
+    if (!t || !t.specialReady) return;
+    var def = t.def;
+    if (def.id === "neutrofilo") {
+      // MARTILLAZO CELULAR: busca el germen más cercano EN RANGO y le
+      // pega un golpe masivo. Anim de 0.6s para que se vea el mazo.
+      var stats = towerStats(t);
+      var rng = stats.range * U;
+      var best = null, bestD = Infinity;
+      for (var ei = 0; ei < state.enemies.length; ei++) {
+        var en = state.enemies[ei];
+        if (en.dead || en.dying || en.absorbing) continue;
+        if (en.state !== "walking" && en.state !== "blocked") continue;
+        var dx = en.x - t.x, dy = en.y - t.y;
+        var d = Math.hypot(dx, dy);
+        if (d <= rng && d < bestD) { best = en; bestD = d; }
+      }
+      // Aunque no haya target, igual gasta la carga (el martillazo cae
+      // al piso). El usuario aprende a tapear con gérmenes en rango.
+      t.specialAnim = 0.65;        // duración total de la anim
+      t.specialReady = false;
+      t.specialCharge = 0;
+      t.hammerTarget = best ? { x: best.x, y: best.y, enemy: best } : { x: t.x, y: t.y + 30 * U, enemy: null };
+      sfx("upgrade");              // wind-up sound
+      return;
+    }
+    // Fallback: si la torre no tiene ultimate implementado, no hace nada.
+    t.specialReady = false;
+    t.specialCharge = 0;
+  }
+
+  // Aplica el daño + efectos del martillazo en el momento del impacto.
+  function resolveNeutrofiloHammer(t) {
+    var ht = t.hammerTarget;
+    if (!ht) return;
+    var en = ht.enemy;
+    var stats = towerStats(t);
+    var dmg = stats.damage * 8;     // martillazo: 8x daño normal
+    if (en && !en.dead && !en.dying) {
+      en.hp -= dmg;
+      en.hitFlash = 0.45;
+      en.hurtTimer = 0.30;
+      if (en.hp <= 0 && !en.dying) {
+        en.hp = 0; en.dying = true; en.dyingTimer = 0.30;
+        state.atp += en.def.reward;
+        state.pathogensDefeated += 1;
+      }
+      pushDamageNumber(en.x, en.y - en.def.radius * U, "💥 " + dmg, "#ffd24a");
+    }
+    // Efectos del impacto: shake + onda + chispas radiales + dust
+    triggerShake(0.18, 4);
+    pushEffect({
+      kind: "explosion",
+      x: ht.x, y: ht.y,
+      r: 4, max: 60 * U,
+      life: 0.40, max: 0.40
+    });
+    pushEffect({
+      kind: "dust",
+      x: ht.x, y: ht.y,
+      r: 8 * U, r0: 8 * U, maxR: 48 * U,
+      life: 0.55, max: 0.55,
+      color: "#ffd2a0"
+    });
+    for (var sk = 0; sk < 12; sk++) {
+      var sa = sk * (Math.PI / 6);
+      var spd = (90 + Math.random() * 90) * U;
+      pushEffect({
+        kind: "particle",
+        x: ht.x, y: ht.y,
+        vx: Math.cos(sa) * spd,
+        vy: Math.sin(sa) * spd,
+        life: 0.45 + Math.random() * 0.20,
+        max: 0.65,
+        color: "#ffd24a"
+      });
+    }
+  }
+
   function placeTower(x, y, typeId) {
     var def = TOWER_DEFS[typeId];
     state.towers.push({
@@ -4235,7 +4321,12 @@
       dmgNumTimer: 0,
       stunTimer: 0,
       slowFireTimer: 0,
-      devouredBy: null
+      devouredBy: null,
+      // Sistema de poder especial (ultimate): carga circular alrededor
+      // del cuerpo, cuando llena → tap dispara poder distintivo de la torre.
+      specialCharge: 0,        // 0..1, se llena con el tiempo
+      specialReady: false,
+      specialAnim: 0           // > 0 cuando el ultimate está animando
     });
     pushEffect({ kind: "place", x: x, y: y, life: 0.6, max: 0.6, color: def.color });
     pushEffect({ kind: "placeFlash", x: x, y: y, life: 0.25, max: 0.25 });
@@ -4479,6 +4570,14 @@
       if (t.levelupAnim > 0) t.levelupAnim -= dt;
       if (t.cooldown > 0) t.cooldown -= dt;
       if (t.muzzleFlash > 0) t.muzzleFlash -= dt;
+      // Sistema de poder especial: carga continua mientras la torre vive.
+      // Duración de carga por torre (depende del def, default 28s).
+      var specCharge = (t.def && t.def.specialChargeSec) || 28;
+      if (!t.specialReady && (t.specialAnim || 0) <= 0 && (t.stunTimer || 0) <= 0) {
+        t.specialCharge = Math.min(1, (t.specialCharge || 0) + dt / specCharge);
+        if (t.specialCharge >= 1) t.specialReady = true;
+      }
+      if ((t.specialAnim || 0) > 0) t.specialAnim -= dt;
       // Estreptolisina O: DoT activo mientras lisisTimer > 0.
       if ((t.lisisTimer || 0) > 0) {
         t.lisisTimer -= dt;
@@ -7696,6 +7795,11 @@
       var tw = state.towers[t];
       if (Math.hypot(tw.x - x, tw.y - y) <= 32 * U) { picked = tw; break; }
     }
+    // Tap en torre con special READY → trigger ultimate y NO seleccionar.
+    if (picked && picked.specialReady && (picked.specialAnim || 0) <= 0) {
+      triggerTowerSpecial(picked);
+      return;
+    }
     state.selectedTower = picked;
     if (picked) {
       var ps = towerStats(picked);
@@ -8771,6 +8875,42 @@
     ctx.beginPath();
     ctx.arc(t.x, t.y, glowR, 0, Math.PI * 2);
     ctx.fill();
+    // ── BARRA CIRCULAR del PODER ESPECIAL alrededor del cuerpo ──
+    // Se llena con el tiempo. Cuando llena: pulsa dorado y se puede tapear.
+    if (t.def && t.def.specialChargeSec) {
+      var spCharge = Math.max(0, Math.min(1, t.specialCharge || 0));
+      var ringR = 21 * U;
+      // Pista (anillo de fondo).
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.18)";
+      ctx.lineWidth = 2.5 * U;
+      ctx.beginPath();
+      ctx.arc(t.x, t.y, ringR, 0, Math.PI * 2);
+      ctx.stroke();
+      // Carga (anillo cargado, va girando desde la parte superior).
+      var startA = -Math.PI / 2;
+      var endA = startA + spCharge * Math.PI * 2;
+      var chargeCol = t.specialReady ? "#ffd24a" : t.def.color;
+      ctx.strokeStyle = chargeCol;
+      ctx.lineWidth = 3 * U;
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.arc(t.x, t.y, ringR, startA, endA);
+      ctx.stroke();
+      // Pulso dorado cuando está READY (invita a tapear).
+      if (t.specialReady) {
+        var rp = 0.5 + 0.5 * Math.sin(state.time * 5);
+        ctx.strokeStyle = "rgba(255, 215, 90, " + (0.55 + rp * 0.40) + ")";
+        ctx.lineWidth = (2 + rp * 2) * U;
+        ctx.beginPath();
+        ctx.arc(t.x, t.y, ringR + (3 + rp * 3) * U, 0, Math.PI * 2);
+        ctx.stroke();
+        // Pequeño icono ⚡ encima para indicar "tap"
+        ctx.fillStyle = "rgba(255, 230, 120, " + (0.8 + rp * 0.2) + ")";
+        ctx.font = "bold " + Math.round(10 * U) + "px Fredoka, sans-serif";
+        ctx.textAlign = "center"; ctx.textBaseline = "middle";
+        ctx.fillText("⚡", t.x, t.y - ringR - 8 * U);
+      }
+    }
     if (t.muzzleFlash > 0) {
       ctx.fillStyle = "rgba(255, 245, 200, 0.45)";
       ctx.beginPath();
@@ -8853,36 +8993,216 @@
   }
 
   function drawNeutrofilo(t, pulse, expression, blink) {
-    // Célula clara con núcleo multilobulado morado (neutrófilo) + carita.
+    // Neutrófilo — célula PMN (polimorfonuclear). Biología:
+    //  · Granulocito de inmunidad innata, primera línea
+    //  · NÚCLEO MULTILOBULADO característico (3-5 lóbulos conectados)
+    //  · GRÁNULOS azurófilos púrpura (defensinas, mieloperoxidasa)
+    //  · Membrana ameboideo ondulada (no perfectamente esférica)
+    //  · Capaz de fagocitosis + NETosis
+    // Caricatura: cara feroz de soldado, pseudópodos cortos asomando.
     var x = t.x, y = t.y;
     var R = 19 * U * pulse;
+    var time = state.time;
+    var attacking = (expression === "attacking");
     ctx.save();
     ctx.translate(x, y);
-    var nbody = ctx.createRadialGradient(-R * 0.3, -R * 0.35, R * 0.2, 0, 0, R);
-    nbody.addColorStop(0, "#fffdf6");
-    nbody.addColorStop(0.7, "#f3ecf9");
-    nbody.addColorStop(1, "#d8c8ee");
-    ctx.fillStyle = nbody;
-    ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = t.def.colorDark; ctx.lineWidth = Math.max(1.2, 1.5 * U); ctx.stroke();
-    ctx.fillStyle = "rgba(126, 95, 176, 0.50)";
-    for (var nl = 0; nl < 4; nl++) {
-      var nla = nl * Math.PI * 2 / 4 + state.time * 0.4;
+
+    // Membrana CITOPLÁSMICA con ligera ondulación ameboidea (no
+    // círculo perfecto: 12 puntos con jitter de amplitud baja).
+    var membR = R;
+    var wavePts = 16;
+    var bodyFill = ctx.createRadialGradient(-R * 0.30, -R * 0.35, R * 0.20, 0, 0, R);
+    bodyFill.addColorStop(0,    "#fffdf6");
+    bodyFill.addColorStop(0.65, "#f0e7f9");
+    bodyFill.addColorStop(1,    "#cdb8e6");
+    ctx.fillStyle = bodyFill;
+    ctx.beginPath();
+    for (var wp = 0; wp < wavePts; wp++) {
+      var wa = wp * (Math.PI * 2 / wavePts);
+      var wob = 1 + Math.sin(time * 1.8 + wp * 1.3 + (t.idlePhase || 0)) * 0.04;
+      var rx = Math.cos(wa) * membR * wob;
+      var ry = Math.sin(wa) * membR * wob;
+      if (wp === 0) ctx.moveTo(rx, ry); else ctx.lineTo(rx, ry);
+    }
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = t.def.colorDark;
+    ctx.lineWidth = Math.max(1.3, 1.7 * U);
+    ctx.stroke();
+
+    // 3-4 PSEUDÓPODOS sutiles asomando (más prominentes si está
+    // atacando — preparándose para fagocitar).
+    var pseudCount = 4;
+    var pseudExt = attacking ? 1.18 : 1.06;
+    for (var ps = 0; ps < pseudCount; ps++) {
+      var psa = ps * (Math.PI * 2 / pseudCount) + time * 0.4;
+      var psR = R * (0.22 + Math.sin(time * 2 + ps) * 0.04);
+      var pbx = Math.cos(psa) * R * pseudExt;
+      var pby = Math.sin(psa) * R * pseudExt;
+      ctx.fillStyle = "rgba(220, 200, 240, 0.95)";
       ctx.beginPath();
-      ctx.arc(Math.cos(nla) * R * 0.34, Math.sin(nla) * R * 0.34 + R * 0.08, R * 0.30, 0, Math.PI * 2);
+      ctx.arc(pbx, pby, psR, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "rgba(126, 95, 176, 0.70)";
+      ctx.lineWidth = 0.9 * U;
+      ctx.stroke();
+    }
+
+    // NÚCLEO MULTILOBULADO — característica distintiva del neutrófilo
+    // (3-5 lóbulos conectados por hebras finas). Color púrpura intenso.
+    var nucColor = "rgba(126, 95, 176, 0.85)";
+    var nucEdge  = "rgba(80, 55, 130, 0.95)";
+    var lobeR = R * 0.28;
+    var lobes = [
+      { x: -R * 0.22, y: -R * 0.05, r: lobeR * 1.05 },
+      { x:  R * 0.18, y: -R * 0.15, r: lobeR * 0.95 },
+      { x:  R * 0.25, y:  R * 0.20, r: lobeR * 1.00 },
+      { x: -R * 0.18, y:  R * 0.25, r: lobeR * 0.90 }
+    ];
+    // Hebras conectoras entre lóbulos (cromatina condensada).
+    ctx.strokeStyle = nucEdge;
+    ctx.lineWidth = 1.6 * U;
+    ctx.lineCap = "round";
+    for (var lk = 0; lk < lobes.length - 1; lk++) {
+      ctx.beginPath();
+      ctx.moveTo(lobes[lk].x, lobes[lk].y);
+      ctx.lineTo(lobes[lk + 1].x, lobes[lk + 1].y);
+      ctx.stroke();
+    }
+    // Lóbulos
+    for (var lk2 = 0; lk2 < lobes.length; lk2++) {
+      var lo = lobes[lk2];
+      ctx.fillStyle = nucColor;
+      ctx.beginPath();
+      ctx.arc(lo.x, lo.y, lo.r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = nucEdge;
+      ctx.lineWidth = 1.0 * U;
+      ctx.stroke();
+    }
+
+    // GRÁNULOS azurófilos púrpura — pequeños puntos en el citoplasma
+    // (defensinas, mieloperoxidasa, hidrolasas).
+    ctx.fillStyle = "rgba(100, 70, 160, 0.60)";
+    var grans = 7;
+    for (var gn = 0; gn < grans; gn++) {
+      var ga = gn * 1.7 + (t.idlePhase || 0);
+      var gr = R * 0.72;
+      var gx = Math.cos(ga) * gr;
+      var gy = Math.sin(ga) * gr;
+      // Evitar que choquen con núcleo o pseudópodos: mantenerlos en el
+      // ANILLO entre 0.55R y 0.78R.
+      var ggx = Math.cos(ga) * R * 0.62;
+      var ggy = Math.sin(ga) * R * 0.62;
+      ctx.beginPath();
+      ctx.arc(ggx, ggy, (0.9 + Math.sin(time * 1.5 + gn) * 0.20) * U, 0, Math.PI * 2);
       ctx.fill();
     }
-    var neR = R * 0.20, ngap = R * 0.30, nfy = -R * 0.10;
+
+    // CARA (en el lado superior del cuerpo, sin chocar con núcleo).
+    var neR = R * 0.20, ngap = R * 0.30, nfy = -R * 0.42;
     if (blink) drawClosedEyes(0, nfy, neR, ngap);
     else if (expression === "dying") drawHurtEyes(0, nfy, neR, ngap);
     else if (expression === "levelup") drawSparkleEyes(0, nfy, neR, ngap);
-    else if (expression === "attacking") drawFocusedEyes(0, nfy, neR, ngap, R * 0.14, R * 0.05);
+    else if (attacking) drawFocusedEyes(0, nfy, neR, ngap, R * 0.14, R * 0.05);
     else drawAnimeEyes(0, nfy, neR, ngap, 0, 0, R * 0.10, R * 0.08, "fierce");
-    if (expression === "dying") drawAnimeMouth(0, R * 0.34, R * 0.42, R * 0.42, "open");
-    else if (expression === "levelup") drawAnimeMouth(0, R * 0.30, R * 0.5, R * 0.30, "smile");
-    else if (expression === "attacking") drawAnimeMouth(0, R * 0.30, R * 0.5, R * 0.5, "fanged");
-    else drawAnimeMouth(0, R * 0.32, R * 0.38, R * 0.20, "serious");
+    if (expression === "dying") drawAnimeMouth(0, nfy + R * 0.45, R * 0.40, R * 0.40, "open");
+    else if (expression === "levelup") drawAnimeMouth(0, nfy + R * 0.42, R * 0.46, R * 0.28, "smile");
+    else if (attacking) drawAnimeMouth(0, nfy + R * 0.42, R * 0.48, R * 0.48, "fanged");
+    else drawAnimeMouth(0, nfy + R * 0.42, R * 0.36, R * 0.18, "serious");
+
     ctx.restore();
+
+    // ── MARTILLAZO CELULAR (ultimate del neutrofilo) ──
+    // Si specialAnim > 0 y es del neutrófilo, dibujamos el mazo cayendo
+    // sobre el target. Anim de 0.65s:
+    //   0.00-0.20: wind-up (mazo arriba)
+    //   0.20-0.40: pausa tensa
+    //   0.40-0.50: impacto (resolveNeutrofiloHammer aplica daño)
+    //   0.50-0.65: rebote y desaparece
+    if (t.def.id === "neutrofilo" && (t.specialAnim || 0) > 0 && t.hammerTarget) {
+      var ha = 1 - t.specialAnim / 0.65;     // 0→1 progreso
+      var ht = t.hammerTarget;
+      // Posiciones clave
+      var startX = t.x, startY = t.y - R * 1.4;
+      var apexX = ht.x, apexY = ht.y - R * 2.6;
+      var hitX  = ht.x, hitY  = ht.y;
+      var hx, hy, ang;
+      if (ha < 0.30) {
+        // Wind-up: del cuerpo del neutrófilo al ápice (arriba del target)
+        var u = ha / 0.30;
+        hx = startX + (apexX - startX) * u;
+        hy = startY + (apexY - startY) * u - 18 * U * Math.sin(u * Math.PI);
+        ang = -Math.PI / 4 + u * Math.PI / 4;
+      } else if (ha < 0.55) {
+        // Pausa tensa, vibrando en el ápice
+        var jx = (Math.random() - 0.5) * 2 * U;
+        var jy = (Math.random() - 0.5) * 2 * U;
+        hx = apexX + jx; hy = apexY + jy;
+        ang = 0 + Math.sin(ha * 40) * 0.10;
+        // Trigger del daño justo al inicio de la siguiente fase
+        if (!t.hammerImpacted && ha >= 0.50) {
+          t.hammerImpacted = true;
+        }
+      } else if (ha < 0.75) {
+        // Impacto: cae sobre target
+        var u2 = (ha - 0.55) / 0.20;
+        hx = apexX + (hitX - apexX) * u2;
+        hy = apexY + (hitY - apexY) * (u2 * u2);     // gravedad: acelera al final
+        ang = 0;
+        if (!t.hammerImpacted) {
+          t.hammerImpacted = true;
+          resolveNeutrofiloHammer(t);
+        }
+      } else {
+        // Rebote y fade
+        var u3 = (ha - 0.75) / 0.25;
+        hx = hitX;
+        hy = hitY - 14 * U * Math.sin(u3 * Math.PI);
+        ang = u3 * 0.5;
+      }
+      // Dibujar mazo
+      ctx.save();
+      ctx.translate(hx, hy);
+      ctx.rotate(ang);
+      // Sombra del mango
+      var mangoLen = 28 * U;
+      var mangoW = 5 * U;
+      var headW = 18 * U;
+      var headH = 16 * U;
+      // Mango (palo proteico)
+      ctx.fillStyle = "#5a3a8a";
+      ctx.fillRect(-mangoW / 2, -mangoLen, mangoW, mangoLen);
+      ctx.strokeStyle = "#2e1a4a";
+      ctx.lineWidth = 1.2 * U;
+      ctx.strokeRect(-mangoW / 2, -mangoLen, mangoW, mangoLen);
+      // Cabeza del mazo (rectángulo redondeado púrpura con textura NET)
+      ctx.fillStyle = "#8366b8";
+      ctx.beginPath();
+      ctx.ellipse(0, -mangoLen - headH / 2, headW, headH, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "#3d2470";
+      ctx.lineWidth = 1.6 * U;
+      ctx.stroke();
+      // Highlight blanco
+      ctx.fillStyle = "rgba(255, 255, 255, 0.40)";
+      ctx.beginPath();
+      ctx.ellipse(-headW * 0.30, -mangoLen - headH * 0.65, headW * 0.40, headH * 0.30, 0, 0, Math.PI * 2);
+      ctx.fill();
+      // Textura NET: 3 hebras cruzadas blancas sobre el mazo
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.75)";
+      ctx.lineWidth = 1.4 * U;
+      for (var nt = 0; nt < 3; nt++) {
+        var ny = -mangoLen - headH * 0.20 + nt * headH * 0.30;
+        ctx.beginPath();
+        ctx.moveTo(-headW * 0.85, ny);
+        ctx.lineTo( headW * 0.85, ny);
+        ctx.stroke();
+      }
+      ctx.restore();
+      // Reset flag para próximo uso
+      if (ha >= 1) { t.hammerImpacted = false; t.hammerTarget = null; }
+    }
   }
 
   function drawMacrofago(t, pulse, expression, blink) {

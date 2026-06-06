@@ -4251,28 +4251,35 @@
     var def = t.def;
     if (def.id === "neutrofilo") {
       // MARTILLAZO CELULAR: golpea al CAMINO en su sector más cercano.
-      // Si hay gérmenes en el área de impacto, los lastima (no es chase).
-      // Esto refuerza la metáfora "defiendo este tramo del camino".
+      // Si hay gérmenes en el área de impacto, los lastima.
+      // SIEMPRE se anima el martillazo (no hay check de rango — la
+      // torre planta su zona de defensa donde se haya colocado).
       var pt = nearestPointOnPath(t.x, t.y);
       var stats = towerStats(t);
       var rng = stats.range * U;
-      // Si el punto del camino más cercano está fuera del rango de la
-      // torre, NO se gasta la carga (no tendría sentido lógicamente).
-      // Sin path = caída inocua sobre el suelo bajo la torre.
-      if (!pt) {
-        t.hammerTarget = { x: t.x, y: t.y + 30 * U };
-      } else {
-        var d = Math.hypot(pt.x - t.x, pt.y - t.y);
-        if (d > rng) {
-          // Fuera de rango — flash de error, NO gasta carga.
-          flashFail();
-          return;
+      if (pt) {
+        // Si el punto del camino está dentro del rango, atacamos ahí.
+        // Si está fuera, clampeamos al punto del rango más cercano al
+        // camino (para que el martillazo no aparezca lejísimos).
+        var pdx = pt.x - t.x, pdy = pt.y - t.y;
+        var pdist = Math.hypot(pdx, pdy) || 1;
+        if (pdist > rng) {
+          // Clamp al borde del rango (dirección hacia el path).
+          t.hammerTarget = {
+            x: t.x + (pdx / pdist) * rng,
+            y: t.y + (pdy / pdist) * rng
+          };
+        } else {
+          t.hammerTarget = { x: pt.x, y: pt.y };
         }
-        t.hammerTarget = { x: pt.x, y: pt.y };
+      } else {
+        // Sin path (caso edge): cae al suelo bajo la torre.
+        t.hammerTarget = { x: t.x, y: t.y + 30 * U };
       }
       t.specialAnim = 0.65;
       t.specialReady = false;
       t.specialCharge = 0;
+      t.hammerImpacted = false;     // reset por si quedó del último uso
       sfx("upgrade");
       return;
     }

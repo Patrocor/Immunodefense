@@ -9101,82 +9101,185 @@
 
     // CARA (en el lado superior del cuerpo, sin chocar con núcleo).
     var neR = R * 0.20, ngap = R * 0.30, nfy = -R * 0.42;
-    if (blink) drawClosedEyes(0, nfy, neR, ngap);
+    // CARA LOCA durante el ultimate (martillazo) — sobrescribe lo demás.
+    var doingUltimate = (t.def.id === "neutrofilo" && (t.specialAnim || 0) > 0);
+    if (doingUltimate) {
+      var bigEyeR = neR * 1.55;
+      var crazyGap = ngap * 1.05;
+      // Ojos saltones (whites grandes, pupilas chiquititas dilatadas mirando arriba)
+      ctx.fillStyle = "#ffffff";
+      ctx.beginPath();
+      ctx.arc(-crazyGap, nfy, bigEyeR, 0, Math.PI * 2);
+      ctx.arc( crazyGap, nfy, bigEyeR, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "#1a1a22";
+      ctx.lineWidth = Math.max(1.0, 1.2 * U);
+      ctx.beginPath(); ctx.arc(-crazyGap, nfy, bigEyeR, 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath(); ctx.arc( crazyGap, nfy, bigEyeR, 0, Math.PI * 2); ctx.stroke();
+      // Pupilas chiquitas dilatadas mirando arriba
+      var pupR = bigEyeR * 0.28;
+      ctx.fillStyle = "#1a1a22";
+      ctx.beginPath();
+      ctx.arc(-crazyGap, nfy - bigEyeR * 0.30, pupR, 0, Math.PI * 2);
+      ctx.arc( crazyGap, nfy - bigEyeR * 0.30, pupR, 0, Math.PI * 2);
+      ctx.fill();
+      // Cejas v: ultra enojadas
+      ctx.strokeStyle = "#1a1a22";
+      ctx.lineWidth = Math.max(1.8, 2.2 * U);
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.moveTo(-crazyGap - bigEyeR * 1.0, nfy - bigEyeR * 1.40);
+      ctx.lineTo(-crazyGap + bigEyeR * 0.7, nfy - bigEyeR * 0.85);
+      ctx.moveTo( crazyGap - bigEyeR * 0.7, nfy - bigEyeR * 0.85);
+      ctx.lineTo( crazyGap + bigEyeR * 1.0, nfy - bigEyeR * 1.40);
+      ctx.stroke();
+      // Boca gigante abierta riendo (con dientes + lengua)
+      var mw = R * 0.55, mh = R * 0.42;
+      var my = nfy + R * 0.55;
+      ctx.fillStyle = "#1a1a22";
+      ctx.beginPath();
+      ctx.ellipse(0, my, mw, mh, 0, 0, Math.PI * 2);
+      ctx.fill();
+      // Dientes (zigzag arriba)
+      ctx.fillStyle = "#ffffff";
+      ctx.beginPath();
+      ctx.moveTo(-mw * 0.80, my - mh * 0.20);
+      var teeth = 5;
+      for (var ti = 0; ti < teeth; ti++) {
+        var u = ti / (teeth - 1);
+        var tx = -mw * 0.80 + u * mw * 1.60;
+        var ty = (ti % 2 === 0) ? my - mh * 0.20 : my + mh * 0.15;
+        ctx.lineTo(tx, ty);
+      }
+      ctx.lineTo(mw * 0.80, my - mh * 0.20);
+      ctx.closePath();
+      ctx.fill();
+      // Lengua rosada abajo
+      ctx.fillStyle = "#e85a7a";
+      ctx.beginPath();
+      ctx.ellipse(0, my + mh * 0.30, mw * 0.55, mh * 0.40, 0, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (blink) drawClosedEyes(0, nfy, neR, ngap);
     else if (expression === "dying") drawHurtEyes(0, nfy, neR, ngap);
     else if (expression === "levelup") drawSparkleEyes(0, nfy, neR, ngap);
     else if (attacking) drawFocusedEyes(0, nfy, neR, ngap, R * 0.14, R * 0.05);
     else drawAnimeEyes(0, nfy, neR, ngap, 0, 0, R * 0.10, R * 0.08, "fierce");
-    if (expression === "dying") drawAnimeMouth(0, nfy + R * 0.45, R * 0.40, R * 0.40, "open");
+    if (doingUltimate) {
+      // boca ya dibujada arriba
+    } else if (expression === "dying") drawAnimeMouth(0, nfy + R * 0.45, R * 0.40, R * 0.40, "open");
     else if (expression === "levelup") drawAnimeMouth(0, nfy + R * 0.42, R * 0.46, R * 0.28, "smile");
     else if (attacking) drawAnimeMouth(0, nfy + R * 0.42, R * 0.48, R * 0.48, "fanged");
     else drawAnimeMouth(0, nfy + R * 0.42, R * 0.36, R * 0.18, "serious");
 
     ctx.restore();
 
-    // ── MARTILLAZO CELULAR (ultimate del neutrofilo) ──
-    // Si specialAnim > 0 y es del neutrófilo, dibujamos el mazo cayendo
-    // sobre el target. Anim de 0.65s:
-    //   0.00-0.20: wind-up (mazo arriba)
-    //   0.20-0.40: pausa tensa
-    //   0.40-0.50: impacto (resolveNeutrofiloHammer aplica daño)
-    //   0.50-0.65: rebote y desaparece
+    // ── MARTILLAZO CELULAR — neutrofilo SOSTIENE el mazo con un brazo
+    // pseudópodo que se extiende, swing forward, golpea, retrae.
     if (t.def.id === "neutrofilo" && (t.specialAnim || 0) > 0 && t.hammerTarget) {
       var ha = 1 - t.specialAnim / 0.65;     // 0→1 progreso
       var ht = t.hammerTarget;
-      // Posiciones clave
-      var startX = t.x, startY = t.y - R * 1.4;
-      var apexX = ht.x, apexY = ht.y - R * 2.6;
-      var hitX  = ht.x, hitY  = ht.y;
-      var hx, hy, ang;
-      if (ha < 0.30) {
-        // Wind-up: del cuerpo del neutrófilo al ápice (arriba del target)
-        var u = ha / 0.30;
-        hx = startX + (apexX - startX) * u;
-        hy = startY + (apexY - startY) * u - 18 * U * Math.sin(u * Math.PI);
-        ang = -Math.PI / 4 + u * Math.PI / 4;
-      } else if (ha < 0.55) {
-        // Pausa tensa, vibrando en el ápice
-        var jx = (Math.random() - 0.5) * 2 * U;
-        var jy = (Math.random() - 0.5) * 2 * U;
-        hx = apexX + jx; hy = apexY + jy;
-        ang = 0 + Math.sin(ha * 40) * 0.10;
-        // Trigger del daño justo al inicio de la siguiente fase
-        if (!t.hammerImpacted && ha >= 0.50) {
-          t.hammerImpacted = true;
-        }
-      } else if (ha < 0.75) {
-        // Impacto: cae sobre target
-        var u2 = (ha - 0.55) / 0.20;
-        hx = apexX + (hitX - apexX) * u2;
-        hy = apexY + (hitY - apexY) * (u2 * u2);     // gravedad: acelera al final
-        ang = 0;
-        if (!t.hammerImpacted) {
+      // Dirección al target (para orientar el swing)
+      var ddx = ht.x - t.x, ddy = ht.y - t.y;
+      var ddist = Math.hypot(ddx, ddy) || 1;
+      var dnx = ddx / ddist, dny = ddy / ddist;
+      // Perpendicular: rotación 90° (para "atrás" del swing)
+      var perpX = -dny, perpY = dnx;
+
+      // Fases — todas relativas a ha (0..1):
+      //  WINDUP (0.00-0.40): mano va hacia atrás-arriba del cuerpo
+      //  SWING  (0.40-0.65): mano viaja en arco hacia el target
+      //  IMPACT (~0.60): aplica daño y FX
+      //  RECOIL (0.65-1.00): mano regresa al cuerpo
+      var handX, handY, hammerAng;
+      var shoulderX = t.x - dnx * R * 0.55;     // hombro: lado opuesto al target
+      var shoulderY = t.y - R * 0.20;           // ligeramente arriba del centro
+
+      if (ha < 0.40) {
+        // WINDUP: mano sube hacia atrás-arriba
+        var u = ha / 0.40;
+        var ue = u * u;                         // ease-in
+        // Posición rest (al lado opuesto del target)
+        var restX = t.x - dnx * R * 0.85, restY = t.y - R * 0.10;
+        // Posición wound-up (arriba-atrás, opuesta al target)
+        var coilX = t.x - dnx * R * 1.40 + perpX * R * 0.30;
+        var coilY = t.y - R * 2.10;
+        handX = restX + (coilX - restX) * ue;
+        handY = restY + (coilY - restY) * ue;
+        // Hammer apunta hacia ARRIBA-ATRÁS (eje del mango)
+        hammerAng = Math.atan2(dnx * -1, dny * -1) + Math.PI / 2;
+        hammerAng -= (1 - ue) * 0.5;            // pequeño rock
+      } else if (ha < 0.65) {
+        // SWING: mano viaja en arco hacia el target
+        var u2 = (ha - 0.40) / 0.25;
+        var u2e = 1 - Math.pow(1 - u2, 3);      // ease-out cubic (rápido)
+        var coilX2 = t.x - dnx * R * 1.40 + perpX * R * 0.30;
+        var coilY2 = t.y - R * 2.10;
+        var strikeX = ht.x, strikeY = ht.y - R * 0.40;
+        handX = coilX2 + (strikeX - coilX2) * u2e;
+        handY = coilY2 + (strikeY - coilY2) * u2e;
+        // El hammer rota desde "back-up" hacia "forward-down"
+        hammerAng = Math.atan2(dny, dnx) + Math.PI / 2;
+        // Impacto: aplicar daño cuando llega
+        if (!t.hammerImpacted && u2 >= 0.85) {
           t.hammerImpacted = true;
           resolveNeutrofiloHammer(t);
         }
       } else {
-        // Rebote y fade
-        var u3 = (ha - 0.75) / 0.25;
-        hx = hitX;
-        hy = hitY - 14 * U * Math.sin(u3 * Math.PI);
-        ang = u3 * 0.5;
+        // RECOIL: mano vuelve al cuerpo
+        var u3 = (ha - 0.65) / 0.35;
+        var u3e = u3 * u3;
+        var strikeX2 = ht.x, strikeY2 = ht.y - R * 0.40;
+        var restX2 = t.x - dnx * R * 0.85, restY2 = t.y - R * 0.10;
+        handX = strikeX2 + (restX2 - strikeX2) * u3e;
+        handY = strikeY2 + (restY2 - strikeY2) * u3e;
+        hammerAng = Math.atan2(dny, dnx) + Math.PI / 2 + u3 * 0.4;
       }
-      // Dibujar mazo
+
+      // ── DIBUJAR BRAZO (pseudópodo que se extiende del cuerpo) ──
+      var armBaseX = shoulderX, armBaseY = shoulderY;
+      var armMidX = (armBaseX + handX) / 2 + (perpX * 4 * U);
+      var armMidY = (armBaseY + handY) / 2 - 8 * U;
+      // Sombra/contorno del brazo
+      ctx.lineCap = "round";
+      ctx.strokeStyle = "rgba(126, 95, 176, 0.85)";
+      ctx.lineWidth = 7 * U;
+      ctx.beginPath();
+      ctx.moveTo(armBaseX, armBaseY);
+      ctx.quadraticCurveTo(armMidX, armMidY, handX, handY);
+      ctx.stroke();
+      // Cuerpo del brazo (más claro)
+      ctx.strokeStyle = "rgba(216, 200, 238, 0.95)";
+      ctx.lineWidth = 5 * U;
+      ctx.beginPath();
+      ctx.moveTo(armBaseX, armBaseY);
+      ctx.quadraticCurveTo(armMidX, armMidY, handX, handY);
+      ctx.stroke();
+      // Mano (puño cerrado agarrando el mango)
+      ctx.fillStyle = "#d8c8ee";
+      ctx.strokeStyle = "#7E5FB0";
+      ctx.lineWidth = 1.5 * U;
+      ctx.beginPath();
+      ctx.arc(handX, handY, 5.5 * U, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      // ── DIBUJAR MAZO (anclado en la mano, rotado según hammerAng) ──
       ctx.save();
-      ctx.translate(hx, hy);
-      ctx.rotate(ang);
-      // Sombra del mango
-      var mangoLen = 28 * U;
-      var mangoW = 5 * U;
-      var headW = 18 * U;
-      var headH = 16 * U;
+      ctx.translate(handX, handY);
+      ctx.rotate(hammerAng);
+      // El "0,0" local es la mano. El mango va hacia arriba (negativo Y),
+      // la cabeza del mazo en la punta.
+      var mangoLen = 26 * U;
+      var mangoW   = 5 * U;
+      var headW    = 17 * U;
+      var headH    = 15 * U;
       // Mango (palo proteico)
       ctx.fillStyle = "#5a3a8a";
       ctx.fillRect(-mangoW / 2, -mangoLen, mangoW, mangoLen);
       ctx.strokeStyle = "#2e1a4a";
       ctx.lineWidth = 1.2 * U;
       ctx.strokeRect(-mangoW / 2, -mangoLen, mangoW, mangoLen);
-      // Cabeza del mazo (rectángulo redondeado púrpura con textura NET)
+      // Cabeza del mazo
       ctx.fillStyle = "#8366b8";
       ctx.beginPath();
       ctx.ellipse(0, -mangoLen - headH / 2, headW, headH, 0, 0, Math.PI * 2);
@@ -9189,7 +9292,7 @@
       ctx.beginPath();
       ctx.ellipse(-headW * 0.30, -mangoLen - headH * 0.65, headW * 0.40, headH * 0.30, 0, 0, Math.PI * 2);
       ctx.fill();
-      // Textura NET: 3 hebras cruzadas blancas sobre el mazo
+      // Textura NET: 3 hebras blancas sobre la cabeza
       ctx.strokeStyle = "rgba(255, 255, 255, 0.75)";
       ctx.lineWidth = 1.4 * U;
       for (var nt = 0; nt < 3; nt++) {
@@ -9200,7 +9303,7 @@
         ctx.stroke();
       }
       ctx.restore();
-      // Reset flag para próximo uso
+      // Reset flag al terminar la anim
       if (ha >= 1) { t.hammerImpacted = false; t.hammerTarget = null; }
     }
   }

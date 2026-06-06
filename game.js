@@ -817,6 +817,11 @@
       cost: 83,
       desc: "Ametralladora de anticuerpos",
       machineGun: true,
+      // Ultimate: DIFERENCIACIÓN A PLASMOCITO — la torre se infla y
+      // dispara una ráfaga de 30 anticuerpos Y al sector más cercano
+      // del camino. Cada Y golpea a un germen del área.
+      specialChargeSec: 32,
+      specialName: "Plasmocito",
       levels: [
         { range: 180, damage: 2, fireRate: 12, projectileSpeed: 460, splash: 0, hp: 70 },
         { range: 210, damage: 3, fireRate: 16, projectileSpeed: 500, splash: 0, hp: 90 },
@@ -4283,6 +4288,57 @@
       sfx("upgrade");
       return;
     }
+    if (def.id === "linfocitoB") {
+      // DIFERENCIACIÓN A PLASMOCITO — el linfocito B se transforma
+      // momentáneamente en una fábrica de anticuerpos y dispara una
+      // ráfaga densa de Y's hacia el camino más cercano.
+      var ptB = nearestPointOnPath(t.x, t.y);
+      var statsB = towerStats(t);
+      var rngB = statsB.range * U;
+      var tgtX, tgtY;
+      if (ptB) {
+        var pdx = ptB.x - t.x, pdy = ptB.y - t.y;
+        var pdist = Math.hypot(pdx, pdy) || 1;
+        if (pdist > rngB) {
+          tgtX = t.x + (pdx / pdist) * rngB;
+          tgtY = t.y + (pdy / pdist) * rngB;
+        } else {
+          tgtX = ptB.x; tgtY = ptB.y;
+        }
+      } else {
+        tgtX = t.x; tgtY = t.y + 30 * U;
+      }
+      // Spawn 30 anticuerpos Y con stagger temporal (delay distinto cada uno)
+      var dartDmg = statsB.damage * 3;  // damage por Y (era stats.damage normal)
+      var NDARTS = 30;
+      for (var d = 0; d < NDARTS; d++) {
+        var delayJitter = (d / NDARTS) * 0.35;     // ráfaga distribuida en 0.35s
+        var spreadX = (Math.random() - 0.5) * 70 * U;
+        var spreadY = (Math.random() - 0.5) * 36 * U;
+        pushEffect({
+          kind: "antibodyDart",
+          x: t.x, y: t.y,
+          startX: t.x + (Math.random() - 0.5) * 10 * U,
+          startY: t.y + (Math.random() - 0.5) * 10 * U,
+          targetX: tgtX + spreadX,
+          targetY: tgtY + spreadY,
+          rot: Math.random() * Math.PI * 2,
+          rotSpd: (Math.random() - 0.5) * 18,
+          arcHeight: (28 + Math.random() * 22) * U,
+          delay: delayJitter,
+          life: 0.55 + delayJitter,            // travel time + delay
+          max:  0.55 + delayJitter,
+          travelTime: 0.55,
+          dmg: dartDmg,
+          impacted: false
+        });
+      }
+      t.specialAnim = 0.90;
+      t.specialReady = false;
+      t.specialCharge = 0;
+      sfx("upgrade");
+      return;
+    }
     // Fallback: si la torre no tiene ultimate implementado, no hace nada.
     t.specialReady = false;
     t.specialCharge = 0;
@@ -6293,6 +6349,40 @@
         // Decal estático del splat de muerte: solo desvanece.
       } else if (ef.kind === "biofilmDrop") {
         // Gotita estática del slime trail: solo desvanece.
+      } else if (ef.kind === "antibodyDart") {
+        // Dart "Y" del ultimate del linfocito B. Vuela en arco
+        // parabólico desde start a target; al llegar daña ONE germen
+        // cercano y desaparece.
+        if ((ef.delay || 0) > 0) {
+          ef.delay -= dt;
+        } else {
+          ef.travelT = (ef.travelT || 0) + dt;
+          var dp = Math.min(1, ef.travelT / ef.travelTime);
+          ef.x = ef.startX + (ef.targetX - ef.startX) * dp;
+          ef.y = ef.startY + (ef.targetY - ef.startY) * dp - ef.arcHeight * Math.sin(dp * Math.PI);
+          ef.rot = (ef.rot || 0) + ef.rotSpd * dt;
+          if (!ef.impacted && dp >= 0.96) {
+            ef.impacted = true;
+            var hitR = 14 * U;
+            for (var dei = 0; dei < state.enemies.length; dei++) {
+              var den = state.enemies[dei];
+              if (den.dead || den.dying || den.absorbing) continue;
+              if (den.state !== "walking" && den.state !== "blocked") continue;
+              var ddx = den.x - ef.targetX, ddy = den.y - ef.targetY;
+              if (ddx*ddx + ddy*ddy <= hitR * hitR) {
+                den.hp -= ef.dmg;
+                den.hitFlash = 0.30;
+                if (den.hp <= 0 && !den.dying) {
+                  den.hp = 0; den.dying = true; den.dyingTimer = 0.30;
+                  state.atp += den.def.reward;
+                  state.pathogensDefeated += 1;
+                }
+                pushDamageNumber(den.x + (Math.random() - 0.5) * 8 * U, den.y - den.def.radius * U, ef.dmg, "#7CFC9E");
+                break;     // cada dart solo golpea UN enemigo
+              }
+            }
+          }
+        }
       } else if (ef.kind === "pathCrack") {
         // Cráter del martillazo: solo desvanece (decal).
       } else if (ef.kind === "explosion") {
@@ -9514,19 +9604,39 @@
   }
 
   function drawLinfocitoB(t, pulse, expression, blink) {
+    // Linfocito B — célula con NÚCLEO REDONDO GRANDE (no multilobulado).
+    // En su membrana lleva ANTICUERPOS Y (BCR, IgM/IgD) anclados.
+    // Cuando se activa, se DIFERENCIA a PLASMOCITO — fábrica de
+    // anticuerpos en masa. Visualmente: cuerpo se infla, cara extática,
+    // explosión de Y's en el ultimate.
     var x = t.x, y = t.y;
-    var R = 18 * U * pulse;
+    var doingUltimate = (t.def.id === "linfocitoB" && (t.specialAnim || 0) > 0);
+    // Inflación durante el ultimate (plasmocito mode).
+    var ultBoost = 1.0;
+    if (doingUltimate) {
+      var ut = 1 - t.specialAnim / 0.90;     // 0→1 progreso
+      // Crece en los primeros 0.2 (ut 0→0.22), mantiene, decrece en último 0.2
+      if (ut < 0.22) ultBoost = 1 + (ut / 0.22) * 0.45;
+      else if (ut < 0.78) ultBoost = 1.45;
+      else ultBoost = 1 + ((1 - ut) / 0.22) * 0.45;
+    }
+    var R = 18 * U * pulse * ultBoost;
+    var t0 = state.time;
     ctx.save();
     ctx.translate(x, y);
-    // Antibodies "Y" rotating around
-    var ab = 5;
-    for (var i = 0; i < ab; i++) {
-      var a = i * Math.PI * 2 / ab + state.time * 0.8;
-      var ax = Math.cos(a) * (R + 8 * U);
-      var ay = Math.sin(a) * (R + 8 * U);
-      drawYShape(ax, ay, 5.5 * U, a + Math.PI / 2, "#fff7c4", t.def.colorDark);
-    }
-    // Body
+
+    // Aura verde sutil siempre; INTENSA durante ultimate.
+    var auraStrength = doingUltimate ? 0.55 : 0.25;
+    var auraR = R * (doingUltimate ? 2.2 : 1.6);
+    var auraGrad = ctx.createRadialGradient(0, 0, R * 0.5, 0, 0, auraR);
+    auraGrad.addColorStop(0, "rgba(124, 252, 158, " + (auraStrength * 0.55) + ")");
+    auraGrad.addColorStop(1, "rgba(124, 252, 158, 0)");
+    ctx.fillStyle = auraGrad;
+    ctx.beginPath();
+    ctx.arc(0, 0, auraR, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Cuerpo principal (membrana + citoplasma verde).
     var grad = ctx.createRadialGradient(-R * 0.3, -R * 0.3, R * 0.2, 0, 0, R);
     grad.addColorStop(0, "#c5ecd1");
     grad.addColorStop(0.6, t.def.color);
@@ -9536,18 +9646,75 @@
     ctx.arc(0, 0, R, 0, Math.PI * 2);
     ctx.fill();
     ctx.strokeStyle = t.def.colorDark;
-    ctx.lineWidth = Math.max(1.2, 1.5 * U);
+    ctx.lineWidth = Math.max(1.4, 1.7 * U);
     ctx.stroke();
-    // Face — expression-aware
+
+    // NÚCLEO redondo grande característico del linfocito (ocupa ~50%
+    // del cuerpo — los B/T linfocitos tienen poco citoplasma y mucho
+    // núcleo). Color verde oscuro.
+    var nucR = R * 0.50;
+    var nucGrad = ctx.createRadialGradient(-nucR * 0.30, -nucR * 0.35, nucR * 0.10, 0, 0, nucR);
+    nucGrad.addColorStop(0,    "rgba(60, 140, 90, 0.95)");
+    nucGrad.addColorStop(1,    "rgba(30, 90, 50, 0.95)");
+    ctx.fillStyle = nucGrad;
+    ctx.beginPath();
+    ctx.arc(0, R * 0.08, nucR, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "rgba(20, 70, 35, 0.65)";
+    ctx.lineWidth = 0.9 * U;
+    ctx.stroke();
+
+    // ANTICUERPOS Y pegados a la membrana (BCR de superficie).
+    // 5 en la membrana orbitando lento. Durante ultimate: 8 + más rápido.
+    var ab = doingUltimate ? 8 : 5;
+    var spinSpd = doingUltimate ? 3.5 : 0.8;
+    for (var i = 0; i < ab; i++) {
+      var a = i * Math.PI * 2 / ab + t0 * spinSpd;
+      var ax = Math.cos(a) * (R + 6 * U);
+      var ay = Math.sin(a) * (R + 6 * U);
+      drawYShape(ax, ay, doingUltimate ? 6 * U : 5.5 * U, a + Math.PI / 2, "#fff7c4", t.def.colorDark);
+    }
+
+    // CARA. Durante ultimate: extática maniática (ojos con estrellas
+    // grandes + boca enorme abierta sonriendo).
     var eyeR = R * 0.22;
-    if (blink) drawClosedEyes(0, -R * 0.10, eyeR, R * 0.32);
-    else if (expression === "dying") drawHurtEyes(0, -R * 0.10, eyeR, R * 0.32);
-    else if (expression === "levelup") drawSparkleEyes(0, -R * 0.10, eyeR, R * 0.32);
-    else if (expression === "attacking") drawFocusedEyes(0, -R * 0.10, eyeR, R * 0.32, R * 0.10, R * 0.04);
-    else drawAnimeEyes(0, -R * 0.10, eyeR, R * 0.32, 0, 0, R * 0.10, R * 0.06, "fierce");
-    if (expression === "dying") drawAnimeMouth(0, R * 0.32, R * 0.5, R * 0.45, "open");
-    else if (expression === "levelup") drawAnimeMouth(0, R * 0.32, R * 0.55, R * 0.30, "smile");
-    else drawAnimeMouth(0, R * 0.32, R * 0.42, R * 0.20, "serious");
+    var fy = -R * 0.18;
+    if (doingUltimate) {
+      // Eyes con sparkles + boca enorme
+      drawSparkleEyes(0, fy, eyeR * 1.30, R * 0.36);
+      ctx.fillStyle = "#1a1a22";
+      ctx.beginPath();
+      ctx.ellipse(0, R * 0.32, R * 0.50, R * 0.38, 0, 0, Math.PI * 2);
+      ctx.fill();
+      // Dientes (sonrisa)
+      ctx.fillStyle = "#fff";
+      ctx.beginPath();
+      var nT = 5;
+      ctx.moveTo(-R * 0.45, R * 0.18);
+      for (var ttI = 0; ttI < nT; ttI++) {
+        var uT = ttI / (nT - 1);
+        var ttX = -R * 0.45 + uT * R * 0.90;
+        var ttY = (ttI % 2 === 0) ? R * 0.18 : R * 0.40;
+        ctx.lineTo(ttX, ttY);
+      }
+      ctx.lineTo(R * 0.45, R * 0.18);
+      ctx.closePath();
+      ctx.fill();
+      // Lengua
+      ctx.fillStyle = "#e85a7a";
+      ctx.beginPath();
+      ctx.ellipse(0, R * 0.50, R * 0.30, R * 0.18, 0, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (blink) drawClosedEyes(0, fy, eyeR, R * 0.32);
+    else if (expression === "dying") drawHurtEyes(0, fy, eyeR, R * 0.32);
+    else if (expression === "levelup") drawSparkleEyes(0, fy, eyeR, R * 0.32);
+    else if (expression === "attacking") drawFocusedEyes(0, fy, eyeR, R * 0.32, R * 0.10, R * 0.04);
+    else drawAnimeEyes(0, fy, eyeR, R * 0.32, 0, 0, R * 0.10, R * 0.06, "fierce");
+    if (!doingUltimate) {
+      if (expression === "dying") drawAnimeMouth(0, R * 0.32, R * 0.5, R * 0.45, "open");
+      else if (expression === "levelup") drawAnimeMouth(0, R * 0.32, R * 0.55, R * 0.30, "smile");
+      else drawAnimeMouth(0, R * 0.32, R * 0.42, R * 0.20, "serious");
+    }
     ctx.restore();
   }
 
@@ -12713,6 +12880,23 @@
       ctx.beginPath();
       ctx.arc(ef.x - br * 0.32, ef.y - br * 0.40, br * 0.25, 0, Math.PI * 2);
       ctx.fill();
+    } else if (ef.kind === "antibodyDart") {
+      // Anticuerpo Y del ultimate del Linfocito B (vuela en arco).
+      if ((ef.delay || 0) > 0) {
+        // Aún no salió: no dibujar
+      } else if (!ef.impacted) {
+        ctx.save();
+        ctx.translate(ef.x, ef.y);
+        ctx.rotate(ef.rot || 0);
+        ctx.globalAlpha = alpha;
+        // Glow verde detrás
+        ctx.fillStyle = "rgba(124, 252, 158, " + (alpha * 0.40) + ")";
+        ctx.beginPath();
+        ctx.arc(0, 0, 7 * U, 0, Math.PI * 2);
+        ctx.fill();
+        drawYShape(0, 0, 5 * U, 0, "#fff7c4", "#2c8049");
+        ctx.restore();
+      }
     } else if (ef.kind === "pathCrack") {
       // Cráter dejado por el martillazo: círculo oscuro + grietas
       // radiales jagged que decaen.

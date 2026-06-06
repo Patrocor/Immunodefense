@@ -9266,39 +9266,6 @@
 
     ctx.restore();
 
-    // ── DEBUG TEMP: visualizar estado del ultimate ──
-    if (t.def.id === "neutrofilo") {
-      ctx.save();
-      ctx.font = "bold 9px Fredoka, sans-serif";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      // Charge % arriba de la torre
-      var pct = Math.round((t.specialCharge || 0) * 100);
-      ctx.fillStyle = "rgba(255, 255, 255, 0.85)";
-      ctx.fillText(pct + "%", t.x, t.y - 34 * U);
-      // Si está disparando, marcar el target con un círculo rojo
-      if ((t.specialAnim || 0) > 0 && t.hammerTarget) {
-        ctx.fillStyle = "rgba(255, 50, 50, 0.85)";
-        ctx.beginPath();
-        ctx.arc(t.hammerTarget.x, t.hammerTarget.y, 8 * U, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.strokeStyle = "#fff";
-        ctx.lineWidth = 1.5;
-        ctx.stroke();
-        // Línea torre→target
-        ctx.strokeStyle = "rgba(255, 50, 50, 0.55)";
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(t.x, t.y);
-        ctx.lineTo(t.hammerTarget.x, t.hammerTarget.y);
-        ctx.stroke();
-        // Tiempo restante de la animación
-        ctx.fillStyle = "rgba(255, 200, 100, 0.95)";
-        ctx.fillText("anim:" + t.specialAnim.toFixed(2), t.x, t.y - 44 * U);
-      }
-      ctx.restore();
-    }
-
     // ── MARTILLAZO CELULAR — el neutrofilo levanta el mazo MUY ALTO,
     // pausa tensa, y lo SLAMEA verticalmente sobre el target (rotación
     // 180° head-up → head-down). Sensación de "martillando con fuerza".
@@ -9374,8 +9341,16 @@
 
       // ── DIBUJAR BRAZO (pseudópodo que se extiende del cuerpo) ──
       var armBaseX = shoulderX, armBaseY = shoulderY;
-      var armMidX = (armBaseX + handX) / 2 + (perpX * 4 * U);
-      var armMidY = (armBaseY + handY) / 2 - 8 * U;
+      // Curvatura del brazo: punto medio se desplaza perpendicular al
+      // vector base→mano, para que se vea natural arqueado.
+      var armDx = handX - armBaseX, armDy = handY - armBaseY;
+      var armLen = Math.hypot(armDx, armDy) || 1;
+      var armPerpX = -armDy / armLen;   // perpendicular
+      var armPerpY =  armDx / armLen;
+      // Bend hacia afuera (lado opuesto al neutrofilo).
+      var bendSign = -dnxOnly;
+      var armMidX = (armBaseX + handX) / 2 + armPerpX * bendSign * 8 * U;
+      var armMidY = (armBaseY + handY) / 2 + armPerpY * bendSign * 8 * U - 4 * U;
       // Sombra/contorno del brazo
       ctx.lineCap = "round";
       ctx.strokeStyle = "rgba(126, 95, 176, 0.85)";

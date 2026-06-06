@@ -4268,34 +4268,78 @@
       }
       pushDamageNumber(en.x, en.y - en.def.radius * U, "💥 " + dmg, "#ffd24a");
     }
-    // Efectos del impacto: shake + onda + chispas radiales + dust
-    triggerShake(0.18, 4);
+    // Shake fuerte (Mjölnir golpeando)
+    triggerShake(0.25, 6);
+    // CRÁTER en el path: dura ~2.5s, decal jagged que envejece.
+    pushEffect({
+      kind: "pathCrack",
+      x: ht.x, y: ht.y,
+      r: 30 * U,
+      life: 2.5, max: 2.5,
+      seed: Math.random() * 1000
+    });
+    // Onda de choque expansiva
     pushEffect({
       kind: "explosion",
       x: ht.x, y: ht.y,
-      r: 4, max: 60 * U,
-      life: 0.40, max: 0.40
+      r: 4, max: 75 * U,
+      life: 0.50, max: 0.50
     });
+    // 2 nubes de polvo (capas para densidad)
     pushEffect({
       kind: "dust",
       x: ht.x, y: ht.y,
-      r: 8 * U, r0: 8 * U, maxR: 48 * U,
-      life: 0.55, max: 0.55,
-      color: "#ffd2a0"
+      r: 10 * U, r0: 10 * U, maxR: 62 * U,
+      life: 0.75, max: 0.75,
+      color: "#e8d2a8"
     });
-    for (var sk = 0; sk < 12; sk++) {
-      var sa = sk * (Math.PI / 6);
-      var spd = (90 + Math.random() * 90) * U;
+    pushEffect({
+      kind: "dust",
+      x: ht.x + 8 * U, y: ht.y - 4 * U,
+      r: 6 * U, r0: 6 * U, maxR: 40 * U,
+      life: 0.55, max: 0.55,
+      color: "#fff"
+    });
+    // 16 chispas radiales doradas
+    for (var sk = 0; sk < 16; sk++) {
+      var sa = sk * (Math.PI * 2 / 16) + Math.random() * 0.3;
+      var spd = (110 + Math.random() * 120) * U;
       pushEffect({
         kind: "particle",
         x: ht.x, y: ht.y,
         vx: Math.cos(sa) * spd,
-        vy: Math.sin(sa) * spd,
-        life: 0.45 + Math.random() * 0.20,
-        max: 0.65,
+        vy: Math.sin(sa) * spd - 20 * U,
+        life: 0.50 + Math.random() * 0.30,
+        max: 0.80,
         color: "#ffd24a"
       });
     }
+    // 10 ESCOMBROS (shards del path) — caen con gravedad
+    for (var sh = 0; sh < 10; sh++) {
+      var sang = -Math.PI / 2 + (Math.random() - 0.5) * Math.PI * 1.2;
+      var sspd = (140 + Math.random() * 130) * U;
+      pushEffect({
+        kind: "shard",
+        x: ht.x + (Math.random() - 0.5) * 12 * U,
+        y: ht.y + (Math.random() - 0.5) * 8 * U,
+        vx: Math.cos(sang) * sspd,
+        vy: Math.sin(sang) * sspd,
+        rot: Math.random() * Math.PI * 2,
+        rotSpd: (Math.random() - 0.5) * 14,
+        size: (5 + Math.random() * 6) * U,
+        life: 0.85 + Math.random() * 0.40,
+        max: 1.25,
+        color: "#b89070"
+      });
+    }
+    // Texto cómico "¡POW!" flotando
+    pushEffect({
+      kind: "dmgText",
+      x: ht.x, y: ht.y - 30 * U, vy: -40 * U,
+      text: "¡POW!",
+      life: 0.7, max: 0.7,
+      color: "#ffd24a"
+    });
   }
 
   function placeTower(x, y, typeId) {
@@ -6202,6 +6246,8 @@
         // Decal estático del splat de muerte: solo desvanece.
       } else if (ef.kind === "biofilmDrop") {
         // Gotita estática del slime trail: solo desvanece.
+      } else if (ef.kind === "pathCrack") {
+        // Cráter del martillazo: solo desvanece (decal).
       } else if (ef.kind === "explosion") {
         ef.r = ef.max * (1 - ef.life / 0.4);
       } else if (ef.kind === "dmgText" || ef.kind === "atpText") {
@@ -9263,45 +9309,92 @@
       ctx.fill();
       ctx.stroke();
 
-      // ── DIBUJAR MAZO (anclado en la mano, rotado según hammerAng) ──
+      // ── DIBUJAR MAZO estilo MJÖLNIR CARTOON (desproporcionado) ──
       ctx.save();
       ctx.translate(handX, handY);
       ctx.rotate(hammerAng);
       // El "0,0" local es la mano. El mango va hacia arriba (negativo Y),
-      // la cabeza del mazo en la punta.
-      var mangoLen = 26 * U;
-      var mangoW   = 5 * U;
-      var headW    = 17 * U;
-      var headH    = 15 * U;
-      // Mango (palo proteico)
-      ctx.fillStyle = "#5a3a8a";
-      ctx.fillRect(-mangoW / 2, -mangoLen, mangoW, mangoLen);
-      ctx.strokeStyle = "#2e1a4a";
-      ctx.lineWidth = 1.2 * U;
-      ctx.strokeRect(-mangoW / 2, -mangoLen, mangoW, mangoLen);
-      // Cabeza del mazo
-      ctx.fillStyle = "#8366b8";
-      ctx.beginPath();
-      ctx.ellipse(0, -mangoLen - headH / 2, headW, headH, 0, 0, Math.PI * 2);
-      ctx.fill();
+      // la cabeza del mazo (enorme y achatada) en la punta.
+      var mangoLen = 28 * U;
+      var mangoW   = 7 * U;
+      var headW    = 32 * U;          // MUCHO más ancho (cartoon Mjölnir)
+      var headH    = 22 * U;          // más alto también
+      var headY    = -mangoLen - headH / 2;
+
+      // Empuñadura ENVUELTA en cinta (3 segmentos en la base del mango)
+      ctx.fillStyle = "#7E5FB0";
+      ctx.fillRect(-mangoW / 2 - 1, -8 * U, mangoW + 2, 8 * U);
       ctx.strokeStyle = "#3d2470";
-      ctx.lineWidth = 1.6 * U;
-      ctx.stroke();
-      // Highlight blanco
-      ctx.fillStyle = "rgba(255, 255, 255, 0.40)";
-      ctx.beginPath();
-      ctx.ellipse(-headW * 0.30, -mangoLen - headH * 0.65, headW * 0.40, headH * 0.30, 0, 0, Math.PI * 2);
-      ctx.fill();
-      // Textura NET: 3 hebras blancas sobre la cabeza
-      ctx.strokeStyle = "rgba(255, 255, 255, 0.75)";
-      ctx.lineWidth = 1.4 * U;
-      for (var nt = 0; nt < 3; nt++) {
-        var ny = -mangoLen - headH * 0.20 + nt * headH * 0.30;
+      ctx.lineWidth = 1.0 * U;
+      for (var gr = 0; gr < 3; gr++) {
         ctx.beginPath();
-        ctx.moveTo(-headW * 0.85, ny);
-        ctx.lineTo( headW * 0.85, ny);
+        ctx.moveTo(-mangoW / 2 - 1, -2 * U - gr * 2 * U);
+        ctx.lineTo( mangoW / 2 + 1, -2 * U - gr * 2 * U);
         ctx.stroke();
       }
+      // Mango (palo proteico grueso) — desde el grip hasta la cabeza
+      ctx.fillStyle = "#5a3a8a";
+      ctx.fillRect(-mangoW / 2, -mangoLen, mangoW, mangoLen - 8 * U);
+      ctx.strokeStyle = "#2e1a4a";
+      ctx.lineWidth = 1.4 * U;
+      ctx.strokeRect(-mangoW / 2, -mangoLen, mangoW, mangoLen);
+      // Highlight central del mango (línea blanca vertical)
+      ctx.fillStyle = "rgba(255, 255, 255, 0.30)";
+      ctx.fillRect(-mangoW / 2 + 1, -mangoLen + 2, 1.5, mangoLen - 4);
+
+      // ── CABEZA del MAZO (forma rectangular tipo Mjölnir) ──
+      // Sombra de la cabeza (capa de profundidad debajo)
+      ctx.fillStyle = "rgba(0, 0, 0, 0.30)";
+      ctx.fillRect(-headW / 2 + 1.5, headY - headH / 2 + 2, headW, headH);
+      // Cuerpo principal (gradient vertical para volumen)
+      var headGrad = ctx.createLinearGradient(0, headY - headH / 2, 0, headY + headH / 2);
+      headGrad.addColorStop(0,    "#A78BD8");
+      headGrad.addColorStop(0.50, "#8366b8");
+      headGrad.addColorStop(1,    "#4a2e7a");
+      ctx.fillStyle = headGrad;
+      ctx.fillRect(-headW / 2, headY - headH / 2, headW, headH);
+      // Outline grueso negro-púrpura (cartoon look)
+      ctx.strokeStyle = "#2a0f55";
+      ctx.lineWidth = 2.4 * U;
+      ctx.strokeRect(-headW / 2, headY - headH / 2, headW, headH);
+      // BANDAS METÁLICAS en los extremos (estilo Mjölnir)
+      var bandW = 4 * U;
+      ctx.fillStyle = "#3d2470";
+      ctx.fillRect(-headW / 2, headY - headH / 2, bandW, headH);
+      ctx.fillRect( headW / 2 - bandW, headY - headH / 2, bandW, headH);
+      // Remaches en cada banda (4 puntos)
+      ctx.fillStyle = "#d4c2eb";
+      for (var rv = 0; rv < 3; rv++) {
+        var ry = headY - headH / 2 + headH * (0.25 + rv * 0.25);
+        ctx.beginPath();
+        ctx.arc(-headW / 2 + bandW / 2, ry, 1.4 * U, 0, Math.PI * 2);
+        ctx.arc( headW / 2 - bandW / 2, ry, 1.4 * U, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      // GRABADOS centrales (runas tipo Mjölnir) — 2 líneas + diamante
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.65)";
+      ctx.lineWidth = 1.6 * U;
+      ctx.beginPath();
+      ctx.moveTo(-headW * 0.30, headY - headH * 0.30);
+      ctx.lineTo( headW * 0.30, headY - headH * 0.30);
+      ctx.moveTo(-headW * 0.30, headY + headH * 0.30);
+      ctx.lineTo( headW * 0.30, headY + headH * 0.30);
+      ctx.stroke();
+      // Diamante en el centro
+      ctx.fillStyle = "rgba(255, 230, 130, 0.85)";
+      ctx.beginPath();
+      ctx.moveTo(0, headY - headH * 0.18);
+      ctx.lineTo(headW * 0.10, headY);
+      ctx.lineTo(0, headY + headH * 0.18);
+      ctx.lineTo(-headW * 0.10, headY);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = "#5a3a08";
+      ctx.lineWidth = 1.0 * U;
+      ctx.stroke();
+      // Highlight superior (efecto metal pulido)
+      ctx.fillStyle = "rgba(255, 255, 255, 0.45)";
+      ctx.fillRect(-headW * 0.35, headY - headH / 2 + 2, headW * 0.50, 3 * U);
       ctx.restore();
       // Reset flag al terminar la anim
       if (ha >= 1) { t.hammerImpacted = false; t.hammerTarget = null; }
@@ -12554,6 +12647,57 @@
       ctx.beginPath();
       ctx.arc(ef.x - br * 0.32, ef.y - br * 0.40, br * 0.25, 0, Math.PI * 2);
       ctx.fill();
+    } else if (ef.kind === "pathCrack") {
+      // Cráter dejado por el martillazo: círculo oscuro + grietas
+      // radiales jagged que decaen.
+      ctx.save();
+      ctx.translate(ef.x, ef.y);
+      ctx.globalAlpha = alpha * 0.85;
+      // Cráter oscuro central
+      var cgrad = ctx.createRadialGradient(0, 0, ef.r * 0.10, 0, 0, ef.r);
+      cgrad.addColorStop(0,   "rgba(40, 20, 30, 0.85)");
+      cgrad.addColorStop(0.6, "rgba(80, 40, 50, 0.50)");
+      cgrad.addColorStop(1,   "rgba(80, 40, 50, 0)");
+      ctx.fillStyle = cgrad;
+      ctx.beginPath();
+      ctx.arc(0, 0, ef.r, 0, Math.PI * 2);
+      ctx.fill();
+      // Grietas radiales jagged (6-8 ramificadas)
+      ctx.strokeStyle = "rgba(30, 10, 20, " + (alpha * 0.85) + ")";
+      ctx.lineWidth = 2.4;
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      var seed = ef.seed || 0;
+      function pseudoRand(i) { return (Math.sin(seed + i * 12.9898) * 43758.5453) % 1; }
+      var nCracks = 7;
+      for (var ck = 0; ck < nCracks; ck++) {
+        var a = ck * (Math.PI * 2 / nCracks) + pseudoRand(ck) * 0.4;
+        var len = ef.r * (1.2 + Math.abs(pseudoRand(ck * 3 + 1)) * 0.6);
+        var x1 = 0, y1 = 0;
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        var segs = 4;
+        for (var sg = 1; sg <= segs; sg++) {
+          var u = sg / segs;
+          var jitterPerp = (pseudoRand(ck * 9 + sg) - 0.5) * len * 0.18;
+          var x2 = Math.cos(a) * u * len + Math.cos(a + Math.PI / 2) * jitterPerp;
+          var y2 = Math.sin(a) * u * len + Math.sin(a + Math.PI / 2) * jitterPerp;
+          ctx.lineTo(x2, y2);
+        }
+        ctx.stroke();
+        // Pequeña ramificación al final
+        var brAng = a + (pseudoRand(ck * 17) - 0.5) * 0.8;
+        var brLen = len * 0.30;
+        var brStartX = Math.cos(a) * len * 0.75;
+        var brStartY = Math.sin(a) * len * 0.75;
+        ctx.lineWidth = 1.6;
+        ctx.beginPath();
+        ctx.moveTo(brStartX, brStartY);
+        ctx.lineTo(brStartX + Math.cos(brAng) * brLen, brStartY + Math.sin(brAng) * brLen);
+        ctx.stroke();
+        ctx.lineWidth = 2.4;
+      }
+      ctx.restore();
     } else if (ef.kind === "splat") {
       // Decal en el camino: mancha irregular que se desvanece.
       ctx.save();

@@ -9219,66 +9219,77 @@
 
     ctx.restore();
 
-    // ── MARTILLAZO CELULAR — neutrofilo SOSTIENE el mazo con un brazo
-    // pseudópodo que se extiende, swing forward, golpea, retrae.
+    // ── MARTILLAZO CELULAR — el neutrofilo levanta el mazo MUY ALTO,
+    // pausa tensa, y lo SLAMEA verticalmente sobre el target (rotación
+    // 180° head-up → head-down). Sensación de "martillando con fuerza".
     if (t.def.id === "neutrofilo" && (t.specialAnim || 0) > 0 && t.hammerTarget) {
       var ha = 1 - t.specialAnim / 0.65;     // 0→1 progreso
       var ht = t.hammerTarget;
-      // Dirección al target (para orientar el swing)
-      var ddx = ht.x - t.x, ddy = ht.y - t.y;
-      var ddist = Math.hypot(ddx, ddy) || 1;
-      var dnx = ddx / ddist, dny = ddy / ddist;
-      // Perpendicular: rotación 90° (para "atrás" del swing)
-      var perpX = -dny, perpY = dnx;
-
-      // Fases — todas relativas a ha (0..1):
-      //  WINDUP (0.00-0.40): mano va hacia atrás-arriba del cuerpo
-      //  SWING  (0.40-0.65): mano viaja en arco hacia el target
-      //  IMPACT (~0.60): aplica daño y FX
-      //  RECOIL (0.65-1.00): mano regresa al cuerpo
+      // Dirección al target — solo se usa para elegir la DIRECCIÓN de
+      // rotación del mazo (pasa por el lado del neutrofilo). El golpe
+      // en sí es VERTICAL (mano arriba del target, cae a plomo).
+      var ddx = ht.x - t.x;
+      var dnxOnly = ddx >= 0 ? 1 : -1;        // target a la derecha (+1) o izquierda (-1)
+      // Tamaños del mazo (deben coincidir con la sección de dibujo abajo).
+      var HAMMER_MANGO = 28 * U;
+      var HAMMER_HEADH = 26 * U;              // un poco más alto (era 22)
+      var L = HAMMER_MANGO + HAMMER_HEADH * 0.5;   // distancia hand→head center
+      // Posición de la mano en el ÁPICE (alto sobre el target).
+      var apexHandY = ht.y - L - 26 * U;       // 26u extra para drama
+      var impactHandY = ht.y - L;              // mano justo donde el head pega al target
+      // Hombro: emerge del cuerpo del neutrofilo (lado opuesto al target).
+      var shoulderX = t.x - dnxOnly * R * 0.55;
+      var shoulderY = t.y - R * 0.20;
+      // Rotación del mazo: 0 = head UP. PI = head DOWN. Signo determina
+      // por qué lado pasa la cabeza (queremos que pase por el lado del
+      // neutrofilo → overhead swing visible).
+      var rotSign = (dnxOnly > 0) ? -1 : 1;
       var handX, handY, hammerAng;
-      var shoulderX = t.x - dnx * R * 0.55;     // hombro: lado opuesto al target
-      var shoulderY = t.y - R * 0.20;           // ligeramente arriba del centro
 
-      if (ha < 0.40) {
-        // WINDUP: mano sube hacia atrás-arriba
-        var u = ha / 0.40;
-        var ue = u * u;                         // ease-in
-        // Posición rest (al lado opuesto del target)
-        var restX = t.x - dnx * R * 0.85, restY = t.y - R * 0.10;
-        // Posición wound-up (arriba-atrás, opuesta al target)
-        var coilX = t.x - dnx * R * 1.40 + perpX * R * 0.30;
-        var coilY = t.y - R * 2.10;
-        handX = restX + (coilX - restX) * ue;
-        handY = restY + (coilY - restY) * ue;
-        // Hammer apunta hacia ARRIBA-ATRÁS (eje del mango)
-        hammerAng = Math.atan2(dnx * -1, dny * -1) + Math.PI / 2;
-        hammerAng -= (1 - ue) * 0.5;            // pequeño rock
-      } else if (ha < 0.65) {
-        // SWING: mano viaja en arco hacia el target
-        var u2 = (ha - 0.40) / 0.25;
-        var u2e = 1 - Math.pow(1 - u2, 3);      // ease-out cubic (rápido)
-        var coilX2 = t.x - dnx * R * 1.40 + perpX * R * 0.30;
-        var coilY2 = t.y - R * 2.10;
-        var strikeX = ht.x, strikeY = ht.y - R * 0.40;
-        handX = coilX2 + (strikeX - coilX2) * u2e;
-        handY = coilY2 + (strikeY - coilY2) * u2e;
-        // El hammer rota desde "back-up" hacia "forward-down"
-        hammerAng = Math.atan2(dny, dnx) + Math.PI / 2;
-        // Impacto: aplicar daño cuando llega
-        if (!t.hammerImpacted && u2 >= 0.85) {
+      if (ha < 0.32) {
+        // WINDUP: mano sube de rest a apex (parabólica ease-out).
+        var u = ha / 0.32;
+        var ue = 1 - Math.pow(1 - u, 3);
+        var restX = t.x + dnxOnly * R * 0.5;
+        var restY = t.y - R * 0.20;
+        handX = restX + (ht.x - restX) * ue;
+        // Arco parabólico para que la subida se sienta dramática.
+        handY = restY + (apexHandY - restY) * ue - 18 * U * Math.sin(u * Math.PI);
+        hammerAng = 0;                         // head UP
+      } else if (ha < 0.48) {
+        // HOLD: pausa tensa en el ápice con micro-vibración.
+        handX = ht.x + (Math.random() - 0.5) * 1.6 * U;
+        handY = apexHandY + (Math.random() - 0.5) * 1.6 * U;
+        hammerAng = (Math.random() - 0.5) * 0.06;
+      } else if (ha < 0.66) {
+        // SLAM: rotación 180° (ease-in cuadrático, SWOOSH) + mano cae
+        // un poco para que el head termine exacto sobre el target.
+        var u2 = (ha - 0.48) / 0.18;
+        var u2e = u2 * u2 * u2;                // ease-in cubic (acelera al final)
+        hammerAng = rotSign * Math.PI * u2e;
+        handX = ht.x;
+        handY = apexHandY + (impactHandY - apexHandY) * u2e;
+        if (!t.hammerImpacted && u2 >= 0.95) {
           t.hammerImpacted = true;
           resolveNeutrofiloHammer(t);
         }
+      } else if (ha < 0.82) {
+        // POST-IMPACT: mazo descansa sobre el cráter con micro-temblor
+        // (el path destruido vibra).
+        var u3 = (ha - 0.66) / 0.16;
+        var damp = (1 - u3) * 2.0 * U;
+        handX = ht.x + Math.sin(u3 * 30) * damp;
+        handY = impactHandY + Math.cos(u3 * 30) * damp * 0.4;
+        hammerAng = rotSign * Math.PI + Math.sin(u3 * 30) * damp * 0.02;
       } else {
-        // RECOIL: mano vuelve al cuerpo
-        var u3 = (ha - 0.65) / 0.35;
-        var u3e = u3 * u3;
-        var strikeX2 = ht.x, strikeY2 = ht.y - R * 0.40;
-        var restX2 = t.x - dnx * R * 0.85, restY2 = t.y - R * 0.10;
-        handX = strikeX2 + (restX2 - strikeX2) * u3e;
-        handY = strikeY2 + (restY2 - strikeY2) * u3e;
-        hammerAng = Math.atan2(dny, dnx) + Math.PI / 2 + u3 * 0.4;
+        // RECOIL: mano se retrae al cuerpo, rotación vuelve a 0.
+        var u4 = (ha - 0.82) / 0.18;
+        var u4e = u4 * u4;
+        var restX2 = t.x + dnxOnly * R * 0.5;
+        var restY2 = t.y - R * 0.20;
+        handX = ht.x + (restX2 - ht.x) * u4e;
+        handY = impactHandY + (restY2 - impactHandY) * u4e;
+        hammerAng = rotSign * Math.PI * (1 - u4);
       }
 
       // ── DIBUJAR BRAZO (pseudópodo que se extiende del cuerpo) ──
@@ -9317,8 +9328,8 @@
       // la cabeza del mazo (enorme y achatada) en la punta.
       var mangoLen = 28 * U;
       var mangoW   = 7 * U;
-      var headW    = 32 * U;          // MUCHO más ancho (cartoon Mjölnir)
-      var headH    = 22 * U;          // más alto también
+      var headW    = 38 * U;          // CABEZA MÁS GRANDE (cartoon Mjölnir)
+      var headH    = 26 * U;
       var headY    = -mangoLen - headH / 2;
 
       // Empuñadura ENVUELTA en cinta (3 segmentos en la base del mango)

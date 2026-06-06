@@ -4219,30 +4219,61 @@
   // ════════════════════════════════════════════════════════════════
   // PODERES ESPECIALES POR TORRE (ultimates con carga circular)
   // ════════════════════════════════════════════════════════════════
+
+  // Busca el punto del CAMINO más cercano a (tx, ty). Itera por todos los
+  // samples de PATH.main y PATH.branches. Retorna { x, y } o null si no
+  // hay path. Útil para "martillazos al camino" y otros ataques de zona
+  // que defienden el corridor (no chase del enemigo).
+  function nearestPointOnPath(tx, ty) {
+    var best = null, bestD2 = Infinity;
+    function scan(beziers) {
+      if (!beziers) return;
+      for (var i = 0; i < beziers.length; i++) {
+        var samples = beziers[i].samples;
+        if (!samples) continue;
+        for (var j = 0; j < samples.length; j++) {
+          var s = samples[j];
+          var dx = s.x - tx, dy = s.y - ty;
+          var d2 = dx * dx + dy * dy;
+          if (d2 < bestD2) { bestD2 = d2; best = { x: s.x, y: s.y }; }
+        }
+      }
+    }
+    if (PATH.main) scan(PATH.main.beziers);
+    if (PATH.branches) {
+      for (var b = 0; b < PATH.branches.length; b++) scan(PATH.branches[b].beziers);
+    }
+    return best;
+  }
+
   function triggerTowerSpecial(t) {
     if (!t || !t.specialReady) return;
     var def = t.def;
     if (def.id === "neutrofilo") {
-      // MARTILLAZO CELULAR: busca el germen más cercano EN RANGO y le
-      // pega un golpe masivo. Anim de 0.6s para que se vea el mazo.
+      // MARTILLAZO CELULAR: golpea al CAMINO en su sector más cercano.
+      // Si hay gérmenes en el área de impacto, los lastima (no es chase).
+      // Esto refuerza la metáfora "defiendo este tramo del camino".
+      var pt = nearestPointOnPath(t.x, t.y);
       var stats = towerStats(t);
       var rng = stats.range * U;
-      var best = null, bestD = Infinity;
-      for (var ei = 0; ei < state.enemies.length; ei++) {
-        var en = state.enemies[ei];
-        if (en.dead || en.dying || en.absorbing) continue;
-        if (en.state !== "walking" && en.state !== "blocked") continue;
-        var dx = en.x - t.x, dy = en.y - t.y;
-        var d = Math.hypot(dx, dy);
-        if (d <= rng && d < bestD) { best = en; bestD = d; }
+      // Si el punto del camino más cercano está fuera del rango de la
+      // torre, NO se gasta la carga (no tendría sentido lógicamente).
+      // Sin path = caída inocua sobre el suelo bajo la torre.
+      if (!pt) {
+        t.hammerTarget = { x: t.x, y: t.y + 30 * U };
+      } else {
+        var d = Math.hypot(pt.x - t.x, pt.y - t.y);
+        if (d > rng) {
+          // Fuera de rango — flash de error, NO gasta carga.
+          flashFail();
+          return;
+        }
+        t.hammerTarget = { x: pt.x, y: pt.y };
       }
-      // Aunque no haya target, igual gasta la carga (el martillazo cae
-      // al piso). El usuario aprende a tapear con gérmenes en rango.
-      t.specialAnim = 0.65;        // duración total de la anim
+      t.specialAnim = 0.65;
       t.specialReady = false;
       t.specialCharge = 0;
-      t.hammerTarget = best ? { x: best.x, y: best.y, enemy: best } : { x: t.x, y: t.y + 30 * U, enemy: null };
-      sfx("upgrade");              // wind-up sound
+      sfx("upgrade");
       return;
     }
     // Fallback: si la torre no tiene ultimate implementado, no hace nada.
@@ -4251,13 +4282,21 @@
   }
 
   // Aplica el daño + efectos del martillazo en el momento del impacto.
+  // El martillazo es zona: daña a TODOS los gérmenes en un radio del
+  // punto de impacto en el camino.
   function resolveNeutrofiloHammer(t) {
     var ht = t.hammerTarget;
     if (!ht) return;
-    var en = ht.enemy;
     var stats = towerStats(t);
-    var dmg = stats.damage * 8;     // martillazo: 8x daño normal
-    if (en && !en.dead && !en.dying) {
+    var dmg = stats.damage * 8;            // martillazo: 8x daño normal
+    var hitRadius = 32 * U;                 // área de impacto del mazo
+    var hitCount = 0;
+    for (var ei = 0; ei < state.enemies.length; ei++) {
+      var en = state.enemies[ei];
+      if (en.dead || en.dying || en.absorbing) continue;
+      if (en.state !== "walking" && en.state !== "blocked") continue;
+      var ex = en.x - ht.x, ey = en.y - ht.y;
+      if (ex * ex + ey * ey > hitRadius * hitRadius) continue;
       en.hp -= dmg;
       en.hitFlash = 0.45;
       en.hurtTimer = 0.30;
@@ -4267,6 +4306,7 @@
         state.pathogensDefeated += 1;
       }
       pushDamageNumber(en.x, en.y - en.def.radius * U, "💥 " + dmg, "#ffd24a");
+      hitCount++;
     }
     // Shake fuerte (Mjölnir golpeando)
     triggerShake(0.25, 6);

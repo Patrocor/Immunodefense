@@ -13687,19 +13687,21 @@
     var def = TOWER_DEFS[typeId];
     ctx.save();
     ctx.translate(cx, cy);
-    var grad = ctx.createRadialGradient(-R * 0.3, -R * 0.3, R * 0.2, 0, 0, R);
+    // Gradient SUAVE que se desvanece a transparente en el borde —
+    // sin outline rígido (eliminamos el efecto "globo de diálogo"
+    // que generaba un círculo nítido dentro del card).
+    var grad = ctx.createRadialGradient(-R * 0.3, -R * 0.3, R * 0.2, 0, 0, R * 1.05);
     var hot = enabled ? def.color : "#666";
-    grad.addColorStop(0, "#ffffff");
-    grad.addColorStop(0.4, hot);
-    grad.addColorStop(1, def.colorDark);
+    grad.addColorStop(0,    "#ffffff");
+    grad.addColorStop(0.35, hot);
+    grad.addColorStop(0.85, def.colorDark);
+    grad.addColorStop(1,    colorAlpha(def.colorDark, 0));   // desvanece al borde
     ctx.fillStyle = grad;
     ctx.beginPath();
-    ctx.arc(0, 0, R, 0, Math.PI * 2);
+    ctx.arc(0, 0, R * 1.05, 0, Math.PI * 2);
     ctx.fill();
-    // Outline suave para evitar efecto "globo" (era 1.2px sólido).
-    ctx.strokeStyle = "rgba(0,0,0,0.30)";
-    ctx.lineWidth = 0.8;
-    ctx.stroke();
+    // SIN outline — el ícono se integra con el card en vez de quedar
+    // como un círculo nítido sobre el fondo.
     // Clipea las decoraciones dentro del círculo del avatar para que las
     // cartas se vean como rectángulos limpios (sin anticuerpos/dendritas/bumps
     // sobresaliendo y dando efecto de "globo de diálogo").

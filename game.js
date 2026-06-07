@@ -313,10 +313,11 @@
     // que el campo use TODO el alto. Portrait: dock angosto (~27% del ancho);
     // landscape: dock fijo cómodo. Incluye safeRight para no quedar bajo el
     // notch/esquina redondeada del lado derecho.
-    // Dock más compacto (cartas y cajones aún más chicos: -10% adicional).
+    // Dock más compacto (-35% adicional vs el dock anterior) para que
+    // el campo de juego se expanda. Cartas adentro usan shortName.
     SIDE_INNER = isPortrait
-      ? Math.round(Math.max(72, Math.min(91, VW * 0.212)))
-      : Math.round(Math.max(85, Math.min(118, VW * 0.125)));
+      ? Math.round(Math.max(54, Math.min(66, VW * 0.138)))
+      : Math.round(Math.max(60, Math.min(80, VW * 0.082)));
     SIDE_W = SIDE_INNER + safeRight;
     HUD_H = Math.round(hudBase + safeTop);
     PANEL_H = 0;  // legacy: ya no hay franja inferior
@@ -794,6 +795,7 @@
     neutrofilo: {
       id: "neutrofilo",
       name: "Neutrofilo",
+      shortName: "Neutro",
       color: "#B79CE0",
       colorDark: "#7E5FB0",
       cost: 55,
@@ -812,6 +814,7 @@
     linfocitoB: {
       id: "linfocitoB",
       name: "Linfocito B",
+      shortName: "Linfo B",
       color: "#50C878",
       colorDark: "#2c8049",
       cost: 83,
@@ -832,6 +835,7 @@
     linfocitoT: {
       id: "linfocitoT",
       name: "Linfocito T",
+      shortName: "Linfo T",
       color: "#9370DB",
       colorDark: "#5d44a0",
       cost: 121,
@@ -844,7 +848,7 @@
       upgradeCost: [120, 200]
     },
     langerhans: {
-      id: "langerhans", name: "Cel. de Langerhans", shortName: "Langerhans",
+      id: "langerhans", name: "Cel. de Langerhans", shortName: "Langer",
       color: "#3FC1C9", colorDark: "#26797f", cost: 70, desc: "Marca antigeno (+dano)",
       support: "mark",
       levels: [
@@ -871,7 +875,7 @@
       upgradeCost: [100, 165]
     },
     eosinofilo: {
-      id: "eosinofilo", name: "Eosinofilo", shortName: "Eosinofilo",
+      id: "eosinofilo", name: "Eosinofilo", shortName: "Eosin",
       color: "#F2774E", colorDark: "#a8401f", cost: 88, desc: "Antiparasito (granulos)",
       bonusVs: { kind: "parasito", mult: 2.6 },
       levels: [
@@ -882,7 +886,7 @@
       upgradeCost: [95, 150]
     },
     mastocito: {
-      id: "mastocito", name: "Mastocito", shortName: "Mastocito",
+      id: "mastocito", name: "Mastocito", shortName: "Masto",
       color: "#4F8FE0", colorDark: "#2c5da0", cost: 75, desc: "Histamina (ralentiza)",
       support: "slow",
       persistAcrossPhases: true,  // tank/soporte tisular: una vez desbloqueado, queda
@@ -14241,7 +14245,9 @@
         ctx.fillStyle = canAfford ? "#fff" : "rgba(255,255,255,0.45)";
         var fs1 = Math.max(11, Math.min(13, cw * 0.10));
         ctx.font = "bold " + fs1 + "px Fredoka, sans-serif";
-        var nameStr = (cw - textX + cardX < 100 && def.shortName) ? def.shortName : def.name;
+        // Dock compacto: SIEMPRE shortName si existe (los nombres largos
+        // no caben en el ancho actual).
+        var nameStr = def.shortName || def.name;
         // Truncar si el texto se sale.
         while (ctx.measureText(nameStr).width > (textRight - textX) && nameStr.length > 4) {
           nameStr = nameStr.slice(0, -2);

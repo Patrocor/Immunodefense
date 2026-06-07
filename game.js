@@ -13696,8 +13696,9 @@
     ctx.beginPath();
     ctx.arc(0, 0, R, 0, Math.PI * 2);
     ctx.fill();
-    ctx.strokeStyle = def.colorDark;
-    ctx.lineWidth = 1.2;
+    // Outline suave para evitar efecto "globo" (era 1.2px sólido).
+    ctx.strokeStyle = "rgba(0,0,0,0.30)";
+    ctx.lineWidth = 0.8;
     ctx.stroke();
     // Clipea las decoraciones dentro del círculo del avatar para que las
     // cartas se vean como rectángulos limpios (sin anticuerpos/dendritas/bumps
@@ -14222,21 +14223,26 @@
           ctx.shadowBlur = 8;
           ctx.shadowOffsetX = -4;
         }
-        ctx.fillStyle = isSelected ? "#3a2538" : "#1f1219";
+        // Card bg: base oscura.
+        ctx.fillStyle = "#1f1219";
+        roundRect(cardX, cardY, cw, ch, 7);
+        ctx.fill();
+        // TINT con el color del def — el ícono colorido se integra
+        // visualmente con la card (evita el efecto "globo" donde el
+        // ícono brillante contrasta contra fondo dark).
+        ctx.fillStyle = colorAlpha(def.color, isSelected ? 0.35 : 0.20);
         roundRect(cardX, cardY, cw, ch, 7);
         ctx.fill();
         ctx.shadowColor = "transparent";
         ctx.shadowBlur = 0;
         ctx.shadowOffsetX = 0;
-        // Borde SIEMPRE visible para que se lea como tarjeta contenida
-        // (no como "globo de diálogo" con el ícono colgando). Sutil
-        // cuando no está seleccionada; del color del def cuando sí.
+        // Borde SIEMPRE visible — tarjeta contenida.
         if (isSelected) {
           ctx.strokeStyle = def.color;
           ctx.lineWidth = 2;
         } else {
-          ctx.strokeStyle = "rgba(255, 255, 255, 0.18)";
-          ctx.lineWidth = 1;
+          ctx.strokeStyle = colorAlpha(def.colorDark, 0.55);
+          ctx.lineWidth = 1.2;
         }
         roundRect(cardX, cardY, cw, ch, 7);
         ctx.stroke();

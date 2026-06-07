@@ -4415,14 +4415,15 @@
 
   // Aplica el daño + efectos del martillazo en el momento del impacto.
   // El martillazo es zona: daña a TODOS los gérmenes en un radio del
-  // punto de impacto en el camino.
+  // punto de impacto en el camino. En DISEMINACIÓN: también vibra toda
+  // la columna del lane y daña a todos los gérmenes en ese lane.
   function resolveNeutrofiloHammer(t) {
     var ht = t.hammerTarget;
     if (!ht) return;
     var stats = towerStats(t);
-    var dmg = stats.damage * 8;            // martillazo: 8x daño normal
-    var hitRadius = 32 * U;                 // área de impacto del mazo
-    var hitCount = 0;
+    var dmg = stats.damage * 8;
+    var hitRadius = 32 * U;
+    var hitIds = {};                       // para evitar doble-daño en lane
     for (var ei = 0; ei < state.enemies.length; ei++) {
       var en = state.enemies[ei];
       if (en.dead || en.dying || en.absorbing) continue;
@@ -4438,7 +4439,70 @@
         state.pathogensDefeated += 1;
       }
       pushDamageNumber(en.x, en.y - en.def.radius * U, "💥 " + dmg, "#ffd24a");
-      hitCount++;
+      hitIds[ei] = true;
+    }
+
+    // ── DISEMINACIÓN: vibrar toda la COLUMNA del lane impactado ──
+    if (state.dissemination && PATH.branches && PATH.branches.length) {
+      // Encontrar el lane más cercano al impacto.
+      var laneIdx = -1, laneMinD = Infinity;
+      for (var bi = 0; bi < PATH.branches.length; bi++) {
+        var br = PATH.branches[bi];
+        if (!br || !br.beziers) continue;
+        for (var biz = 0; biz < br.beziers.length; biz++) {
+          var samples = br.beziers[biz].samples;
+          if (!samples) continue;
+          for (var sj = 0; sj < samples.length; sj++) {
+            var s = samples[sj];
+            var dx = s.x - ht.x, dy = s.y - ht.y;
+            var d = dx * dx + dy * dy;
+            if (d < laneMinD) { laneMinD = d; laneIdx = bi; }
+          }
+        }
+      }
+      if (laneIdx >= 0) {
+        var laneBr = PATH.branches[laneIdx];
+        // 1. Daño colateral: TODOS los gérmenes en ese lane reciben
+        //    daño (al 60% del impacto principal — onda de choque).
+        var laneDmg = dmg * 0.6;
+        for (var lei = 0; lei < state.enemies.length; lei++) {
+          if (hitIds[lei]) continue;        // ya golpeado por radius
+          var len = state.enemies[lei];
+          if (!len || len.dead || len.dying || len.absorbing) continue;
+          if (len.state !== "walking" && len.state !== "blocked") continue;
+          if (len.heridaIdx !== laneIdx) continue;
+          len.hp -= laneDmg;
+          len.hitFlash = 0.40;
+          len.hurtTimer = 0.25;
+          if (len.hp <= 0 && !len.dying) {
+            len.hp = 0; len.dying = true; len.dyingTimer = 0.30;
+            state.atp += len.def.reward;
+            state.pathogensDefeated += 1;
+          }
+          pushDamageNumber(len.x, len.y - len.def.radius * U, "🌀 " + laneDmg, "#ffd24a");
+        }
+        // 2. Vibración visual: spawn de 14 anillos shock distribuidos
+        //    a lo largo del lane (efecto "toda la columna vibra").
+        var totalLen = laneBr.length || 100;
+        var nVibs = 14;
+        for (var v = 0; v < nVibs; v++) {
+          var prog = (v + 0.5) / nVibs * totalLen;
+          var pt = sampleBeziers(laneBr.beziers, prog);
+          if (!pt) continue;
+          // Stagger temporal: cada shock con delay distinto para que
+          // la vibración se propague por la columna.
+          pushEffect({
+            kind: "shock",
+            x: pt.x, y: pt.y,
+            r: 22 * U,
+            life: 0.55 + v * 0.02,
+            max: 0.55 + v * 0.02,
+            color: "#ffd24a"
+          });
+        }
+        // 3. Screen shake reforzado (toda la columna sacudida).
+        triggerShake(0.35, 9);
+      }
     }
     // Shake fuerte (Mjölnir golpeando)
     triggerShake(0.25, 6);

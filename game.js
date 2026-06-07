@@ -4256,95 +4256,59 @@
     return best;
   }
 
+  // Calcula el target del ultimate de una torre.
+  // - En diseminación: VERTICAL ARRIBA (lanes corren verticalmente,
+  //   los gérmenes vienen de arriba) — distancia = 70% del rango.
+  // - En Fase 1 / normal: punto más cercano del camino, clampeado
+  //   al rango.
+  function computeUltimateTarget(t) {
+    var stats = towerStats(t);
+    var rng = stats.range * U;
+    if (state.dissemination) {
+      return { x: t.x, y: t.y - rng * 0.85 };
+    }
+    var pt = nearestPointOnPath(t.x, t.y);
+    if (!pt) return { x: t.x, y: t.y + 30 * U };
+    var pdx = pt.x - t.x, pdy = pt.y - t.y;
+    var pdist = Math.hypot(pdx, pdy) || 1;
+    if (pdist > rng) {
+      return { x: t.x + (pdx / pdist) * rng, y: t.y + (pdy / pdist) * rng };
+    }
+    return { x: pt.x, y: pt.y };
+  }
+
   function triggerTowerSpecial(t) {
     if (!t || !t.specialReady) return;
     var def = t.def;
     if (def.id === "neutrofilo") {
-      // MARTILLAZO CELULAR: golpea al CAMINO en su sector más cercano.
-      // Si hay gérmenes en el área de impacto, los lastima.
-      // SIEMPRE se anima el martillazo (no hay check de rango — la
-      // torre planta su zona de defensa donde se haya colocado).
-      var pt = nearestPointOnPath(t.x, t.y);
-      var stats = towerStats(t);
-      var rng = stats.range * U;
-      if (pt) {
-        // Si el punto del camino está dentro del rango, atacamos ahí.
-        // Si está fuera, clampeamos al punto del rango más cercano al
-        // camino (para que el martillazo no aparezca lejísimos).
-        var pdx = pt.x - t.x, pdy = pt.y - t.y;
-        var pdist = Math.hypot(pdx, pdy) || 1;
-        if (pdist > rng) {
-          // Clamp al borde del rango (dirección hacia el path).
-          t.hammerTarget = {
-            x: t.x + (pdx / pdist) * rng,
-            y: t.y + (pdy / pdist) * rng
-          };
-        } else {
-          t.hammerTarget = { x: pt.x, y: pt.y };
-        }
-      } else {
-        // Sin path (caso edge): cae al suelo bajo la torre.
-        t.hammerTarget = { x: t.x, y: t.y + 30 * U };
-      }
+      // MARTILLAZO CELULAR: cae sobre el camino más cercano (o
+      // vertical arriba en diseminación, donde los lanes son verticales).
+      t.hammerTarget = computeUltimateTarget(t);
       t.specialAnim = 0.65;
       t.specialReady = false;
       t.specialCharge = 0;
-      t.hammerImpacted = false;     // reset por si quedó del último uso
+      t.hammerImpacted = false;
       sfx("upgrade");
       return;
     }
     if (def.id === "linfocitoB") {
       // MODO RAMBO ARTILLERO — dos cañones flanquean el cuerpo y
-      // disparan rayos continuos hacia el camino más cercano. Los
-      // rayos atraviesan a todos los gérmenes en su línea (penetran),
-      // continuando hasta off-screen.
-      var ptB = nearestPointOnPath(t.x, t.y);
-      var statsB = towerStats(t);
-      var rngB = statsB.range * U;
-      var tgtX, tgtY;
-      if (ptB) {
-        var pdx = ptB.x - t.x, pdy = ptB.y - t.y;
-        var pdist = Math.hypot(pdx, pdy) || 1;
-        if (pdist > rngB) {
-          tgtX = t.x + (pdx / pdist) * rngB;
-          tgtY = t.y + (pdy / pdist) * rngB;
-        } else {
-          tgtX = ptB.x; tgtY = ptB.y;
-        }
-      } else {
-        tgtX = t.x; tgtY = t.y + 30 * U;
-      }
-      // Setup: el target lock para los cañones + reset timers.
-      t.cannonTarget = { x: tgtX, y: tgtY };
-      t.cannonFireT = 0;             // primer disparo inmediato
-      t.cannonRecoil = 0;            // contador de recoil visual
-      t.specialAnim = 1.6;            // duración del ultimate (1.6s de fuego continuo)
+      // disparan balas Y gordas continuas (penetrantes) al sector del
+      // camino más cercano (o vertical arriba en diseminación).
+      t.cannonTarget = computeUltimateTarget(t);
+      t.cannonFireT = 0;
+      t.cannonRecoil = 0;
+      t.specialAnim = 1.6;
       t.specialReady = false;
       t.specialCharge = 0;
       sfx("upgrade");
       return;
     }
     if (def.id === "nk") {
-      // FRENESÍ CITOTÓXICO — la NK rota como tornado y dispara
-      // perforinas en ráfaga al sector más cercano del camino.
-      // Las perforinas ignoran escudos y penetran a todos.
-      var ptNK = nearestPointOnPath(t.x, t.y);
-      var statsNK = towerStats(t);
-      var rngNK = statsNK.range * U;
-      var nkTX, nkTY;
-      if (ptNK) {
-        var npx = ptNK.x - t.x, npy = ptNK.y - t.y;
-        var ndist = Math.hypot(npx, npy) || 1;
-        if (ndist > rngNK) {
-          nkTX = t.x + (npx / ndist) * rngNK;
-          nkTY = t.y + (npy / ndist) * rngNK;
-        } else {
-          nkTX = ptNK.x; nkTY = ptNK.y;
-        }
-      } else {
-        nkTX = t.x; nkTY = t.y + 30 * U;
-      }
-      t.frenzyTarget = { x: nkTX, y: nkTY };
+      // FRENESÍ CITOTÓXICO — gira como tornado y dispara perforinas
+      // penetrantes al sector del camino más cercano (o vertical arriba
+      // en diseminación). Las perforinas ignoran escudos.
+      t.frenzyTarget = computeUltimateTarget(t);
       t.frenzyFireT = 0;
       t.frenzySpin = 0;
       t.specialAnim = 1.8;

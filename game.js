@@ -858,6 +858,11 @@
       id: "nk", name: "Celula NK", shortName: "NK",
       color: "#E84393", colorDark: "#a82d6a", cost: 95, desc: "Antiviral, rompe escudos",
       bonusVs: { kind: "virus", mult: 2.3 }, breakShield: true,
+      // Ultimate: FRENESÍ CITOTÓXICO — rota como tornado fucsia y
+      // dispara una tormenta de perforinas penetrantes que ignoran
+      // escudos. 26s de carga.
+      specialChargeSec: 26,
+      specialName: "Frenesí",
       levels: [
         { range: 170, damage: 22, fireRate: 1.2, projectileSpeed: 430, splash: 0, hp: 95 },
         { range: 195, damage: 34, fireRate: 1.4, projectileSpeed: 470, splash: 0, hp: 120 },
@@ -4319,6 +4324,35 @@
       sfx("upgrade");
       return;
     }
+    if (def.id === "nk") {
+      // FRENESÍ CITOTÓXICO — la NK rota como tornado y dispara
+      // perforinas en ráfaga al sector más cercano del camino.
+      // Las perforinas ignoran escudos y penetran a todos.
+      var ptNK = nearestPointOnPath(t.x, t.y);
+      var statsNK = towerStats(t);
+      var rngNK = statsNK.range * U;
+      var nkTX, nkTY;
+      if (ptNK) {
+        var npx = ptNK.x - t.x, npy = ptNK.y - t.y;
+        var ndist = Math.hypot(npx, npy) || 1;
+        if (ndist > rngNK) {
+          nkTX = t.x + (npx / ndist) * rngNK;
+          nkTY = t.y + (npy / ndist) * rngNK;
+        } else {
+          nkTX = ptNK.x; nkTY = ptNK.y;
+        }
+      } else {
+        nkTX = t.x; nkTY = t.y + 30 * U;
+      }
+      t.frenzyTarget = { x: nkTX, y: nkTY };
+      t.frenzyFireT = 0;
+      t.frenzySpin = 0;
+      t.specialAnim = 1.8;
+      t.specialReady = false;
+      t.specialCharge = 0;
+      sfx("upgrade");
+      return;
+    }
     // Fallback: si la torre no tiene ultimate implementado, no hace nada.
     t.specialReady = false;
     t.specialCharge = 0;
@@ -4378,6 +4412,41 @@
       color: "rgba(180, 255, 200, 0.95)"
     });
     t.cannonRecoil = 0.06;
+  }
+
+  // Dispara UNA perforina durante el frenesí citotóxico del NK.
+  // Origen: uno de los gránulos orbitando (random). Dirección estable
+  // hacia el path target con jitter mínimo.
+  function spawnPerforinBolt(t) {
+    var aim = t.frenzyTarget;
+    if (!aim) return;
+    var aimX = aim.x - t.x, aimY = aim.y - t.y;
+    var aimLen = Math.hypot(aimX, aimY) || 1;
+    var nx = aimX / aimLen, ny = aimY / aimLen;
+    // Origen aleatorio: uno de los 6 gránulos orbitando alrededor.
+    var gIdx = Math.floor(Math.random() * 6);
+    var gAng = gIdx * (Math.PI * 2 / 6) + (t.frenzySpin || 0);
+    var gOrbitR = 26 * U;
+    var startX = t.x + Math.cos(gAng) * gOrbitR;
+    var startY = t.y + Math.sin(gAng) * gOrbitR;
+    // Jitter ligero en la dirección (±~3°) para que la lluvia se vea natural.
+    var spread = (Math.random() - 0.5) * 0.10;
+    var cosS = Math.cos(spread), sinS = Math.sin(spread);
+    var bdirX = nx * cosS - ny * sinS;
+    var bdirY = nx * sinS + ny * cosS;
+    var stats = towerStats(t);
+    var dmg = stats.damage * 2.0;
+    pushEffect({
+      kind: "perforinBolt",
+      x: startX, y: startY,
+      vx: bdirX * 760 * U,
+      vy: bdirY * 760 * U,
+      angle: Math.atan2(bdirY, bdirX),
+      size: 6 * U,
+      dmg: dmg,
+      hitIds: {},
+      life: 1.2, max: 1.2
+    });
   }
 
   // Aplica el daño + efectos del martillazo en el momento del impacto.
@@ -4767,9 +4836,19 @@
         if ((t.cannonRecoil || 0) > 0) t.cannonRecoil -= dt;
         t.cannonFireT = (t.cannonFireT || 0) - dt;
         if (t.cannonFireT <= 0) {
-          t.cannonFireT = 0.06;       // ~16 disparos/s por cada cañón
+          t.cannonFireT = 0.06;
           spawnAntibodyBeam(t, "left");
           spawnAntibodyBeam(t, "right");
+        }
+      }
+      // NK ultimate: frenesí citotóxico — gira rápido y dispara
+      // perforinas en ráfaga (20/s).
+      if (t.def.id === "nk" && (t.specialAnim || 0) > 0 && t.frenzyTarget) {
+        t.frenzySpin = (t.frenzySpin || 0) + dt * 9;     // 9 rad/s tornado
+        t.frenzyFireT = (t.frenzyFireT || 0) - dt;
+        if (t.frenzyFireT <= 0) {
+          t.frenzyFireT = 0.05;             // 20 disparos/s
+          spawnPerforinBolt(t);
         }
       }
       // Estreptolisina O: DoT activo mientras lisisTimer > 0.
@@ -6398,6 +6477,41 @@
         // Gotita estática del slime trail: solo desvanece.
       } else if (ef.kind === "antibodyBeam") {
         // Rayo de cañón del Linfocito B — solo desvanece (deprecated).
+      } else if (ef.kind === "perforinBolt") {
+        // Perforina del frenesí NK — penetra todos los gérmenes
+        // ignorando escudos. Continúa hasta off-screen.
+        ef.x += ef.vx * dt;
+        ef.y += ef.vy * dt;
+        if (ef.x < FIELD_LEFT - 40 * U || ef.x > FIELD_RIGHT + 40 * U ||
+            ef.y < FIELD_TOP  - 40 * U || ef.y > FIELD_BOTTOM + 40 * U) {
+          ef.life = 0;
+          continue;
+        }
+        if (!ef.hitIds) ef.hitIds = {};
+        var pHitR = ef.size * 1.0;
+        for (var phi = 0; phi < state.enemies.length; phi++) {
+          var phn = state.enemies[phi];
+          if (!phn.def || !phn.def.id) continue;
+          if (phn.dead || phn.dying || phn.absorbing) continue;
+          if (phn.state !== "walking" && phn.state !== "blocked") continue;
+          var phid = phn.def.id + "_" + phi;
+          if (ef.hitIds[phid]) continue;
+          var pdx2 = phn.x - ef.x, pdy2 = phn.y - ef.y;
+          var penR = (phn.def.radius || 16) * U * 0.55;
+          if (pdx2 * pdx2 + pdy2 * pdy2 <= (pHitR + penR) * (pHitR + penR)) {
+            ef.hitIds[phid] = true;
+            // IGNORA ESCUDOS — daño directo al cuerpo.
+            if (phn.shieldHP) phn.shieldHP = 0;
+            phn.hp -= ef.dmg;
+            phn.hitFlash = 0.30;
+            pushDamageNumber(phn.x + (Math.random() - 0.5) * 6 * U, phn.y - phn.def.radius * U, ef.dmg, "#ff80c0");
+            if (phn.hp <= 0 && !phn.dying) {
+              phn.hp = 0; phn.dying = true; phn.dyingTimer = 0.30;
+              state.atp += phn.def.reward;
+              state.pathogensDefeated += 1;
+            }
+          }
+        }
       } else if (ef.kind === "antibodyHeavy") {
         // Bala gorda perforante del Linfocito B ultimate. Mueve, golpea,
         // continúa hasta off-screen o fin de vida.
@@ -9977,18 +10091,68 @@
 
   // NK — silueta HEXAGONAL BLINDADA con retícula de caza (cazadora antiviral).
   function drawNK(t, pulse, expression, blink) {
-    var R = 18 * U * pulse;
+    var doingUlt = (t.def.id === "nk" && (t.specialAnim || 0) > 0);
+    var ultBoost = doingUlt ? 1.18 : 1;
+    var R = 18 * U * pulse * ultBoost;
     ctx.save(); ctx.translate(t.x, t.y);
+
+    // ── FRENESÍ: aura fucsia intensa + tornado spin del fondo ──
+    if (doingUlt) {
+      // Aura saturada
+      var auraR = R * 2.6;
+      var auraG = ctx.createRadialGradient(0, 0, R * 0.7, 0, 0, auraR);
+      auraG.addColorStop(0, "rgba(232, 67, 147, 0.55)");
+      auraG.addColorStop(1, "rgba(232, 67, 147, 0)");
+      ctx.fillStyle = auraG;
+      ctx.beginPath(); ctx.arc(0, 0, auraR, 0, Math.PI * 2); ctx.fill();
+      // Tornado de líneas dispersas
+      ctx.strokeStyle = "rgba(255, 130, 200, 0.55)";
+      ctx.lineWidth = 1.6 * U;
+      var spinAng = t.frenzySpin || 0;
+      for (var sw = 0; sw < 8; sw++) {
+        var sa = spinAng + sw * (Math.PI * 2 / 8);
+        ctx.beginPath();
+        ctx.moveTo(Math.cos(sa) * R * 1.30, Math.sin(sa) * R * 1.30);
+        ctx.lineTo(Math.cos(sa) * R * 2.10, Math.sin(sa) * R * 2.10);
+        ctx.stroke();
+      }
+    }
+
+    // Anillo crosshair rotando (sutil — sigue presente)
     ctx.strokeStyle = colorAlpha(t.def.color, 0.5); ctx.lineWidth = Math.max(1, 1.4 * U);
     ctx.save(); ctx.rotate(state.time * 0.8);
     ctx.beginPath(); ctx.arc(0, 0, R * 1.35, 0, Math.PI * 2); ctx.stroke();
     for (var k = 0; k < 4; k++) { var a = k * Math.PI / 2; ctx.beginPath(); ctx.moveTo(Math.cos(a) * R * 1.1, Math.sin(a) * R * 1.1); ctx.lineTo(Math.cos(a) * R * 1.55, Math.sin(a) * R * 1.55); ctx.stroke(); }
     ctx.restore();
+
+    // Cuerpo hexagonal
     var grad = ctx.createRadialGradient(-R * 0.3, -R * 0.3, R * 0.2, 0, 0, R);
     grad.addColorStop(0, "#ffd9ec"); grad.addColorStop(0.6, t.def.color); grad.addColorStop(1, t.def.colorDark);
     ctx.fillStyle = grad; hexPath(R * 1.04); ctx.fill();
     ctx.strokeStyle = t.def.colorDark; ctx.lineWidth = Math.max(1.4, 1.8 * U); hexPath(R * 1.04); ctx.stroke();
     ctx.strokeStyle = colorAlpha(t.def.colorDark, 0.5); ctx.lineWidth = 1; hexPath(R * 0.6); ctx.stroke();
+
+    // ── GRÁNULOS ORBITANDO durante el frenesí ──
+    // 6 gránulos rosa-blanco que orbitan la NK (perforinas + granzimas
+    // liberadas). Brillan, son la fuente de los disparos.
+    if (doingUlt) {
+      var spinG = t.frenzySpin || 0;
+      var gOrbitR = R * 1.44;        // ~26u with R~18 → mas o menos
+      for (var g = 0; g < 6; g++) {
+        var ga = spinG + g * (Math.PI * 2 / 6);
+        var gx = Math.cos(ga) * gOrbitR;
+        var gy = Math.sin(ga) * gOrbitR;
+        // Halo del gránulo
+        ctx.fillStyle = "rgba(255, 130, 200, 0.55)";
+        ctx.beginPath(); ctx.arc(gx, gy, 5.5 * U, 0, Math.PI * 2); ctx.fill();
+        // Cuerpo blanco-rosa
+        ctx.fillStyle = "#fff";
+        ctx.beginPath(); ctx.arc(gx, gy, 3.0 * U, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = "#E84393"; ctx.lineWidth = 1.2 * U;
+        ctx.beginPath(); ctx.arc(gx, gy, 3.0 * U, 0, Math.PI * 2); ctx.stroke();
+      }
+    }
+
     towerFace(R, expression, blink, "angry", "fanged");   // cazadora feroz
     ctx.restore();
   }
@@ -13023,6 +13187,47 @@
       ctx.beginPath();
       ctx.arc(ef.x - br * 0.32, ef.y - br * 0.40, br * 0.25, 0, Math.PI * 2);
       ctx.fill();
+    } else if (ef.kind === "perforinBolt") {
+      // Perforina rosa-blanca con halo radial + estela zig-zag.
+      ctx.save();
+      ctx.translate(ef.x, ef.y);
+      var phr = ef.size * 1.8;
+      var phg = ctx.createRadialGradient(0, 0, ef.size * 0.30, 0, 0, phr);
+      phg.addColorStop(0,   "rgba(255, 255, 255, " + (alpha * 0.95) + ")");
+      phg.addColorStop(0.4, "rgba(255, 130, 200, " + (alpha * 0.75) + ")");
+      phg.addColorStop(1,   "rgba(232, 67, 147, 0)");
+      ctx.fillStyle = phg;
+      ctx.beginPath();
+      ctx.arc(0, 0, phr, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#ffffff";
+      ctx.beginPath();
+      ctx.arc(0, 0, ef.size * 0.55, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "#E84393";
+      ctx.lineWidth = 1.6 * U;
+      ctx.beginPath();
+      ctx.arc(0, 0, ef.size * 0.55, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+      // Estela zig-zag corta
+      var sp = Math.hypot(ef.vx, ef.vy) || 1;
+      var nxP = ef.vx / sp, nyP = ef.vy / sp;
+      var ppX = -nyP, ppY = nxP;
+      var tailLen = ef.size * 3.5;
+      var zigA = ef.x - nxP * tailLen * 0.5 + ppX * Math.sin(state.time * 30) * 4 * U;
+      var zigB = ef.y - nyP * tailLen * 0.5 + ppY * Math.sin(state.time * 30) * 4 * U;
+      var tailX = ef.x - nxP * tailLen;
+      var tailY = ef.y - nyP * tailLen;
+      ctx.strokeStyle = "rgba(255, 130, 200, " + (alpha * 0.85) + ")";
+      ctx.lineWidth = ef.size * 0.50;
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      ctx.beginPath();
+      ctx.moveTo(ef.x, ef.y);
+      ctx.lineTo(zigA, zigB);
+      ctx.lineTo(tailX, tailY);
+      ctx.stroke();
     } else if (ef.kind === "antibodyHeavy") {
       // Bala Y GORDA perforante del Linfocito B ultimate.
       // Visualmente: halo amarillo-verde grande detrás + Y rotando grande

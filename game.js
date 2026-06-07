@@ -4257,16 +4257,17 @@
   }
 
   // Calcula el target del ultimate de una torre.
-  // - En diseminación: VERTICAL ARRIBA (lanes corren verticalmente,
-  //   los gérmenes vienen de arriba) — distancia = 70% del rango.
+  // - En diseminación: VERTICAL ARRIBA muy cerca (lanes corren
+  //   verticalmente, el ataque sale "inmediatamente de la torre" y
+  //   afecta toda la columna hacia arriba).
   // - En Fase 1 / normal: punto más cercano del camino, clampeado
   //   al rango.
   function computeUltimateTarget(t) {
+    if (state.dissemination) {
+      return { x: t.x, y: t.y - 28 * U };
+    }
     var stats = towerStats(t);
     var rng = stats.range * U;
-    if (state.dissemination) {
-      return { x: t.x, y: t.y - rng * 0.85 };
-    }
     var pt = nearestPointOnPath(t.x, t.y);
     if (!pt) return { x: t.x, y: t.y + 30 * U };
     var pdx = pt.x - t.x, pdy = pt.y - t.y;
@@ -4442,7 +4443,8 @@
       hitIds[ei] = true;
     }
 
-    // ── DISEMINACIÓN: vibrar toda la COLUMNA del lane impactado ──
+    // ── DISEMINACIÓN: vibrar la COLUMNA del lane DESDE LA TORRE HACIA
+    //    ARRIBA (no abajo) ──
     if (state.dissemination && PATH.branches && PATH.branches.length) {
       // Encontrar el lane más cercano al impacto.
       var laneIdx = -1, laneMinD = Infinity;
@@ -4462,15 +4464,16 @@
       }
       if (laneIdx >= 0) {
         var laneBr = PATH.branches[laneIdx];
-        // 1. Daño colateral: TODOS los gérmenes en ese lane reciben
-        //    daño (al 60% del impacto principal — onda de choque).
+        var towerY = t.y;       // anchor: solo afecta y < towerY
+        // 1. Daño colateral SOLO a gérmenes ARRIBA de la torre.
         var laneDmg = dmg * 0.6;
         for (var lei = 0; lei < state.enemies.length; lei++) {
-          if (hitIds[lei]) continue;        // ya golpeado por radius
+          if (hitIds[lei]) continue;
           var len = state.enemies[lei];
           if (!len || len.dead || len.dying || len.absorbing) continue;
           if (len.state !== "walking" && len.state !== "blocked") continue;
           if (len.heridaIdx !== laneIdx) continue;
+          if (len.y > towerY) continue;     // solo arriba (y menor)
           len.hp -= laneDmg;
           len.hitFlash = 0.40;
           len.hurtTimer = 0.25;
@@ -4481,26 +4484,27 @@
           }
           pushDamageNumber(len.x, len.y - len.def.radius * U, "🌀 " + laneDmg, "#ffd24a");
         }
-        // 2. Vibración visual: spawn de 14 anillos shock distribuidos
-        //    a lo largo del lane (efecto "toda la columna vibra").
+        // 2. Vibración visual: spawn de anillos shock distribuidos
+        //    desde la torre hacia arriba (y < towerY).
         var totalLen = laneBr.length || 100;
-        var nVibs = 14;
+        var nVibs = 18;
+        var shockIdx = 0;
         for (var v = 0; v < nVibs; v++) {
           var prog = (v + 0.5) / nVibs * totalLen;
-          var pt = sampleBeziers(laneBr.beziers, prog);
-          if (!pt) continue;
-          // Stagger temporal: cada shock con delay distinto para que
-          // la vibración se propague por la columna.
+          var pt2 = sampleBeziers(laneBr.beziers, prog);
+          if (!pt2) continue;
+          if (pt2.y > towerY) continue;     // skip samples por debajo de la torre
           pushEffect({
             kind: "shock",
-            x: pt.x, y: pt.y,
+            x: pt2.x, y: pt2.y,
             r: 22 * U,
-            life: 0.55 + v * 0.02,
-            max: 0.55 + v * 0.02,
+            life: 0.55 + shockIdx * 0.025,
+            max: 0.55 + shockIdx * 0.025,
             color: "#ffd24a"
           });
+          shockIdx++;
         }
-        // 3. Screen shake reforzado (toda la columna sacudida).
+        // 3. Screen shake reforzado.
         triggerShake(0.35, 9);
       }
     }

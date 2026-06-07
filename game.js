@@ -9587,89 +9587,128 @@
 
     ctx.restore();
 
-    // ── MARTILLAZO CELULAR — el neutrofilo levanta el mazo MUY ALTO,
-    // pausa tensa, y lo SLAMEA verticalmente sobre el target (rotación
-    // 180° head-up → head-down). Sensación de "martillando con fuerza".
+    // ── MARTILLAZO CELULAR ──
+    // En FASE 1: swing diagonal hacia el target del path (cabeza pasa
+    // por el lado del neutrofilo, slameo lateral).
+    // En DISEMINACIÓN: martillazo VERTICAL puro (cámara desde atrás del
+    // neutrofilo, brazo sube central, mazo flip en el ápice, cae a plomo).
     if (t.def.id === "neutrofilo" && (t.specialAnim || 0) > 0 && t.hammerTarget) {
-      var ha = 1 - t.specialAnim / 0.65;     // 0→1 progreso
+      var ha = 1 - t.specialAnim / 0.65;
       var ht = t.hammerTarget;
-      // Dirección al target — solo se usa para elegir la DIRECCIÓN de
-      // rotación del mazo (pasa por el lado del neutrofilo). El golpe
-      // en sí es VERTICAL (mano arriba del target, cae a plomo).
-      var ddx = ht.x - t.x;
-      var dnxOnly = ddx >= 0 ? 1 : -1;        // target a la derecha (+1) o izquierda (-1)
-      // Tamaños del mazo (deben coincidir con la sección de dibujo abajo).
       var HAMMER_MANGO = 28 * U;
-      var HAMMER_HEADH = 26 * U;              // un poco más alto (era 22)
-      var L = HAMMER_MANGO + HAMMER_HEADH * 0.5;   // distancia hand→head center
-      // Posición de la mano en el ÁPICE (alto sobre el target).
-      var apexHandY = ht.y - L - 26 * U;       // 26u extra para drama
-      var impactHandY = ht.y - L;              // mano justo donde el head pega al target
-      // Hombro: emerge del cuerpo del neutrofilo (lado opuesto al target).
-      var shoulderX = t.x - dnxOnly * R * 0.55;
-      var shoulderY = t.y - R * 0.20;
-      // Rotación del mazo: 0 = head UP. PI = head DOWN. Signo determina
-      // por qué lado pasa la cabeza (queremos que pase por el lado del
-      // neutrofilo → overhead swing visible).
-      var rotSign = (dnxOnly > 0) ? -1 : 1;
+      var HAMMER_HEADH = 26 * U;
+      var L = HAMMER_MANGO + HAMMER_HEADH * 0.5;
       var handX, handY, hammerAng;
+      var isDissem = state.dissemination;
 
-      if (ha < 0.32) {
-        // WINDUP: mano sube de rest a apex (parabólica ease-out).
-        var u = ha / 0.32;
-        var ue = 1 - Math.pow(1 - u, 3);
-        var restX = t.x + dnxOnly * R * 0.5;
-        var restY = t.y - R * 0.20;
-        handX = restX + (ht.x - restX) * ue;
-        // Arco parabólico para que la subida se sienta dramática.
-        handY = restY + (apexHandY - restY) * ue - 18 * U * Math.sin(u * Math.PI);
-        hammerAng = 0;                         // head UP
-      } else if (ha < 0.48) {
-        // HOLD: pausa tensa en el ápice con micro-vibración.
-        handX = ht.x + (Math.random() - 0.5) * 1.6 * U;
-        handY = apexHandY + (Math.random() - 0.5) * 1.6 * U;
-        hammerAng = (Math.random() - 0.5) * 0.06;
-      } else if (ha < 0.66) {
-        // SLAM: rotación 180° (ease-in cuadrático, SWOOSH) + mano cae
-        // un poco para que el head termine exacto sobre el target.
-        var u2 = (ha - 0.48) / 0.18;
-        var u2e = u2 * u2 * u2;                // ease-in cubic (acelera al final)
-        hammerAng = rotSign * Math.PI * u2e;
-        handX = ht.x;
-        handY = apexHandY + (impactHandY - apexHandY) * u2e;
-        if (!t.hammerImpacted && u2 >= 0.95) {
-          t.hammerImpacted = true;
-          resolveNeutrofiloHammer(t);
+      var shoulderX, shoulderY, dnxOnly, rotSign;
+      if (isDissem) {
+        // ── DISEMINACIÓN: martillazo VERTICAL puro ──
+        // Brazo emerge del CENTRO-TOP del neutrofilo (vista desde atrás).
+        shoulderX = t.x;
+        shoulderY = t.y - R * 0.35;
+        dnxOnly = 0;
+        var apexHandY  = ht.y - L - 50 * U;        // ápice alto sobre target
+        var impactHandY = ht.y - L;                 // mano en impacto
+        if (ha < 0.28) {
+          // WINDUP: mano sube del hombro al ápice (ease-out cubic).
+          var u = ha / 0.28;
+          var ue = 1 - Math.pow(1 - u, 3);
+          handX = shoulderX;
+          handY = shoulderY + (apexHandY - shoulderY) * ue;
+          hammerAng = 0;
+        } else if (ha < 0.42) {
+          // FLIP rápido: el mazo rota de head-UP a head-DOWN (smoothstep)
+          // mientras la mano está en el ápice.
+          var uF = (ha - 0.28) / 0.14;
+          var uFe = uF * uF * (3 - 2 * uF);
+          handX = shoulderX + Math.sin(uF * 30) * 0.6 * U;
+          handY = apexHandY + Math.cos(uF * 30) * 0.6 * U;
+          hammerAng = Math.PI * uFe;
+        } else if (ha < 0.62) {
+          // SLAM VERTICAL: mano cae del ápice al impacto, hammerAng = π
+          // (head DOWN). Aceleración cubic (acelera al final).
+          var uS = (ha - 0.42) / 0.20;
+          var uSe = uS * uS * uS;
+          handX = shoulderX;
+          handY = apexHandY + (impactHandY - apexHandY) * uSe;
+          hammerAng = Math.PI;
+          if (!t.hammerImpacted && uS >= 0.95) {
+            t.hammerImpacted = true;
+            resolveNeutrofiloHammer(t);
+          }
+        } else if (ha < 0.82) {
+          // POST-IMPACT: tembleque amortiguado.
+          var uP = (ha - 0.62) / 0.20;
+          var damp = (1 - uP) * 2.0 * U;
+          handX = shoulderX + Math.sin(uP * 30) * damp;
+          handY = impactHandY + Math.cos(uP * 30) * damp * 0.4;
+          hammerAng = Math.PI + Math.sin(uP * 30) * damp * 0.02;
+        } else {
+          // RECOIL: mano vuelve al hombro, rotación vuelve a 0.
+          var uR = (ha - 0.82) / 0.18;
+          var uRe = uR * uR;
+          handX = shoulderX;
+          handY = impactHandY + (shoulderY - impactHandY) * uRe;
+          hammerAng = Math.PI * (1 - uR);
         }
-      } else if (ha < 0.82) {
-        // POST-IMPACT: mazo descansa sobre el cráter con micro-temblor
-        // (el path destruido vibra).
-        var u3 = (ha - 0.66) / 0.16;
-        var damp = (1 - u3) * 2.0 * U;
-        handX = ht.x + Math.sin(u3 * 30) * damp;
-        handY = impactHandY + Math.cos(u3 * 30) * damp * 0.4;
-        hammerAng = rotSign * Math.PI + Math.sin(u3 * 30) * damp * 0.02;
       } else {
-        // RECOIL: mano se retrae al cuerpo, rotación vuelve a 0.
-        var u4 = (ha - 0.82) / 0.18;
-        var u4e = u4 * u4;
-        var restX2 = t.x + dnxOnly * R * 0.5;
-        var restY2 = t.y - R * 0.20;
-        handX = ht.x + (restX2 - ht.x) * u4e;
-        handY = impactHandY + (restY2 - impactHandY) * u4e;
-        hammerAng = rotSign * Math.PI * (1 - u4);
+        // ── FASE 1: swing lateral (animación existente) ──
+        var ddx = ht.x - t.x;
+        dnxOnly = ddx >= 0 ? 1 : -1;
+        rotSign = (dnxOnly > 0) ? -1 : 1;
+        shoulderX = t.x - dnxOnly * R * 0.55;
+        shoulderY = t.y - R * 0.20;
+        var apexHandY1 = ht.y - L - 26 * U;
+        var impactHandY1 = ht.y - L;
+        if (ha < 0.32) {
+          var u1 = ha / 0.32;
+          var u1e = 1 - Math.pow(1 - u1, 3);
+          var restX = t.x + dnxOnly * R * 0.5;
+          var restY = t.y - R * 0.20;
+          handX = restX + (ht.x - restX) * u1e;
+          handY = restY + (apexHandY1 - restY) * u1e - 18 * U * Math.sin(u1 * Math.PI);
+          hammerAng = 0;
+        } else if (ha < 0.48) {
+          handX = ht.x + (Math.random() - 0.5) * 1.6 * U;
+          handY = apexHandY1 + (Math.random() - 0.5) * 1.6 * U;
+          hammerAng = (Math.random() - 0.5) * 0.06;
+        } else if (ha < 0.66) {
+          var u2 = (ha - 0.48) / 0.18;
+          var u2e = u2 * u2 * u2;
+          hammerAng = rotSign * Math.PI * u2e;
+          handX = ht.x;
+          handY = apexHandY1 + (impactHandY1 - apexHandY1) * u2e;
+          if (!t.hammerImpacted && u2 >= 0.95) {
+            t.hammerImpacted = true;
+            resolveNeutrofiloHammer(t);
+          }
+        } else if (ha < 0.82) {
+          var u3a = (ha - 0.66) / 0.16;
+          var damp2 = (1 - u3a) * 2.0 * U;
+          handX = ht.x + Math.sin(u3a * 30) * damp2;
+          handY = impactHandY1 + Math.cos(u3a * 30) * damp2 * 0.4;
+          hammerAng = rotSign * Math.PI + Math.sin(u3a * 30) * damp2 * 0.02;
+        } else {
+          var u4 = (ha - 0.82) / 0.18;
+          var u4e = u4 * u4;
+          var restX2 = t.x + dnxOnly * R * 0.5;
+          var restY2 = t.y - R * 0.20;
+          handX = ht.x + (restX2 - ht.x) * u4e;
+          handY = impactHandY1 + (restY2 - impactHandY1) * u4e;
+          hammerAng = rotSign * Math.PI * (1 - u4);
+        }
       }
 
       // ── DIBUJAR BRAZO (pseudópodo que se extiende del cuerpo) ──
       var armBaseX = shoulderX, armBaseY = shoulderY;
-      // Curvatura del brazo: punto medio se desplaza perpendicular al
-      // vector base→mano, para que se vea natural arqueado.
       var armDx = handX - armBaseX, armDy = handY - armBaseY;
       var armLen = Math.hypot(armDx, armDy) || 1;
-      var armPerpX = -armDy / armLen;   // perpendicular
+      var armPerpX = -armDy / armLen;
       var armPerpY =  armDx / armLen;
-      // Bend hacia afuera (lado opuesto al neutrofilo).
-      var bendSign = -dnxOnly;
+      // En diseminación: brazo recto vertical (vista desde atrás del
+      // neutrofilo). En fase 1: arqueado lateral.
+      var bendSign = isDissem ? 0 : -dnxOnly;
       var armMidX = (armBaseX + handX) / 2 + armPerpX * bendSign * 8 * U;
       var armMidY = (armBaseY + handY) / 2 + armPerpY * bendSign * 8 * U - 4 * U;
       // Sombra/contorno del brazo

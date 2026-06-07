@@ -800,7 +800,7 @@
       desc: "Cuerpo a cuerpo",
       // Ultimate: MARTILLAZO CELULAR — al cargar, tap dispara un mazo
       // proteico contra el germen más cercano en su rango (damage 8x).
-      specialChargeSec: 28,
+      specialChargeSec: 24,
       specialName: "Martillazo",
       levels: [
         { range:  90, damage: 25, fireRate: 1.0, projectileSpeed:   0, splash:  0, hp: 120 },
@@ -820,7 +820,7 @@
       // Ultimate: DIFERENCIACIÓN A PLASMOCITO — la torre se infla y
       // dispara una ráfaga de 30 anticuerpos Y al sector más cercano
       // del camino. Cada Y golpea a un germen del área.
-      specialChargeSec: 32,
+      specialChargeSec: 28,
       specialName: "Plasmocito",
       levels: [
         { range: 180, damage: 2, fireRate: 12, projectileSpeed: 460, splash: 0, hp: 70 },

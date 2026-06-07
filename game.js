@@ -313,11 +313,11 @@
     // que el campo use TODO el alto. Portrait: dock angosto (~27% del ancho);
     // landscape: dock fijo cómodo. Incluye safeRight para no quedar bajo el
     // notch/esquina redondeada del lado derecho.
-    // Dock más compacto (-35% adicional vs el dock anterior) para que
-    // el campo de juego se expanda. Cartas adentro usan shortName.
+    // Dock compacto (-10% adicional vs versión previa). Cartas en
+    // layout vertical con esquinas redondeadas; nombres usan shortName.
     SIDE_INNER = isPortrait
-      ? Math.round(Math.max(54, Math.min(66, VW * 0.138)))
-      : Math.round(Math.max(60, Math.min(80, VW * 0.082)));
+      ? Math.round(Math.max(49, Math.min(60, VW * 0.124)))
+      : Math.round(Math.max(54, Math.min(72, VW * 0.074)));
     SIDE_W = SIDE_INNER + safeRight;
     HUD_H = Math.round(hudBase + safeTop);
     PANEL_H = 0;  // legacy: ya no hay franja inferior
@@ -1806,13 +1806,19 @@
     if (!b) return;
     var pulse = state.compendiumFocus ? (0.5 + 0.5 * Math.sin(state.time * 4)) : 0;
     ctx.save();
+    // Fondo con esquinas redondeadas (matching cards).
     ctx.fillStyle = pulse ? "rgba(255, 210, 74, " + (0.55 + pulse * 0.30) + ")" : "#33212e";
-    ctx.fillRect(b.x, b.y, b.w, b.h);
+    roundRect(b.x, b.y, b.w, b.h, 6);
+    ctx.fill();
     ctx.fillStyle = pulse ? "#5a3a08" : "#ffd24a";
-    ctx.font = "bold " + Math.max(11, Math.min(13, b.h * 0.36)) + "px Fredoka, sans-serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText("📖 Compendio", b.x + b.w / 2, b.y + b.h / 2);
+    // Layout VERTICAL: ícono arriba, "Dex" debajo.
+    var iconSize = Math.max(13, Math.min(18, b.h * 0.50));
+    ctx.font = iconSize + "px Fredoka, sans-serif";
+    ctx.fillText("📖", b.x + b.w / 2, b.y + b.h * 0.32);
+    ctx.font = "bold " + Math.max(10, Math.min(12, b.h * 0.32)) + "px Fredoka, sans-serif";
+    ctx.fillText("Dex", b.x + b.w / 2, b.y + b.h * 0.74);
     ctx.restore();
   }
 
@@ -3077,8 +3083,8 @@
       };
     }
 
-    // Botón "Compendio" arriba del dock — abre el overlay informativo.
-    var compBtnH = Math.round(Math.max(28, Math.min(36, contentW * 0.34)));
+    // Botón "Dex" arriba del dock (vertical: ícono arriba + nombre).
+    var compBtnH = Math.round(Math.max(38, Math.min(52, contentW * 0.62)));
     UI.compendiumBtn = { x: contentX, y: dockTop, w: contentW, h: compBtnH };
 
     // Cartilla por GRUPOS DESPLEGABLES: cada categoría (cabecera) se abre/cierra
@@ -14217,7 +14223,8 @@
           ctx.shadowOffsetX = -4;
         }
         ctx.fillStyle = isSelected ? "#3a2538" : "#1f1219";
-        ctx.fillRect(cardX, cardY, cw, ch);
+        roundRect(cardX, cardY, cw, ch, 7);
+        ctx.fill();
         ctx.shadowColor = "transparent";
         ctx.shadowBlur = 0;
         ctx.shadowOffsetX = 0;
@@ -14225,7 +14232,8 @@
         if (isSelected) {
           ctx.strokeStyle = def.color;
           ctx.lineWidth = 2;
-          ctx.strokeRect(cardX, cardY, cw, ch);
+          roundRect(cardX, cardY, cw, ch, 7);
+          ctx.stroke();
         }
 
         // Layout VERTICAL: nombre arriba, ícono al medio, costo abajo.

@@ -9421,59 +9421,70 @@
     ctx.save();
     ctx.translate(x, y);
 
-    // Membrana CITOPLÁSMICA con ligera ondulación ameboidea (no
-    // círculo perfecto: 12 puntos con jitter de amplitud baja).
-    var membR = R;
-    var wavePts = 16;
-    var bodyFill = ctx.createRadialGradient(-R * 0.30, -R * 0.35, R * 0.20, 0, 0, R);
-    bodyFill.addColorStop(0,    "#fffdf6");
-    bodyFill.addColorStop(0.65, "#f0e7f9");
-    bodyFill.addColorStop(1,    "#cdb8e6");
-    ctx.fillStyle = bodyFill;
-    ctx.beginPath();
-    for (var wp = 0; wp < wavePts; wp++) {
-      var wa = wp * (Math.PI * 2 / wavePts);
-      var wob = 1 + Math.sin(time * 1.8 + wp * 1.3 + (t.idlePhase || 0)) * 0.04;
-      var rx = Math.cos(wa) * membR * wob;
-      var ry = Math.sin(wa) * membR * wob;
-      if (wp === 0) ctx.moveTo(rx, ry); else ctx.lineTo(rx, ry);
-    }
-    ctx.closePath();
-    ctx.fill();
-    ctx.strokeStyle = t.def.colorDark;
-    ctx.lineWidth = Math.max(1.3, 1.7 * U);
-    ctx.stroke();
+    // ── ESTRUCTURA SNOWMAN: 3 esferas apiladas ──
+    // Bottom (más grande): gránulos azurófilos
+    // Middle: núcleo multilobulado + brazos pseudópodo (de los lados)
+    // Top (más chica): la cara
+    var phase = t.idlePhase || 0;
+    var rBottom = R * 0.95;
+    var rMiddle = R * 0.68;
+    var rTop    = R * 0.50;
+    var cyBottom = R * 0.55;
+    var cyMiddle = -R * 0.25;
+    var cyTop    = -R * 0.95;
 
-    // 3-4 PSEUDÓPODOS sutiles asomando (más prominentes si está
-    // atacando — preparándose para fagocitar).
-    var pseudCount = 4;
-    var pseudExt = attacking ? 1.18 : 1.06;
-    for (var ps = 0; ps < pseudCount; ps++) {
-      var psa = ps * (Math.PI * 2 / pseudCount) + time * 0.4;
-      var psR = R * (0.22 + Math.sin(time * 2 + ps) * 0.04);
-      var pbx = Math.cos(psa) * R * pseudExt;
-      var pby = Math.sin(psa) * R * pseudExt;
+    // Sutil breathing per esfera (sin sincronizar) — siempre respiran.
+    function sphereWob(seed) {
+      return 1 + Math.sin(time * 1.5 + seed + phase) * 0.025;
+    }
+
+    function drawSphere(cy_, r_, seed) {
+      var wob = sphereWob(seed);
+      var rr = r_ * wob;
+      var grad = ctx.createRadialGradient(-rr * 0.32, cy_ - rr * 0.38, rr * 0.18, 0, cy_, rr);
+      grad.addColorStop(0,    "#fffdf6");
+      grad.addColorStop(0.65, "#f0e7f9");
+      grad.addColorStop(1,    "#cdb8e6");
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(0, cy_, rr, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = t.def.colorDark;
+      ctx.lineWidth = Math.max(1.3, 1.7 * U);
+      ctx.stroke();
+    }
+    // Dibujar de abajo hacia arriba (back to front).
+    drawSphere(cyBottom, rBottom, 0);
+    drawSphere(cyMiddle, rMiddle, 1);
+
+    // BRAZOS PSEUDÓPODO desde los lados del cuerpo medio (snowman arms).
+    // Más prominentes y largos durante attacking.
+    var armExt = attacking ? 1.30 : 1.10;
+    var armR = R * (0.18 + Math.sin(time * 2) * 0.02);
+    var armSpread = rMiddle * armExt;
+    for (var armS = -1; armS <= 1; armS += 2) {
+      var ax = armS * armSpread;
+      var ay = cyMiddle + (attacking ? -R * 0.05 : 0);
       ctx.fillStyle = "rgba(220, 200, 240, 0.95)";
       ctx.beginPath();
-      ctx.arc(pbx, pby, psR, 0, Math.PI * 2);
+      ctx.arc(ax, ay, armR, 0, Math.PI * 2);
       ctx.fill();
       ctx.strokeStyle = "rgba(126, 95, 176, 0.70)";
       ctx.lineWidth = 0.9 * U;
       ctx.stroke();
     }
 
-    // NÚCLEO MULTILOBULADO — característica distintiva del neutrófilo
-    // (3-5 lóbulos conectados por hebras finas). Color púrpura intenso.
+    // NÚCLEO MULTILOBULADO — característica distintiva del neutrófilo.
+    // Posicionado en la esfera media. 4 lóbulos conectados.
     var nucColor = "rgba(126, 95, 176, 0.85)";
     var nucEdge  = "rgba(80, 55, 130, 0.95)";
-    var lobeR = R * 0.28;
+    var lobeR = rMiddle * 0.30;
     var lobes = [
-      { x: -R * 0.22, y: -R * 0.05, r: lobeR * 1.05 },
-      { x:  R * 0.18, y: -R * 0.15, r: lobeR * 0.95 },
-      { x:  R * 0.25, y:  R * 0.20, r: lobeR * 1.00 },
-      { x: -R * 0.18, y:  R * 0.25, r: lobeR * 0.90 }
+      { x: -rMiddle * 0.35, y: cyMiddle - rMiddle * 0.05, r: lobeR * 1.05 },
+      { x:  rMiddle * 0.28, y: cyMiddle - rMiddle * 0.20, r: lobeR * 0.95 },
+      { x:  rMiddle * 0.32, y: cyMiddle + rMiddle * 0.25, r: lobeR * 0.95 },
+      { x: -rMiddle * 0.28, y: cyMiddle + rMiddle * 0.30, r: lobeR * 0.90 }
     ];
-    // Hebras conectoras entre lóbulos (cromatina condensada).
     ctx.strokeStyle = nucEdge;
     ctx.lineWidth = 1.6 * U;
     ctx.lineCap = "round";
@@ -9483,7 +9494,6 @@
       ctx.lineTo(lobes[lk + 1].x, lobes[lk + 1].y);
       ctx.stroke();
     }
-    // Lóbulos
     for (var lk2 = 0; lk2 < lobes.length; lk2++) {
       var lo = lobes[lk2];
       ctx.fillStyle = nucColor;
@@ -9495,26 +9505,25 @@
       ctx.stroke();
     }
 
-    // GRÁNULOS azurófilos púrpura — pequeños puntos en el citoplasma
-    // (defensinas, mieloperoxidasa, hidrolasas).
+    // GRÁNULOS azurófilos en la esfera INFERIOR (panza del snowman).
     ctx.fillStyle = "rgba(100, 70, 160, 0.60)";
-    var grans = 7;
+    var grans = 8;
     for (var gn = 0; gn < grans; gn++) {
-      var ga = gn * 1.7 + (t.idlePhase || 0);
-      var gr = R * 0.72;
-      var gx = Math.cos(ga) * gr;
-      var gy = Math.sin(ga) * gr;
-      // Evitar que choquen con núcleo o pseudópodos: mantenerlos en el
-      // ANILLO entre 0.55R y 0.78R.
-      var ggx = Math.cos(ga) * R * 0.62;
-      var ggy = Math.sin(ga) * R * 0.62;
+      var ga = gn * 1.7 + phase;
+      // Posiciones distribuidas en la esfera inferior (anillo).
+      var ggx = Math.cos(ga) * rBottom * 0.55;
+      var ggy = cyBottom + Math.sin(ga) * rBottom * 0.55;
       ctx.beginPath();
       ctx.arc(ggx, ggy, (0.9 + Math.sin(time * 1.5 + gn) * 0.20) * U, 0, Math.PI * 2);
       ctx.fill();
     }
 
-    // CARA (en el lado superior del cuerpo, sin chocar con núcleo).
-    var neR = R * 0.20, ngap = R * 0.30, nfy = -R * 0.42;
+    // Esfera SUPERIOR (cabeza con cara) — dibujada al final para que
+    // quede encima si hay solapamiento.
+    drawSphere(cyTop, rTop, 2);
+
+    // CARA centrada en la esfera SUPERIOR.
+    var neR = rTop * 0.32, ngap = rTop * 0.50, nfy = cyTop;
     // CARA LOCA durante el ultimate (martillazo) — sobrescribe lo demás.
     var doingUltimate = (t.def.id === "neutrofilo" && (t.specialAnim || 0) > 0);
     if (doingUltimate) {
@@ -9547,9 +9556,10 @@
       ctx.moveTo( crazyGap - bigEyeR * 0.7, nfy - bigEyeR * 0.85);
       ctx.lineTo( crazyGap + bigEyeR * 1.0, nfy - bigEyeR * 1.40);
       ctx.stroke();
-      // Boca gigante abierta riendo (con dientes + lengua)
-      var mw = R * 0.55, mh = R * 0.42;
-      var my = nfy + R * 0.55;
+      // Boca gigante abierta riendo (con dientes + lengua) — escala
+      // con la esfera-cabeza del snowman.
+      var mw = rTop * 0.85, mh = rTop * 0.65;
+      var my = nfy + rTop * 0.70;
       ctx.fillStyle = "#1a1a22";
       ctx.beginPath();
       ctx.ellipse(0, my, mw, mh, 0, 0, Math.PI * 2);
@@ -9576,14 +9586,15 @@
     } else if (blink) drawClosedEyes(0, nfy, neR, ngap);
     else if (expression === "dying") drawHurtEyes(0, nfy, neR, ngap);
     else if (expression === "levelup") drawSparkleEyes(0, nfy, neR, ngap);
-    else if (attacking) drawFocusedEyes(0, nfy, neR, ngap, R * 0.14, R * 0.05);
-    else drawAnimeEyes(0, nfy, neR, ngap, 0, 0, R * 0.10, R * 0.08, "fierce");
+    else if (attacking) drawFocusedEyes(0, nfy, neR, ngap, neR * 0.70, neR * 0.25);
+    else drawAnimeEyes(0, nfy, neR, ngap, 0, 0, neR * 0.50, neR * 0.40, "fierce");
+    // Mouth offsets escalan con rTop (esfera-cabeza del snowman).
     if (doingUltimate) {
       // boca ya dibujada arriba
-    } else if (expression === "dying") drawAnimeMouth(0, nfy + R * 0.45, R * 0.40, R * 0.40, "open");
-    else if (expression === "levelup") drawAnimeMouth(0, nfy + R * 0.42, R * 0.46, R * 0.28, "smile");
-    else if (attacking) drawAnimeMouth(0, nfy + R * 0.42, R * 0.48, R * 0.48, "fanged");
-    else drawAnimeMouth(0, nfy + R * 0.42, R * 0.36, R * 0.18, "serious");
+    } else if (expression === "dying") drawAnimeMouth(0, nfy + rTop * 0.65, rTop * 0.75, rTop * 0.65, "open");
+    else if (expression === "levelup") drawAnimeMouth(0, nfy + rTop * 0.60, rTop * 0.78, rTop * 0.50, "smile");
+    else if (attacking) drawAnimeMouth(0, nfy + rTop * 0.60, rTop * 0.80, rTop * 0.80, "fanged");
+    else drawAnimeMouth(0, nfy + rTop * 0.60, rTop * 0.65, rTop * 0.32, "serious");
 
     ctx.restore();
 
@@ -9604,9 +9615,9 @@
       var shoulderX, shoulderY, dnxOnly, rotSign;
       if (isDissem) {
         // ── DISEMINACIÓN: martillazo VERTICAL puro ──
-        // Brazo emerge del CENTRO-TOP del neutrofilo (vista desde atrás).
+        // Brazo emerge del CENTRO de la esfera MEDIA (panza del snowman).
         shoulderX = t.x;
-        shoulderY = t.y - R * 0.35;
+        shoulderY = t.y - R * 0.25;
         dnxOnly = 0;
         var apexHandY  = ht.y - L - 50 * U;        // ápice alto sobre target
         var impactHandY = ht.y - L;                 // mano en impacto

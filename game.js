@@ -4289,9 +4289,10 @@
       return;
     }
     if (def.id === "linfocitoB") {
-      // DIFERENCIACIÓN A PLASMOCITO — el linfocito B se transforma
-      // momentáneamente en una fábrica de anticuerpos y dispara una
-      // ráfaga densa de Y's hacia el camino más cercano.
+      // MODO RAMBO ARTILLERO — dos cañones flanquean el cuerpo y
+      // disparan rayos continuos hacia el camino más cercano. Los
+      // rayos atraviesan a todos los gérmenes en su línea (penetran),
+      // continuando hasta off-screen.
       var ptB = nearestPointOnPath(t.x, t.y);
       var statsB = towerStats(t);
       var rngB = statsB.range * U;
@@ -4308,32 +4309,11 @@
       } else {
         tgtX = t.x; tgtY = t.y + 30 * U;
       }
-      // Spawn 30 anticuerpos Y con stagger temporal (delay distinto cada uno)
-      var dartDmg = statsB.damage * 3;  // damage por Y (era stats.damage normal)
-      var NDARTS = 30;
-      for (var d = 0; d < NDARTS; d++) {
-        var delayJitter = (d / NDARTS) * 0.35;     // ráfaga distribuida en 0.35s
-        var spreadX = (Math.random() - 0.5) * 70 * U;
-        var spreadY = (Math.random() - 0.5) * 36 * U;
-        pushEffect({
-          kind: "antibodyDart",
-          x: t.x, y: t.y,
-          startX: t.x + (Math.random() - 0.5) * 10 * U,
-          startY: t.y + (Math.random() - 0.5) * 10 * U,
-          targetX: tgtX + spreadX,
-          targetY: tgtY + spreadY,
-          rot: Math.random() * Math.PI * 2,
-          rotSpd: (Math.random() - 0.5) * 18,
-          arcHeight: (28 + Math.random() * 22) * U,
-          delay: delayJitter,
-          life: 0.55 + delayJitter,            // travel time + delay
-          max:  0.55 + delayJitter,
-          travelTime: 0.55,
-          dmg: dartDmg,
-          impacted: false
-        });
-      }
-      t.specialAnim = 0.90;
+      // Setup: el target lock para los cañones + reset timers.
+      t.cannonTarget = { x: tgtX, y: tgtY };
+      t.cannonFireT = 0;             // primer disparo inmediato
+      t.cannonRecoil = 0;            // contador de recoil visual
+      t.specialAnim = 1.6;            // duración del ultimate (1.6s de fuego continuo)
       t.specialReady = false;
       t.specialCharge = 0;
       sfx("upgrade");
@@ -4342,6 +4322,82 @@
     // Fallback: si la torre no tiene ultimate implementado, no hace nada.
     t.specialReady = false;
     t.specialCharge = 0;
+  }
+
+  // Distancia mínima de un punto (px, py) al segmento (ax,ay)→(bx,by).
+  function pointToSegmentDist(px, py, ax, ay, bx, by) {
+    var dx = bx - ax, dy = by - ay;
+    var lenSq = dx * dx + dy * dy;
+    if (lenSq < 0.0001) return Math.hypot(px - ax, py - ay);
+    var u = ((px - ax) * dx + (py - ay) * dy) / lenSq;
+    u = Math.max(0, Math.min(1, u));
+    var fx = ax + dx * u, fy = ay + dy * u;
+    return Math.hypot(px - fx, py - fy);
+  }
+
+  // Dispara un rayo de uno de los cañones del Linfocito B durante el
+  // ultimate. side = "left" | "right".
+  function spawnAntibodyBeam(t, side) {
+    var aim = t.cannonTarget;
+    if (!aim) return;
+    var aimX = aim.x - t.x, aimY = aim.y - t.y;
+    var aimLen = Math.hypot(aimX, aimY) || 1;
+    var nx = aimX / aimLen, ny = aimY / aimLen;
+    var perpX = -ny, perpY = nx;
+    var sign = (side === "left") ? -1 : 1;
+    // Posición de la base del cañón (junto al cuerpo, lado del side).
+    var R_ult = 26 * U;             // body inflated approx (18*1.45)
+    var cannonBaseX = t.x + sign * perpX * R_ult * 0.85;
+    var cannonBaseY = t.y + sign * perpY * R_ult * 0.85;
+    // Spread aleatorio por disparo (Rambo style — no perfectamente alineado).
+    var spread = (Math.random() - 0.5) * 0.12;     // ±~3.4°
+    var cosS = Math.cos(spread), sinS = Math.sin(spread);
+    var bdirX = nx * cosS - ny * sinS;
+    var bdirY = nx * sinS + ny * cosS;
+    // Punta del barrel = muzzle.
+    var barrelLen = 14 * U;
+    var muzzleX = cannonBaseX + bdirX * barrelLen;
+    var muzzleY = cannonBaseY + bdirY * barrelLen;
+    // Beam end: extender bien lejos (hasta off-screen).
+    var beamLen = 900 * U;
+    var beamEndX = muzzleX + bdirX * beamLen;
+    var beamEndY = muzzleY + bdirY * beamLen;
+    // Aplicar daño a TODOS los gérmenes en la línea (penetración).
+    var stats = towerStats(t);
+    var dmg = stats.damage * 1.4;
+    var beamWidth = 10 * U;
+    for (var ei = 0; ei < state.enemies.length; ei++) {
+      var en = state.enemies[ei];
+      if (en.dead || en.dying || en.absorbing) continue;
+      if (en.state !== "walking" && en.state !== "blocked") continue;
+      var d = pointToSegmentDist(en.x, en.y, muzzleX, muzzleY, beamEndX, beamEndY);
+      if (d <= beamWidth + (en.def.radius * U * 0.55)) {
+        en.hp -= dmg;
+        en.hitFlash = 0.20;
+        if (en.hp <= 0 && !en.dying) {
+          en.hp = 0; en.dying = true; en.dyingTimer = 0.30;
+          state.atp += en.def.reward;
+          state.pathogensDefeated += 1;
+        }
+      }
+    }
+    // Effect visual del rayo (railgun-style: aparece full y desvanece).
+    pushEffect({
+      kind: "antibodyBeam",
+      startX: muzzleX, startY: muzzleY,
+      endX: beamEndX, endY: beamEndY,
+      life: 0.16, max: 0.16
+    });
+    // Mini muzzle flash en la boca del cañón.
+    pushEffect({
+      kind: "particle",
+      x: muzzleX, y: muzzleY,
+      vx: bdirX * 60 * U + (Math.random() - 0.5) * 80 * U,
+      vy: bdirY * 60 * U + (Math.random() - 0.5) * 80 * U,
+      life: 0.18, max: 0.18,
+      color: "rgba(180, 255, 200, 0.95)"
+    });
+    t.cannonRecoil = 0.06;     // visible recoil shake del cañón
   }
 
   // Aplica el daño + efectos del martillazo en el momento del impacto.
@@ -4725,6 +4781,17 @@
         if (t.specialCharge >= 1) t.specialReady = true;
       }
       if ((t.specialAnim || 0) > 0) t.specialAnim -= dt;
+      // Linfocito B ultimate: cañones disparan rayos continuos mientras
+      // dure specialAnim. ~16 disparos/s por cañón (alternando).
+      if (t.def.id === "linfocitoB" && (t.specialAnim || 0) > 0 && t.cannonTarget) {
+        if ((t.cannonRecoil || 0) > 0) t.cannonRecoil -= dt;
+        t.cannonFireT = (t.cannonFireT || 0) - dt;
+        if (t.cannonFireT <= 0) {
+          t.cannonFireT = 0.06;       // ~16 disparos/s por cada cañón
+          spawnAntibodyBeam(t, "left");
+          spawnAntibodyBeam(t, "right");
+        }
+      }
       // Estreptolisina O: DoT activo mientras lisisTimer > 0.
       if ((t.lisisTimer || 0) > 0) {
         t.lisisTimer -= dt;
@@ -6349,6 +6416,8 @@
         // Decal estático del splat de muerte: solo desvanece.
       } else if (ef.kind === "biofilmDrop") {
         // Gotita estática del slime trail: solo desvanece.
+      } else if (ef.kind === "antibodyBeam") {
+        // Rayo de cañón del Linfocito B — solo desvanece.
       } else if (ef.kind === "antibodyDart") {
         // Dart "Y" del ultimate del linfocito B. Vuela en arco
         // parabólico desde start a target; al llegar daña ONE germen
@@ -9715,6 +9784,64 @@
       else if (expression === "levelup") drawAnimeMouth(0, R * 0.32, R * 0.55, R * 0.30, "smile");
       else drawAnimeMouth(0, R * 0.32, R * 0.42, R * 0.20, "serious");
     }
+
+    // ── DOS CAÑONES estilo "Rambo" durante el ultimate ──
+    if (doingUltimate && t.cannonTarget) {
+      var aimX = t.cannonTarget.x - x;
+      var aimY = t.cannonTarget.y - y;
+      var aimLen = Math.hypot(aimX, aimY) || 1;
+      var nx = aimX / aimLen, ny = aimY / aimLen;
+      var perpX = -ny, perpY = nx;
+      var aimAng = Math.atan2(ny, nx);
+      var recoil = (t.cannonRecoil || 0) > 0 ? (t.cannonRecoil / 0.06) : 0;
+      function drawCannon(sign) {
+        var cbX = sign * perpX * R * 0.85;
+        var cbY = sign * perpY * R * 0.85;
+        // Recoil: cañón se desplaza hacia atrás (opuesto al disparo).
+        cbX -= nx * recoil * 3 * U;
+        cbY -= ny * recoil * 3 * U;
+        ctx.save();
+        ctx.translate(cbX, cbY);
+        ctx.rotate(aimAng);
+        // Base circular (mount del cañón).
+        ctx.fillStyle = "#3aa05c";
+        ctx.beginPath();
+        ctx.arc(0, 0, 6 * U, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = "#1a4a2a";
+        ctx.lineWidth = 1.4 * U;
+        ctx.stroke();
+        // Barrel (rectángulo extendiéndose hacia adelante).
+        var barrelLen = 14 * U;
+        ctx.fillStyle = "#2c8049";
+        ctx.fillRect(0, -3.5 * U, barrelLen, 7 * U);
+        ctx.strokeStyle = "#1a4a2a";
+        ctx.lineWidth = 1.3 * U;
+        ctx.strokeRect(0, -3.5 * U, barrelLen, 7 * U);
+        // Muzzle (sección final más ancha).
+        ctx.fillStyle = "#1a4a2a";
+        ctx.fillRect(barrelLen - 2 * U, -4.5 * U, 4 * U, 9 * U);
+        // Highlight central del barrel.
+        ctx.fillStyle = "rgba(255, 255, 255, 0.30)";
+        ctx.fillRect(2 * U, -2.5 * U, barrelLen - 4 * U, 1.5 * U);
+        // Muzzle flash si acaba de disparar (recoil > 0).
+        if (recoil > 0) {
+          var fa = recoil * 0.85;
+          ctx.fillStyle = "rgba(255, 255, 200, " + fa + ")";
+          ctx.beginPath();
+          ctx.arc(barrelLen + 2 * U, 0, (4 + recoil * 5) * U, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = "rgba(170, 255, 170, " + (fa * 0.7) + ")";
+          ctx.beginPath();
+          ctx.arc(barrelLen + 4 * U, 0, (6 + recoil * 6) * U, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+      }
+      drawCannon(-1);   // left
+      drawCannon( 1);   // right
+    }
+
     ctx.restore();
   }
 
@@ -12880,6 +13007,32 @@
       ctx.beginPath();
       ctx.arc(ef.x - br * 0.32, ef.y - br * 0.40, br * 0.25, 0, Math.PI * 2);
       ctx.fill();
+    } else if (ef.kind === "antibodyBeam") {
+      // Rayo de cañón del Linfocito B (railgun-style: 3 capas concéntricas).
+      ctx.save();
+      ctx.lineCap = "round";
+      // Outer glow ancho translúcido
+      ctx.strokeStyle = "rgba(124, 252, 158, " + (alpha * 0.45) + ")";
+      ctx.lineWidth = 11 * U;
+      ctx.beginPath();
+      ctx.moveTo(ef.startX, ef.startY);
+      ctx.lineTo(ef.endX, ef.endY);
+      ctx.stroke();
+      // Mid green
+      ctx.strokeStyle = "rgba(80, 220, 130, " + (alpha * 0.85) + ")";
+      ctx.lineWidth = 4.5 * U;
+      ctx.beginPath();
+      ctx.moveTo(ef.startX, ef.startY);
+      ctx.lineTo(ef.endX, ef.endY);
+      ctx.stroke();
+      // Hot white core
+      ctx.strokeStyle = "rgba(255, 255, 255, " + (alpha * 0.95) + ")";
+      ctx.lineWidth = 1.6 * U;
+      ctx.beginPath();
+      ctx.moveTo(ef.startX, ef.startY);
+      ctx.lineTo(ef.endX, ef.endY);
+      ctx.stroke();
+      ctx.restore();
     } else if (ef.kind === "antibodyDart") {
       // Anticuerpo Y del ultimate del Linfocito B (vuela en arco).
       if ((ef.delay || 0) > 0) {

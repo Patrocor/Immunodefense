@@ -14228,16 +14228,21 @@
         ctx.shadowColor = "transparent";
         ctx.shadowBlur = 0;
         ctx.shadowOffsetX = 0;
-        // Borde solo si está seleccionada (para feedback) — el resto sin outline.
+        // Borde SIEMPRE visible para que se lea como tarjeta contenida
+        // (no como "globo de diálogo" con el ícono colgando). Sutil
+        // cuando no está seleccionada; del color del def cuando sí.
         if (isSelected) {
           ctx.strokeStyle = def.color;
           ctx.lineWidth = 2;
-          roundRect(cardX, cardY, cw, ch, 7);
-          ctx.stroke();
+        } else {
+          ctx.strokeStyle = "rgba(255, 255, 255, 0.18)";
+          ctx.lineWidth = 1;
         }
+        roundRect(cardX, cardY, cw, ch, 7);
+        ctx.stroke();
 
-        // Layout VERTICAL: nombre arriba, ícono al medio, costo abajo.
-        // Todo centrado en el card — formato tarjeta clásico.
+        // Layout VERTICAL — todo centrado horizontalmente, ícono CONTENIDO
+        // (sin sobresalir): nombre arriba, ícono al medio, costo abajo.
         var cardCenterX = cardX + cw / 2;
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
@@ -14247,15 +14252,14 @@
         var fs1 = Math.max(10, Math.min(12, cw * 0.18));
         ctx.font = "bold " + fs1 + "px Fredoka, sans-serif";
         var nameStr = def.shortName || def.name;
-        // Truncar si se sale del ancho del card.
         while (ctx.measureText(nameStr).width > (cw - 8) && nameStr.length > 3) {
           nameStr = nameStr.slice(0, -2);
         }
-        ctx.fillText(nameStr, cardCenterX, cardY + ch * 0.20);
+        ctx.fillText(nameStr, cardCenterX, cardY + ch * 0.18);
 
-        // 2. ÍCONO (centro)
-        var iconCy = cardY + ch * 0.52;
-        var iconR = Math.min(ch * 0.26, cw * 0.30) * (canAfford ? 1 : 0.6);
+        // 2. ÍCONO (centro) — más contenido (era 0.30 ahora 0.22 del width).
+        var iconCy = cardY + ch * 0.50;
+        var iconR = Math.min(ch * 0.20, cw * 0.22) * (canAfford ? 1 : 0.6);
         drawCardIcon(typeId, cardCenterX, iconCy, iconR, canAfford);
 
         // 3. COSTO ATP (bottom)
@@ -14264,9 +14268,9 @@
         ctx.font = "bold " + Math.max(9, Math.min(11, cw * 0.16)) + "px Fredoka, sans-serif";
         if (typeId === "plaqueta") {
           var rdy = (state.plaquetaPickups || []).length;
-          ctx.fillText("🔶 " + rdy, cardCenterX, cardY + ch * 0.85);
+          ctx.fillText("🔶 " + rdy, cardCenterX, cardY + ch * 0.84);
         } else {
-          ctx.fillText((isComp ? "🧬 " : "⚡ ") + def.cost, cardCenterX, cardY + ch * 0.85);
+          ctx.fillText((isComp ? "🧬 " : "⚡ ") + def.cost, cardCenterX, cardY + ch * 0.84);
         }
       }
       ctx.restore();

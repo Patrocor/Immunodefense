@@ -934,13 +934,16 @@
   var MAC_COST = 5;   // fragmentos de complemento para ensamblar el cañón
   var TOWER_LIST = ["neutrofilo", "linfocitoB", "linfocitoT", "langerhans", "nk", "eosinofilo", "mastocito", "complemento", "plaqueta"];
   // Cartilla por grupos desplegables (categorías de defensa).
+  // 3 grupos principales + 1 "otras estructuras":
+  //  · Defensas: torres que atacan directamente
+  //  · Potenciadores: soportes que escalan a otras torres
+  //  · Tanques: estructuras pesadas/persistentes (MAC)
+  //  · Otras estructuras: el resto (Fibrina solo en diseminación)
   var TOWER_GROUPS = [
-    { id: "linea",         label: "Primera línea", towers: ["neutrofilo"] },
-    { id: "distancia",     label: "A distancia",   towers: ["linfocitoB", "linfocitoT"] },
-    { id: "especialistas", label: "Especialistas", towers: ["nk", "eosinofilo"] },
-    { id: "soporte",       label: "Soporte",       towers: ["langerhans", "mastocito"] },
-    { id: "sangre",        label: "Sangre",        towers: ["plaqueta"] },
-    { id: "especial",      label: "Especial (MAC)", towers: ["complemento"] }
+    { id: "defensas",      label: "Defensas",      towers: ["neutrofilo", "linfocitoB", "linfocitoT", "nk", "eosinofilo"] },
+    { id: "potenciadores", label: "Potenciadores", towers: ["langerhans", "mastocito"] },
+    { id: "tanques",       label: "Tanques",       towers: ["complemento"] },
+    { id: "otras",         label: "Otras estructuras", towers: ["plaqueta"] }
   ];
 
   // BASE_SPEED in design px/s; multiplied by U each frame for actual movement.
@@ -3083,10 +3086,9 @@
     var stripTop = dockTop + compBtnH + 6;
     var stripRegionH = Math.max(0, (infoY - dockPad - responsesReservedH) - stripTop);
     var headerH = 28, groupSpacing = 6;
-    // Cartas compactas horizontales (ícono pequeño a la izquierda + texto a
-    // la derecha). Antes eran tall cards con avatar circular arriba que daban
-    // efecto "globo de diálogo" (cabeza redonda + cuerpo cuadrado).
-    var cardH = Math.round(Math.max(48, Math.min(64, contentW * 0.42)));
+    // Cartas verticales: nombre arriba, ícono al medio, costo abajo.
+    // Altura ajustada para que los 3 elementos respiren.
+    var cardH = Math.round(Math.max(64, Math.min(82, contentW * 0.95)));
     var openMap = (state && state.openGroups) ? state.openGroups : { linea: true };
     UI.cards = [];
     UI.groupHeaders = [];
@@ -14226,42 +14228,37 @@
           ctx.strokeRect(cardX, cardY, cw, ch);
         }
 
-        // Layout HORIZONTAL: ícono pequeño a la izquierda (en su propio
-        // recuadro cuadrado) + nombre y costo a la derecha. Todo dentro del
-        // rectángulo del card — sin "cabeza redonda" sobre "cuerpo rectangular".
-        var iconBoxSize = Math.min(ch - 8, cw * 0.30);
-        var iconCx = cardX + iconBoxSize / 2 + 4;
-        var iconCy = cardY + ch / 2;
-        var iconR = iconBoxSize * 0.40 * (canAfford ? 1 : 0.6);
-        drawCardIcon(typeId, iconCx, iconCy, iconR, canAfford);
-
-        // Texto: nombre (línea superior) + costo (línea inferior), alineado
-        // a la izquierda, dentro del rectángulo.
-        var textX = cardX + iconBoxSize + 10;
-        var textRight = cardX + cw - 8;
-        ctx.textAlign = "left";
+        // Layout VERTICAL: nombre arriba, ícono al medio, costo abajo.
+        // Todo centrado en el card — formato tarjeta clásico.
+        var cardCenterX = cardX + cw / 2;
+        ctx.textAlign = "center";
         ctx.textBaseline = "middle";
 
+        // 1. NOMBRE (top)
         ctx.fillStyle = canAfford ? "#fff" : "rgba(255,255,255,0.45)";
-        var fs1 = Math.max(11, Math.min(13, cw * 0.10));
+        var fs1 = Math.max(10, Math.min(12, cw * 0.18));
         ctx.font = "bold " + fs1 + "px Fredoka, sans-serif";
-        // Dock compacto: SIEMPRE shortName si existe (los nombres largos
-        // no caben en el ancho actual).
         var nameStr = def.shortName || def.name;
-        // Truncar si el texto se sale.
-        while (ctx.measureText(nameStr).width > (textRight - textX) && nameStr.length > 4) {
+        // Truncar si se sale del ancho del card.
+        while (ctx.measureText(nameStr).width > (cw - 8) && nameStr.length > 3) {
           nameStr = nameStr.slice(0, -2);
         }
-        ctx.fillText(nameStr, textX, cardY + ch * 0.36);
+        ctx.fillText(nameStr, cardCenterX, cardY + ch * 0.20);
 
+        // 2. ÍCONO (centro)
+        var iconCy = cardY + ch * 0.52;
+        var iconR = Math.min(ch * 0.26, cw * 0.30) * (canAfford ? 1 : 0.6);
+        drawCardIcon(typeId, cardCenterX, iconCy, iconR, canAfford);
+
+        // 3. COSTO ATP (bottom)
         var isComp = def.currency === "complement";
         ctx.fillStyle = canAfford ? (isComp ? "#7CFC9E" : "#f5d76e") : "#d9534f";
-        ctx.font = "bold " + Math.max(10, Math.min(12, cw * 0.09)) + "px Fredoka, sans-serif";
+        ctx.font = "bold " + Math.max(9, Math.min(11, cw * 0.16)) + "px Fredoka, sans-serif";
         if (typeId === "plaqueta") {
           var rdy = (state.plaquetaPickups || []).length;
-          ctx.fillText("🔶 " + rdy + " listas", textX, cardY + ch * 0.70);
+          ctx.fillText("🔶 " + rdy, cardCenterX, cardY + ch * 0.85);
         } else {
-          ctx.fillText((isComp ? "🧬 " : "⚡ ") + def.cost, textX, cardY + ch * 0.70);
+          ctx.fillText((isComp ? "🧬 " : "⚡ ") + def.cost, cardCenterX, cardY + ch * 0.85);
         }
       }
       ctx.restore();

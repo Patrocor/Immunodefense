@@ -4335,8 +4335,9 @@
     return Math.hypot(px - fx, py - fy);
   }
 
-  // Dispara un rayo de uno de los cañones del Linfocito B durante el
-  // ultimate. side = "left" | "right".
+  // Dispara una BALA GORDA Y (perforante) desde uno de los cañones del
+  // Linfocito B durante el ultimate. side = "left" | "right".
+  // Sin spread — dirección estable hacia el path locked.
   function spawnAntibodyBeam(t, side) {
     var aim = t.cannonTarget;
     if (!aim) return;
@@ -4345,59 +4346,38 @@
     var nx = aimX / aimLen, ny = aimY / aimLen;
     var perpX = -ny, perpY = nx;
     var sign = (side === "left") ? -1 : 1;
-    // Posición de la base del cañón (junto al cuerpo, lado del side).
-    var R_ult = 26 * U;             // body inflated approx (18*1.45)
+    var R_ult = 26 * U;             // body inflated approx
     var cannonBaseX = t.x + sign * perpX * R_ult * 0.85;
     var cannonBaseY = t.y + sign * perpY * R_ult * 0.85;
-    // Spread aleatorio por disparo (Rambo style — no perfectamente alineado).
-    var spread = (Math.random() - 0.5) * 0.12;     // ±~3.4°
-    var cosS = Math.cos(spread), sinS = Math.sin(spread);
-    var bdirX = nx * cosS - ny * sinS;
-    var bdirY = nx * sinS + ny * cosS;
-    // Punta del barrel = muzzle.
+    // SIN spread: dirección estable hacia el path.
     var barrelLen = 14 * U;
-    var muzzleX = cannonBaseX + bdirX * barrelLen;
-    var muzzleY = cannonBaseY + bdirY * barrelLen;
-    // Beam end: extender bien lejos (hasta off-screen).
-    var beamLen = 900 * U;
-    var beamEndX = muzzleX + bdirX * beamLen;
-    var beamEndY = muzzleY + bdirY * beamLen;
-    // Aplicar daño a TODOS los gérmenes en la línea (penetración).
+    var muzzleX = cannonBaseX + nx * barrelLen;
+    var muzzleY = cannonBaseY + ny * barrelLen;
     var stats = towerStats(t);
-    var dmg = stats.damage * 1.4;
-    var beamWidth = 10 * U;
-    for (var ei = 0; ei < state.enemies.length; ei++) {
-      var en = state.enemies[ei];
-      if (en.dead || en.dying || en.absorbing) continue;
-      if (en.state !== "walking" && en.state !== "blocked") continue;
-      var d = pointToSegmentDist(en.x, en.y, muzzleX, muzzleY, beamEndX, beamEndY);
-      if (d <= beamWidth + (en.def.radius * U * 0.55)) {
-        en.hp -= dmg;
-        en.hitFlash = 0.20;
-        if (en.hp <= 0 && !en.dying) {
-          en.hp = 0; en.dying = true; en.dyingTimer = 0.30;
-          state.atp += en.def.reward;
-          state.pathogensDefeated += 1;
-        }
-      }
-    }
-    // Effect visual del rayo (railgun-style: aparece full y desvanece).
+    var dmg = stats.damage * 2.5;            // daño por germen perforado
+    // Spawn proyectil gordo en movimiento (atraviesa todos los gérmenes).
     pushEffect({
-      kind: "antibodyBeam",
-      startX: muzzleX, startY: muzzleY,
-      endX: beamEndX, endY: beamEndY,
-      life: 0.16, max: 0.16
+      kind: "antibodyHeavy",
+      x: muzzleX, y: muzzleY,
+      vx: nx * 700 * U,                       // velocidad alta
+      vy: ny * 700 * U,
+      rot: Math.atan2(ny, nx) + Math.PI / 2,
+      rotSpd: 9,
+      size: 12 * U,                           // 3x el normal (4u)
+      dmg: dmg,
+      hitIds: {},                             // set de gérmenes ya golpeados
+      life: 1.4, max: 1.4                     // tiempo máximo de vida (off-screen safety)
     });
-    // Mini muzzle flash en la boca del cañón.
+    // Muzzle flash chico al disparar.
     pushEffect({
       kind: "particle",
       x: muzzleX, y: muzzleY,
-      vx: bdirX * 60 * U + (Math.random() - 0.5) * 80 * U,
-      vy: bdirY * 60 * U + (Math.random() - 0.5) * 80 * U,
+      vx: nx * 60 * U + (Math.random() - 0.5) * 80 * U,
+      vy: ny * 60 * U + (Math.random() - 0.5) * 80 * U,
       life: 0.18, max: 0.18,
       color: "rgba(180, 255, 200, 0.95)"
     });
-    t.cannonRecoil = 0.06;     // visible recoil shake del cañón
+    t.cannonRecoil = 0.06;
   }
 
   // Aplica el daño + efectos del martillazo en el momento del impacto.
@@ -6417,7 +6397,43 @@
       } else if (ef.kind === "biofilmDrop") {
         // Gotita estática del slime trail: solo desvanece.
       } else if (ef.kind === "antibodyBeam") {
-        // Rayo de cañón del Linfocito B — solo desvanece.
+        // Rayo de cañón del Linfocito B — solo desvanece (deprecated).
+      } else if (ef.kind === "antibodyHeavy") {
+        // Bala gorda perforante del Linfocito B ultimate. Mueve, golpea,
+        // continúa hasta off-screen o fin de vida.
+        ef.x += ef.vx * dt;
+        ef.y += ef.vy * dt;
+        ef.rot = (ef.rot || 0) + ef.rotSpd * dt;
+        // Si sale del field — kill the effect (life → 0).
+        if (ef.x < FIELD_LEFT - 40 * U || ef.x > FIELD_RIGHT + 40 * U ||
+            ef.y < FIELD_TOP  - 40 * U || ef.y > FIELD_BOTTOM + 40 * U) {
+          ef.life = 0;
+          continue;
+        }
+        // Colisión con cada germen (penetra, hitIds previene daño doble).
+        if (!ef.hitIds) ef.hitIds = {};
+        var hitR = ef.size * 0.8;
+        for (var ehi = 0; ehi < state.enemies.length; ehi++) {
+          var hen = state.enemies[ehi];
+          if (!hen.def || !hen.def.id) continue;
+          if (hen.dead || hen.dying || hen.absorbing) continue;
+          if (hen.state !== "walking" && hen.state !== "blocked") continue;
+          var hid = hen.def.id + "_" + ehi;
+          if (ef.hitIds[hid]) continue;
+          var hdx = hen.x - ef.x, hdy = hen.y - ef.y;
+          var enR = (hen.def.radius || 16) * U * 0.55;
+          if (hdx * hdx + hdy * hdy <= (hitR + enR) * (hitR + enR)) {
+            ef.hitIds[hid] = true;
+            hen.hp -= ef.dmg;
+            hen.hitFlash = 0.25;
+            pushDamageNumber(hen.x + (Math.random() - 0.5) * 6 * U, hen.y - hen.def.radius * U, ef.dmg, "#7CFC9E");
+            if (hen.hp <= 0 && !hen.dying) {
+              hen.hp = 0; hen.dying = true; hen.dyingTimer = 0.30;
+              state.atp += hen.def.reward;
+              state.pathogensDefeated += 1;
+            }
+          }
+        }
       } else if (ef.kind === "antibodyDart") {
         // Dart "Y" del ultimate del linfocito B. Vuela en arco
         // parabólico desde start a target; al llegar daña ONE germen
@@ -13007,6 +13023,48 @@
       ctx.beginPath();
       ctx.arc(ef.x - br * 0.32, ef.y - br * 0.40, br * 0.25, 0, Math.PI * 2);
       ctx.fill();
+    } else if (ef.kind === "antibodyHeavy") {
+      // Bala Y GORDA perforante del Linfocito B ultimate.
+      // Visualmente: halo amarillo-verde grande detrás + Y rotando grande
+      // en el centro + estela corta.
+      ctx.save();
+      ctx.translate(ef.x, ef.y);
+      // Halo radial gordo (efecto "bala pesada cargada").
+      var ha = ef.size * 1.5;
+      var hg = ctx.createRadialGradient(0, 0, ef.size * 0.30, 0, 0, ha);
+      hg.addColorStop(0,    "rgba(255, 255, 200, 0.85)");
+      hg.addColorStop(0.4,  "rgba(180, 255, 130, 0.65)");
+      hg.addColorStop(1,    "rgba(124, 252, 158, 0)");
+      ctx.fillStyle = hg;
+      ctx.beginPath();
+      ctx.arc(0, 0, ha, 0, Math.PI * 2);
+      ctx.fill();
+      // Y gorda al centro, rotando.
+      ctx.rotate(ef.rot || 0);
+      drawYShape(0, 0, ef.size, 0, "#fff7c4", "#2c8049");
+      // Outline más grueso para que se sienta "bala pesada".
+      ctx.strokeStyle = "#1a4a2a";
+      ctx.lineWidth = 1.6 * U;
+      ctx.beginPath();
+      ctx.arc(0, 0, ef.size * 0.55, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+      // Estela corta detrás (estela cometa).
+      var trailLen = ef.size * 1.8;
+      var sp = Math.hypot(ef.vx, ef.vy) || 1;
+      var nx_ = ef.vx / sp, ny_ = ef.vy / sp;
+      var tx1 = ef.x - nx_ * trailLen;
+      var ty1 = ef.y - ny_ * trailLen;
+      var lingrad = ctx.createLinearGradient(ef.x, ef.y, tx1, ty1);
+      lingrad.addColorStop(0, "rgba(180, 255, 130, 0.65)");
+      lingrad.addColorStop(1, "rgba(124, 252, 158, 0)");
+      ctx.strokeStyle = lingrad;
+      ctx.lineWidth = ef.size * 0.95;
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.moveTo(ef.x, ef.y);
+      ctx.lineTo(tx1, ty1);
+      ctx.stroke();
     } else if (ef.kind === "antibodyBeam") {
       // Rayo de cañón del Linfocito B (railgun-style: 3 capas concéntricas).
       ctx.save();

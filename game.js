@@ -10055,21 +10055,29 @@
 
   // NK — silueta HEXAGONAL BLINDADA con retícula de caza (cazadora antiviral).
   function drawNK(t, pulse, expression, blink) {
+    // Célula NK — diseño LGL (Large Granular Lymphocyte):
+    // · Cuerpo orgánico tipo gota irregular (no hexagonal — único entre torres)
+    // · Núcleo riñón ECCENTRIC (forma de bean) — característica del NK real
+    // · Gránulos densos esparcidos en el citoplasma (perforinas + granzimas)
+    // · Aura fucsia permanente sutil (siempre activa)
     var doingUlt = (t.def.id === "nk" && (t.specialAnim || 0) > 0);
     var ultBoost = doingUlt ? 1.18 : 1;
     var R = 18 * U * pulse * ultBoost;
+    var time = state.time;
+    var phase = t.idlePhase || 0;
     ctx.save(); ctx.translate(t.x, t.y);
 
-    // ── FRENESÍ: aura fucsia intensa + tornado spin del fondo ──
+    // ── AURA FUCSIA PERMANENTE (sutil, intensifica en ultimate) ──
+    var auraStrength = doingUlt ? 0.55 : 0.25;
+    var auraR = R * (doingUlt ? 2.6 : 1.85);
+    var auraG = ctx.createRadialGradient(0, 0, R * 0.6, 0, 0, auraR);
+    auraG.addColorStop(0, "rgba(232, 67, 147, " + auraStrength + ")");
+    auraG.addColorStop(1, "rgba(232, 67, 147, 0)");
+    ctx.fillStyle = auraG;
+    ctx.beginPath(); ctx.arc(0, 0, auraR, 0, Math.PI * 2); ctx.fill();
+
+    // ── FRENESÍ: tornado spin de fondo (solo en ultimate) ──
     if (doingUlt) {
-      // Aura saturada
-      var auraR = R * 2.6;
-      var auraG = ctx.createRadialGradient(0, 0, R * 0.7, 0, 0, auraR);
-      auraG.addColorStop(0, "rgba(232, 67, 147, 0.55)");
-      auraG.addColorStop(1, "rgba(232, 67, 147, 0)");
-      ctx.fillStyle = auraG;
-      ctx.beginPath(); ctx.arc(0, 0, auraR, 0, Math.PI * 2); ctx.fill();
-      // Tornado de líneas dispersas
       ctx.strokeStyle = "rgba(255, 130, 200, 0.55)";
       ctx.lineWidth = 1.6 * U;
       var spinAng = t.frenzySpin || 0;
@@ -10082,42 +10090,116 @@
       }
     }
 
-    // Anillo crosshair rotando (sutil — sigue presente)
-    ctx.strokeStyle = colorAlpha(t.def.color, 0.5); ctx.lineWidth = Math.max(1, 1.4 * U);
-    ctx.save(); ctx.rotate(state.time * 0.8);
-    ctx.beginPath(); ctx.arc(0, 0, R * 1.35, 0, Math.PI * 2); ctx.stroke();
-    for (var k = 0; k < 4; k++) { var a = k * Math.PI / 2; ctx.beginPath(); ctx.moveTo(Math.cos(a) * R * 1.1, Math.sin(a) * R * 1.1); ctx.lineTo(Math.cos(a) * R * 1.55, Math.sin(a) * R * 1.55); ctx.stroke(); }
+    // ── Anillo crosshair rotando (mira de cazadora, sutil) ──
+    ctx.strokeStyle = colorAlpha(t.def.color, 0.45);
+    ctx.lineWidth = Math.max(1, 1.3 * U);
+    ctx.save(); ctx.rotate(time * 0.8);
+    ctx.beginPath(); ctx.arc(0, 0, R * 1.30, 0, Math.PI * 2); ctx.stroke();
+    for (var k = 0; k < 4; k++) {
+      var ka = k * Math.PI / 2;
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(ka) * R * 1.08, Math.sin(ka) * R * 1.08);
+      ctx.lineTo(Math.cos(ka) * R * 1.50, Math.sin(ka) * R * 1.50);
+      ctx.stroke();
+    }
     ctx.restore();
 
-    // Cuerpo hexagonal
-    var grad = ctx.createRadialGradient(-R * 0.3, -R * 0.3, R * 0.2, 0, 0, R);
-    grad.addColorStop(0, "#ffd9ec"); grad.addColorStop(0.6, t.def.color); grad.addColorStop(1, t.def.colorDark);
-    ctx.fillStyle = grad; hexPath(R * 1.04); ctx.fill();
-    ctx.strokeStyle = t.def.colorDark; ctx.lineWidth = Math.max(1.4, 1.8 * U); hexPath(R * 1.04); ctx.stroke();
-    ctx.strokeStyle = colorAlpha(t.def.colorDark, 0.5); ctx.lineWidth = 1; hexPath(R * 0.6); ctx.stroke();
+    // ── CUERPO LGL: oval-irregular tipo gota (16 puntos con jitter) ──
+    var bodyGrad = ctx.createRadialGradient(-R * 0.3, -R * 0.4, R * 0.2, 0, 0, R);
+    bodyGrad.addColorStop(0, "#ffd9ec");
+    bodyGrad.addColorStop(0.55, t.def.color);
+    bodyGrad.addColorStop(1, t.def.colorDark);
+    ctx.fillStyle = bodyGrad;
+    ctx.beginPath();
+    var pts = 16;
+    for (var p = 0; p < pts; p++) {
+      var pa = p * (Math.PI * 2 / pts);
+      // Ligero estiramiento vertical para forma de gota.
+      var radMul = 1 + Math.sin(pa - Math.PI / 2) * 0.06;
+      // Wobble sutil orgánico.
+      var wob = 1 + Math.sin(time * 1.6 + p * 0.9 + phase) * 0.035;
+      var rx = Math.cos(pa) * R * radMul * wob;
+      var ry = Math.sin(pa) * R * radMul * wob;
+      if (p === 0) ctx.moveTo(rx, ry); else ctx.lineTo(rx, ry);
+    }
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = t.def.colorDark;
+    ctx.lineWidth = Math.max(1.4, 1.8 * U);
+    ctx.stroke();
 
-    // ── GRÁNULOS ORBITANDO durante el frenesí ──
-    // 6 gránulos rosa-blanco que orbitan la NK (perforinas + granzimas
-    // liberadas). Brillan, son la fuente de los disparos.
+    // ── NÚCLEO RIÑÓN ECCENTRIC ──
+    // Posicionado arriba-izquierda (eccentric). Forma de bean (elipse
+    // grande + bocado de citoplasma en el lado interno).
+    var nucX = -R * 0.22;
+    var nucY = -R * 0.28;
+    var nucRx = R * 0.42;
+    var nucRy = R * 0.50;
+    var nucGrad = ctx.createRadialGradient(nucX - nucRx * 0.3, nucY - nucRy * 0.3, nucRx * 0.15, nucX, nucY, nucRx);
+    nucGrad.addColorStop(0, "rgba(140, 40, 95, 0.95)");
+    nucGrad.addColorStop(1, "rgba(80, 20, 55, 0.95)");
+    ctx.fillStyle = nucGrad;
+    ctx.beginPath();
+    ctx.ellipse(nucX, nucY, nucRx, nucRy, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // "Bocado" del riñón: pequeño óvalo de citoplasma en el lado interno.
+    ctx.fillStyle = "#ffd9ec";
+    ctx.beginPath();
+    ctx.ellipse(nucX + nucRx * 0.50, nucY + nucRy * 0.15, nucRx * 0.42, nucRy * 0.55, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // Outline del núcleo (refuerza forma)
+    ctx.strokeStyle = "rgba(60, 15, 40, 0.65)";
+    ctx.lineWidth = 1.0 * U;
+    ctx.beginPath();
+    ctx.ellipse(nucX, nucY, nucRx, nucRy, 0, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // ── GRÁNULOS DENSOS en el citoplasma (perforinas + granzimas) ──
+    // 12 puntos rosa-blanco esparcidos en el citoplasma — característica
+    // LGL real. Posiciones estables por phase (no random cada frame).
+    var grans = 12;
+    for (var gi = 0; gi < grans; gi++) {
+      // Usar trig estable basado en phase como "seed".
+      var ga = gi * 1.83 + phase;
+      var gr = R * (0.50 + ((gi * 7) % 11) / 30);     // 0.50..0.87
+      var gx = Math.cos(ga) * gr;
+      var gy = Math.sin(ga) * gr * 0.95;
+      // Excluir gránulos que caigan dentro del núcleo (zona top-left).
+      if (Math.hypot(gx - nucX, gy - nucY) < nucRx * 0.85) continue;
+      // Granulo: núcleo blanco-rosa con outline fucsia.
+      ctx.fillStyle = "#fff7fa";
+      ctx.beginPath();
+      ctx.arc(gx, gy, 1.5 * U, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "rgba(180, 50, 120, 0.55)";
+      ctx.lineWidth = 0.7 * U;
+      ctx.stroke();
+      // Mini halo del gránulo (sutil)
+      ctx.fillStyle = "rgba(255, 130, 200, 0.30)";
+      ctx.beginPath();
+      ctx.arc(gx, gy, 2.6 * U, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // ── GRÁNULOS ORBITANDO durante el frenesí (perforinas liberadas) ──
     if (doingUlt) {
       var spinG = t.frenzySpin || 0;
-      var gOrbitR = R * 1.44;        // ~26u with R~18 → mas o menos
+      var gOrbitR = R * 1.44;
       for (var g = 0; g < 6; g++) {
-        var ga = spinG + g * (Math.PI * 2 / 6);
-        var gx = Math.cos(ga) * gOrbitR;
-        var gy = Math.sin(ga) * gOrbitR;
-        // Halo del gránulo
+        var oa = spinG + g * (Math.PI * 2 / 6);
+        var ox = Math.cos(oa) * gOrbitR;
+        var oy = Math.sin(oa) * gOrbitR;
         ctx.fillStyle = "rgba(255, 130, 200, 0.55)";
-        ctx.beginPath(); ctx.arc(gx, gy, 5.5 * U, 0, Math.PI * 2); ctx.fill();
-        // Cuerpo blanco-rosa
+        ctx.beginPath(); ctx.arc(ox, oy, 5.5 * U, 0, Math.PI * 2); ctx.fill();
         ctx.fillStyle = "#fff";
-        ctx.beginPath(); ctx.arc(gx, gy, 3.0 * U, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(ox, oy, 3.0 * U, 0, Math.PI * 2); ctx.fill();
         ctx.strokeStyle = "#E84393"; ctx.lineWidth = 1.2 * U;
-        ctx.beginPath(); ctx.arc(gx, gy, 3.0 * U, 0, Math.PI * 2); ctx.stroke();
+        ctx.beginPath(); ctx.arc(ox, oy, 3.0 * U, 0, Math.PI * 2); ctx.stroke();
       }
     }
 
-    towerFace(R, expression, blink, "angry", "fanged");   // cazadora feroz
+    // Cara cazadora feroz (mantiene la actual).
+    towerFace(R, expression, blink, "angry", "fanged");
     ctx.restore();
   }
 

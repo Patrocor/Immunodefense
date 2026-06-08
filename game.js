@@ -358,11 +358,16 @@
   // Ordenados por nivel: bloque 1 = MED_POWERS[0] (más leve) ... bloque 4 =
   // MED_POWERS[3] = antibiótico (máximo poder). Tocas con N bloques llenos y
   // se activa el poder de nivel N.
+  // Cada bloque del vial es un antibiótico real con su mecanismo:
+  // Nv1 Tetraciclina (bacteriostático) inhibe síntesis proteica → ralentiza
+  // Nv2 Penicilina  (β-lactámico)      bloquea pared celular     → paraliza
+  // Nv3 Vancomicina (glicopéptido)     rompe pared/cápsula gram+ → disuelve escudo
+  // Nv4 Carbapenem  (amplio espectro)  bactericida total         → daño masivo
   var MED_POWERS = [
-    { id: "ralentizador", name: "Gas ralentizador", short: "Ralentiza", color: "#5B8DEF", desc: "Velocidad ×0.4 ~6s" },
-    { id: "paralizante", name: "Gas paralizante", short: "Paraliza", color: "#3FC8E0", desc: "Los detiene ~4s" },
-    { id: "disolvente",  name: "Disolvente de escudos", short: "Disuelve", color: "#E055C8", desc: "Rompe sus escudos" },
-    { id: "antibiotico", name: "Antibiótico", short: "Antibiótico", color: "#F5C518", desc: "Daño en área (máximo)" }
+    { id: "ralentizador", name: "Tetraciclina", short: "Tetraciclina", className: "Bacteriostático", color: "#5B8DEF", desc: "Inhibe síntesis proteica · enlentece a todos" },
+    { id: "paralizante",  name: "Penicilina",   short: "Penicilina",   className: "β-lactámico",      color: "#3FC8E0", desc: "Bloquea pared celular · los paraliza" },
+    { id: "disolvente",   name: "Vancomicina",  short: "Vancomicina",  className: "Glicopéptido",     color: "#E055C8", desc: "Rompe pared/cápsula · disuelve escudos" },
+    { id: "antibiotico",  name: "Carbapenem",   short: "Carbapenem",   className: "Amplio espectro",  color: "#F5C518", desc: "Bactericida total en área" }
   ];
   // Radio del aura de daño por germen: escala con su ataque, así los gérmenes
   // más peligrosos (S. aureus, Pseudomonas, jefes) tienen MAYOR rango y se

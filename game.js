@@ -1760,20 +1760,34 @@
     state.compendiumFocus = null;
   }
   function compendiumCells() {
-    // Torres desbloqueadas + Macrófago Libre (siempre visible, es parte
-    // del lore base del jugador).
-    var arr = (state.unlockedTowers || []).slice();
+    // TODAS las torres del juego (TOWER_LIST orden) + Macrófago Libre.
+    // Las no desbloqueadas se muestran en GRIS via isCompendiumLocked.
+    var arr = TOWER_LIST.slice();
     arr.push("macrofagoLibre");
     return arr;
   }
   function compendiumGerms() {
-    // Solo los gérmenes ya vistos (mismo criterio que el sistema de vistos).
-    var seen = state.vistos || {};
+    // TODOS los gérmenes del juego (ENEMY_DEFS orden de declaración).
+    // Los no vistos se muestran en GRIS via isCompendiumLocked.
     var out = [];
-    for (var k in seen) {
-      if (seen[k] && ENEMY_DEFS[k]) out.push(k);
+    for (var k in ENEMY_DEFS) {
+      if (ENEMY_DEFS.hasOwnProperty(k)) out.push(k);
     }
     return out;
+  }
+  // True si el item del compendio no está desbloqueado (debe mostrarse
+  // en gris y sin detalles).
+  function isCompendiumLocked(typeId) {
+    if (typeId === "macrofagoLibre") return false;
+    if (TOWER_DEFS[typeId]) {
+      var unl = state.unlockedTowers || [];
+      return unl.indexOf(typeId) === -1;
+    }
+    if (ENEMY_DEFS[typeId]) {
+      var seen = state.vistos || {};
+      return !seen[typeId];
+    }
+    return true;
   }
   function compendiumGetDef(typeId) {
     if (typeId === "macrofagoLibre") return MACROFAGO_LIBRE_DEF;
@@ -1893,13 +1907,13 @@
     var gridX = modalX + 8;
     var gridW = modalW - 16;
 
-    // 4 columnas (antes 3) — tarjetas más chicas para que entren más
-    // elementos a medida que el álbum crece por fases.
-    var cols = 4;
-    var gridGap = 6;
+    // 5 columnas (antes 4) — tarjetas más pequeñas, álbum más denso
+    // ahora que se muestran TODOS los items del juego (locked incluidos).
+    var cols = 5;
+    var gridGap = 5;
     var cardW = (gridW - (cols - 1) * gridGap) / cols;
-    var cardH = cardW + 12;   // alto = ancho + espacio para el nombre
-    var iconR = cardW * 0.34;
+    var cardH = cardW + 10;
+    var iconR = cardW * 0.32;
     UI.compendiumCards = [];
 
     ctx.save();
@@ -1925,19 +1939,32 @@
       var def = compendiumGetDef(typeId);
       if (!def) continue;
       var selected = (typeId === state.compendiumSelected);
-      UI.compendiumCards.push({ typeId: typeId, x: cx, y: cy, w: cardW, h: cardH });
-      // Fondo
-      ctx.fillStyle = selected ? colorAlpha(def.color || "#888", 0.30) : "#1f1219";
+      var locked = isCompendiumLocked(typeId);
+      UI.compendiumCards.push({ typeId: typeId, x: cx, y: cy, w: cardW, h: cardH, locked: locked });
+      // Fondo. Bloqueado: gris oscuro neutro. Desbloqueado seleccionado:
+      // tinte del color. Desbloqueado normal: dark.
+      var bgFill = locked ? "#15101a" : (selected ? colorAlpha(def.color || "#888", 0.30) : "#1f1219");
+      ctx.fillStyle = bgFill;
       ctx.fillRect(cx, cy, cardW, cardH);
-      if (selected) {
+      if (selected && !locked) {
         ctx.strokeStyle = def.color || "#888";
         ctx.lineWidth = 2;
         ctx.strokeRect(cx, cy, cardW, cardH);
+      } else if (locked) {
+        // Borde gris para diferenciar de cards desbloqueadas.
+        ctx.strokeStyle = "rgba(120, 120, 130, 0.30)";
+        ctx.lineWidth = 1;
+        ctx.strokeRect(cx, cy, cardW, cardH);
       }
-      // Ícono / sprite
+      // Ícono / sprite — bloqueados se ven en GRIS con alpha reducido.
       var iconCx = cx + cardW / 2;
       var iconCy = cy + cardW * 0.50;
       var isGerm = !!ENEMY_DEFS[typeId];
+      ctx.save();
+      if (locked) {
+        ctx.globalAlpha = 0.40;
+        ctx.filter = "grayscale(100%) brightness(0.50)";
+      }
       if (isGerm) {
         ctx.save();
         ctx.beginPath();
@@ -1975,11 +2002,16 @@
         // Preview de la TORRE REAL (snowman neutrofilo, LGL nk, etc).
         drawTowerPreview(typeId, iconCx, iconCy, iconR, true);
       }
-      // Nombre abajo, dentro de la tarjeta (más chico con 4 cols).
-      ctx.fillStyle = def.color || "#fff";
+      ctx.restore();   // cierra el save del filtro de locked
+      // Nombre abajo. Bloqueado → "???" en gris.
+      if (locked) {
+        ctx.fillStyle = "rgba(170, 170, 180, 0.75)";
+      } else {
+        ctx.fillStyle = def.color || "#fff";
+      }
       ctx.font = "bold " + Math.max(8, Math.min(11, cardW * 0.14)) + "px Fredoka, sans-serif";
       ctx.textAlign = "center"; ctx.textBaseline = "middle";
-      var name = def.shortName || def.name;
+      var name = locked ? "???" : (def.shortName || def.name);
       while (ctx.measureText(name).width > cardW - 6 && name.length > 4) {
         name = name.slice(0, -2);
       }
@@ -1997,12 +2029,23 @@
     ctx.fillRect(detailX, detailY, detailW, 2);
 
     var sel = state.compendiumSelected;
+    var selLocked = sel && isCompendiumLocked(sel);
     if (!sel) {
       // Mensaje placeholder
       ctx.fillStyle = "rgba(255,255,255,0.50)";
       ctx.font = "italic 12px Fredoka, sans-serif";
       ctx.textAlign = "center"; ctx.textBaseline = "middle";
       ctx.fillText("Tocá una tarjeta arriba para ver detalles", detailX + detailW / 2, detailY + detailH / 2);
+    } else if (selLocked) {
+      // Item bloqueado: no se muestran detalles, solo un hint.
+      ctx.fillStyle = "rgba(170, 170, 180, 0.85)";
+      ctx.font = "bold 16px Fredoka, sans-serif";
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText("???", detailX + detailW / 2, detailY + detailH / 2 - 14);
+      ctx.fillStyle = "rgba(255,255,255,0.50)";
+      ctx.font = "italic 11px Fredoka, sans-serif";
+      ctx.fillText("Aparecerá cuando lo descubras en juego.",
+        detailX + detailW / 2, detailY + detailH / 2 + 10);
     } else {
       var def2 = compendiumGetDef(sel);
       var lore = compendiumGetLore(sel);

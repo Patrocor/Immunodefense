@@ -2068,6 +2068,27 @@
         name = name.slice(0, -2);
       }
       ctx.fillText(name, cx + cardW / 2, cy + cardH - 10);
+      // Badge rojo de "nuevo" en esquina sup. derecha (solo si está desbloqueado)
+      if (!locked && state.dexNew && state.dexNew[typeId]) {
+        var dotPulse = 0.5 + 0.5 * Math.sin(state.time * 5);
+        var dotR = 4 + dotPulse * 1.2;
+        var dotCx = cx + cardW - 6;
+        var dotCy = cy + 6;
+        // Glow exterior
+        ctx.fillStyle = "rgba(232, 67, 67, " + (0.30 + dotPulse * 0.30) + ")";
+        ctx.beginPath();
+        ctx.arc(dotCx, dotCy, dotR + 3, 0, Math.PI * 2);
+        ctx.fill();
+        // Punto rojo
+        ctx.fillStyle = "#e84343";
+        ctx.beginPath();
+        ctx.arc(dotCx, dotCy, dotR, 0, Math.PI * 2);
+        ctx.fill();
+        // Borde blanco
+        ctx.strokeStyle = "#fff";
+        ctx.lineWidth = 1.2;
+        ctx.stroke();
+      }
     }
     ctx.restore();
 

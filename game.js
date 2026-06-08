@@ -1443,6 +1443,7 @@
           // Desbloquea
           if (state.unlockedTowers.indexOf(p.typeId) === -1) {
             state.unlockedTowers.push(p.typeId);
+            markDexNew(p.typeId);     // notifica en el badge del Dex
             // Asegurar que su grupo se abra para que se vea la nueva torre.
             for (var gi = 0; gi < TOWER_GROUPS.length; gi++) {
               if (TOWER_GROUPS[gi].towers.indexOf(p.typeId) !== -1) {
@@ -1775,6 +1776,21 @@
     }
     return out;
   }
+  // Marca un typeId como "nuevo en el Dex" → enciende el badge rojo
+  // en el botón Dex hasta que el jugador toque su card.
+  function markDexNew(typeId) {
+    if (!typeId) return;
+    if (!state.dexNew) state.dexNew = {};
+    state.dexNew[typeId] = true;
+  }
+  function hasDexNew() {
+    if (!state.dexNew) return false;
+    for (var k in state.dexNew) {
+      if (state.dexNew.hasOwnProperty(k) && state.dexNew[k]) return true;
+    }
+    return false;
+  }
+
   // True si el item del compendio no está desbloqueado (debe mostrarse
   // en gris y sin detalles).
   function isCompendiumLocked(typeId) {
@@ -1833,18 +1849,39 @@
     ctx.fillText("📖", b.x + b.w / 2, b.y + b.h * 0.32);
     ctx.font = "bold " + Math.max(10, Math.min(12, b.h * 0.32)) + "px Fredoka, sans-serif";
     ctx.fillText("Dex", b.x + b.w / 2, b.y + b.h * 0.74);
+    // Badge rojo en la esquina superior derecha si hay items nuevos.
+    if (hasDexNew()) {
+      var dotR = Math.max(3, Math.min(5, b.h * 0.12));
+      var dotX = b.x + b.w - dotR - 3;
+      var dotY = b.y + dotR + 3;
+      // Glow externo pulsante
+      var dp = 0.5 + 0.5 * Math.sin(state.time * 5);
+      ctx.fillStyle = "rgba(232, 67, 67, " + (0.4 + dp * 0.4) + ")";
+      ctx.beginPath();
+      ctx.arc(dotX, dotY, dotR + 2 + dp * 1.5, 0, Math.PI * 2);
+      ctx.fill();
+      // Dot rojo sólido
+      ctx.fillStyle = "#e84343";
+      ctx.beginPath();
+      ctx.arc(dotX, dotY, dotR, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "#fff";
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
     ctx.restore();
   }
 
   function drawCompendium() {
     if (!state.compendiumOpen) return;
     ctx.save();
-    // Backdrop
-    ctx.fillStyle = "rgba(0, 0, 0, 0.72)";
+    // Backdrop semi-transparente — el dex NO interrumpe el juego, se
+    // ve por detrás. Más liviano que un modal full-opaque.
+    ctx.fillStyle = "rgba(0, 0, 0, 0.50)";
     ctx.fillRect(0, 0, VW, VH);
-    // Modal
-    var modalW = Math.min(VW - 24, 500);
-    var modalH = Math.min(VH - 40, 640);
+    // Modal: panel chico que no ocupa toda la pantalla.
+    var modalW = Math.min(VW - 30, 340);
+    var modalH = Math.min(VH - 100, 480);
     var modalX = (VW - modalW) / 2;
     var modalY = (VH - modalH) / 2;
     UI.compendiumModal = { x: modalX, y: modalY, w: modalW, h: modalH };
@@ -1915,6 +1952,8 @@
     var cardH = cardW + 10;
     var iconR = cardW * 0.32;
     UI.compendiumCards = [];
+    // Hit-test area para drag scroll del grid.
+    UI.compendiumGrid = { x: gridX, y: gridY, w: gridW, h: gridH };
 
     ctx.save();
     ctx.beginPath();
@@ -1923,6 +1962,7 @@
 
     var rows = Math.ceil(ids.length / cols);
     var totalGridH = rows * cardH + Math.max(0, rows - 1) * gridGap;
+    UI.compendiumGrid.contentH = totalGridH;
     var maxScroll = Math.max(0, totalGridH - gridH);
     var scroll = state.compendiumScroll || 0;
     if (scroll > maxScroll) scroll = maxScroll;
@@ -2920,6 +2960,7 @@
       medulaOsea: null,                 // posición de la médula ósea (se setea en layoutUI)
       unlockScheduleNotified: {},       // qué waves ya emitieron su pickup
       compendiumOpen: false,            // overlay del compendio
+      dexNew: {},                       // {typeId: true} → badge en Dex btn
       compendiumFocus: null,            // typeId destacado (al desbloquear)
       compendiumScroll: 0,              // scroll vertical en el modal
       selectedTower: null,
@@ -3321,6 +3362,7 @@
     // pickup, son específicas del torrente.
     if (state.unlockedTowers.indexOf("plaqueta") === -1) {
       state.unlockedTowers.push("plaqueta");
+      markDexNew("plaqueta");
     }
     // Garantiza que el grupo "Sangre" se abra al entrar al puente — antes
     // openGroups podía no tener la key 'sangre' y la plaqueta quedaba bajo
@@ -8011,6 +8053,10 @@
           var card = UI.compendiumCards[ci];
           if (inRect(x, y, card)) {
             state.compendiumSelected = card.typeId;
+            // Si era "nuevo", marcar como visto (limpia el badge).
+            if (state.dexNew && state.dexNew[card.typeId]) {
+              delete state.dexNew[card.typeId];
+            }
             return;
           }
         }
@@ -8059,6 +8105,7 @@
       // Hit radius generoso (1.4x) porque hay halo glow alrededor.
       if (dxE * dxE + dyE * dyE <= (radE * 1.4) * (radE * 1.4)) {
         state.vistos[defE.id] = true;
+        markDexNew(defE.id);
         saveVistos(state.vistos);
         // El aviso "Toca al nuevo enemigo" se chequea reactivamente en
         // render, así que se autocorrige cuando este tipo entra a vistos.
@@ -8410,6 +8457,18 @@
       };
       return;
     }
+    // Scroll dentro del Dex grid (cuando el compendio está abierto y
+    // el dedo está sobre el área del grid).
+    if (state.compendiumOpen && UI.compendiumGrid && inRect(p.x, p.y, UI.compendiumGrid)) {
+      var nowD = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
+      state.dexDragPending = {
+        startX: p.x, startY: p.y,
+        startScroll: state.compendiumScroll || 0,
+        lastY: p.y, lastT: nowD,
+        velocity: 0, dragged: false
+      };
+      return;
+    }
     handleClick(p.x, p.y);
   }
   function onPointerMove(evt) {
@@ -8429,9 +8488,22 @@
         var deltaT = Math.max(1, nowM - dp.lastT);
         var moveDy = p.y - dp.lastY;
         var instantV = -moveDy / (deltaT / 1000);
-        dp.velocity = dp.velocity * 0.7 + instantV * 0.3;  // smoothed
+        dp.velocity = dp.velocity * 0.7 + instantV * 0.3;
         dp.lastY = p.y;
         dp.lastT = nowM;
+      }
+      return;
+    }
+    // Drag scroll dentro del Dex grid.
+    if (state.dexDragPending) {
+      var dd = state.dexDragPending;
+      var ddy = p.y - dd.startY;
+      if (!dd.dragged && Math.abs(ddy) > TAP_DRAG_THRESHOLD) {
+        dd.dragged = true;
+      }
+      if (dd.dragged && UI.compendiumGrid) {
+        var dexMax = Math.max(0, (UI.compendiumGrid.contentH || 0) - UI.compendiumGrid.h);
+        state.compendiumScroll = Math.max(0, Math.min(dexMax, dd.startScroll - ddy));
       }
       return;
     }
@@ -8453,6 +8525,13 @@
         handleClick(dp.startX, dp.startY);
       } else if (Math.abs(dp.velocity) > 80) {
         state.panelMomentum = dp.velocity;
+      }
+    }
+    if (state.dexDragPending) {
+      var dd = state.dexDragPending;
+      state.dexDragPending = null;
+      if (!dd.dragged) {
+        handleClick(dd.startX, dd.startY);
       }
     }
   }

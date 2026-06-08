@@ -14225,29 +14225,25 @@
           ctx.shadowBlur = 8;
           ctx.shadowOffsetX = -4;
         }
-        // Card bg: base oscura.
+        // Card RECTANGULAR (sin rounded corners) — combinado con el
+        // ícono circular se evita el efecto "globo de diálogo".
         ctx.fillStyle = "#1f1219";
-        roundRect(cardX, cardY, cw, ch, 7);
-        ctx.fill();
-        // TINT con el color del def — el ícono colorido se integra
-        // visualmente con la card (evita el efecto "globo" donde el
-        // ícono brillante contrasta contra fondo dark).
-        ctx.fillStyle = colorAlpha(def.color, isSelected ? 0.35 : 0.20);
-        roundRect(cardX, cardY, cw, ch, 7);
-        ctx.fill();
+        ctx.fillRect(cardX, cardY, cw, ch);
+        // TINT del def color sobre el fondo dark.
+        ctx.fillStyle = colorAlpha(def.color, isSelected ? 0.32 : 0.18);
+        ctx.fillRect(cardX, cardY, cw, ch);
         ctx.shadowColor = "transparent";
         ctx.shadowBlur = 0;
         ctx.shadowOffsetX = 0;
-        // Borde SIEMPRE visible — tarjeta contenida.
+        // Borde rectangular siempre visible.
         if (isSelected) {
           ctx.strokeStyle = def.color;
           ctx.lineWidth = 2;
         } else {
-          ctx.strokeStyle = colorAlpha(def.colorDark, 0.55);
-          ctx.lineWidth = 1.2;
+          ctx.strokeStyle = colorAlpha(def.colorDark, 0.50);
+          ctx.lineWidth = 1.0;
         }
-        roundRect(cardX, cardY, cw, ch, 7);
-        ctx.stroke();
+        ctx.strokeRect(cardX, cardY, cw, ch);
 
         // Layout VERTICAL — todo centrado horizontalmente, ícono CONTENIDO
         // (sin sobresalir): nombre arriba, ícono al medio, costo abajo.
@@ -14265,9 +14261,10 @@
         }
         ctx.fillText(nameStr, cardCenterX, cardY + ch * 0.18);
 
-        // 2. ÍCONO (centro) — más contenido (era 0.30 ahora 0.22 del width).
+        // 2. ÍCONO (centro) — chico, contenido. Card rectangular + ícono
+        // pequeño elimina el efecto "globo".
         var iconCy = cardY + ch * 0.50;
-        var iconR = Math.min(ch * 0.20, cw * 0.22) * (canAfford ? 1 : 0.6);
+        var iconR = Math.min(ch * 0.18, cw * 0.20) * (canAfford ? 1 : 0.6);
         drawCardIcon(typeId, cardCenterX, iconCy, iconR, canAfford);
 
         // 3. COSTO ATP (bottom)

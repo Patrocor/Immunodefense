@@ -313,11 +313,11 @@
     // que el campo use TODO el alto. Portrait: dock angosto (~27% del ancho);
     // landscape: dock fijo cómodo. Incluye safeRight para no quedar bajo el
     // notch/esquina redondeada del lado derecho.
-    // Dock compacto (-10% adicional vs versión previa). Cartas en
-    // layout vertical con esquinas redondeadas; nombres usan shortName.
+    // Dock compacto pero LEGIBLE — el ancho permite cards de ~52-65px
+    // con contenido contenido (nombre + ícono + costo).
     SIDE_INNER = isPortrait
-      ? Math.round(Math.max(49, Math.min(60, VW * 0.124)))
-      : Math.round(Math.max(54, Math.min(72, VW * 0.074)));
+      ? Math.round(Math.max(62, Math.min(78, VW * 0.165)))
+      : Math.round(Math.max(60, Math.min(82, VW * 0.085)));
     SIDE_W = SIDE_INNER + safeRight;
     HUD_H = Math.round(hudBase + safeTop);
     PANEL_H = 0;  // legacy: ya no hay franja inferior
@@ -3039,10 +3039,12 @@
     // vertical (contentY); el render aplica scroll vertical y clipping, y el
     // hit-test traduce con panelScroll. Con 3 cartas que caben, maxScroll=0.
     var dockLeft = FIELD_RIGHT;
-    var dockPad = 8;
+    var dockPad = 6;                  // padding reducido
     var contentX = dockLeft + dockPad;
     var contentRight = VW - safeRight - dockPad;
-    var contentW = Math.max(60, contentRight - contentX);
+    // contentW debe AJUSTARSE al ancho real del dock (sin forzar min
+    // que cause overflow a la derecha).
+    var contentW = Math.max(20, contentRight - contentX);
     var dockTop = FIELD_TOP + dockPad;
     var dockBottom = VH - safeBottom - dockPad;
 

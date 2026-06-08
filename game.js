@@ -1575,12 +1575,24 @@
       ctx.beginPath();
       ctx.arc(0, 0, 26 * U, 0, Math.PI * 2);
       ctx.fill();
-      // Cápsula amarilla
+      // Cápsula amarilla (cuadrada con vértices romos)
       ctx.fillStyle = "#f5d76e";
       ctx.strokeStyle = "#8a6020";
       ctx.lineWidth = 2;
-      ctx.fillRect(-18 * U, -18 * U, 36 * U, 36 * U);
-      ctx.strokeRect(-18 * U, -18 * U, 36 * U, 36 * U);
+      var capR = 8 * U;
+      ctx.beginPath();
+      ctx.moveTo(-18 * U + capR, -18 * U);
+      ctx.lineTo(18 * U - capR, -18 * U);
+      ctx.quadraticCurveTo(18 * U, -18 * U, 18 * U, -18 * U + capR);
+      ctx.lineTo(18 * U, 18 * U - capR);
+      ctx.quadraticCurveTo(18 * U, 18 * U, 18 * U - capR, 18 * U);
+      ctx.lineTo(-18 * U + capR, 18 * U);
+      ctx.quadraticCurveTo(-18 * U, 18 * U, -18 * U, 18 * U - capR);
+      ctx.lineTo(-18 * U, -18 * U + capR);
+      ctx.quadraticCurveTo(-18 * U, -18 * U, -18 * U + capR, -18 * U);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
       // Sprite de la torre dentro
       drawCardIcon(p.typeId, 0, 0, 11 * U, true);
       // "+" arriba

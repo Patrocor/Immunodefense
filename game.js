@@ -1972,7 +1972,8 @@
         ctx.arc(iconCx + iconR * 0.25, iconCy - iconR * 0.05, iconR * 0.09, 0, Math.PI * 2);
         ctx.fill();
       } else {
-        drawCardIcon(typeId, iconCx, iconCy, iconR, true);
+        // Preview de la TORRE REAL (snowman neutrofilo, LGL nk, etc).
+        drawTowerPreview(typeId, iconCx, iconCy, iconR, true);
       }
       // Nombre abajo, dentro de la tarjeta (más chico con 4 cols).
       ctx.fillStyle = def.color || "#fff";
@@ -2030,7 +2031,8 @@
         ctx.textAlign = "center"; ctx.textBaseline = "middle";
         ctx.fillText("M", detailX + 30, detailY + 31);
       } else {
-        drawCardIcon(sel, detailX + 30, detailY + 30, 16, true);
+        // Detail panel del dex: preview grande de la torre real.
+        drawTowerPreview(sel, detailX + 30, detailY + 30, 18, true);
       }
       // Costo + stats
       var lvl2 = (def2.levels && def2.levels[0]) || {};
@@ -13685,6 +13687,68 @@
     }
   }
 
+  // Preview de TORRE con las funciones de render mejoradas (snowman
+  // neutrofilo, LGL nk, etc). Usada en dock cards y en el dex.
+  // Cada torre tiene un factor de escala distinto porque sus formas
+  // tienen extents variables (snowman es alto, langerhans tiene
+  // dendritas que extienden, etc).
+  var TOWER_PREVIEW_PULSE_FACTOR = {
+    neutrofilo: 0.50,   // snowman ocupa ~3R vertical
+    linfocitoB: 0.82,
+    linfocitoT: 0.82,
+    langerhans: 0.55,   // dendritas extienden
+    nk:         0.62,   // aura + crosshair extienden
+    eosinofilo: 0.78,
+    mastocito:  0.82,
+    complemento:0.75,
+    plaqueta:   0.78
+  };
+  function drawTowerPreview(typeId, cx, cy, R, enabled) {
+    var def = TOWER_DEFS[typeId];
+    if (!def) return;
+    var fakeTower = {
+      def: def,
+      x: 0, y: 0,
+      idlePhase: 0,
+      hp: def.levels ? def.levels[0].hp : 100,
+      maxHp: def.levels ? def.levels[0].hp : 100,
+      level: 0,
+      cooldown: 0,
+      specialCharge: 0, specialReady: false, specialAnim: 0,
+      hitFlash: 0,
+      blinkTimer: 0, attackAnim: 0, levelupAnim: 0, muzzleFlash: 0,
+      stunTimer: 0, slowFireTimer: 0,
+      hammerTarget: null, cannonTarget: null, frenzyTarget: null
+    };
+    var factor = TOWER_PREVIEW_PULSE_FACTOR[typeId] || 0.82;
+    var pulse = (R / (18 * U)) * factor;
+    ctx.save();
+    if (!enabled) ctx.globalAlpha = 0.45;
+    // Clip al área del icon (radio R*1.5) para que decoraciones que
+    // sobresalen (dendritas, anticuerpos, aura) no contaminen cards
+    // vecinas.
+    ctx.beginPath();
+    ctx.rect(cx - R * 1.5, cy - R * 1.5, R * 3, R * 3);
+    ctx.clip();
+    // Trasladamos para que el dibujo de torre arranque en (cx, cy).
+    ctx.translate(cx, cy);
+    if (typeId === "neutrofilo")          drawNeutrofilo(fakeTower, pulse, "idle", false);
+    else if (typeId === "linfocitoB")     drawLinfocitoB(fakeTower, pulse, "idle", false);
+    else if (typeId === "linfocitoT")     drawLinfocitoT(fakeTower, pulse, "idle", false);
+    else if (typeId === "langerhans")     drawLangerhans(fakeTower, pulse, "idle", false);
+    else if (typeId === "nk")             drawNK(fakeTower, pulse, "idle", false);
+    else if (typeId === "eosinofilo")     drawEosinofilo(fakeTower, pulse, "idle", false);
+    else if (typeId === "mastocito")      drawMastocito(fakeTower, pulse, "idle", false);
+    else if (typeId === "complemento")    drawComplementCannon(fakeTower, pulse, "idle", false);
+    else if (typeId === "plaqueta")       drawPlaqueta(fakeTower, pulse, "idle", false);
+    else {
+      // Fallback al ícono simple si no hay función dedicada.
+      ctx.translate(-cx, -cy);
+      drawCardIcon(typeId, cx, cy, R, enabled);
+    }
+    ctx.restore();
+  }
+
   function drawCardIcon(typeId, cx, cy, R, enabled) {
     var def = TOWER_DEFS[typeId];
     ctx.save();
@@ -14263,11 +14327,11 @@
         }
         ctx.fillText(nameStr, cardCenterX, cardY + ch * 0.18);
 
-        // 2. ÍCONO (centro) — chico, contenido. Card rectangular + ícono
-        // pequeño elimina el efecto "globo".
+        // 2. ÍCONO (centro) — preview de la TORRE REAL (snowman
+        // neutrofilo, LGL nk, etc) en lugar del ícono simple.
         var iconCy = cardY + ch * 0.50;
-        var iconR = Math.min(ch * 0.18, cw * 0.20) * (canAfford ? 1 : 0.6);
-        drawCardIcon(typeId, cardCenterX, iconCy, iconR, canAfford);
+        var iconR = Math.min(ch * 0.24, cw * 0.28) * (canAfford ? 1 : 0.6);
+        drawTowerPreview(typeId, cardCenterX, iconCy, iconR, canAfford);
 
         // 3. COSTO ATP (bottom)
         var isComp = def.currency === "complement";

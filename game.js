@@ -2979,6 +2979,7 @@
       topicalCharge: 0,
       acidTimer: 0,
       gasFx: null,
+      medFx: null,                      // {id, color, life, max, origX, origY, flashLife, ...}
       secondEntryOpen: false,
       surgeAnnounced: false,
       projectiles: [],
@@ -3800,6 +3801,7 @@
       if (e.hitFlash > 0) e.hitFlash -= dt;
       if (e.shieldHitTimer > 0) e.shieldHitTimer -= dt;
       if (e.shieldShatterTimer > 0) e.shieldShatterTimer -= dt;
+      if (e.medFxTimer > 0) e.medFxTimer -= dt;
       // Shield regeneration (off-screen tick) — HPV furioso ya no regenera.
       if (e.def.shield && !e.noShieldRegen && e.shieldHP < e.def.shield.maxHP) {
         if (e.shieldRegenTimer > 0) {
@@ -5812,14 +5814,19 @@
     var power = null;
     for (var p = 0; p < MED_POWERS.length; p++) if (MED_POWERS[p].id === id) power = MED_POWERS[p];
     state.medApplying = true;
+    // Tag cada enemigo afectado con el efecto visual del antibiótico aplicado.
+    // El efecto visual dura 1.4s independiente del efecto mecánico (stun/slow).
+    var fxLife = 1.4;
     for (var i = 0; i < state.enemies.length; i++) {
       var e = state.enemies[i];
       if (e.dead || e.dying || e.absorbing) continue;
+      var affected = false;
       if (id === "antibiotico") {
         // MRSA es METICILINO-RESISTENTE: solo recibe el 50% del antibiótico.
         var antibioticMult = (e.def.id === "bossMRSA") ? 0.50 : 1.0;
         e.hp -= e.maxHp * 0.4 * antibioticMult;          // químico: ignora escudo
         e.hitFlash = 0.40; e.hurtTimer = 0.35;
+        affected = true;
         if (e.hp <= 0 && !e.dying) {
           e.hp = 0; e.dying = true; e.dyingTimer = 0.30;
           state.atp += e.def.reward; state.pathogensDefeated += 1; META.totalPathogensDefeated += 1;
@@ -5827,15 +5834,35 @@
             text: "+" + e.def.reward + " ATP", life: 0.8, max: 0.8 });
         }
       } else if (id === "paralizante") {
-        e.stunTimer = 4;
+        e.stunTimer = 4; affected = true;
       } else if (id === "ralentizador") {
-        e.slowTimer = 6;
+        e.slowTimer = 6; affected = true;
       } else if (id === "disolvente") {
+        // Marca a TODOS aunque no tengan escudo (para que se vea el spray
+        // magenta atravesando todo el campo). Si tienen escudo, lo rompe.
+        affected = true;
         if (e.def.shield && e.shieldHP > 0) { e.shieldHP = 0; e.shieldShatterTimer = 0.4; }
+      }
+      if (affected) {
+        e.medFxId = id;
+        e.medFxTimer = fxLife;
+        e.medFxMax = fxLife;
       }
     }
     state.medApplying = false;
-    state.gasFx = { color: power ? power.color : "#ffffff", life: 1.5, max: 1.5 };
+    // Origen del efecto: top-center del vial (para Carbapenem targeting lines).
+    var origX = (UI.medVial ? UI.medVial.x + UI.medVial.w / 2 : FIELD_LEFT + FIELD_W / 2);
+    var origY = (UI.medVial ? UI.medVial.y : FIELD_BOTTOM - 40);
+    state.medFx = {
+      id: id,
+      color: power ? power.color : "#ffffff",
+      life: fxLife, max: fxLife,
+      origX: origX, origY: origY,
+      flashLife: (id === "antibiotico") ? 0.18 : 0, flashMax: 0.18,
+      waveLife: (id === "antibiotico" || id === "paralizante") ? 0.9 : 0, waveMax: 0.9,
+      shakeLife: (id === "antibiotico") ? 0.25 : 0, shakeMax: 0.25
+    };
+    state.gasFx = null; // ya no usamos el gas genérico — cada antibiótico tiene su fx
     state.medCharge = 0;
     sfx("upgrade");
     showMsg(power ? ("¡" + power.name + "!") : "¡Medicamento!");
@@ -5852,6 +5879,14 @@
 
   function updateMed(dt) {
     if (state.gasFx) { state.gasFx.life -= dt; if (state.gasFx.life <= 0) state.gasFx = null; }
+    if (state.medFx) {
+      state.medFx.life -= dt;
+      if (state.medFx.flashLife > 0) state.medFx.flashLife -= dt;
+      if (state.medFx.waveLife > 0) state.medFx.waveLife -= dt;
+      if (state.medFx.shakeLife > 0) state.medFx.shakeLife -= dt;
+      // El efecto se cierra cuando la vida principal Y la onda terminaron.
+      if (state.medFx.life <= 0 && state.medFx.waveLife <= 0) state.medFx = null;
+    }
     if (state.acidTimer > 0) state.acidTimer -= dt;
   }
 
@@ -6274,6 +6309,253 @@
       ctx.beginPath(); ctx.arc(fx, fy, r, 0, Math.PI * 2); ctx.fill();
     }
     ctx.restore();
+  }
+
+  // -------- EFECTOS POR ANTIBIÓTICO (4 variantes distintas) ---------------
+  // Cada antibiótico tiene su firma visual conectada a su mecanismo:
+  //  · ralentizador (Tetraciclina, azul):  per-germen, sin overlay global
+  //  · paralizante  (Penicilina, turquesa): onda turquesa expansiva 1×
+  //  · disolvente   (Vancomicina, magenta): lluvia magenta cayendo
+  //  · antibiotico  (Carbapenem, dorado):   flash + onda + targeting + shake
+  function drawMedFx() {
+    var f = state.medFx; if (!f) return;
+    var lifeFrac = Math.max(0, f.life / f.max);              // 1 -> 0
+    if (f.id === "ralentizador") {
+      // Tinte azul sutil sobre el campo (NO nube global). El efecto pesado va
+      // sobre cada germen (drawMedFxOnEnemy). Solo un wash apenas perceptible.
+      var a = Math.sin(Math.min(1, lifeFrac) * Math.PI) * 0.08;
+      ctx.save();
+      ctx.globalAlpha = a;
+      ctx.fillStyle = f.color;
+      ctx.fillRect(FIELD_LEFT, FIELD_TOP, FIELD_W, FIELD_BOTTOM - FIELD_TOP);
+      ctx.restore();
+      return;
+    }
+    if (f.id === "paralizante") {
+      // Una ÚNICA onda turquesa expansiva desde el centro del campo.
+      var waveFrac = (f.waveMax > 0) ? Math.max(0, f.waveLife / f.waveMax) : 0;
+      if (waveFrac > 0) {
+        var grow = 1 - waveFrac;                             // 0 -> 1
+        var cx = FIELD_LEFT + FIELD_W / 2;
+        var cy = FIELD_TOP + (FIELD_BOTTOM - FIELD_TOP) / 2;
+        var maxR = Math.max(FIELD_W, FIELD_BOTTOM - FIELD_TOP) * 0.7;
+        var r = maxR * grow;
+        ctx.save();
+        ctx.globalAlpha = 0.55 * waveFrac;
+        ctx.strokeStyle = f.color;
+        ctx.lineWidth = 5;
+        ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.stroke();
+        ctx.globalAlpha = 0.25 * waveFrac;
+        ctx.lineWidth = 12;
+        ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.stroke();
+        ctx.restore();
+      }
+      return;
+    }
+    if (f.id === "disolvente") {
+      // LLUVIA magenta de gotitas cayendo de arriba a abajo del campo.
+      var rainAlpha = Math.sin(Math.min(1, lifeFrac) * Math.PI) * 0.75;
+      ctx.save();
+      ctx.globalAlpha = rainAlpha;
+      ctx.fillStyle = f.color;
+      var fieldH = FIELD_BOTTOM - FIELD_TOP;
+      var n = 36;
+      var t = (1 - lifeFrac);                                // 0 -> 1
+      for (var i = 0; i < n; i++) {
+        // Cada gota tiene posición x fija pseudo-random y baja con la vida.
+        var rx = FIELD_LEFT + ((i * 71) % 100) / 100 * FIELD_W;
+        // y comienza arriba, baja con t. Cada gota tiene offset distinto.
+        var phase = ((i * 37) % 100) / 100;                  // 0..1
+        var yProgress = (t + phase) % 1;
+        var ry = FIELD_TOP + yProgress * fieldH;
+        // Gota: línea inclinada corta + cabeza redondeada.
+        ctx.beginPath();
+        ctx.moveTo(rx, ry);
+        ctx.lineTo(rx - 2, ry - 10 * U);
+        ctx.strokeStyle = f.color;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(rx, ry, 2.2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+      return;
+    }
+    if (f.id === "antibiotico") {
+      // CARBAPENEM: flash fullscreen + onda dorada + targeting lines + halo.
+      // 1) Flash fullscreen breve (~0.18s)
+      if (f.flashLife > 0) {
+        var flashFrac = f.flashLife / f.flashMax;
+        ctx.save();
+        ctx.globalAlpha = 0.55 * flashFrac;
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(FIELD_LEFT, FIELD_TOP, FIELD_W, FIELD_BOTTOM - FIELD_TOP);
+        ctx.restore();
+      }
+      // 2) Onda dorada expansiva desde top-center del vial
+      if (f.waveLife > 0) {
+        var wFrac = f.waveLife / f.waveMax;
+        var wGrow = 1 - wFrac;
+        var maxR2 = Math.max(FIELD_W, FIELD_BOTTOM - FIELD_TOP) * 0.95;
+        var rW = maxR2 * wGrow;
+        ctx.save();
+        ctx.globalAlpha = 0.50 * wFrac;
+        ctx.strokeStyle = f.color;
+        ctx.lineWidth = 6;
+        ctx.beginPath(); ctx.arc(f.origX, f.origY, rW, 0, Math.PI * 2); ctx.stroke();
+        ctx.globalAlpha = 0.22 * wFrac;
+        ctx.lineWidth = 14;
+        ctx.beginPath(); ctx.arc(f.origX, f.origY, rW, 0, Math.PI * 2); ctx.stroke();
+        ctx.restore();
+      }
+      // 3) Targeting lines del vial a cada germen (primer 0.3s del efecto)
+      if (lifeFrac > 0.78) {
+        var tFrac = (lifeFrac - 0.78) / 0.22;                // 1 -> 0 en 0.3s
+        ctx.save();
+        ctx.globalAlpha = 0.55 * tFrac;
+        ctx.strokeStyle = f.color;
+        ctx.lineWidth = 1.5;
+        for (var k = 0; k < state.enemies.length; k++) {
+          var en = state.enemies[k];
+          if (en.dead || en.dying) continue;
+          if (!en.medFxId || en.medFxId !== "antibiotico") continue;
+          ctx.beginPath();
+          ctx.moveTo(f.origX, f.origY);
+          ctx.lineTo(en.x, en.y);
+          ctx.stroke();
+        }
+        ctx.restore();
+      }
+      // 4) Halo dorado tenue sobre el campo durante toda la vida
+      var haloA = Math.sin(Math.min(1, lifeFrac) * Math.PI) * 0.12;
+      ctx.save();
+      ctx.globalAlpha = haloA;
+      ctx.fillStyle = f.color;
+      ctx.fillRect(FIELD_LEFT, FIELD_TOP, FIELD_W, FIELD_BOTTOM - FIELD_TOP);
+      ctx.restore();
+      return;
+    }
+  }
+
+  // Efecto POR-GERMEN: overlay específico del antibiótico que recibió.
+  // Se llama desde drawEnemy(). Lee e.medFxId / e.medFxTimer / e.medFxMax.
+  function drawMedFxOnEnemy(e) {
+    if (!e.medFxTimer || e.medFxTimer <= 0) return;
+    var def = e.def;
+    var rad = def.radius * U * (e.radiusScale || 1);
+    var frac = e.medFxTimer / e.medFxMax;                     // 1 -> 0
+    var t = state.time;
+    if (e.medFxId === "ralentizador") {
+      // 3 anillos azules concéntricos pulsantes alrededor del germen +
+      // ícono "Zzz" microscópico flotando arriba.
+      ctx.save();
+      ctx.strokeStyle = "#5B8DEF";
+      for (var i = 0; i < 3; i++) {
+        var phase = (t * 1.5 + i * 0.33) % 1;                // 0..1
+        var r = rad * (1.2 + phase * 1.1);
+        var a = (1 - phase) * 0.65 * frac;
+        ctx.globalAlpha = a;
+        ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(e.x, e.y, r, 0, Math.PI * 2); ctx.stroke();
+      }
+      // Zzz arriba del germen
+      ctx.globalAlpha = 0.85 * frac;
+      ctx.fillStyle = "#5B8DEF";
+      ctx.font = "bold " + Math.floor(11 * U) + "px Fredoka, sans-serif";
+      ctx.textAlign = "left"; ctx.textBaseline = "middle";
+      var zzY = e.y - rad - 8 * U - Math.sin(t * 4) * 2;
+      ctx.fillText("Zz", e.x + rad * 0.3, zzY);
+      ctx.restore();
+      return;
+    }
+    if (e.medFxId === "paralizante") {
+      // Jaula hexagonal turquesa rotando lento alrededor del germen + chispitas.
+      ctx.save();
+      ctx.translate(e.x, e.y);
+      ctx.rotate(t * 0.8);
+      ctx.strokeStyle = "#3FC8E0";
+      ctx.lineWidth = 2.2;
+      ctx.globalAlpha = 0.85 * frac;
+      var hexR = rad * 1.55;
+      ctx.beginPath();
+      for (var h = 0; h < 6; h++) {
+        var ang = h * Math.PI / 3;
+        var hx = Math.cos(ang) * hexR;
+        var hy = Math.sin(ang) * hexR;
+        if (h === 0) ctx.moveTo(hx, hy); else ctx.lineTo(hx, hy);
+      }
+      ctx.closePath();
+      ctx.stroke();
+      // Pequeños "candados" en cada vértice del hexágono
+      ctx.fillStyle = "#3FC8E0";
+      ctx.globalAlpha = 0.90 * frac;
+      for (var h2 = 0; h2 < 6; h2++) {
+        var ang2 = h2 * Math.PI / 3;
+        ctx.beginPath();
+        ctx.arc(Math.cos(ang2) * hexR, Math.sin(ang2) * hexR, 2.5 * U, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+      // Chispitas afuera (no rotan, frame-independientes)
+      ctx.save();
+      ctx.fillStyle = "#a4f0ff";
+      ctx.globalAlpha = 0.85 * frac;
+      for (var s = 0; s < 5; s++) {
+        var sang = (t * 3 + s * 1.257) % (Math.PI * 2);
+        var sr = rad * (1.7 + Math.sin(t * 5 + s) * 0.2);
+        var sx = e.x + Math.cos(sang) * sr;
+        var sy = e.y + Math.sin(sang) * sr;
+        ctx.beginPath(); ctx.arc(sx, sy, 1.5 * U, 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.restore();
+      return;
+    }
+    if (e.medFxId === "disolvente") {
+      // Partículas magenta orbitando rápido + crackle sobre el escudo si lo tiene.
+      ctx.save();
+      ctx.fillStyle = "#E055C8";
+      ctx.globalAlpha = 0.85 * frac;
+      for (var o = 0; o < 8; o++) {
+        var oang = (t * 5 + o * 0.785) % (Math.PI * 2);
+        var orR = rad * (1.25 + Math.sin(t * 7 + o) * 0.10);
+        var ox = e.x + Math.cos(oang) * orR;
+        var oy = e.y + Math.sin(oang) * orR;
+        ctx.beginPath(); ctx.arc(ox, oy, 2.2 * U, 0, Math.PI * 2); ctx.fill();
+      }
+      // Flash magenta breve sobre el cuerpo
+      ctx.globalAlpha = 0.25 * frac;
+      ctx.beginPath(); ctx.arc(e.x, e.y, rad, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+      return;
+    }
+    if (e.medFxId === "antibiotico") {
+      // Burst dorado: partículas chispeantes que salen radialmente + flash.
+      ctx.save();
+      ctx.fillStyle = "#F5C518";
+      var burstFrac = 1 - frac;                                // 0 -> 1
+      var rays = 12;
+      for (var b = 0; b < rays; b++) {
+        var bang = (b / rays) * Math.PI * 2 + t * 1.5;
+        var br = rad * (0.4 + burstFrac * 2.0);
+        var bx = e.x + Math.cos(bang) * br;
+        var by = e.y + Math.sin(bang) * br;
+        ctx.globalAlpha = (1 - burstFrac) * 0.95;
+        ctx.beginPath(); ctx.arc(bx, by, (2.5 - burstFrac * 1.5) * U, 0, Math.PI * 2); ctx.fill();
+      }
+      // Chispitas blancas extras
+      ctx.fillStyle = "#ffffff";
+      for (var w = 0; w < 6; w++) {
+        var wang = (t * 3 + w * 1.047) % (Math.PI * 2);
+        var wr = rad * (0.8 + burstFrac * 1.4);
+        ctx.globalAlpha = frac * 0.85;
+        ctx.beginPath();
+        ctx.arc(e.x + Math.cos(wang) * wr, e.y + Math.sin(wang) * wr, 1.5 * U, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+      return;
+    }
   }
 
   // -------- PODERES DE GÉRMENES (ataques especiales a torres) -------------
@@ -11245,6 +11527,9 @@
     ctx.fillRect(e.x - bw / 2, by, bw, bh);
     ctx.fillStyle = hpRatio > 0.5 ? "#5cb85c" : hpRatio > 0.25 ? "#f0ad4e" : "#d9534f";
     ctx.fillRect(e.x - bw / 2, by, bw * hpRatio, bh);
+    // Overlay del antibiótico recibido (si está activo). Se dibuja AL FINAL
+    // para quedar por encima del germen y el HP bar.
+    drawMedFxOnEnemy(e);
   }
 
   function drawShield(e, rad) {
@@ -15782,6 +16067,7 @@
     }
     safeDraw("Acid", drawAcid);
     safeDraw("Gas", drawGas);
+    safeDraw("MedFx", drawMedFx);
     safeDraw("Ghost", drawGhost);
     safeDraw("DamageNumbers", drawDamageNumbers);
     safeDraw("Atmosphere", drawAtmosphere);

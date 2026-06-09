@@ -5886,25 +5886,34 @@
       ctx.strokeStyle = (f >= 1) ? col : "rgba(255,255,255,0.25)";
       ctx.lineWidth = (f >= 1) ? 2 : 1;
       ctx.strokeRect(segX + 1, v.y + 1.5, segW - 2, v.h - 3);
-      // Número de nivel (1..4) como pequeña etiqueta en la esquina sup-der,
-      // discreto. Solo se vuelve prominente cuando el tier está lleno.
-      var label = "" + (i + 1);
-      ctx.font = "bold " + Math.max(8, Math.min(10, v.h * 0.26)) + "px Fredoka, sans-serif";
+      // Código de 3 letras del antibiótico (TET/PEN/VAN/CAR), centrado.
+      // Es la identidad visual de cada tier — combinado con el color, el
+      // jugador asocia rápido "ese turquesa con PEN = Penicilina".
+      var abbrev = MED_POWERS[i].name.substring(0, 3).toUpperCase();
+      ctx.font = "bold " + Math.max(9, Math.min(12, v.h * 0.30)) + "px Fredoka, sans-serif";
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillStyle = (f >= 1) ? "#fff" : "rgba(255,255,255,0.40)";
+      ctx.fillText(abbrev, segX + segW / 2, v.y + v.h * 0.42);
+      // Número de nivel (1..4) muy pequeño en esquina sup-der.
+      ctx.font = "bold " + Math.max(7, Math.min(9, v.h * 0.22)) + "px Fredoka, sans-serif";
       ctx.textAlign = "right"; ctx.textBaseline = "top";
-      ctx.fillStyle = (f >= 1) ? "#fff" : "rgba(255,255,255,0.35)";
-      ctx.fillText(label, segX + segW - 3, v.y + 3);
+      ctx.fillStyle = (f >= 1) ? "rgba(255,255,255,0.90)" : "rgba(255,255,255,0.30)";
+      ctx.fillText("Nv" + (i + 1), segX + segW - 3, v.y + 2);
     }
     // Borde exterior fino para enmarcar todo el contenedor.
     ctx.strokeStyle = "rgba(255,255,255,0.45)"; ctx.lineWidth = 1;
     ctx.strokeRect(v.x, v.y, v.w, v.h);
-    // Watermark "ANTIBIÓTICO" — etiqueta tenue sobre el gauge para que el
-    // jugador sepa de qué carga se trata. Se pone después del borde para
-    // quedar por encima pero a baja opacidad (no compite con los números).
-    ctx.font = "bold " + Math.max(10, Math.min(13, v.h * 0.38)) + "px Fredoka, sans-serif";
+    // Watermark DINÁMICO en la parte baja del vial: muestra la CLASE del
+    // bloque más alto lleno (ej. "Bacteriostático", "β-lactámico"...). Así el
+    // jugador sabe qué va a desatar antes de tocar. Si no hay nada cargado,
+    // muestra "ANTIBIÓTICO" como hint del contenedor.
+    var classLabel = (filled >= 1) ? MED_POWERS[filled - 1].className : "ANTIBIÓTICO";
+    var classColor = (filled >= 1) ? MED_POWERS[filled - 1].color : "#ffffff";
+    ctx.font = "bold " + Math.max(8, Math.min(11, v.h * 0.26)) + "px Fredoka, sans-serif";
     ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillStyle = "rgba(255, 255, 255, 0.18)";
-    ctx.fillText("ANTIBIÓTICO", v.x + v.w / 2, v.y + v.h / 2);
+    ctx.textBaseline = "alphabetic";
+    ctx.fillStyle = (filled >= 1) ? colorAlpha(classColor, 0.85) : "rgba(255, 255, 255, 0.45)";
+    ctx.fillText(classLabel, v.x + v.w / 2, v.y + v.h - 4);
     ctx.restore();
   }
 

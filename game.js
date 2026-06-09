@@ -2980,6 +2980,7 @@
       acidTimer: 0,
       gasFx: null,
       medFx: null,                      // {id, color, life, max, origX, origY, flashLife, ...}
+      bodyMap: null,                    // {from, to, heroFrom, heroTo, t, duration, phase}
       secondEntryOpen: false,
       surgeAnnounced: false,
       projectiles: [],
@@ -6558,6 +6559,348 @@
     }
   }
 
+  // ============ BODY-MAP (transición narrativa entre fases) ===============
+  // Pantalla-puente con cuerpo cartoon vertical mostrando dónde están los
+  // gérmenes (rojo, arriba) y dónde van los héroes (dorado, 1 fase atrás).
+  // Render 100% canvas — sin asset PNG. Reutilizable para Fase1→Diseminación,
+  // Diseminación→Fase2, Fase2→Fase3, etc.
+  //
+  // Zonas anatómicas (coords relativas al rect del cuerpo bodyX,bodyY,bw,bh):
+  var BODY_ZONES = {
+    piel:        { x: 0.78, y: 0.22, label: "Piel",           color: "#ffb19a" },
+    diseminacion:{ x: 0.50, y: 0.34, label: "Vasos",          color: "#e84343" },
+    organosA:    { x: 0.50, y: 0.50, label: "Órganos diana",  color: "#c97aa8" },
+    organosB:    { x: 0.50, y: 0.66, label: "Profundo",       color: "#b9579f" }
+  };
+
+  function enterBodyMap(opts) {
+    // opts: { from: "piel", to: "diseminacion", heroFrom: null, heroTo: "piel", title, subtitle }
+    state.bodyMap = {
+      from: opts.from || null,
+      to: opts.to || null,
+      heroFrom: opts.heroFrom || null,
+      heroTo: opts.heroTo || null,
+      title: opts.title || "AVANCE DE LA INFECCIÓN",
+      subtitle: opts.subtitle || "",
+      t: 0,
+      duration: 999,       // queda abierto hasta que el jugador toca "Continuar"
+      animPhase: "in",     // "in" (fade-in) → "anim" (puntos avanzan) → "wait" (espera click)
+      animT: 0,
+      onContinue: opts.onContinue || null
+    };
+  }
+
+  function updateBodyMap(dt) {
+    if (!state.bodyMap) return;
+    var b = state.bodyMap;
+    b.t += dt;
+    b.animT += dt;
+    if (b.animPhase === "in" && b.animT >= 0.5) { b.animPhase = "anim"; b.animT = 0; }
+    else if (b.animPhase === "anim" && b.animT >= 1.4) { b.animPhase = "wait"; b.animT = 0; }
+  }
+
+  // Dibuja la silueta cartoon de un cuerpo dentro del rect (bx,by,bw,bh).
+  // Usa primitivas (arcs + paths redondeados) con gradiente piel + glow.
+  function drawBodySilhouette(bx, by, bw, bh) {
+    ctx.save();
+    // Skin gradient
+    var grad = ctx.createLinearGradient(bx, by, bx, by + bh);
+    grad.addColorStop(0, "#f9d5c0");
+    grad.addColorStop(0.5, "#f3b89a");
+    grad.addColorStop(1, "#d99477");
+    // Construcción del path: cabeza + cuello + torso ovoide + brazos cortos + piernas cortas
+    ctx.beginPath();
+    var cx = bx + bw / 2;
+    var headR = bw * 0.13;
+    var headCy = by + headR + bh * 0.02;
+    // Cabeza (círculo)
+    ctx.moveTo(cx + headR, headCy);
+    ctx.arc(cx, headCy, headR, 0, Math.PI * 2);
+    // Torso (rect redondeado bien redondeado, tipo gota)
+    var torsoTop = headCy + headR * 0.7;
+    var torsoBot = by + bh * 0.82;
+    var torsoW = bw * 0.55;
+    var torsoH = torsoBot - torsoTop;
+    // Path torso ovoide
+    ctx.moveTo(cx, torsoTop);
+    ctx.bezierCurveTo(
+      cx + torsoW * 0.65, torsoTop + torsoH * 0.05,
+      cx + torsoW * 0.55, torsoTop + torsoH * 0.95,
+      cx, torsoBot
+    );
+    ctx.bezierCurveTo(
+      cx - torsoW * 0.55, torsoTop + torsoH * 0.95,
+      cx - torsoW * 0.65, torsoTop + torsoH * 0.05,
+      cx, torsoTop
+    );
+    // Brazos (formas tipo "salchicha redondeada")
+    var armW = bw * 0.10;
+    var armTop = torsoTop + torsoH * 0.08;
+    var armBot = torsoTop + torsoH * 0.55;
+    // Brazo derecho (lado +)
+    ctx.moveTo(cx + torsoW * 0.50, armTop);
+    ctx.bezierCurveTo(
+      cx + torsoW * 0.50 + armW * 2, armTop + (armBot - armTop) * 0.10,
+      cx + torsoW * 0.50 + armW * 2, armTop + (armBot - armTop) * 0.95,
+      cx + torsoW * 0.50 + armW * 0.5, armBot
+    );
+    ctx.bezierCurveTo(
+      cx + torsoW * 0.50 + armW * 0.5, armBot,
+      cx + torsoW * 0.50, armTop + (armBot - armTop) * 0.6,
+      cx + torsoW * 0.50, armTop
+    );
+    // Brazo izquierdo (espejo)
+    ctx.moveTo(cx - torsoW * 0.50, armTop);
+    ctx.bezierCurveTo(
+      cx - torsoW * 0.50 - armW * 2, armTop + (armBot - armTop) * 0.10,
+      cx - torsoW * 0.50 - armW * 2, armTop + (armBot - armTop) * 0.95,
+      cx - torsoW * 0.50 - armW * 0.5, armBot
+    );
+    ctx.bezierCurveTo(
+      cx - torsoW * 0.50 - armW * 0.5, armBot,
+      cx - torsoW * 0.50, armTop + (armBot - armTop) * 0.6,
+      cx - torsoW * 0.50, armTop
+    );
+    // Piernas (formas tipo "salchicha redondeada" pero hacia abajo)
+    var legTop = torsoBot - torsoH * 0.05;
+    var legBot = by + bh * 0.98;
+    var legW = bw * 0.12;
+    // Pierna derecha
+    ctx.moveTo(cx + legW * 1.4, legTop);
+    ctx.bezierCurveTo(
+      cx + legW * 1.5, legTop + (legBot - legTop) * 0.5,
+      cx + legW * 1.0, legBot,
+      cx + legW * 0.2, legBot
+    );
+    ctx.bezierCurveTo(
+      cx + legW * 0.2, legBot,
+      cx + legW * 0.2, legTop + (legBot - legTop) * 0.4,
+      cx + legW * 0.2, legTop
+    );
+    // Pierna izquierda
+    ctx.moveTo(cx - legW * 1.4, legTop);
+    ctx.bezierCurveTo(
+      cx - legW * 1.5, legTop + (legBot - legTop) * 0.5,
+      cx - legW * 1.0, legBot,
+      cx - legW * 0.2, legBot
+    );
+    ctx.bezierCurveTo(
+      cx - legW * 0.2, legBot,
+      cx - legW * 0.2, legTop + (legBot - legTop) * 0.4,
+      cx - legW * 0.2, legTop
+    );
+    // Fill + soft outline
+    ctx.fillStyle = grad;
+    ctx.shadowColor = "rgba(0,0,0,0.45)";
+    ctx.shadowBlur = 18;
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = "rgba(70, 25, 20, 0.45)";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // Dibuja las zonas anatómicas internas como manchas suaves de color.
+  // Se clipean dentro de la silueta para que sólo se vean encima del cuerpo.
+  function drawBodyZones(bx, by, bw, bh) {
+    var cx = bx + bw / 2;
+    ctx.save();
+    // Heart cluster (vasos) — red pulsing patch al centro del pecho
+    var hx = cx;
+    var hy = by + bh * BODY_ZONES.diseminacion.y;
+    var hr = bw * 0.18;
+    var hpulse = 0.5 + 0.5 * Math.sin(state.time * 2.2);
+    var heartGrad = ctx.createRadialGradient(hx, hy, 0, hx, hy, hr);
+    heartGrad.addColorStop(0, "rgba(232, 67, 67, " + (0.75 + hpulse * 0.20) + ")");
+    heartGrad.addColorStop(0.6, "rgba(180, 40, 40, 0.45)");
+    heartGrad.addColorStop(1, "rgba(180, 40, 40, 0)");
+    ctx.fillStyle = heartGrad;
+    ctx.beginPath(); ctx.arc(hx, hy, hr, 0, Math.PI * 2); ctx.fill();
+    // Lung patches (rosados, simétricos)
+    var lungR = bw * 0.10;
+    var lungY = by + bh * (BODY_ZONES.diseminacion.y - 0.04);
+    for (var ls = -1; ls <= 1; ls += 2) {
+      var lx = cx + ls * bw * 0.16;
+      var lGrad = ctx.createRadialGradient(lx, lungY, 0, lx, lungY, lungR);
+      lGrad.addColorStop(0, "rgba(255, 173, 195, 0.65)");
+      lGrad.addColorStop(1, "rgba(255, 173, 195, 0)");
+      ctx.fillStyle = lGrad;
+      ctx.beginPath(); ctx.ellipse(lx, lungY, lungR, lungR * 1.3, 0, 0, Math.PI * 2); ctx.fill();
+    }
+    // Liver (hígado) — marrón cálido lado derecho
+    var liverX = cx + bw * 0.12;
+    var liverY = by + bh * BODY_ZONES.organosA.y;
+    var liverR = bw * 0.13;
+    var lvGrad = ctx.createRadialGradient(liverX, liverY, 0, liverX, liverY, liverR);
+    lvGrad.addColorStop(0, "rgba(165, 95, 50, 0.70)");
+    lvGrad.addColorStop(1, "rgba(165, 95, 50, 0)");
+    ctx.fillStyle = lvGrad;
+    ctx.beginPath(); ctx.ellipse(liverX, liverY, liverR * 1.2, liverR * 0.8, 0, 0, Math.PI * 2); ctx.fill();
+    // Bazo (púrpura) — lado izquierdo
+    var spX = cx - bw * 0.13;
+    var spY = by + bh * (BODY_ZONES.organosA.y - 0.02);
+    var spR = bw * 0.08;
+    var spGrad = ctx.createRadialGradient(spX, spY, 0, spX, spY, spR);
+    spGrad.addColorStop(0, "rgba(140, 80, 145, 0.65)");
+    spGrad.addColorStop(1, "rgba(140, 80, 145, 0)");
+    ctx.fillStyle = spGrad;
+    ctx.beginPath(); ctx.arc(spX, spY, spR, 0, Math.PI * 2); ctx.fill();
+    // Riñones (zona profunda)
+    var kY = by + bh * BODY_ZONES.organosB.y;
+    var kR = bw * 0.07;
+    for (var ks = -1; ks <= 1; ks += 2) {
+      var kx = cx + ks * bw * 0.13;
+      var kGrad = ctx.createRadialGradient(kx, kY, 0, kx, kY, kR);
+      kGrad.addColorStop(0, "rgba(140, 60, 50, 0.65)");
+      kGrad.addColorStop(1, "rgba(140, 60, 50, 0)");
+      ctx.fillStyle = kGrad;
+      ctx.beginPath(); ctx.ellipse(kx, kY, kR * 0.8, kR * 1.2, 0, 0, Math.PI * 2); ctx.fill();
+    }
+    // Herida en brazo derecho (zona piel)
+    var wx = bx + bw * BODY_ZONES.piel.x;
+    var wy = by + bh * BODY_ZONES.piel.y;
+    ctx.fillStyle = "rgba(180, 30, 30, 0.85)";
+    ctx.beginPath();
+    ctx.moveTo(wx - 8, wy);
+    ctx.quadraticCurveTo(wx, wy - 6, wx + 8, wy - 1);
+    ctx.quadraticCurveTo(wx + 5, wy + 7, wx - 3, wy + 4);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = "rgba(120, 20, 20, 0.95)";
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // Marker pulsante: punto coloreado con halo, posicionado en zona z.
+  function drawZoneMarker(bx, by, bw, bh, zoneKey, color, label, isHero) {
+    var z = BODY_ZONES[zoneKey]; if (!z) return;
+    var mx = bx + bw * z.x;
+    var my = by + bh * z.y;
+    var pulse = 0.5 + 0.5 * Math.sin(state.time * (isHero ? 3 : 5));
+    var r = (isHero ? 6 : 7) + pulse * 2;
+    ctx.save();
+    // Glow exterior
+    ctx.globalAlpha = 0.40 + pulse * 0.30;
+    ctx.fillStyle = color;
+    ctx.beginPath(); ctx.arc(mx, my, r + 8, 0, Math.PI * 2); ctx.fill();
+    // Punto sólido
+    ctx.globalAlpha = 1;
+    ctx.beginPath(); ctx.arc(mx, my, r, 0, Math.PI * 2); ctx.fill();
+    // Borde blanco
+    ctx.strokeStyle = "#fff"; ctx.lineWidth = 1.5; ctx.stroke();
+    // Label arriba del marker (más grande y limpio si es hero/germ identifier)
+    if (label) {
+      ctx.font = "bold " + Math.floor(11 * U) + "px Fredoka, sans-serif";
+      ctx.textAlign = "center"; ctx.textBaseline = "bottom";
+      ctx.fillStyle = "rgba(0,0,0,0.55)";
+      ctx.fillText(label, mx + 1, my - r - 6 + 1);
+      ctx.fillStyle = color;
+      ctx.fillText(label, mx, my - r - 6);
+    }
+    ctx.restore();
+  }
+
+  function drawBodyMap() {
+    if (!state.bodyMap) return;
+    var b = state.bodyMap;
+    // Backdrop oscuro
+    ctx.save();
+    var fadeIn = (b.animPhase === "in") ? Math.min(1, b.animT / 0.5) : 1;
+    ctx.fillStyle = "rgba(8, 4, 12, " + (0.92 * fadeIn) + ")";
+    ctx.fillRect(0, 0, VW, VH);
+
+    // Frame del cuerpo (vertical, centrado)
+    var bw = Math.min(VW * 0.65, VH * 0.45);
+    var bh = VH * 0.66;
+    var bx = VW / 2 - bw / 2;
+    var byTop = VH * 0.14;
+
+    // Título arriba
+    ctx.globalAlpha = fadeIn;
+    ctx.fillStyle = "#ffd24a";
+    ctx.font = "bold " + Math.floor(20 * U) + "px Fredoka, sans-serif";
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillText(b.title, VW / 2, byTop - 22 * U);
+    if (b.subtitle) {
+      ctx.fillStyle = "rgba(255,255,255,0.80)";
+      ctx.font = "bold " + Math.floor(12 * U) + "px Fredoka, sans-serif";
+      ctx.fillText(b.subtitle, VW / 2, byTop - 6 * U);
+    }
+
+    // Cuerpo
+    drawBodySilhouette(bx, byTop, bw, bh);
+    drawBodyZones(bx, byTop, bw, bh);
+
+    // Markers: el animPhase controla si están en "from" o ya saltaron a "to".
+    var atTarget = (b.animPhase !== "in");
+    var germZone = atTarget ? b.to : b.from;
+    var heroZone = atTarget ? b.heroTo : b.heroFrom;
+    if (germZone) drawZoneMarker(bx, byTop, bw, bh, germZone, "#e84343", "GÉRMENES", false);
+    if (heroZone) drawZoneMarker(bx, byTop, bw, bh, heroZone, "#ffd24a", "HÉROES", true);
+
+    // Línea de trayectoria de la flecha (desde from → to) durante "anim"
+    if (b.animPhase === "anim" && b.from && b.to) {
+      var fz = BODY_ZONES[b.from], tz = BODY_ZONES[b.to];
+      if (fz && tz) {
+        var fx = bx + bw * fz.x, fy = byTop + bh * fz.y;
+        var tx = bx + bw * tz.x, ty = byTop + bh * tz.y;
+        ctx.strokeStyle = "rgba(232, 67, 67, 0.70)";
+        ctx.lineWidth = 2.5;
+        ctx.setLineDash([6, 5]);
+        ctx.beginPath(); ctx.moveTo(fx, fy); ctx.lineTo(tx, ty); ctx.stroke();
+        ctx.setLineDash([]);
+      }
+    }
+
+    // Botón "Continuar" — solo aparece en fase "wait"
+    if (b.animPhase === "wait") {
+      var btnW = Math.min(VW * 0.50, 240);
+      var btnH = 48;
+      var btnX = VW / 2 - btnW / 2;
+      var btnY = VH - btnH - 36;
+      UI.bodyMapBtn = { x: btnX, y: btnY, w: btnW, h: btnH };
+      var bp = 0.5 + 0.5 * Math.sin(state.time * 3);
+      ctx.fillStyle = "#ffd24a";
+      ctx.shadowColor = "rgba(255, 210, 74, " + (0.4 + bp * 0.4) + ")";
+      ctx.shadowBlur = 14 + bp * 8;
+      ctx.beginPath();
+      ctx.moveTo(btnX + 12, btnY);
+      ctx.lineTo(btnX + btnW - 12, btnY);
+      ctx.quadraticCurveTo(btnX + btnW, btnY, btnX + btnW, btnY + 12);
+      ctx.lineTo(btnX + btnW, btnY + btnH - 12);
+      ctx.quadraticCurveTo(btnX + btnW, btnY + btnH, btnX + btnW - 12, btnY + btnH);
+      ctx.lineTo(btnX + 12, btnY + btnH);
+      ctx.quadraticCurveTo(btnX, btnY + btnH, btnX, btnY + btnH - 12);
+      ctx.lineTo(btnX, btnY + 12);
+      ctx.quadraticCurveTo(btnX, btnY, btnX + 12, btnY);
+      ctx.closePath();
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = "#1a0e12";
+      ctx.font = "bold " + Math.floor(14 * U) + "px Fredoka, sans-serif";
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText("CONTINUAR ►", btnX + btnW / 2, btnY + btnH / 2);
+    } else {
+      UI.bodyMapBtn = null;
+    }
+    ctx.restore();
+  }
+
+  function handleBodyMapTap(x, y) {
+    if (!state.bodyMap) return false;
+    if (UI.bodyMapBtn && inRect(x, y, UI.bodyMapBtn)) {
+      var cb = state.bodyMap.onContinue;
+      state.bodyMap = null;
+      UI.bodyMapBtn = null;
+      if (typeof cb === "function") cb();
+      return true;
+    }
+    return false;
+  }
+  // ============ FIN BODY-MAP ==============================================
+
   // -------- PODERES DE GÉRMENES (ataques especiales a torres) -------------
   function fireGermPower(e, tw) {
     var p = e.def.power;
@@ -8766,6 +9109,11 @@
     ensureAudio();
     var p = canvasPosFromEvent(evt);
     state.pointer.x = p.x; state.pointer.y = p.y; state.pointer.isOver = true;
+    // Body-map: si está activo, atrapamos el tap (solo "Continuar" funciona).
+    if (state.bodyMap) {
+      handleBodyMapTap(p.x, p.y);
+      return;
+    }
     // Hero level: rutear tap a sus botones — los direccionales/jump son
     // held (multi-touch), SWAP/SALIR son tap simple.
     if (state.heroLevel && state.heroLevel.active) {
@@ -16121,6 +16469,8 @@
     // Compendio: por encima de todo lo demás cuando está abierto.
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     drawCompendium();
+    // Body-map (transición narrativa entre fases) — por encima de todo.
+    safeDraw("BodyMap", drawBodyMap);
     // Transición de fase: fundido a negro suave con texto narrativo.
     if (state.phaseTransition) {
       var ph = state.phaseTransition;
@@ -17981,7 +18331,7 @@
       requestAnimationFrame(loop);
       return;
     }
-    var paused = state.confirmRestart || state.showTitle || state.showIntro || state.cinematicEnd || state.compendiumOpen || !!state.phaseTransition;
+    var paused = state.confirmRestart || state.showTitle || state.showIntro || state.cinematicEnd || state.compendiumOpen || !!state.phaseTransition || !!state.bodyMap;
     // Nivel puente: pausamos la lógica al caer el primer carril (cinemática + placeholder).
     if (state.disseminationOver) {
       state.disseminationOver.t += dt;
@@ -18034,6 +18384,7 @@
     }
     if (state.showIntro && !state.showTitle) updateIntroComic(dt);
     if (state.cinematicEnd) updateCinematic(dt);
+    if (state.bodyMap) updateBodyMap(dt);
     // Transición suave entre fases: fundido a negro, después dispara
     // enterDissemination al cumplir la mitad de la duración.
     if (state.phaseTransition) {
@@ -18063,6 +18414,7 @@
 
   // === ACCESO DIRECTO via URL hash ===
   // #hero=corazon | pulmon | sangre | hueso | articulacion
+  // #bodymap=fase1 | dissem | fase2 | fase3   (preview de la transición narrativa)
   // Bookmark friendly: immunodefense.vercel.app/#hero=corazon
   (function checkDirectAccess() {
     var hash = (window.location.hash || "").toLowerCase();
@@ -18071,6 +18423,23 @@
       state.showTitle = false;
       state.showIntro = false;
       enterHeroLevel(m[1]);
+      return;
+    }
+    var bm = hash.match(/bodymap=(\w+)/);
+    if (bm) {
+      state.showTitle = false;
+      state.showIntro = false;
+      var key = bm[1];
+      // Presets de prueba: cada uno simula una transición distinta
+      var presets = {
+        fase1:  { from: "piel",         to: "diseminacion", heroFrom: null,           heroTo: "piel",         title: "AVANCE DE LA INFECCIÓN", subtitle: "Los gérmenes entran al torrente sanguíneo" },
+        dissem: { from: "diseminacion", to: "organosA",     heroFrom: "piel",         heroTo: "diseminacion", title: "DISEMINACIÓN COMPLETA",  subtitle: "Los héroes llegan a la piel" },
+        fase2:  { from: "organosA",     to: "organosB",     heroFrom: "diseminacion", heroTo: "organosA",     title: "INFECCIÓN PROFUNDA",     subtitle: "DenK y Mac alcanzan los órganos" },
+        fase3:  { from: "organosB",     to: "organosB",     heroFrom: "organosA",     heroTo: "organosB",     title: "BATALLA FINAL",          subtitle: "Los héroes llegan a la zona profunda" }
+      };
+      var preset = presets[key] || presets.fase1;
+      enterBodyMap(preset);
+      return;
     }
   })();
 

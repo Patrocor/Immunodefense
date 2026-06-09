@@ -15673,49 +15673,58 @@
   // -------- MANGA OVERLAY: onomatopeyas, paneles inset, burbujas, speed lines
   // Cada escena tiene su set propio. Posiciones x/y en [0..1] del viewport.
   var INTRO_MANGA = [
-    // 0: Parque, raspón — drama: la caída
+    // 0: Parque, raspón — drama: la caída. 2 paneles: rodilla + cara dolor.
     {
       speedLines: { kind: "radial", color: "#ffffff", from: 0.10, to: 0.35, intensity: 0.55 },
       onomatopoeia: { text: "¡AY!", x: 0.72, y: 0.18, fill: "#d61f1f", stroke: "#fff", rot: -0.12, size: 0.16, from: 0.10, to: 0.50 },
       insets: [
-        { x: 0.05, y: 0.50, w: 0.30, h: 0.22, srcIdx: 0, cropX: 0.55, cropY: 0.75, cropW: 0.30, cropH: 0.20, from: 0.40, label: "ZOOM" }
+        { x: 0.04, y: 0.46, w: 0.30, h: 0.22, srcIdx: 0, cropX: 0.55, cropY: 0.75, cropW: 0.30, cropH: 0.20, from: 0.28, label: "ZOOM" },
+        { x: 0.66, y: 0.50, w: 0.30, h: 0.22, srcIdx: 0, cropX: 0.35, cropY: 0.22, cropW: 0.28, cropH: 0.28, from: 0.50, label: "DOLOR" }
       ],
       speechBubble: null,
       caption: "Jugando en el parque,\nTomás se raspó la rodilla."
     },
-    // 1: Doctor cura
+    // 1: Doctor cura. 2 paneles: detalle mano del doctor + cara aliviada.
     {
       speedLines: null,
-      onomatopoeia: { text: "*click*", x: 0.20, y: 0.16, fill: "#ffffff", stroke: "#1a0e12", rot: 0.06, size: 0.06, from: 0.10, to: 0.45 },
+      onomatopoeia: { text: "*click*", x: 0.20, y: 0.14, fill: "#ffffff", stroke: "#1a0e12", rot: 0.06, size: 0.06, from: 0.10, to: 0.45 },
       insets: [
-        { x: 0.62, y: 0.52, w: 0.32, h: 0.24, srcIdx: 1, cropX: 0.30, cropY: 0.45, cropW: 0.40, cropH: 0.30, from: 0.45, label: "CURA" }
+        { x: 0.04, y: 0.50, w: 0.30, h: 0.22, srcIdx: 1, cropX: 0.30, cropY: 0.50, cropW: 0.38, cropH: 0.30, from: 0.28, label: "CURA" },
+        { x: 0.66, y: 0.50, w: 0.30, h: 0.22, srcIdx: 1, cropX: 0.50, cropY: 0.20, cropW: 0.30, cropH: 0.28, from: 0.50, label: "ALIVIO" }
       ],
-      speechBubble: { x: 0.58, y: 0.20, w: 0.36, text: "Tranquilo,\nya pasó.", tail: "bl", from: 0.30 },
+      speechBubble: { x: 0.58, y: 0.22, w: 0.36, text: "Tranquilo,\nya pasó.", tail: "bl", from: 0.30 },
       caption: "El doctor la limpió\ny le dio antibióticos."
     },
-    // 2: Curiosidad
+    // 2: Curiosidad. 2 paneles: dedos rascando + ojos curiosos.
     {
       speedLines: null,
-      onomatopoeia: { text: "ssh...", x: 0.20, y: 0.22, fill: "#cccccc", stroke: "#fff", rot: 0.04, size: 0.07, from: 0.15, to: 0.55 },
+      onomatopoeia: { text: "ssh...", x: 0.20, y: 0.20, fill: "#cccccc", stroke: "#fff", rot: 0.04, size: 0.07, from: 0.15, to: 0.55 },
       insets: [
-        { x: 0.62, y: 0.55, w: 0.32, h: 0.24, srcIdx: 2, cropX: 0.40, cropY: 0.55, cropW: 0.35, cropH: 0.25, from: 0.45, label: "OOPS" }
+        { x: 0.04, y: 0.50, w: 0.30, h: 0.22, srcIdx: 2, cropX: 0.40, cropY: 0.55, cropW: 0.35, cropH: 0.25, from: 0.28, label: "RASCAR" },
+        { x: 0.66, y: 0.48, w: 0.30, h: 0.22, srcIdx: 2, cropX: 0.15, cropY: 0.20, cropW: 0.30, cropH: 0.25, from: 0.50, label: "OJOS" }
       ],
       speechBubble: null,
       caption: "Pero la curiosidad pudo más...\ny volvió a abrir la herida."
     },
-    // 3: Zoom dramático
+    // 3: Acercamiento dramático. "¡QUÉ?!" rojo+blanco. 2 paneles: ojo + herida.
     {
       speedLines: { kind: "radial", color: "#ffffff", from: 0.08, to: 0.70, intensity: 0.85 },
-      onomatopoeia: { text: "¡ZOOM!", x: 0.50, y: 0.14, fill: "#ffd24a", stroke: "#1a0e12", rot: -0.05, size: 0.16, from: 0.15, to: 0.80 },
-      insets: [],
+      onomatopoeia: { text: "¡QUÉ?!", x: 0.50, y: 0.14, fill: "#d61f1f", stroke: "#fff", rot: -0.05, size: 0.18, from: 0.15, to: 0.80 },
+      insets: [
+        { x: 0.04, y: 0.50, w: 0.30, h: 0.22, srcIdx: 3, cropX: 0.40, cropY: 0.40, cropW: 0.20, cropH: 0.22, from: 0.30, label: "OJO" },
+        { x: 0.66, y: 0.50, w: 0.30, h: 0.22, srcIdx: 3, cropX: 0.30, cropY: 0.65, cropW: 0.40, cropH: 0.25, from: 0.55, label: "HERIDA" }
+      ],
       speechBubble: null,
       caption: "Se asomó muy de cerca...\ny el mundo se volvió enorme."
     },
-    // 4: Invasión microscópica
+    // 4: Invasión microscópica. 2 paneles: germen close-up + tropa avanzando.
     {
       speedLines: { kind: "horizontal", color: "#ff3030", from: 0.20, to: 0.80, intensity: 0.65 },
       onomatopoeia: { text: "¡INVASIÓN!", x: 0.50, y: 0.30, fill: "#d61f1f", stroke: "#fff", rot: -0.05, size: 0.16, from: 0.20, to: 0.75 },
-      insets: [],
+      insets: [
+        { x: 0.04, y: 0.50, w: 0.30, h: 0.22, srcIdx: 4, cropX: 0.20, cropY: 0.30, cropW: 0.25, cropH: 0.25, from: 0.30, label: "GERMEN" },
+        { x: 0.66, y: 0.50, w: 0.30, h: 0.22, srcIdx: 4, cropX: 0.55, cropY: 0.55, cropW: 0.30, cropH: 0.25, from: 0.55, label: "TROPA" }
+      ],
       speechBubble: null,
       caption: "Allí dentro, en lo microscópico,\nla invasión ya comenzó."
     }

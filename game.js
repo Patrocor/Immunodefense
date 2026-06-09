@@ -15670,6 +15670,263 @@
   var INTRO_PRE = [0, 0.06, 0.07, 0.13, 0.18];  // pre-zoom de la escena entrante
   var INTRO_POUT = [0, 0.05, 0.06, 0.11, 0.16]; // empuje de la escena saliente
 
+  // -------- MANGA OVERLAY: onomatopeyas, paneles inset, burbujas, speed lines
+  // Cada escena tiene su set propio. Posiciones x/y en [0..1] del viewport.
+  var INTRO_MANGA = [
+    // 0: Parque, raspón — drama: la caída
+    {
+      speedLines: { kind: "radial", color: "#ffffff", from: 0.10, to: 0.35, intensity: 0.55 },
+      onomatopoeia: { text: "¡AY!", x: 0.72, y: 0.18, fill: "#d61f1f", stroke: "#fff", rot: -0.12, size: 0.16, from: 0.10, to: 0.50 },
+      insets: [
+        { x: 0.05, y: 0.50, w: 0.30, h: 0.22, srcIdx: 0, cropX: 0.55, cropY: 0.75, cropW: 0.30, cropH: 0.20, from: 0.40, label: "ZOOM" }
+      ],
+      speechBubble: null,
+      caption: "Jugando en el parque,\nTomás se raspó la rodilla."
+    },
+    // 1: Doctor cura
+    {
+      speedLines: null,
+      onomatopoeia: { text: "*click*", x: 0.20, y: 0.16, fill: "#ffffff", stroke: "#1a0e12", rot: 0.06, size: 0.06, from: 0.10, to: 0.45 },
+      insets: [
+        { x: 0.62, y: 0.52, w: 0.32, h: 0.24, srcIdx: 1, cropX: 0.30, cropY: 0.45, cropW: 0.40, cropH: 0.30, from: 0.45, label: "CURA" }
+      ],
+      speechBubble: { x: 0.58, y: 0.20, w: 0.36, text: "Tranquilo,\nya pasó.", tail: "bl", from: 0.30 },
+      caption: "El doctor la limpió\ny le dio antibióticos."
+    },
+    // 2: Curiosidad
+    {
+      speedLines: null,
+      onomatopoeia: { text: "ssh...", x: 0.20, y: 0.22, fill: "#cccccc", stroke: "#fff", rot: 0.04, size: 0.07, from: 0.15, to: 0.55 },
+      insets: [
+        { x: 0.62, y: 0.55, w: 0.32, h: 0.24, srcIdx: 2, cropX: 0.40, cropY: 0.55, cropW: 0.35, cropH: 0.25, from: 0.45, label: "OOPS" }
+      ],
+      speechBubble: null,
+      caption: "Pero la curiosidad pudo más...\ny volvió a abrir la herida."
+    },
+    // 3: Zoom dramático
+    {
+      speedLines: { kind: "radial", color: "#ffffff", from: 0.08, to: 0.70, intensity: 0.85 },
+      onomatopoeia: { text: "¡ZOOM!", x: 0.50, y: 0.14, fill: "#ffd24a", stroke: "#1a0e12", rot: -0.05, size: 0.16, from: 0.15, to: 0.80 },
+      insets: [],
+      speechBubble: null,
+      caption: "Se asomó muy de cerca...\ny el mundo se volvió enorme."
+    },
+    // 4: Invasión microscópica
+    {
+      speedLines: { kind: "horizontal", color: "#ff3030", from: 0.20, to: 0.80, intensity: 0.65 },
+      onomatopoeia: { text: "¡INVASIÓN!", x: 0.50, y: 0.30, fill: "#d61f1f", stroke: "#fff", rot: -0.05, size: 0.16, from: 0.20, to: 0.75 },
+      insets: [],
+      speechBubble: null,
+      caption: "Allí dentro, en lo microscópico,\nla invasión ya comenzó."
+    }
+  ];
+
+  function introPopAlpha(p, from, to) {
+    if (p < from) return 0;
+    if (p > to) return Math.max(0, 1 - (p - to) / 0.15);
+    var inFrac = Math.min(1, (p - from) / 0.18);
+    return inFrac;
+  }
+  function introPopScale(p, from) {
+    var t = Math.max(0, Math.min(1, (p - from) / 0.18));
+    // Overshoot 1.15 → 1.00 (elástico cartoon)
+    return 0.5 + t * 0.65 + Math.sin(t * Math.PI) * 0.15;
+  }
+
+  function drawIntroOnomatopoeia(cfg, p) {
+    if (!cfg) return;
+    var a = introPopAlpha(p, cfg.from, cfg.to);
+    if (a <= 0) return;
+    var s = introPopScale(p, cfg.from);
+    var tx = VW * cfg.x, ty = VH * cfg.y;
+    ctx.save();
+    ctx.globalAlpha = a;
+    ctx.translate(tx, ty);
+    ctx.rotate(cfg.rot || 0);
+    ctx.scale(s, s);
+    var fSize = Math.round(VW * (cfg.size || 0.14));
+    ctx.font = "900 " + fSize + "px Fredoka, sans-serif";
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.lineWidth = Math.max(3, VW * 0.012); ctx.lineJoin = "round";
+    ctx.strokeStyle = cfg.stroke || "#fff"; ctx.strokeText(cfg.text, 0, 0);
+    ctx.fillStyle = cfg.fill || "#d61f1f"; ctx.fillText(cfg.text, 0, 0);
+    ctx.restore();
+  }
+
+  function drawIntroInset(cfg, p) {
+    if (!cfg) return;
+    var a = introPopAlpha(p, cfg.from || 0, 1.0);
+    if (a <= 0) return;
+    // Slide-in desde la izquierda/derecha según posición x
+    var slideFrac = Math.max(0, Math.min(1, (p - cfg.from) / 0.20));
+    var slideOff = (1 - slideFrac) * (cfg.x < 0.5 ? -40 : 40);
+    var x = VW * cfg.x + slideOff, y = VH * cfg.y;
+    var w = VW * cfg.w, h = VH * cfg.h;
+    ctx.save();
+    ctx.globalAlpha = a;
+    // Sombra dura manga (drop shadow desplazado)
+    ctx.fillStyle = "rgba(0,0,0,0.45)";
+    ctx.fillRect(x + 4, y + 5, w, h);
+    // Marco grueso negro
+    ctx.fillStyle = "#1a0e12";
+    ctx.fillRect(x - 3, y - 3, w + 6, h + 6);
+    // Imagen recortada (clip + drawImage manualmente)
+    var img = introImgs[cfg.srcIdx];
+    if (img && img.complete && img.naturalWidth) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(x, y, w, h);
+      ctx.clip();
+      var iw = img.naturalWidth, ih = img.naturalHeight;
+      var sx = iw * cfg.cropX, sy = ih * cfg.cropY;
+      var sw = iw * cfg.cropW, sh = ih * cfg.cropH;
+      // Cover dentro del rect del inset
+      var coverScale = Math.max(w / sw, h / sh);
+      var dw = sw * coverScale, dh = sh * coverScale;
+      var dx = x + (w - dw) / 2, dy = y + (h - dh) / 2;
+      ctx.drawImage(img, sx, sy, sw, sh, dx, dy, dw, dh);
+      ctx.restore();
+    } else {
+      ctx.fillStyle = "#33212e"; ctx.fillRect(x, y, w, h);
+    }
+    // Etiqueta de esquina (label manga tipo "ZOOM", "CURA", etc)
+    if (cfg.label) {
+      var lblPad = 4;
+      ctx.font = "900 11px Fredoka, sans-serif";
+      ctx.textAlign = "left"; ctx.textBaseline = "top";
+      var lblW = ctx.measureText(cfg.label).width + lblPad * 2;
+      ctx.fillStyle = "#ffd24a";
+      ctx.fillRect(x - 3, y - 3, lblW, 16);
+      ctx.fillStyle = "#1a0e12";
+      ctx.fillText(cfg.label, x - 3 + lblPad, y - 1);
+    }
+    ctx.restore();
+  }
+
+  function drawIntroSpeechBubble(cfg, p) {
+    if (!cfg) return;
+    var a = introPopAlpha(p, cfg.from || 0, 1.0);
+    if (a <= 0) return;
+    var s = introPopScale(p, cfg.from || 0);
+    var bx = VW * cfg.x, by = VH * cfg.y;
+    var bw = VW * (cfg.w || 0.30), bh = 56;
+    ctx.save();
+    ctx.globalAlpha = a;
+    ctx.translate(bx + bw / 2, by + bh / 2);
+    ctx.scale(s, s);
+    ctx.translate(-(bx + bw / 2), -(by + bh / 2));
+    // Cuerpo de la burbuja: rect redondeado blanco con borde grueso
+    ctx.lineWidth = 3; ctx.lineJoin = "round";
+    ctx.fillStyle = "#ffffff";
+    ctx.strokeStyle = "#1a0e12";
+    roundRect(bx, by, bw, bh, 12);
+    ctx.fill(); ctx.stroke();
+    // Cola hacia el tail direction (bl=bottom-left, br=bottom-right, etc.)
+    ctx.beginPath();
+    if (cfg.tail === "bl") {
+      ctx.moveTo(bx + bw * 0.20, by + bh);
+      ctx.lineTo(bx + bw * 0.08, by + bh + 16);
+      ctx.lineTo(bx + bw * 0.32, by + bh - 1);
+    } else if (cfg.tail === "br") {
+      ctx.moveTo(bx + bw * 0.80, by + bh);
+      ctx.lineTo(bx + bw * 0.92, by + bh + 16);
+      ctx.lineTo(bx + bw * 0.68, by + bh - 1);
+    } else { // top
+      ctx.moveTo(bx + bw * 0.50, by);
+      ctx.lineTo(bx + bw * 0.45, by - 16);
+      ctx.lineTo(bx + bw * 0.62, by);
+    }
+    ctx.closePath();
+    ctx.fillStyle = "#ffffff"; ctx.fill();
+    ctx.strokeStyle = "#1a0e12"; ctx.stroke();
+    // Texto
+    ctx.fillStyle = "#1a0e12";
+    ctx.font = "bold 14px Fredoka, sans-serif";
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    var lines = cfg.text.split("\n");
+    var lineH = 17;
+    var startY = by + bh / 2 - ((lines.length - 1) * lineH) / 2;
+    for (var i = 0; i < lines.length; i++) {
+      ctx.fillText(lines[i], bx + bw / 2, startY + i * lineH);
+    }
+    ctx.restore();
+  }
+
+  function drawIntroSpeedLines(cfg, p) {
+    if (!cfg) return;
+    if (p < cfg.from || p > cfg.to) return;
+    var midPoint = (cfg.from + cfg.to) / 2;
+    var halfRange = (cfg.to - cfg.from) / 2;
+    var dist = Math.abs(p - midPoint);
+    var aFactor = 1 - (dist / halfRange);                   // peak in middle
+    var a = Math.max(0, aFactor) * cfg.intensity;
+    if (a <= 0.01) return;
+    ctx.save();
+    ctx.globalAlpha = a;
+    ctx.strokeStyle = cfg.color || "#fff";
+    ctx.lineWidth = 1.5;
+    ctx.lineCap = "round";
+    if (cfg.kind === "radial") {
+      // Líneas radiales desde el centro hacia los bordes
+      var cx = VW / 2, cy = VH / 2;
+      var rOuter = Math.sqrt(VW * VW + VH * VH) / 2;
+      var rInner = rOuter * 0.55;
+      var n = 32;
+      for (var i = 0; i < n; i++) {
+        var ang = (i / n) * Math.PI * 2 + (state.time * 0.4) % (Math.PI * 2);
+        ctx.beginPath();
+        ctx.moveTo(cx + Math.cos(ang) * rInner, cy + Math.sin(ang) * rInner);
+        ctx.lineTo(cx + Math.cos(ang) * rOuter, cy + Math.sin(ang) * rOuter);
+        ctx.stroke();
+      }
+    } else if (cfg.kind === "horizontal") {
+      // Líneas horizontales que se mueven (motion lines)
+      var nh = 18;
+      var off = (state.time * 60) % 24;
+      for (var j = 0; j < nh; j++) {
+        var ly = (j / nh) * VH + off;
+        var lLen = 20 + ((j * 47) % 60);
+        var lx = ((j * 79) % VW);
+        ctx.beginPath();
+        ctx.moveTo(lx, ly);
+        ctx.lineTo(lx + lLen, ly);
+        ctx.stroke();
+      }
+    }
+    ctx.restore();
+  }
+
+  function drawIntroMangaCaption(text, alpha) {
+    if (alpha <= 0.01 || !text) return;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    var bw = VW - 32;
+    var bh = 76;
+    var bx = 16, by = VH - bh - 20;
+    // Sombra dura manga
+    ctx.fillStyle = "rgba(0,0,0,0.55)";
+    ctx.fillRect(bx + 4, by + 5, bw, bh);
+    // Fondo crema con borde negro grueso (estilo caja narrativa manga)
+    ctx.fillStyle = "#fff8e7";
+    ctx.fillRect(bx, by, bw, bh);
+    ctx.strokeStyle = "#1a0e12"; ctx.lineWidth = 3;
+    ctx.strokeRect(bx, by, bw, bh);
+    // Acento de color en esquina sup-izq (banda manga)
+    ctx.fillStyle = "#d61f1f";
+    ctx.fillRect(bx, by, 8, bh);
+    // Texto
+    ctx.fillStyle = "#1a0e12";
+    ctx.font = "bold 16px Fredoka, sans-serif";
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    var lines = text.split("\n");
+    var lineH = 21;
+    var startY = by + bh / 2 - ((lines.length - 1) * lineH) / 2;
+    for (var i = 0; i < lines.length; i++) {
+      ctx.fillText(lines[i], bx + bw / 2, startY + i * lineH);
+    }
+    ctx.restore();
+  }
+
   function drawIntroScreen() {
     if (!state.showIntro || state.showTitle) return;
     var sc = state.introScene || 0;
@@ -15695,41 +15952,24 @@
       introCover(introImgs[sc], zoom, oy);
     }
 
-    // "¡AY!" cómic en la escena del parque.
-    if (sc === 0 && p > 0.12) {
-      var pop = Math.min(1, (p - 0.12) / 0.16);
-      ctx.save();
-      ctx.translate(VW * 0.72, VH * 0.16);
-      ctx.rotate(-0.12);
-      var k = 0.6 + pop * 0.4; ctx.scale(k, k);
-      ctx.font = "900 " + Math.round(VW * 0.14) + "px Fredoka, sans-serif";
-      ctx.textAlign = "center"; ctx.textBaseline = "middle";
-      ctx.lineWidth = Math.max(3, VW * 0.012); ctx.lineJoin = "round";
-      ctx.strokeStyle = "#fff"; ctx.strokeText("¡AY!", 0, 0);
-      ctx.fillStyle = "#d61f1f"; ctx.fillText("¡AY!", 0, 0);
-      ctx.restore();
+    // -------- OVERLAY MANGA: speed lines + insets + onomatopeya + bubble + caption
+    // Speed lines van DEBAJO del resto (fondo), luego insets, luego onomatopeya
+    // y burbujas arriba (jerarquía manga clásica).
+    var manga = INTRO_MANGA[sc];
+    if (manga) {
+      drawIntroSpeedLines(manga.speedLines, p);
+      if (manga.insets) {
+        for (var ii = 0; ii < manga.insets.length; ii++) {
+          drawIntroInset(manga.insets[ii], p);
+        }
+      }
+      drawIntroOnomatopoeia(manga.onomatopoeia, p);
+      drawIntroSpeechBubble(manga.speechBubble, p);
     }
 
-    // Subtítulo estilo barra de subtítulos de video: fondo oscuro
-    // semitransparente, texto blanco, sin borde. Antes tenía fondo cream con
-    // borde oscuro grueso (estilo comic) y se leía como "bocadillo".
+    // Caption manga: caja crema con borde negro grueso + banda roja
     var capA = fin * (sc === last ? Math.max(0, 1 - (p - 0.45) / 0.2) : 1);
-    if (capA > 0.01) {
-      ctx.globalAlpha = capA;
-      var boxH = 70, boxY = VH - boxH - 14, boxX = 16, boxW = VW - 32;
-      ctx.fillStyle = "rgba(15, 12, 18, 0.78)";
-      ctx.fillRect(boxX, boxY, boxW, boxH);
-      ctx.fillStyle = "#ffffff"; ctx.font = "15px Fredoka, sans-serif";
-      ctx.textAlign = "center"; ctx.textBaseline = "middle";
-      var capLines = wrapText(INTRO_CAPTIONS[sc], boxW - 28, 15);
-      var lineH = 19;
-      var totalH = capLines.length * lineH;
-      var startY = boxY + (boxH - totalH) / 2 + lineH / 2;
-      for (var ci = 0; ci < capLines.length; ci++) {
-        ctx.fillText(capLines[ci], VW / 2, startY + ci * lineH);
-      }
-      ctx.globalAlpha = 1;
-    }
+    drawIntroMangaCaption(manga ? manga.caption : INTRO_CAPTIONS[sc], capA);
 
     // Puntos de progreso (rectángulo sólido para que se lea limpio).
     var nd = INTRO_DUR.length, dx0 = VW / 2 - (nd - 1) * 6;

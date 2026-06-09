@@ -15677,10 +15677,7 @@
     {
       speedLines: { kind: "radial", color: "#ffffff", from: 0.10, to: 0.35, intensity: 0.55 },
       onomatopoeia: { text: "¡AY!", x: 0.72, y: 0.18, fill: "#d61f1f", stroke: "#fff", rot: -0.12, size: 0.16, from: 0.10, to: 0.50 },
-      insets: [
-        { x: 0.04, y: 0.46, w: 0.30, h: 0.22, srcIdx: 0, cropX: 0.55, cropY: 0.75, cropW: 0.30, cropH: 0.20, from: 0.28, label: "ZOOM" },
-        { x: 0.66, y: 0.50, w: 0.30, h: 0.22, srcIdx: 0, cropX: 0.35, cropY: 0.22, cropW: 0.28, cropH: 0.28, from: 0.50, label: "DOLOR" }
-      ],
+      insets: [],
       speechBubble: null,
       caption: "Jugando en el parque,\nTomás se raspó la rodilla."
     },
@@ -15688,10 +15685,7 @@
     {
       speedLines: null,
       onomatopoeia: { text: "*click*", x: 0.20, y: 0.14, fill: "#ffffff", stroke: "#1a0e12", rot: 0.06, size: 0.06, from: 0.10, to: 0.45 },
-      insets: [
-        { x: 0.04, y: 0.50, w: 0.30, h: 0.22, srcIdx: 1, cropX: 0.30, cropY: 0.50, cropW: 0.38, cropH: 0.30, from: 0.28, label: "CURA" },
-        { x: 0.66, y: 0.50, w: 0.30, h: 0.22, srcIdx: 1, cropX: 0.50, cropY: 0.20, cropW: 0.30, cropH: 0.28, from: 0.50, label: "ALIVIO" }
-      ],
+      insets: [],
       speechBubble: { x: 0.58, y: 0.22, w: 0.36, text: "Tranquilo,\nya pasó.", tail: "bl", from: 0.30 },
       caption: "El doctor la limpió\ny le dio antibióticos."
     },
@@ -15699,10 +15693,7 @@
     {
       speedLines: null,
       onomatopoeia: { text: "ssh...", x: 0.20, y: 0.20, fill: "#cccccc", stroke: "#fff", rot: 0.04, size: 0.07, from: 0.15, to: 0.55 },
-      insets: [
-        { x: 0.04, y: 0.50, w: 0.30, h: 0.22, srcIdx: 2, cropX: 0.40, cropY: 0.55, cropW: 0.35, cropH: 0.25, from: 0.28, label: "RASCAR" },
-        { x: 0.66, y: 0.48, w: 0.30, h: 0.22, srcIdx: 2, cropX: 0.15, cropY: 0.20, cropW: 0.30, cropH: 0.25, from: 0.50, label: "OJOS" }
-      ],
+      insets: [],
       speechBubble: null,
       caption: "Pero la curiosidad pudo más...\ny volvió a abrir la herida."
     },
@@ -15710,10 +15701,7 @@
     {
       speedLines: { kind: "radial", color: "#ffffff", from: 0.08, to: 0.70, intensity: 0.85 },
       onomatopoeia: { text: "¡QUÉ?!", x: 0.50, y: 0.14, fill: "#d61f1f", stroke: "#fff", rot: -0.05, size: 0.18, from: 0.15, to: 0.80 },
-      insets: [
-        { x: 0.04, y: 0.50, w: 0.30, h: 0.22, srcIdx: 3, cropX: 0.40, cropY: 0.40, cropW: 0.20, cropH: 0.22, from: 0.30, label: "OJO" },
-        { x: 0.66, y: 0.50, w: 0.30, h: 0.22, srcIdx: 3, cropX: 0.30, cropY: 0.65, cropW: 0.40, cropH: 0.25, from: 0.55, label: "HERIDA" }
-      ],
+      insets: [],
       speechBubble: null,
       caption: "Se asomó muy de cerca...\ny el mundo se volvió enorme."
     },
@@ -15721,10 +15709,7 @@
     {
       speedLines: { kind: "horizontal", color: "#ff3030", from: 0.20, to: 0.80, intensity: 0.65 },
       onomatopoeia: { text: "¡INVASIÓN!", x: 0.50, y: 0.30, fill: "#d61f1f", stroke: "#fff", rot: -0.05, size: 0.16, from: 0.20, to: 0.75 },
-      insets: [
-        { x: 0.04, y: 0.50, w: 0.30, h: 0.22, srcIdx: 4, cropX: 0.20, cropY: 0.30, cropW: 0.25, cropH: 0.25, from: 0.30, label: "GERMEN" },
-        { x: 0.66, y: 0.50, w: 0.30, h: 0.22, srcIdx: 4, cropX: 0.55, cropY: 0.55, cropW: 0.30, cropH: 0.25, from: 0.55, label: "TROPA" }
-      ],
+      insets: [],
       speechBubble: null,
       caption: "Allí dentro, en lo microscópico,\nla invasión ya comenzó."
     }

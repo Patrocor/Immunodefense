@@ -18624,14 +18624,28 @@
     }
     if (state.disseminationIntroTimer > 0) state.disseminationIntroTimer -= dt;
     // Hero level encolado: cuenta atrás y dispara cuando el delay llega a 0.
+    // Antes: enterHeroLevel directo. Ahora: pasa por el mapa-mundo (fork
+    // se abre revelando 5 complicaciones posibles + H_F1 chooseable).
     if (state.pendingHeroLevel) {
       state.pendingHeroLevel.delay -= dt;
       if (state.pendingHeroLevel.delay <= 0) {
         var pending = state.pendingHeroLevel;
         state.pendingHeroLevel = null;
         state.heroLevelPlayed = state.heroLevelPlayed || {};
-        state.heroLevelPlayed[pending.organ] = true;
-        enterHeroLevel(pending.organ);
+        enterBodyMap({
+          currentNode: "dissem",
+          // Por ahora solo h_fase1 está implementado. Las 5 complicaciones
+          // germ quedan en "possible" gris hasta que se implementen como
+          // fases reales. Cuando esté listo: ["endocarditis", "h_fase1"].
+          availableNodes: ["h_fase1"],
+          forkOpen: true,
+          title: "DISEMINACIÓN COMPLETA",
+          subtitle: "Los héroes alcanzan los escombros · 5 complicaciones aún posibles",
+          onContinue: function () {
+            state.heroLevelPlayed[pending.organ] = true;
+            enterHeroLevel(pending.organ);
+          }
+        });
       }
     }
     if (state.disseminationFlash) {
@@ -18677,7 +18691,17 @@
       if (!state.phaseTransition.fired && state.phaseTransition.t >= state.phaseTransition.duration * 0.55) {
         state.phaseTransition.fired = true;
         if (state.phaseTransition.target === "dissemination") {
-          enterDissemination();
+          // Antes: enterDissemination() directo.
+          // Ahora: abrir el mapa-mundo primero. Player tap CONTINUAR
+          // dispara enterDissemination en el callback.
+          enterBodyMap({
+            currentNode: "fase1",
+            availableNodes: ["dissem"],
+            forkOpen: false,
+            title: "FASE 1 SUPERADA",
+            subtitle: "La infección rompe la barrera de la piel · diseminación inminente",
+            onContinue: function () { enterDissemination(); }
+          });
         }
       }
       if (state.phaseTransition.t >= state.phaseTransition.duration) {

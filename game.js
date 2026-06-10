@@ -3188,25 +3188,25 @@
     var infoH = Math.min(96 + btnH * 2, Math.round(dockH * 0.52));
     var infoY = dockBottom - infoH;
 
-    // Panel de Respuestas Inmunes (solo en diseminación): 3 cartas verticales
-    // en la parte BAJA del dock derecho, debajo del strip de torres y arriba del
-    // bloque info/botones. Se calcula primero para reservarle espacio al strip.
+    // Panel de Respuestas Inmunes (solo en diseminación): se posiciona en
+    // el BORDE INFERIOR DERECHO del screen, FUERA de la columna vertical
+    // del dock — así libera espacio para más torres en el card strip.
     UI.responsePanel = null;
-    var responsesReservedH = 0;
+    var responsesReservedH = 0;  // ya NO reserva espacio en el dock
     if (state && state.dissemination) {
-      // Una sola card de respuesta (NETosis). Antes había 3 (dendritica,
-      // netosis, plaquetas) — se simplificó para que el jugador no se
-      // pierda en opciones similares.
-      var rpCardH = Math.round(50 * U);
-      var rpGap = Math.round(6 * U);
-      var rpPad = Math.round(6 * U);
+      // Una sola card de respuesta (NETosis), compacta, anclada al fondo-derecho.
+      var rpCardH = Math.round(42 * U);
+      var rpGap = Math.round(4 * U);
+      var rpPad = Math.round(5 * U);
       var rpInnerH = 1 * rpCardH;
       var rpH = rpInnerH + 2 * rpPad;
-      responsesReservedH = rpH + dockPad;
+      var rpW = Math.max(96, Math.round(110 * U));
+      var rpX = VW - safeRight - rpW - 4;
+      var rpY = VH - safeBottom - rpH - 4;
       UI.responsePanel = {
-        x: contentX,
-        y: infoY - dockPad - rpH,
-        w: contentW,
+        x: rpX,
+        y: rpY,
+        w: rpW,
         h: rpH,
         cardH: rpCardH,
         gap: rpGap,

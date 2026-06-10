@@ -6571,54 +6571,103 @@
   //               └── H1 ─── H2 ─── H3
   //
   // Coords x,y relativas al rect del mapa (mapX, mapY, mapW, mapH).
+  // Estructura: 3 F2 (triada hematógena clásica) → 9 F3 fan (3 por F2)
+  //              → CONVERGE en F4 SEPSIS → F5 SHOCK+MODS boss.
+  // Heroes: paralelo abajo. H_F1, H_DIS, H_F2 (3), H_F4, H_F5. Sin H_F3
+  // (omitido para no saturar — se agrega cuando se implemente).
   var MAP_NODES = [
-    // === TIMELINE GÉRMENES (arriba) ===
-    { key: "fase1",  x: 0.08, y: 0.20, label: "Fase 1",       color: "#ffb19a", branch: "stem" },
-    { key: "dissem", x: 0.28, y: 0.20, label: "Diseminación", color: "#e84343", branch: "stem" },
-    // 5 COMPLICACIONES posibles (fan vertical desde DIS).
-    { key: "endocarditis",  x: 0.60, y: 0.05, label: "Endocarditis",  sub: "corazón",       color: "#c1416a", branch: "complic" },
-    { key: "neumonia",      x: 0.60, y: 0.12, label: "Neumonía",      sub: "pulmón",        color: "#a8d8e8", branch: "complic" },
-    { key: "septicemia",    x: 0.60, y: 0.20, label: "Septicemia",    sub: "sangre",        color: "#dc3545", branch: "complic" },
-    { key: "osteomielitis", x: 0.60, y: 0.28, label: "Osteomielitis", sub: "hueso",         color: "#c8a070", branch: "complic" },
-    { key: "artritis",      x: 0.60, y: 0.36, label: "Artritis",      sub: "articulación",  color: "#8ec5d0", branch: "complic" },
-    // === TIMELINE HÉROES (abajo, paralelo — escombros de cada fase) ===
-    // mirror estructura germs, cada uno directamente debajo de su germ counterpart
-    { key: "h_fase1",  x: 0.08, y: 0.70, label: "H. Fase 1",     color: "#ffd24a", branch: "h_stem" },
-    { key: "h_dissem", x: 0.28, y: 0.70, label: "H. Disem.",     color: "#e0a83a", branch: "h_stem" },
-    { key: "h_endocarditis",  x: 0.60, y: 0.55, label: "H. Endo",   sub: "escombros",  color: "#ffd24a", branch: "h_complic" },
-    { key: "h_neumonia",      x: 0.60, y: 0.62, label: "H. Neumo",  sub: "escombros",  color: "#ffd24a", branch: "h_complic" },
-    { key: "h_septicemia",    x: 0.60, y: 0.70, label: "H. Septi",  sub: "escombros",  color: "#ffd24a", branch: "h_complic" },
-    { key: "h_osteomielitis", x: 0.60, y: 0.78, label: "H. Osteo",  sub: "escombros",  color: "#ffd24a", branch: "h_complic" },
-    { key: "h_artritis",      x: 0.60, y: 0.86, label: "H. Artri",  sub: "escombros",  color: "#ffd24a", branch: "h_complic" }
+    // === STEM GÉRMENES ===
+    { key: "fase1",  x: 0.05, y: 0.32, label: "Fase 1",       color: "#ffb19a", branch: "stem" },
+    { key: "dissem", x: 0.14, y: 0.32, label: "Diseminación", color: "#e84343", branch: "stem" },
+    // === F2: 3 caminos (triada hematógena clásica) ===
+    { key: "endocarditis",  x: 0.26, y: 0.10, label: "Endocarditis",  sub: "corazón",       color: "#c1416a", branch: "f2" },
+    { key: "osteomielitis", x: 0.26, y: 0.32, label: "Osteomielitis", sub: "hueso",         color: "#c8a070", branch: "f2" },
+    { key: "artritis",      x: 0.26, y: 0.54, label: "Artritis",      sub: "articulación",  color: "#8ec5d0", branch: "f2" },
+    // === F3 fan desde Endocarditis (top) ===
+    { key: "f3_pulm",   x: 0.46, y: 0.03, label: "Pulm.",   sub: "émbolos sépticos",   color: "#e8a3b3", branch: "f3", parent: "endocarditis" },
+    { key: "f3_cereb",  x: 0.46, y: 0.10, label: "Cereb.",  sub: "émbolos sépticos",   color: "#a8b8e8", branch: "f3", parent: "endocarditis" },
+    { key: "f3_bazo",   x: 0.46, y: 0.17, label: "Bazo",    sub: "émbolos sépticos",   color: "#a85090", branch: "f3", parent: "endocarditis" },
+    // === F3 fan desde Osteomielitis (middle) ===
+    { key: "f3_epid",   x: 0.46, y: 0.25, label: "Epidur.", sub: "absceso espinal",    color: "#a08070", branch: "f3", parent: "osteomielitis" },
+    { key: "f3_bact",   x: 0.46, y: 0.32, label: "Bact.",   sub: "bact. persistente",  color: "#b8232a", branch: "f3", parent: "osteomielitis" },
+    { key: "f3_fasc",   x: 0.46, y: 0.39, label: "Fascit.", sub: "fascitis necr.",     color: "#c87090", branch: "f3", parent: "osteomielitis" },
+    // === F3 fan desde Artritis (bottom) ===
+    { key: "f3_multi",  x: 0.46, y: 0.47, label: "Multi.",  sub: "pioartritis dis.",   color: "#8ec5d0", branch: "f3", parent: "artritis" },
+    { key: "f3_osloc",  x: 0.46, y: 0.54, label: "Os. loc", sub: "osteo. adyacente",   color: "#c8a070", branch: "f3", parent: "artritis" },
+    { key: "f3_pust",   x: 0.46, y: 0.61, label: "Pust.",   sub: "pustulosis",         color: "#e8b09a", branch: "f3", parent: "artritis" },
+    // === CONVERGENCIA: F4 SEPSIS (un solo nodo) ===
+    { key: "sepsis", x: 0.70, y: 0.32, label: "SEPSIS", sub: "sistémica", color: "#ff5550", branch: "converge" },
+    // === F5 BOSS: SHOCK + MODS ===
+    { key: "mods",   x: 0.88, y: 0.32, label: "SHOCK",  sub: "MODS · boss", color: "#7a0010", branch: "boss" },
+    // === STEM HÉROES (paralelo abajo) ===
+    { key: "h_fase1",  x: 0.05, y: 0.85, label: "H. F1",   color: "#ffd24a", branch: "h_stem" },
+    { key: "h_dissem", x: 0.14, y: 0.85, label: "H. Dis",  color: "#e0a83a", branch: "h_stem" },
+    // Héroes F2 (mirror de los 3 F2)
+    { key: "h_endocarditis",  x: 0.26, y: 0.78, label: "H. Endo",  sub: "escombros",  color: "#ffd24a", branch: "h_f2" },
+    { key: "h_osteomielitis", x: 0.26, y: 0.85, label: "H. Osteo", sub: "escombros",  color: "#ffd24a", branch: "h_f2" },
+    { key: "h_artritis",      x: 0.26, y: 0.92, label: "H. Artri", sub: "escombros",  color: "#ffd24a", branch: "h_f2" },
+    // Héroes convergencia (donde se ENCUENTRAN con los gérmenes)
+    { key: "h_sepsis", x: 0.70, y: 0.85, label: "H. Sep",  sub: "¡encuentro!",  color: "#ffd24a", branch: "h_converge" },
+    { key: "h_mods",   x: 0.88, y: 0.85, label: "H. Mods", sub: "boss final",   color: "#ffd24a", branch: "h_boss" }
   ];
   var MAP_EDGES = [
-    // === Germ timeline ===
-    { from: "fase1",  to: "dissem", group: "stem"     },
-    // 5 fork-up edges: una por cada complicación posible
-    { from: "dissem", to: "endocarditis",  group: "fork-up" },
-    { from: "dissem", to: "neumonia",      group: "fork-up" },
-    { from: "dissem", to: "septicemia",    group: "fork-up" },
-    { from: "dissem", to: "osteomielitis", group: "fork-up" },
-    { from: "dissem", to: "artritis",      group: "fork-up" },
-    // === Hero timeline (paralelo abajo) ===
+    // === Germ ===
+    { from: "fase1",  to: "dissem", group: "stem" },
+    // Dissem → 3 F2 (fork)
+    { from: "dissem", to: "endocarditis",  group: "fork-f2" },
+    { from: "dissem", to: "osteomielitis", group: "fork-f2" },
+    { from: "dissem", to: "artritis",      group: "fork-f2" },
+    // Cada F2 → 3 F3 (fan)
+    { from: "endocarditis",  to: "f3_pulm",   group: "fan-f3" },
+    { from: "endocarditis",  to: "f3_cereb",  group: "fan-f3" },
+    { from: "endocarditis",  to: "f3_bazo",   group: "fan-f3" },
+    { from: "osteomielitis", to: "f3_epid",   group: "fan-f3" },
+    { from: "osteomielitis", to: "f3_bact",   group: "fan-f3" },
+    { from: "osteomielitis", to: "f3_fasc",   group: "fan-f3" },
+    { from: "artritis",      to: "f3_multi",  group: "fan-f3" },
+    { from: "artritis",      to: "f3_osloc",  group: "fan-f3" },
+    { from: "artritis",      to: "f3_pust",   group: "fan-f3" },
+    // 9 F3 → 1 SEPSIS (convergencia)
+    { from: "f3_pulm",  to: "sepsis", group: "converge" },
+    { from: "f3_cereb", to: "sepsis", group: "converge" },
+    { from: "f3_bazo",  to: "sepsis", group: "converge" },
+    { from: "f3_epid",  to: "sepsis", group: "converge" },
+    { from: "f3_bact",  to: "sepsis", group: "converge" },
+    { from: "f3_fasc",  to: "sepsis", group: "converge" },
+    { from: "f3_multi", to: "sepsis", group: "converge" },
+    { from: "f3_osloc", to: "sepsis", group: "converge" },
+    { from: "f3_pust",  to: "sepsis", group: "converge" },
+    // Sepsis → Mods (boss final)
+    { from: "sepsis", to: "mods", group: "boss-link" },
+    // === Hero ===
     { from: "h_fase1", to: "h_dissem", group: "h_stem" },
-    { from: "h_dissem", to: "h_endocarditis",  group: "h_fork-up" },
-    { from: "h_dissem", to: "h_neumonia",      group: "h_fork-up" },
-    { from: "h_dissem", to: "h_septicemia",    group: "h_fork-up" },
-    { from: "h_dissem", to: "h_osteomielitis", group: "h_fork-up" },
-    { from: "h_dissem", to: "h_artritis",      group: "h_fork-up" },
-    // === Escombros edges (verticales germ → hero) ===
-    { from: "fase1",          to: "h_fase1",          group: "escombros" },
-    { from: "dissem",         to: "h_dissem",         group: "escombros" },
-    { from: "endocarditis",   to: "h_endocarditis",   group: "escombros" },
-    { from: "neumonia",       to: "h_neumonia",       group: "escombros" },
-    { from: "septicemia",     to: "h_septicemia",     group: "escombros" },
-    { from: "osteomielitis",  to: "h_osteomielitis",  group: "escombros" },
-    { from: "artritis",       to: "h_artritis",       group: "escombros" }
+    { from: "h_dissem", to: "h_endocarditis",  group: "h_fork-f2" },
+    { from: "h_dissem", to: "h_osteomielitis", group: "h_fork-f2" },
+    { from: "h_dissem", to: "h_artritis",      group: "h_fork-f2" },
+    // Hero F2 → hero converge (h_sepsis) — donde se encuentran con los germs
+    { from: "h_endocarditis",  to: "h_sepsis", group: "h_converge" },
+    { from: "h_osteomielitis", to: "h_sepsis", group: "h_converge" },
+    { from: "h_artritis",      to: "h_sepsis", group: "h_converge" },
+    { from: "h_sepsis", to: "h_mods", group: "h_boss-link" },
+    // === Escombros (verticales germ → hero) ===
+    { from: "fase1",  to: "h_fase1",  group: "escombros" },
+    { from: "dissem", to: "h_dissem", group: "escombros" },
+    { from: "endocarditis",  to: "h_endocarditis",  group: "escombros" },
+    { from: "osteomielitis", to: "h_osteomielitis", group: "escombros" },
+    { from: "artritis",      to: "h_artritis",      group: "escombros" },
+    // En la convergencia, germ y hero se ENCUENTRAN (no es escombros, es
+    // colaboración) — link especial vertical en el centro
+    { from: "sepsis", to: "h_sepsis", group: "encuentro" },
+    { from: "mods",   to: "h_mods",   group: "encuentro" }
   ];
-  // Orden de progresión del jugador. Los héroes van 1 paso atrás del germ
-  // correspondiente: cuando germs entran a DIS, recién H_F1 está disponible.
-  var MAP_PROGRESSION = ["fase1", "dissem", "h_fase1", "endocarditis", "h_dissem", "h_endocarditis"];
+  // Orden de progresión. Las F3 dependen de qué F2 cayó (placeholder con endo→pulm).
+  var MAP_PROGRESSION = [
+    "fase1", "dissem", "h_fase1",
+    "endocarditis", "h_dissem", "h_endocarditis",
+    "f3_pulm",
+    "sepsis", "h_sepsis",
+    "mods", "h_mods"
+  ];
 
   function mapNodeByKey(k) {
     for (var i = 0; i < MAP_NODES.length; i++) if (MAP_NODES[i].key === k) return MAP_NODES[i];
@@ -6712,8 +6761,11 @@
       ctx.lineWidth = 2.5;
       ctx.beginPath(); ctx.arc(x, y, 16, 0, Math.PI * 2); ctx.stroke();
     }
-    // Body del nodo
-    var bodyR = (nodeState === "current") ? 12 : (nodeState === "done") ? 11 : 9;
+    // Body del nodo. F3 son más chicos para caber 9 en la columna.
+    var isF3 = (node.branch === "f3");
+    var bodyR = isF3
+      ? ((nodeState === "current") ? 8 : (nodeState === "done") ? 7 : 6)
+      : ((nodeState === "current") ? 12 : (nodeState === "done") ? 11 : 9);
     var bodyAlpha = (nodeState === "future") ? 0.45
                   : (nodeState === "possible") ? 0.55
                   : 1;
@@ -6756,19 +6808,27 @@
     }
     // Label
     ctx.globalAlpha = bodyAlpha;
-    ctx.font = "bold " + Math.floor(11 * U) + "px Fredoka, sans-serif";
-    // Label position depends on branch:
-    //   complic, h_complic: a la derecha del nodo (horizontal layout)
-    //   stem (germs): arriba del nodo
-    //   h_stem (heroes): abajo del nodo
+    var fontPx = isF3 ? Math.floor(9 * U) : Math.floor(11 * U);
+    ctx.font = "bold " + fontPx + "px Fredoka, sans-serif";
+    // Label position depends on branch.
     var labelX = x, labelY, labelAlign, labelBaseline;
-    if (node.branch === "complic" || node.branch === "h_complic") {
-      labelX = x + bodyR + 8;
+    if (node.branch === "f2" || node.branch === "h_f2" ||
+        node.branch === "h_complic" ||
+        node.branch === "converge" || node.branch === "boss" ||
+        node.branch === "h_converge" || node.branch === "h_boss") {
+      // Labels a la derecha del nodo (horizontal layout)
+      labelX = x + bodyR + 6;
+      labelY = y;
+      labelAlign = "left";
+      labelBaseline = "middle";
+    } else if (node.branch === "f3") {
+      // F3 son chicos, label muy compacto a la derecha
+      labelX = x + bodyR + 4;
       labelY = y;
       labelAlign = "left";
       labelBaseline = "middle";
     } else if (node.branch === "h_stem") {
-      labelY = y + bodyR + 8;
+      labelY = y + bodyR + 6;
       labelAlign = "center";
       labelBaseline = "top";
     } else {
@@ -6787,11 +6847,16 @@
                   : (nodeState === "possible") ? "rgba(160, 160, 180, 0.80)"
                                               : "rgba(255, 255, 255, 0.55)";
     ctx.fillText(node.label, labelX, labelY);
-    // Sub-label (órgano) para complicaciones
-    if (node.sub && node.branch === "complic") {
-      ctx.font = "9px Fredoka, sans-serif";
+    // Sub-label (órgano/contexto) para nodos con sub
+    if (node.sub && (node.branch === "f2" || node.branch === "h_f2" ||
+                     node.branch === "h_complic" || node.branch === "f3" ||
+                     node.branch === "converge" || node.branch === "boss" ||
+                     node.branch === "h_converge" || node.branch === "h_boss")) {
+      var subFontPx = isF3 ? 7 : 9;
+      ctx.font = subFontPx + "px Fredoka, sans-serif";
       ctx.fillStyle = "rgba(120, 120, 140, 0.65)";
-      ctx.fillText("· " + node.sub, labelX, labelY + 13);
+      var subYOff = isF3 ? 9 : 13;
+      ctx.fillText("· " + node.sub, labelX, labelY + subYOff);
     }
     ctx.restore();
   }
@@ -6828,22 +6893,22 @@
     var availSet = {};
     for (var ai = 0; ai < b.availableNodes.length; ai++) availSet[b.availableNodes[ai]] = true;
     function nodeState(key) {
-      // Done: cualquier nodo en la progresión hasta currentNode (inclusive)
       var idx = mapProgressIdx(key);
       if (idx >= 0 && idx <= curIdx && curIdx >= 0) return "done";
-      // Available (tappable): múltiples nodos pueden ser "current" al mismo tiempo
       if (availSet[key]) return "current";
       var node = mapNodeByKey(key);
       var forkRevealed = b.forkOpen ? (b.animPhase === "fork" || b.animPhase === "wait") : false;
+      // STEM siempre visible
       if (node.branch === "stem") return "future";
-      if (node.branch === "h_stem") {
-        if (!forkRevealed) return "hidden";
-        return "future";
-      }
-      // complic + h_complic: si fork abierto y no son available, quedan en
-      // "possible" (locked, gris con "?")
-      if (node.branch === "complic" || node.branch === "h_complic") {
-        if (!forkRevealed) return "hidden";
+      // Resto del mapa solo aparece cuando el fork está abierto (tras DIS)
+      if (!forkRevealed) return "hidden";
+      // F2 = "possible" (gris con "?") hasta que game desbloquee uno
+      // F3 = "possible" hasta que se llegue al F2 padre
+      // Convergencia (sepsis) + boss (mods) = "future" dim (visibles pero distantes)
+      // Hero stem y h_f2 = "future" dim
+      // h_converge + h_boss = "future" dim
+      if (node.branch === "f2" || node.branch === "f3" ||
+          node.branch === "h_f2" || node.branch === "h_complic") {
         return "possible";
       }
       return "future";
@@ -6870,32 +6935,66 @@
         var rf = (b.animPhase === "in") ? 0 : 1;
         drawMapEdge(mapX, mapY, mapW, mapH, edge,
           { revealFrac: rf, glow: (fromS === "done" || toS === "current"), color: "rgba(255, 200, 140, 0.85)" });
-      } else if (edge.group === "fork-up") {
+      } else if (edge.group === "fork-f2") {
         if (b.forkOpen) {
           var cur = (toS === "current");
           var col = cur ? "rgba(255, 220, 140, 0.85)" : "rgba(120, 120, 145, 0.55)";
           drawMapEdge(mapX, mapY, mapW, mapH, edge,
             { revealFrac: forkFrac, glow: cur, color: col, dashed: !cur && toS !== "done" });
         }
+      } else if (edge.group === "fan-f3") {
+        // Fans de F2 → F3 (3 cada uno) — dashed gris si el F2 padre no es done
+        if (b.forkOpen) {
+          var fanCur = (toS === "current");
+          var fanCol = fanCur ? "rgba(255, 220, 140, 0.85)" : "rgba(120, 120, 145, 0.40)";
+          drawMapEdge(mapX, mapY, mapW, mapH, edge,
+            { revealFrac: forkFrac, glow: fanCur, color: fanCol, dashed: !fanCur && toS !== "done" });
+        }
+      } else if (edge.group === "converge") {
+        // 9 edges F3 → sepsis. Solo se dibujan si fork abierto.
+        if (b.forkOpen) {
+          var convCur = (toS === "current" || fromS === "done");
+          var convCol = convCur ? "rgba(255, 90, 80, 0.75)" : "rgba(100, 50, 60, 0.35)";
+          drawMapEdge(mapX, mapY, mapW, mapH, edge,
+            { revealFrac: forkFrac, glow: false, color: convCol, dashed: true });
+        }
+      } else if (edge.group === "boss-link") {
+        if (b.forkOpen) {
+          drawMapEdge(mapX, mapY, mapW, mapH, edge,
+            { revealFrac: forkFrac, glow: true, color: "rgba(255, 80, 80, 0.90)" });
+        }
       } else if (edge.group === "h_stem") {
-        // stem de héroes (H_F1 → H_DIS) — dorado tenue
         if (b.forkOpen) {
           drawMapEdge(mapX, mapY, mapW, mapH, edge,
             { revealFrac: forkFrac, glow: false, color: "rgba(255, 210, 74, 0.65)" });
         }
-      } else if (edge.group === "h_fork-up") {
-        // 5 forks de héroes hacia las 5 complicaciones hero — todos grises/possibles
+      } else if (edge.group === "h_fork-f2") {
         if (b.forkOpen) {
           var hcur = (toS === "current");
           var hcol = hcur ? "rgba(255, 220, 140, 0.85)" : "rgba(120, 120, 145, 0.45)";
           drawMapEdge(mapX, mapY, mapW, mapH, edge,
             { revealFrac: forkFrac, glow: hcur, color: hcol, dashed: !hcur && toS !== "done" });
         }
+      } else if (edge.group === "h_converge") {
+        if (b.forkOpen) {
+          drawMapEdge(mapX, mapY, mapW, mapH, edge,
+            { revealFrac: forkFrac, glow: false, color: "rgba(255, 210, 74, 0.55)", dashed: true });
+        }
+      } else if (edge.group === "h_boss-link") {
+        if (b.forkOpen) {
+          drawMapEdge(mapX, mapY, mapW, mapH, edge,
+            { revealFrac: forkFrac, glow: true, color: "rgba(255, 210, 74, 0.85)" });
+        }
       } else if (edge.group === "escombros") {
-        // Línea vertical germ → hero (escombros). Dashed gris siempre.
         if (toS !== "hidden") {
           drawMapEdge(mapX, mapY, mapW, mapH, edge,
             { revealFrac: 1, dashed: true, color: "rgba(140, 100, 80, 0.40)", glow: false });
+        }
+      } else if (edge.group === "encuentro") {
+        // ¡ENCUENTRO! Germ y hero se cruzan en F4/F5. Color dorado-rojo glow.
+        if (toS !== "hidden") {
+          drawMapEdge(mapX, mapY, mapW, mapH, edge,
+            { revealFrac: 1, dashed: false, color: "rgba(255, 180, 80, 0.85)", glow: true });
         }
       }
     }
@@ -18727,7 +18826,6 @@
       var key = bm[1];
       // Presets de prueba: cada uno simula una transición distinta del mapa-mundo
       var presets = {
-        // Tras F1: solo una opción forzada (DIS). No fork aún.
         fase1: {
           currentNode: "fase1",
           availableNodes: ["dissem"],
@@ -18735,38 +18833,54 @@
           title: "MAPA DE LA INVASIÓN",
           subtitle: "Los gérmenes rompen la piel y entran al torrente"
         },
-        // Tras DIS: GAME desbloquea 1 de 5 (ej. endocarditis) + H_F1 hero.
-        // Player ELIGE entre los 2 disponibles. Otros 4 quedan "possible" gris.
+        // Tras DIS: game desbloquea 1 de 3 F2 (ej. endocarditis) + H_F1 hero.
+        // Player ELIGE entre los 2. Otros 2 F2 + 9 F3 quedan gris locked.
         dissem: {
           currentNode: "dissem",
           availableNodes: ["endocarditis", "h_fase1"],
           forkOpen: true,
           title: "DISEMINACIÓN COMPLETA",
-          subtitle: "Elige: Endocarditis (Fase 2) o Héroes F1 (escombros piel)"
+          subtitle: "3 caminos posibles · F4 SEPSIS converge · F5 boss"
         },
-        // Tras H_F1: endocarditis sigue disponible (player postpuso esa).
+        // Tras H_F1: endocarditis sigue
         hero1: {
           currentNode: "h_fase1",
           availableNodes: ["endocarditis"],
           forkOpen: true,
           title: "HÉROES F1 COMPLETO",
-          subtitle: "Continúa la infección — endocarditis te espera"
+          subtitle: "Endocarditis te espera"
         },
-        // Tras Endocarditis: GAME desbloquea siguiente (Neumonía) + H_DIS hero.
+        // Tras Endocarditis: se abre el F3-fan de endocarditis (3 sub-options)
         fase2: {
           currentNode: "endocarditis",
-          availableNodes: ["neumonia", "h_dissem"],
+          availableNodes: ["f3_pulm", "h_dissem"],
           forkOpen: true,
           title: "ENDOCARDITIS DERROTADA",
-          subtitle: "Elige: Neumonía (Fase 3) o Héroes Diseminación"
+          subtitle: "Émbolos sépticos amenazan · héroes Diseminación disponibles"
         },
-        // Tras H_DIS: neumonia siguiente.
+        // Tras émbolos pulmonares: convergencia se avecina
         fase3: {
-          currentNode: "h_dissem",
-          availableNodes: ["neumonia"],
+          currentNode: "f3_pulm",
+          availableNodes: ["sepsis", "h_endocarditis"],
           forkOpen: true,
-          title: "HÉROES DISEM. COMPLETO",
-          subtitle: "La neumonía avanza"
+          title: "ÉMBOLOS PULMONARES",
+          subtitle: "La SEPSIS sistémica se aproxima · héroes en escombros del corazón"
+        },
+        // Tras sepsis: ENCUENTRO con héroes
+        sepsis: {
+          currentNode: "sepsis",
+          availableNodes: ["mods"],
+          forkOpen: true,
+          title: "SEPSIS · ¡ENCUENTRO CON HÉROES!",
+          subtitle: "Germs y héroes convergen · final inminente: SHOCK + MODS"
+        },
+        // Final
+        mods: {
+          currentNode: "mods",
+          availableNodes: [],
+          forkOpen: true,
+          title: "SHOCK SÉPTICO + MODS",
+          subtitle: "Boss final"
         }
       };
       var preset = presets[key] || presets.fase1;

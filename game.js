@@ -6815,9 +6815,9 @@
       ctx.textAlign = "center"; ctx.textBaseline = "middle";
       ctx.fillText("?", x, y);
     }
-    // Label
+    // Label (1.3× size para mejor legibilidad)
     ctx.globalAlpha = bodyAlpha;
-    var fontPx = isF3 ? Math.floor(9 * U) : Math.floor(11 * U);
+    var fontPx = isF3 ? Math.floor(12 * U) : Math.floor(14 * U);
     ctx.font = "bold " + fontPx + "px Fredoka, sans-serif";
     // Label position depends on branch.
     var labelX = x, labelY, labelAlign, labelBaseline;
@@ -6861,10 +6861,11 @@
                      node.branch === "h_complic" || node.branch === "f3" ||
                      node.branch === "converge" || node.branch === "boss" ||
                      node.branch === "h_converge" || node.branch === "h_boss")) {
-      var subFontPx = isF3 ? 7 : 9;
+      // 1.3× size para sub-labels también
+      var subFontPx = isF3 ? 9 : 12;
       ctx.font = subFontPx + "px Fredoka, sans-serif";
       ctx.fillStyle = "rgba(120, 120, 140, 0.65)";
-      var subYOff = isF3 ? 9 : 13;
+      var subYOff = isF3 ? 12 : 17;
       ctx.fillText("· " + node.sub, labelX, labelY + subYOff);
     }
     ctx.restore();
@@ -6886,8 +6887,9 @@
     var viewW = VW * 0.92;
     var viewH = VH * 0.62;
     // Contenido del mapa (más grande que el viewport — se scrollea)
-    var mapW = Math.max(viewW, 720);   // contenido amplio (al menos 720px)
-    var mapH = Math.max(viewH, 520);   // contenido amplio vertical
+    // Bump 1.3× para que las letras tengan más respiro
+    var mapW = Math.max(viewW, 940);   // contenido amplio (1.3× del original)
+    var mapH = Math.max(viewH, 680);   // contenido amplio vertical (1.3× del original)
     // Scroll offset (clamped a límites)
     if (b.scrollX == null) b.scrollX = 0;
     if (b.scrollY == null) b.scrollY = 0;

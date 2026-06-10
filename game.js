@@ -10512,70 +10512,70 @@
     ctx.save();
     ctx.translate(x, y);
 
-    // ── ESTRUCTURA SNOWMAN: 3 esferas apiladas ──
-    // Bottom (más grande): gránulos azurófilos
-    // Middle: núcleo multilobulado + brazos pseudópodo (de los lados)
-    // Top (más chica): la cara
+    // ── ESTRUCTURA ESTRELLA AMEBOIDE ──
+    // Cuerpo único irregular con 6 PSEUDÓPODOS radiando del centro.
+    // Cada pseudópodo se mueve sutilmente (idle) y se extiende más durante
+    // ataque. Distintivo vs. otras torres (redondas/blob) y biológicamente
+    // coherente: neutrófilo activado en forma ameboide con proyecciones.
     var phase = t.idlePhase || 0;
-    var rBottom = R * 0.95;
-    var rMiddle = R * 0.68;
-    var rTop    = R * 0.50;
-    var cyBottom = R * 0.55;
-    var cyMiddle = -R * 0.25;
-    var cyTop    = -R * 0.95;
+    var nPseudo = 6;
+    var rotation = phase * 0.15 + time * 0.04;
+    var armExt = attacking ? 1.20 : 1.0;
+    var rTop = R * 0.55;          // tamaño "head" virtual para sizing de cara
+    var cyTop = -R * 0.18;        // posición de la cara (zona superior del cuerpo)
 
-    // Sutil breathing per esfera (sin sincronizar) — siempre respiran.
-    function sphereWob(seed) {
-      return 1 + Math.sin(time * 1.5 + seed + phase) * 0.025;
+    // Compute pseudopod tips
+    var tips = [];
+    var valleyR = R * 0.50;
+    for (var pp = 0; pp < nPseudo; pp++) {
+      var pAng = rotation + (pp / nPseudo) * Math.PI * 2;
+      var pL = R * (0.95 + Math.sin(time * 1.6 + pp * 1.3 + phase) * 0.10) * armExt;
+      tips.push({ ang: pAng, x: Math.cos(pAng) * pL, y: Math.sin(pAng) * pL, len: pL });
     }
-
-    function drawSphere(cy_, r_, seed) {
-      var wob = sphereWob(seed);
-      var rr = r_ * wob;
-      var grad = ctx.createRadialGradient(-rr * 0.32, cy_ - rr * 0.38, rr * 0.18, 0, cy_, rr);
-      grad.addColorStop(0,    "#fffdf6");
-      grad.addColorStop(0.65, "#f0e7f9");
-      grad.addColorStop(1,    "#cdb8e6");
-      ctx.fillStyle = grad;
-      ctx.beginPath();
-      ctx.arc(0, cy_, rr, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = t.def.colorDark;
-      ctx.lineWidth = Math.max(1.3, 1.7 * U);
-      ctx.stroke();
+    // Generate body contour: alternating tips and valleys
+    var contour = [];
+    for (var ci = 0; ci < nPseudo; ci++) {
+      contour.push({ x: tips[ci].x, y: tips[ci].y });
+      var midAng = tips[ci].ang + (Math.PI / nPseudo);
+      contour.push({ x: Math.cos(midAng) * valleyR, y: Math.sin(midAng) * valleyR });
     }
-    // Dibujar de abajo hacia arriba (back to front).
-    drawSphere(cyBottom, rBottom, 0);
-    drawSphere(cyMiddle, rMiddle, 1);
-
-    // BRAZOS PSEUDÓPODO desde los lados del cuerpo medio (snowman arms).
-    // Más prominentes y largos durante attacking.
-    var armExt = attacking ? 1.30 : 1.10;
-    var armR = R * (0.18 + Math.sin(time * 2) * 0.02);
-    var armSpread = rMiddle * armExt;
-    for (var armS = -1; armS <= 1; armS += 2) {
-      var ax = armS * armSpread;
-      var ay = cyMiddle + (attacking ? -R * 0.05 : 0);
-      ctx.fillStyle = "rgba(220, 200, 240, 0.95)";
-      ctx.beginPath();
-      ctx.arc(ax, ay, armR, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = "rgba(126, 95, 176, 0.70)";
-      ctx.lineWidth = 0.9 * U;
-      ctx.stroke();
+    // Draw filled body with smooth corners (quadratic through each vertex)
+    var bodyGrad = ctx.createRadialGradient(-R * 0.20, -R * 0.20, R * 0.10, 0, 0, R * 1.05);
+    bodyGrad.addColorStop(0,    "#fffaf2");
+    bodyGrad.addColorStop(0.6,  "#f1e2da");
+    bodyGrad.addColorStop(1,    "#d9b09a");
+    ctx.fillStyle = bodyGrad;
+    ctx.strokeStyle = "rgba(130, 75, 55, 0.65)";
+    ctx.lineWidth = Math.max(1.2, 1.5 * U);
+    ctx.beginPath();
+    var nC = contour.length;
+    var mid0X = (contour[nC - 1].x + contour[0].x) / 2;
+    var mid0Y = (contour[nC - 1].y + contour[0].y) / 2;
+    ctx.moveTo(mid0X, mid0Y);
+    for (var k = 0; k < nC; k++) {
+      var curr = contour[k];
+      var nx = contour[(k + 1) % nC];
+      var mX = (curr.x + nx.x) / 2;
+      var mY = (curr.y + nx.y) / 2;
+      ctx.quadraticCurveTo(curr.x, curr.y, mX, mY);
     }
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
 
-    // NÚCLEO MULTILOBULADO — característica distintiva del neutrófilo.
-    // Posicionado en la esfera media. 4 lóbulos conectados.
-    var nucColor = "rgba(126, 95, 176, 0.85)";
+    // NÚCLEO MULTILOBULADO — 4 lóbulos conectados por filamentos de
+    // cromatina. Posicionado en el cuerpo central (zona libre de la cara).
+    var nucColor = "rgba(126, 95, 176, 0.92)";
     var nucEdge  = "rgba(80, 55, 130, 0.95)";
-    var lobeR = rMiddle * 0.30;
+    var nucCY = R * 0.10;       // centrado un poco hacia abajo (cara arriba)
+    var lobeR = R * 0.16;
     var lobes = [
-      { x: -rMiddle * 0.35, y: cyMiddle - rMiddle * 0.05, r: lobeR * 1.05 },
-      { x:  rMiddle * 0.28, y: cyMiddle - rMiddle * 0.20, r: lobeR * 0.95 },
-      { x:  rMiddle * 0.32, y: cyMiddle + rMiddle * 0.25, r: lobeR * 0.95 },
-      { x: -rMiddle * 0.28, y: cyMiddle + rMiddle * 0.30, r: lobeR * 0.90 }
+      { x: -R * 0.22, y: nucCY - R * 0.08, r: lobeR * 1.05 },
+      { x:  R * 0.20, y: nucCY - R * 0.15, r: lobeR * 0.95 },
+      { x:  R * 0.24, y: nucCY + R * 0.18, r: lobeR * 0.95 },
+      { x: -R * 0.20, y: nucCY + R * 0.20, r: lobeR * 0.90 }
     ];
+    // Strands de cromatina entre lóbulos
     ctx.strokeStyle = nucEdge;
     ctx.lineWidth = 1.6 * U;
     ctx.lineCap = "round";
@@ -10585,6 +10585,7 @@
       ctx.lineTo(lobes[lk + 1].x, lobes[lk + 1].y);
       ctx.stroke();
     }
+    // Lóbulos
     for (var lk2 = 0; lk2 < lobes.length; lk2++) {
       var lo = lobes[lk2];
       ctx.fillStyle = nucColor;
@@ -10596,22 +10597,20 @@
       ctx.stroke();
     }
 
-    // GRÁNULOS azurófilos en la esfera INFERIOR (panza del snowman).
-    ctx.fillStyle = "rgba(100, 70, 160, 0.60)";
-    var grans = 8;
+    // GRÁNULOS azurófilos dispersos en el citoplasma (evitando núcleo y cara).
+    ctx.fillStyle = "rgba(126, 65, 180, 0.62)";
+    var grans = 9;
     for (var gn = 0; gn < grans; gn++) {
-      var ga = gn * 1.7 + phase;
-      // Posiciones distribuidas en la esfera inferior (anillo).
-      var ggx = Math.cos(ga) * rBottom * 0.55;
-      var ggy = cyBottom + Math.sin(ga) * rBottom * 0.55;
+      var ga = (gn * 2.39 + phase) % (Math.PI * 2);    // distribución pseudo-random
+      var gd = R * (0.38 + (gn % 3) * 0.08);
+      var ggx = Math.cos(ga) * gd;
+      var ggy = Math.sin(ga) * gd;
+      // Evitar superposición con el área de la cara (zona superior).
+      if (ggy < cyTop + R * 0.20 && Math.abs(ggx) < R * 0.30) continue;
       ctx.beginPath();
       ctx.arc(ggx, ggy, (0.9 + Math.sin(time * 1.5 + gn) * 0.20) * U, 0, Math.PI * 2);
       ctx.fill();
     }
-
-    // Esfera SUPERIOR (cabeza con cara) — dibujada al final para que
-    // quede encima si hay solapamiento.
-    drawSphere(cyTop, rTop, 2);
 
     // CARA centrada en la esfera SUPERIOR.
     var neR = rTop * 0.32, ngap = rTop * 0.50, nfy = cyTop;

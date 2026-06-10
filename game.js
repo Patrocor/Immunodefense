@@ -6572,27 +6572,37 @@
   //
   // Coords x,y relativas al rect del mapa (mapX, mapY, mapW, mapH).
   var MAP_NODES = [
-    { key: "fase1",  x: 0.10, y: 0.50, label: "Fase 1",       color: "#ffb19a", branch: "stem" },
-    { key: "dissem", x: 0.36, y: 0.50, label: "Diseminación", color: "#e84343", branch: "stem" },
-    { key: "fase2",  x: 0.58, y: 0.28, label: "Fase 2",       color: "#c97aa8", branch: "upper" },
-    { key: "fase3",  x: 0.78, y: 0.28, label: "Fase 3",       color: "#b9579f", branch: "upper" },
-    { key: "fase4",  x: 0.93, y: 0.28, label: "Fase 4",       color: "#8a3a8a", branch: "upper" },
-    { key: "hero1",  x: 0.58, y: 0.72, label: "Héroes 1",     color: "#ffd24a", branch: "lower" },
-    { key: "hero2",  x: 0.78, y: 0.72, label: "Héroes 2",     color: "#e0a83a", branch: "lower" },
-    { key: "hero3",  x: 0.93, y: 0.72, label: "Héroes 3",     color: "#c08a2a", branch: "lower" }
+    { key: "fase1",  x: 0.10, y: 0.55, label: "Fase 1",       color: "#ffb19a", branch: "stem"  },
+    { key: "dissem", x: 0.32, y: 0.55, label: "Diseminación", color: "#e84343", branch: "stem"  },
+    // 5 COMPLICACIONES posibles (fan vertical desde DIS). Por defecto todas en
+    // gris/dim para reflejar que cualquiera puede pasar. La que el jugador
+    // termine jugando se activa con su color real.
+    { key: "endocarditis",  x: 0.62, y: 0.08, label: "Endocarditis",  sub: "corazón",       color: "#c1416a", branch: "complic" },
+    { key: "neumonia",      x: 0.62, y: 0.20, label: "Neumonía",      sub: "pulmón",        color: "#a8d8e8", branch: "complic" },
+    { key: "septicemia",    x: 0.62, y: 0.32, label: "Septicemia",    sub: "sangre",        color: "#dc3545", branch: "complic" },
+    { key: "osteomielitis", x: 0.62, y: 0.44, label: "Osteomielitis", sub: "hueso",         color: "#c8a070", branch: "complic" },
+    { key: "artritis",      x: 0.62, y: 0.56, label: "Artritis",      sub: "articulación",  color: "#8ec5d0", branch: "complic" },
+    // Rama héroes (lower) — escombros 1 paso atrás
+    { key: "hero1",  x: 0.62, y: 0.86, label: "Héroes 1",     color: "#ffd24a", branch: "lower" },
+    { key: "hero2",  x: 0.80, y: 0.86, label: "Héroes 2",     color: "#e0a83a", branch: "lower" },
+    { key: "hero3",  x: 0.95, y: 0.86, label: "Héroes 3",     color: "#c08a2a", branch: "lower" }
   ];
   var MAP_EDGES = [
     { from: "fase1",  to: "dissem", group: "stem"     },
-    { from: "dissem", to: "fase2",  group: "fork-up"  },
+    // 5 fork-up edges: una por cada complicación posible
+    { from: "dissem", to: "endocarditis",  group: "fork-up" },
+    { from: "dissem", to: "neumonia",      group: "fork-up" },
+    { from: "dissem", to: "septicemia",    group: "fork-up" },
+    { from: "dissem", to: "osteomielitis", group: "fork-up" },
+    { from: "dissem", to: "artritis",      group: "fork-up" },
+    // fork-dn al hero1
     { from: "dissem", to: "hero1",  group: "fork-dn"  },
-    { from: "fase2",  to: "fase3",  group: "upper"    },
-    { from: "fase3",  to: "fase4",  group: "upper"    },
     { from: "hero1",  to: "hero2",  group: "lower"    },
     { from: "hero2",  to: "hero3",  group: "lower"    }
   ];
-  // Orden canónico de progresión del jugador. Cada índice marca "qué nodo es
-  // el próximo a jugar". Done = todos los nodos anteriores en la lista.
-  var MAP_PROGRESSION = ["fase1", "dissem", "hero1", "fase2", "hero2", "fase3", "hero3", "fase4"];
+  // Orden de progresión del jugador. La complicación real elegida se inserta
+  // dinámicamente; por defecto asumimos endocarditis para el preset de prueba.
+  var MAP_PROGRESSION = ["fase1", "dissem", "hero1", "endocarditis", "hero2", "neumonia", "hero3", "septicemia"];
 
   function mapNodeByKey(k) {
     for (var i = 0; i < MAP_NODES.length; i++) if (MAP_NODES[i].key === k) return MAP_NODES[i];
@@ -6671,7 +6681,7 @@
     ctx.restore();
   }
 
-  // Dibuja un nodo (círculo + label). State: "done" | "current" | "future" | "hidden"
+  // Dibuja un nodo (círculo + label). State: "done" | "current" | "possible" | "future" | "hidden"
   function drawMapNode(mapX, mapY, mapW, mapH, node, nodeState) {
     if (nodeState === "hidden") return;
     var x = mapX + mapW * node.x;
@@ -6682,16 +6692,23 @@
       // Pulsing halo
       ctx.fillStyle = "rgba(255, 230, 180, " + (0.18 + pulse * 0.22) + ")";
       ctx.beginPath(); ctx.arc(x, y, 22 + pulse * 6, 0, Math.PI * 2); ctx.fill();
-      // Outer ring
       ctx.strokeStyle = "rgba(255, 230, 180, 0.85)";
       ctx.lineWidth = 2.5;
       ctx.beginPath(); ctx.arc(x, y, 16, 0, Math.PI * 2); ctx.stroke();
     }
     // Body del nodo
     var bodyR = (nodeState === "current") ? 12 : (nodeState === "done") ? 11 : 9;
-    var bodyAlpha = (nodeState === "future") ? 0.45 : 1;
+    var bodyAlpha = (nodeState === "future") ? 0.45
+                  : (nodeState === "possible") ? 0.55
+                  : 1;
     ctx.globalAlpha = bodyAlpha;
-    ctx.fillStyle = (nodeState === "done") ? "#3a2820" : node.color;
+    // Para "possible" usamos gris oscuro en lugar del color del órgano (queda
+    // bloqueado/incierto). Para done = marrón apagado. Para current/future = color real.
+    var fillCol;
+    if (nodeState === "done") fillCol = "#3a2820";
+    else if (nodeState === "possible") fillCol = "#3a3540";
+    else fillCol = node.color;
+    ctx.fillStyle = fillCol;
     if (nodeState === "current") {
       ctx.shadowColor = node.color;
       ctx.shadowBlur = 14;
@@ -6699,7 +6716,9 @@
     ctx.beginPath(); ctx.arc(x, y, bodyR, 0, Math.PI * 2); ctx.fill();
     ctx.shadowBlur = 0;
     // Border
-    ctx.strokeStyle = (nodeState === "done") ? "rgba(180, 160, 120, 0.85)" : "#fff";
+    ctx.strokeStyle = (nodeState === "done") ? "rgba(180, 160, 120, 0.85)"
+                    : (nodeState === "possible") ? "rgba(150, 150, 165, 0.65)"
+                    : "#fff";
     ctx.lineWidth = (nodeState === "current") ? 2.5 : 1.5;
     ctx.beginPath(); ctx.arc(x, y, bodyR, 0, Math.PI * 2); ctx.stroke();
     // Checkmark si está "done"
@@ -6712,20 +6731,50 @@
       ctx.lineTo(x + 4, y - 3);
       ctx.stroke();
     }
+    // "?" en nodos "possible" para indicar incertidumbre
+    if (nodeState === "possible") {
+      ctx.fillStyle = "rgba(200, 200, 215, 0.85)";
+      ctx.font = "bold 11px Fredoka, sans-serif";
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText("?", x, y);
+    }
     // Label
     ctx.globalAlpha = bodyAlpha;
     ctx.font = "bold " + Math.floor(11 * U) + "px Fredoka, sans-serif";
-    ctx.textAlign = "center"; ctx.textBaseline = "top";
-    // Label arriba o abajo según branch
-    var labelY = (node.branch === "upper") ? y - bodyR - 14 - 8 : y + bodyR + 8;
-    var ta = (node.branch === "upper") ? "bottom" : "top";
-    ctx.textBaseline = ta;
+    // Label position depends on branch:
+    //   complic: a la derecha del nodo (horizontal layout)
+    //   stem/lower/upper: arriba/abajo
+    var labelX = x, labelY, labelAlign, labelBaseline;
+    if (node.branch === "complic") {
+      labelX = x + bodyR + 8;
+      labelY = y;
+      labelAlign = "left";
+      labelBaseline = "middle";
+    } else if (node.branch === "upper") {
+      labelY = y - bodyR - 8;
+      labelAlign = "center";
+      labelBaseline = "bottom";
+    } else {
+      labelY = y + bodyR + 8;
+      labelAlign = "center";
+      labelBaseline = "top";
+    }
+    ctx.textAlign = labelAlign; ctx.textBaseline = labelBaseline;
+    // Sombra detrás del texto
     ctx.fillStyle = "rgba(0,0,0,0.65)";
-    ctx.fillText(node.label, x + 1, labelY + 1);
+    ctx.fillText(node.label, labelX + 1, labelY + 1);
+    // Color del texto según estado
     ctx.fillStyle = (nodeState === "current") ? "#ffd24a"
                   : (nodeState === "done")    ? "rgba(180, 200, 180, 0.85)"
+                  : (nodeState === "possible") ? "rgba(160, 160, 180, 0.80)"
                                               : "rgba(255, 255, 255, 0.55)";
-    ctx.fillText(node.label, x, labelY);
+    ctx.fillText(node.label, labelX, labelY);
+    // Sub-label (órgano) para complicaciones
+    if (node.sub && node.branch === "complic") {
+      ctx.font = "9px Fredoka, sans-serif";
+      ctx.fillStyle = "rgba(120, 120, 140, 0.65)";
+      ctx.fillText("· " + node.sub, labelX, labelY + 13);
+    }
     ctx.restore();
   }
 
@@ -6764,14 +6813,14 @@
       if (idx <= curIdx && curIdx >= 0) return "done";
       if (idx === nxtIdx) return "current";
       // Nodos futuros se ven (dim) solo si el fork ya está visible
-      // Determinar si el nodo está "más allá" del fork
       var node = mapNodeByKey(key);
-      // Antes de que el fork se abra (forkOpen false o animPhase aún en "in"/"anim"),
-      // solo se ve la rama "stem". El resto está oculto.
       var forkRevealed = b.forkOpen ? (b.animPhase === "fork" || b.animPhase === "wait") : false;
       if (node.branch === "stem") return "future";
-      if (forkRevealed) return "future";
-      return "hidden";
+      if (!forkRevealed) return "hidden";
+      // Las complicaciones son "possible" — más oscuras/grises que "future"
+      // hasta que el jugador entre en una específica como current.
+      if (node.branch === "complic") return "possible";
+      return "future";
     }
 
     // Animation reveal: edges progresan según animPhase
@@ -6795,22 +6844,25 @@
         var rf = (b.animPhase === "in") ? 0 : 1;
         drawMapEdge(mapX, mapY, mapW, mapH, edge,
           { revealFrac: rf, glow: (fromS === "done" || toS === "current"), color: "rgba(255, 200, 140, 0.85)" });
-      } else if (edge.group === "fork-up" || edge.group === "fork-dn") {
-        // Solo visible si fork se abre
+      } else if (edge.group === "fork-up") {
+        // 5 edges hacia las complicaciones — grises/oscuras porque son "posibles"
+        if (b.forkOpen) {
+          var cur = (toS === "current");
+          var col = cur ? "rgba(255, 220, 140, 0.85)" : "rgba(120, 120, 145, 0.55)";
+          drawMapEdge(mapX, mapY, mapW, mapH, edge,
+            { revealFrac: forkFrac, glow: cur, color: col, dashed: !cur && toS !== "done" });
+        }
+      } else if (edge.group === "fork-dn") {
         if (b.forkOpen) {
           drawMapEdge(mapX, mapY, mapW, mapH, edge,
-            { revealFrac: forkFrac, glow: false, color: (edge.group === "fork-up") ? "rgba(232, 90, 200, 0.85)" : "rgba(255, 210, 74, 0.85)" });
-        } else if (toS !== "hidden") {
-          // Si el fork ya estaba abierto (transición posterior), mostrar full
-          drawMapEdge(mapX, mapY, mapW, mapH, edge,
-            { revealFrac: 1, glow: false, color: (edge.group === "fork-up") ? "rgba(232, 90, 200, 0.85)" : "rgba(255, 210, 74, 0.85)" });
+            { revealFrac: forkFrac, glow: false, color: "rgba(255, 210, 74, 0.85)" });
         }
       } else {
-        // Upper/lower branches: dashed (preview) si no son done
+        // Lower branch edges (héroes): dashed si no son done
         if (toS !== "hidden") {
-          var solid = (fromS === "done");
+          var solidL = (fromS === "done");
           drawMapEdge(mapX, mapY, mapW, mapH, edge,
-            { revealFrac: 1, dashed: !solid, glow: false });
+            { revealFrac: 1, dashed: !solidL, glow: false });
         }
       }
     }
@@ -18632,11 +18684,11 @@
       var key = bm[1];
       // Presets de prueba: cada uno simula una transición distinta del mapa-mundo
       var presets = {
-        fase1:  { currentNode: "fase1",  nextNode: "dissem", forkOpen: false, title: "MAPA DE LA INVASIÓN",       subtitle: "Los gérmenes rompen la piel y entran al torrente" },
-        dissem: { currentNode: "dissem", nextNode: "hero1",  forkOpen: true,  title: "DISEMINACIÓN COMPLETA",     subtitle: "Los héroes alcanzan los escombros — el camino se bifurca" },
-        hero1:  { currentNode: "hero1",  nextNode: "fase2",  forkOpen: true,  title: "HÉROES 1 COMPLETO",         subtitle: "Los gérmenes ya están en los órganos diana" },
-        fase2:  { currentNode: "fase2",  nextNode: "hero2",  forkOpen: true,  title: "FASE 2 COMPLETADA",         subtitle: "Los héroes avanzan por los órganos arrasados" },
-        fase3:  { currentNode: "fase3",  nextNode: "hero3",  forkOpen: true,  title: "INFECCIÓN PROFUNDA",        subtitle: "Última batalla en el corazón del cuerpo" }
+        fase1:  { currentNode: "fase1",  nextNode: "dissem",       forkOpen: false, title: "MAPA DE LA INVASIÓN",       subtitle: "Los gérmenes rompen la piel y entran al torrente" },
+        dissem: { currentNode: "dissem", nextNode: "hero1",        forkOpen: true,  title: "DISEMINACIÓN COMPLETA",     subtitle: "5 complicaciones posibles · los héroes alcanzan los escombros" },
+        hero1:  { currentNode: "hero1",  nextNode: "endocarditis", forkOpen: true,  title: "HÉROES 1 COMPLETO",         subtitle: "Una complicación se concreta: endocarditis" },
+        fase2:  { currentNode: "endocarditis", nextNode: "hero2",  forkOpen: true,  title: "ENDOCARDITIS DERROTADA",    subtitle: "Los héroes avanzan al órgano siguiente" },
+        fase3:  { currentNode: "neumonia",     nextNode: "hero3",  forkOpen: true,  title: "NEUMONÍA DERROTADA",        subtitle: "Última batalla en lo profundo" }
       };
       var preset = presets[key] || presets.fase1;
       enterBodyMap(preset);

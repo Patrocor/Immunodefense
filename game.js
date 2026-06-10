@@ -570,8 +570,8 @@
   // mitocondrias) y 12% arriba/abajo. Sin tronco compartido.
   function rebuildDisseminationPath() {
     PATH.orientation = isPortrait ? "portrait" : "landscape";
-    // 5 columnas equiespaciadas en el 70% central del campo (15%..85%).
-    var laneXs = [0.20, 0.35, 0.50, 0.65, 0.80];
+    // 3 columnas equiespaciadas para los 3 destinos (triada hematógena).
+    var laneXs = [0.25, 0.50, 0.75];
     var entryYn = 0.12;   // arriba (grieta de barrera rota)
     var exitYn = 0.88;    // abajo (puerta de órgano)
     PATH.wounds = [];
@@ -582,7 +582,7 @@
     PATH.laneXs = laneXs;
     PATH.entryYn = entryYn;
     PATH.exitYn = exitYn;
-    for (var i = 0; i < 5; i++) {
+    for (var i = 0; i < 3; i++) {
       var xPx = FIELD_LEFT + laneXs[i] * FIELD_W;
       var entry = { x: xPx, y: FIELD_TOP + entryYn * FIELD_H };
       var exit = { x: xPx, y: FIELD_TOP + exitYn * FIELD_H };
@@ -2851,12 +2851,13 @@
   // infección rompió la barrera cutánea y busca órgano blanco. El jugador
   // defiende; el primer germen que cruza una puerta define el escenario de
   // Fase 2. Diseñado para que el ATP/slots NO alcancen los 5 carriles.
+  // 3 carriles: la TRIADA HEMATÓGENA CLÁSICA de S. aureus desde piel.
+  // Quitados pulmón (no se siembra hematógenamente desde piel — émbolos
+  // pulmonares son F3 desde endocarditis) y sangre (ya estamos en sangre).
   var DISSEMINATION_ORGANS = [
-    { id: "corazon",      label: "CORAZÓN",      scenario: "Endocarditis",       color: "#c1416a", tint: "rgba(193, 65, 106, 0.10)" },
-    { id: "pulmon",       label: "PULMÓN",       scenario: "Émbolos sépticos",   color: "#e8a3b3", tint: "rgba(232, 163, 179, 0.10)" },
-    { id: "sangre",       label: "SANGRE",       scenario: "Sepsis",             color: "#b8232a", tint: "rgba(184, 35, 42, 0.10)" },
-    { id: "hueso",        label: "HUESO",        scenario: "Osteomielitis",      color: "#d8c89a", tint: "rgba(216, 200, 154, 0.10)" },
-    { id: "articulacion", label: "ARTICULACIÓN", scenario: "Artritis séptica",   color: "#8ec5d0", tint: "rgba(142, 197, 208, 0.10)" }
+    { id: "corazon",      label: "CORAZÓN",      scenario: "Endocarditis",      color: "#c1416a", tint: "rgba(193, 65, 106, 0.10)" },
+    { id: "hueso",        label: "HUESO",        scenario: "Osteomielitis",     color: "#d8c89a", tint: "rgba(216, 200, 154, 0.10)" },
+    { id: "articulacion", label: "ARTICULACIÓN", scenario: "Artritis séptica",  color: "#8ec5d0", tint: "rgba(142, 197, 208, 0.10)" }
   ];
 
   // 3 oleadas in crescendo. La curva es gradual: la primera deja margen
@@ -2873,17 +2874,19 @@
     [["saureus",10,0.90],["pseudomonas",5,1.10],["candida",4,1.20],["bossMRSA",2,3.0],["bossPyogenes",1,4.0]]
   ];
 
-  // Pesos de afinidad germen → carril [corazón, pulmón, sangre, hueso, articulación].
-  // Refleja la clínica: S. aureus → corazón/hueso/articulación; pyogenes → pulmón/sangre; etc.
+  // Pesos de afinidad germen → carril [corazón, hueso, articulación] (3 carriles).
+  // Triada hematógena clásica: S. aureus distribuye uniforme a los 3;
+  // pyogenes y pseudomonas tienen menor tropismo pero pueden caer; sepidermidis
+  // tropismo a corazón (válvulas con biofilm); candida tropismo a corazón.
   var GERM_AFFINITY = {
-    saureus:         [3, 2, 2, 3, 3],
-    bossMRSA:        [3, 2, 3, 2, 2],
-    pyogenes:        [1, 3, 3, 1, 1],
-    bossPyogenes:    [1, 3, 3, 1, 1],
-    pseudomonas:     [1, 3, 2, 2, 1],
-    bossPseudomonas: [1, 3, 2, 2, 1],
-    sepidermidis:    [3, 1, 1, 1, 1],
-    candida:         [2, 2, 2, 1, 1]
+    saureus:         [3, 3, 3],   // tropismo clásico a los 3 destinos
+    bossMRSA:        [3, 2, 2],   // preferencia por válvulas cardíacas
+    pyogenes:        [2, 1, 1],   // ocasional endocarditis aguda
+    bossPyogenes:    [2, 1, 1],
+    pseudomonas:     [1, 2, 1],   // osteomielitis (ej. usuarios IV)
+    bossPseudomonas: [1, 2, 1],
+    sepidermidis:    [3, 1, 1],   // válvula protésica + biofilm
+    candida:         [2, 1, 1]    // candidiasis sistémica → endocarditis
   };
   function pickDisseminationLane(typeId) {
     var weights = GERM_AFFINITY[typeId] || [1, 1, 1, 1, 1];
@@ -3039,11 +3042,11 @@
       disseminationWaveIdx: 0,         // 0..2 dentro del puente
       disseminationOver: null,         // { germ, organ } cuando un órgano llena
       disseminationIntroTimer: 0,      // banner de entrada al puente
-      disseminationOrganLoad: [0,0,0,0,0],   // 0..10 (germenes pasando tras romper barrera)
+      disseminationOrganLoad: [0,0,0],       // 0..10 (germenes pasando tras romper barrera) — 3 carriles
       disseminationFlash: [0,0,0,0,0],       // brillo de impacto al recibir germen
-      disseminationBarrierHP:     [0, 0, 0, 0, 0],
-      disseminationBarrierMax:    [0, 0, 0, 0, 0],
-      disseminationBarrierBroken: [false, false, false, false, false],
+      disseminationBarrierHP:     [0, 0, 0],
+      disseminationBarrierMax:    [0, 0, 0],
+      disseminationBarrierBroken: [false, false, false],
       disseminationBarrierBreakAt: 0,
       disseminationBarrierBreakLane: -1,
       tissue: null,
@@ -3360,16 +3363,16 @@
       state.heroLevelPlayed = state.heroLevelPlayed || {};
       state.pendingHeroLevel = { organ: "piel", delay: 4.5 };
     }
-    state.disseminationOrganLoad = [0, 0, 0, 0, 0];
-    state.disseminationFlash = [0, 0, 0, 0, 0];
+    state.disseminationOrganLoad = [0, 0, 0];
+    state.disseminationFlash = [0, 0, 0];
     // HP biológico por órgano (orden = DISSEMINATION_ORGANS):
-    // [corazón=pericardio, pulmón=pleura, sangre=endotelio, hueso=periostio, articulación=cápsula sinovial]
+    // [corazón=pericardio, hueso=periostio, articulación=cápsula sinovial]
     // Barrera por órgano: 5 germenes uniformes la rompen. Cada choque dropea
-    // 1 antígeno (5 por barrera). Después de romperse, empieza el conteo de
-    // 10 germenes pasando para llegar al órgano (game over).
-    state.disseminationBarrierMax    = [5, 5, 5, 5, 5];
-    state.disseminationBarrierHP     = [5, 5, 5, 5, 5];
-    state.disseminationBarrierBroken = [false, false, false, false, false];
+    // 1 antígeno. Después de romperse, empieza el conteo de 10 germenes
+    // pasando para llegar al órgano (game over).
+    state.disseminationBarrierMax    = [5, 5, 5];
+    state.disseminationBarrierHP     = [5, 5, 5];
+    state.disseminationBarrierBroken = [false, false, false];
     state.disseminationBarrierBreakAt = 0;
     state.disseminationBarrierBreakLane = -1;
     state.antigens = { count: 0, drops: [] };

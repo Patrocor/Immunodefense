@@ -8909,12 +8909,7 @@
         sfx("tick");
         return;
       }
-      // DEBUG: entrar al primer hero level (PIEL — el rastro de la invasión).
-      if (UI.heroDebugBtn && inRect(x, y, UI.heroDebugBtn)) {
-        enterHeroLevel("piel");
-        sfx("upgrade");
-        return;
-      }
+      // (removido: handler del DEBUG botón "♥" para saltar a hero corazón)
       // Next-wave button removed in Sprint 5 (waves auto-spawn).
       return;
     }
@@ -14946,19 +14941,10 @@
     ctx.fillRect(mb.x, mb.y, mb.w, mb.h);
     drawSpeakerIcon(mb.x + mb.w / 2, mb.y + mb.h / 2, mb.h * 0.36, audio.muted, "#fff");
     if (state.dissemination) drawAntigenHud();
-    // DEBUG: botón "TEST HÉROE" visible en diseminación, abre el nivel
-    // Corazón directamente sin esperar a que caiga un órgano.
-    if (state.dissemination && !state.heroLevel) {
-      var hb = { x: mb.x - mb.w - 6, y: mb.y, w: mb.w, h: mb.h };
-      UI.heroDebugBtn = hb;
-      ctx.fillStyle = "#8a3050";
-      ctx.fillRect(hb.x, hb.y, hb.w, hb.h);
-      ctx.fillStyle = "#fff";
-      ctx.font = "bold " + Math.max(10, Math.min(13, hb.h * 0.4)) + "px Fredoka, sans-serif";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText("♥", hb.x + hb.w / 2, hb.y + hb.h / 2);
-    }
+    // (removido: el botón DEBUG "♥" para saltar a hero corazón ya no se
+    // necesita — el flow real del juego pasa por el mapa-mundo después
+    // de la diseminación. El corazón solo aparece si se activa
+    // Endocarditis como complicación de Fase 2.)
   }
 
   function drawSpeakerIcon(cx, cy, r, muted, color) {

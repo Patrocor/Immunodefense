@@ -6631,21 +6631,21 @@
 
   function enterBodyMap(opts) {
     // opts:
-    //   currentNode: key del nodo donde ESTÁ el jugador (recién completado)
-    //   nextNode:    key del nodo que SIGUE a continuación (pulsante)
-    //   forkOpen:    bool — si la Y-fork debe ANIMARSE abriéndose
-    //                       (true solo cuando se cruza Diseminación por primera vez)
-    //   title:       texto grande arriba
-    //   subtitle:    texto chico debajo del título
-    //   onContinue:  callback al tocar el botón
+    //   currentNode:    key del último nodo COMPLETADO (anclaje del progreso)
+    //   availableNodes: array de keys que el jugador puede elegir AHORA
+    //                   (multiple — ej. ["endocarditis", "h_fase1"] tras DIS).
+    //                   Si solo hay 1 es flujo forzado; si hay 2+ es elección.
+    //   forkOpen:       bool — si la Y-fork debe ANIMARSE abriéndose
+    //   title/subtitle: textos
+    //   onContinue:     callback al tocar el botón
     state.bodyMap = {
       currentNode: opts.currentNode || null,
-      nextNode: opts.nextNode || null,
+      availableNodes: opts.availableNodes || (opts.nextNode ? [opts.nextNode] : []),
       forkOpen: !!opts.forkOpen,
       title: opts.title || "MAPA DE LA INVASIÓN",
       subtitle: opts.subtitle || "",
       t: 0,
-      animPhase: "in",     // "in" (fade) → "anim" (líneas extendiendo) → "fork" (apertura Y) → "wait"
+      animPhase: "in",
       animT: 0,
       onContinue: opts.onContinue || null
     };
@@ -6823,24 +6823,25 @@
       ctx.fillText(b.subtitle, VW / 2, VH * 0.10 + 24);
     }
 
-    // Calcular estado de cada nodo en función de currentNode + progresión
+    // Calcular estado de cada nodo en función de currentNode + availableNodes
     var curIdx = mapProgressIdx(b.currentNode);  // -1 si nada
-    var nxtIdx = mapProgressIdx(b.nextNode);
+    var availSet = {};
+    for (var ai = 0; ai < b.availableNodes.length; ai++) availSet[b.availableNodes[ai]] = true;
     function nodeState(key) {
+      // Done: cualquier nodo en la progresión hasta currentNode (inclusive)
       var idx = mapProgressIdx(key);
-      if (idx <= curIdx && curIdx >= 0) return "done";
-      if (idx === nxtIdx) return "current";
+      if (idx >= 0 && idx <= curIdx && curIdx >= 0) return "done";
+      // Available (tappable): múltiples nodos pueden ser "current" al mismo tiempo
+      if (availSet[key]) return "current";
       var node = mapNodeByKey(key);
       var forkRevealed = b.forkOpen ? (b.animPhase === "fork" || b.animPhase === "wait") : false;
-      // stem germ siempre visible
       if (node.branch === "stem") return "future";
-      // h_stem (timeline héroes) siempre visible si el fork está abierto
-      // (los héroes existen como concepto solo después de DIS)
       if (node.branch === "h_stem") {
         if (!forkRevealed) return "hidden";
         return "future";
       }
-      // complic + h_complic son "possible" gris cuando fork abierto, hidden antes
+      // complic + h_complic: si fork abierto y no son available, quedan en
+      // "possible" (locked, gris con "?")
       if (node.branch === "complic" || node.branch === "h_complic") {
         if (!forkRevealed) return "hidden";
         return "possible";
@@ -18716,11 +18717,47 @@
       var key = bm[1];
       // Presets de prueba: cada uno simula una transición distinta del mapa-mundo
       var presets = {
-        fase1:  { currentNode: "fase1",  nextNode: "dissem",          forkOpen: false, title: "MAPA DE LA INVASIÓN",     subtitle: "Los gérmenes rompen la piel y entran al torrente" },
-        dissem: { currentNode: "dissem", nextNode: "h_fase1",         forkOpen: true,  title: "DISEMINACIÓN COMPLETA",   subtitle: "5 complicaciones posibles · héroes empiezan en escombros" },
-        hero1:  { currentNode: "h_fase1", nextNode: "endocarditis",   forkOpen: true,  title: "HÉROES F1 COMPLETO",      subtitle: "Una complicación se concreta: endocarditis" },
-        fase2:  { currentNode: "endocarditis", nextNode: "h_dissem",  forkOpen: true,  title: "ENDOCARDITIS DERROTADA",  subtitle: "Héroes avanzan a los escombros de la diseminación" },
-        fase3:  { currentNode: "h_dissem",     nextNode: "h_endocarditis", forkOpen: true, title: "HÉROES DISEM. COMPLETO", subtitle: "Última batalla: escombros de endocarditis" }
+        // Tras F1: solo una opción forzada (DIS). No fork aún.
+        fase1: {
+          currentNode: "fase1",
+          availableNodes: ["dissem"],
+          forkOpen: false,
+          title: "MAPA DE LA INVASIÓN",
+          subtitle: "Los gérmenes rompen la piel y entran al torrente"
+        },
+        // Tras DIS: GAME desbloquea 1 de 5 (ej. endocarditis) + H_F1 hero.
+        // Player ELIGE entre los 2 disponibles. Otros 4 quedan "possible" gris.
+        dissem: {
+          currentNode: "dissem",
+          availableNodes: ["endocarditis", "h_fase1"],
+          forkOpen: true,
+          title: "DISEMINACIÓN COMPLETA",
+          subtitle: "Elige: Endocarditis (Fase 2) o Héroes F1 (escombros piel)"
+        },
+        // Tras H_F1: endocarditis sigue disponible (player postpuso esa).
+        hero1: {
+          currentNode: "h_fase1",
+          availableNodes: ["endocarditis"],
+          forkOpen: true,
+          title: "HÉROES F1 COMPLETO",
+          subtitle: "Continúa la infección — endocarditis te espera"
+        },
+        // Tras Endocarditis: GAME desbloquea siguiente (Neumonía) + H_DIS hero.
+        fase2: {
+          currentNode: "endocarditis",
+          availableNodes: ["neumonia", "h_dissem"],
+          forkOpen: true,
+          title: "ENDOCARDITIS DERROTADA",
+          subtitle: "Elige: Neumonía (Fase 3) o Héroes Diseminación"
+        },
+        // Tras H_DIS: neumonia siguiente.
+        fase3: {
+          currentNode: "h_dissem",
+          availableNodes: ["neumonia"],
+          forkOpen: true,
+          title: "HÉROES DISEM. COMPLETO",
+          subtitle: "La neumonía avanza"
+        }
       };
       var preset = presets[key] || presets.fase1;
       enterBodyMap(preset);

@@ -10504,9 +10504,9 @@
     //  · GRÁNULOS azurófilos púrpura (defensinas, mieloperoxidasa)
     //  · Membrana ameboideo ondulada (no perfectamente esférica)
     //  · Capaz de fagocitosis + NETosis
-    // Caricatura: cara feroz de soldado, pseudópodos cortos asomando.
+    // Caricatura: estrella ameboide con 6 pseudópodos + cara feroz.
     var x = t.x, y = t.y;
-    var R = 19 * U * pulse;
+    var R = 23 * U * pulse;       // bumped 19→23 (~20% más grande)
     var time = state.time;
     var attacking = (expression === "attacking");
     ctx.save();
@@ -14770,7 +14770,7 @@
   // tienen extents variables (snowman es alto, langerhans tiene
   // dendritas que extienden, etc).
   var TOWER_PREVIEW_PULSE_FACTOR = {
-    neutrofilo: 0.50,   // snowman ocupa ~3R vertical
+    neutrofilo: 0.78,   // estrella ameboide compacta (ya no snowman 3R)
     linfocitoB: 0.82,
     linfocitoT: 0.82,
     langerhans: 0.55,   // dendritas extienden

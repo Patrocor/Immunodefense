@@ -6753,19 +6753,28 @@
     var y = mapY + mapH * node.y;
     var pulse = 0.5 + 0.5 * Math.sin(state.time * 3.2);
     ctx.save();
-    if (nodeState === "current") {
-      // Pulsing halo
-      ctx.fillStyle = "rgba(255, 230, 180, " + (0.18 + pulse * 0.22) + ")";
-      ctx.beginPath(); ctx.arc(x, y, 22 + pulse * 6, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = "rgba(255, 230, 180, 0.85)";
-      ctx.lineWidth = 2.5;
-      ctx.beginPath(); ctx.arc(x, y, 16, 0, Math.PI * 2); ctx.stroke();
-    }
-    // Body del nodo. F3 son más chicos para caber 9 en la columna.
     var isF3 = (node.branch === "f3");
     var bodyR = isF3
       ? ((nodeState === "current") ? 8 : (nodeState === "done") ? 7 : 6)
       : ((nodeState === "current") ? 12 : (nodeState === "done") ? 11 : 9);
+    // HALO de fondo: aura radial sutil del color del nodo. Da matiz a cada
+    // nodo aunque esté gris (los "possibles" tienen halo muy tenue).
+    var haloR = bodyR + (isF3 ? 10 : 16);
+    var haloAlpha = (nodeState === "current") ? (0.28 + pulse * 0.20)
+                  : (nodeState === "done")     ? 0.10
+                  : (nodeState === "possible") ? 0.06
+                  : 0.04;
+    var haloGrad = ctx.createRadialGradient(x, y, 0, x, y, haloR);
+    haloGrad.addColorStop(0, colorAlpha(node.color, haloAlpha));
+    haloGrad.addColorStop(1, colorAlpha(node.color, 0));
+    ctx.fillStyle = haloGrad;
+    ctx.beginPath(); ctx.arc(x, y, haloR, 0, Math.PI * 2); ctx.fill();
+    if (nodeState === "current") {
+      // Anillo dorado pulsante adicional para el current
+      ctx.strokeStyle = "rgba(255, 230, 180, 0.85)";
+      ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.arc(x, y, bodyR + 4, 0, Math.PI * 2); ctx.stroke();
+    }
     var bodyAlpha = (nodeState === "future") ? 0.45
                   : (nodeState === "possible") ? 0.55
                   : 1;
@@ -6871,22 +6880,47 @@
     ctx.fillRect(0, 0, VW, VH);
     ctx.globalAlpha = fadeIn;
 
-    // Layout del mapa: rect centrado en pantalla
-    var mapW = VW * 0.92;
-    var mapH = VH * 0.55;
-    var mapX = VW / 2 - mapW / 2;
-    var mapY = VH * 0.20;
+    // Viewport del mapa (visible)
+    var viewX = VW * 0.04;
+    var viewY = VH * 0.18;
+    var viewW = VW * 0.92;
+    var viewH = VH * 0.62;
+    // Contenido del mapa (más grande que el viewport — se scrollea)
+    var mapW = Math.max(viewW, 720);   // contenido amplio (al menos 720px)
+    var mapH = Math.max(viewH, 520);   // contenido amplio vertical
+    // Scroll offset (clamped a límites)
+    if (b.scrollX == null) b.scrollX = 0;
+    if (b.scrollY == null) b.scrollY = 0;
+    var maxScrollX = Math.max(0, mapW - viewW);
+    var maxScrollY = Math.max(0, mapH - viewH);
+    if (b.scrollX > maxScrollX) b.scrollX = maxScrollX;
+    if (b.scrollX < 0) b.scrollX = 0;
+    if (b.scrollY > maxScrollY) b.scrollY = maxScrollY;
+    if (b.scrollY < 0) b.scrollY = 0;
+    var mapX = viewX - b.scrollX;
+    var mapY = viewY - b.scrollY;
+    // Exponer hit-rect del viewport para drag handler
+    UI.bodyMapView = { x: viewX, y: viewY, w: viewW, h: viewH, mapW: mapW, mapH: mapH };
 
     // Título arriba
     ctx.fillStyle = "#ffd24a";
     ctx.font = "bold " + Math.floor(22 * U) + "px Fredoka, sans-serif";
     ctx.textAlign = "center"; ctx.textBaseline = "middle";
-    ctx.fillText(b.title, VW / 2, VH * 0.10);
+    ctx.fillText(b.title, VW / 2, VH * 0.09);
     if (b.subtitle) {
       ctx.fillStyle = "rgba(255,255,255,0.78)";
       ctx.font = "bold " + Math.floor(12 * U) + "px Fredoka, sans-serif";
-      ctx.fillText(b.subtitle, VW / 2, VH * 0.10 + 24);
+      ctx.fillText(b.subtitle, VW / 2, VH * 0.09 + 22);
     }
+
+    // CLIP al viewport para que el contenido scrolleado no se salga
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(viewX, viewY, viewW, viewH);
+    ctx.clip();
+    // Fondo sutil del viewport con borde
+    ctx.fillStyle = "rgba(20, 12, 18, 0.45)";
+    ctx.fillRect(viewX, viewY, viewW, viewH);
 
     // Calcular estado de cada nodo en función de currentNode + availableNodes
     var curIdx = mapProgressIdx(b.currentNode);  // -1 si nada
@@ -7002,6 +7036,59 @@
     for (var n = 0; n < MAP_NODES.length; n++) {
       var nd = MAP_NODES[n];
       drawMapNode(mapX, mapY, mapW, mapH, nd, nodeState(nd.key));
+    }
+    // Cerrar clip del viewport (todo lo de arriba se scrollea con el contenido)
+    ctx.restore();
+
+    // Borde decorativo alrededor del viewport
+    ctx.strokeStyle = "rgba(255, 200, 140, 0.30)";
+    ctx.lineWidth = 1;
+    ctx.strokeRect(viewX, viewY, viewW, viewH);
+
+    // Indicadores de scroll (flechas tenues si se puede scrollear más)
+    if (maxScrollX > 0) {
+      var arrA = 0.4 + 0.4 * Math.sin(state.time * 2.5);
+      if (b.scrollX < maxScrollX) {
+        // Flecha derecha
+        ctx.fillStyle = "rgba(255, 220, 140, " + arrA + ")";
+        ctx.beginPath();
+        ctx.moveTo(viewX + viewW - 6, viewY + viewH / 2 - 8);
+        ctx.lineTo(viewX + viewW - 1, viewY + viewH / 2);
+        ctx.lineTo(viewX + viewW - 6, viewY + viewH / 2 + 8);
+        ctx.closePath();
+        ctx.fill();
+      }
+      if (b.scrollX > 0) {
+        // Flecha izquierda
+        ctx.fillStyle = "rgba(255, 220, 140, " + arrA + ")";
+        ctx.beginPath();
+        ctx.moveTo(viewX + 6, viewY + viewH / 2 - 8);
+        ctx.lineTo(viewX + 1, viewY + viewH / 2);
+        ctx.lineTo(viewX + 6, viewY + viewH / 2 + 8);
+        ctx.closePath();
+        ctx.fill();
+      }
+    }
+    if (maxScrollY > 0) {
+      var arrB = 0.4 + 0.4 * Math.sin(state.time * 2.5);
+      if (b.scrollY < maxScrollY) {
+        ctx.fillStyle = "rgba(255, 220, 140, " + arrB + ")";
+        ctx.beginPath();
+        ctx.moveTo(viewX + viewW / 2 - 8, viewY + viewH - 6);
+        ctx.lineTo(viewX + viewW / 2, viewY + viewH - 1);
+        ctx.lineTo(viewX + viewW / 2 + 8, viewY + viewH - 6);
+        ctx.closePath();
+        ctx.fill();
+      }
+      if (b.scrollY > 0) {
+        ctx.fillStyle = "rgba(255, 220, 140, " + arrB + ")";
+        ctx.beginPath();
+        ctx.moveTo(viewX + viewW / 2 - 8, viewY + 6);
+        ctx.lineTo(viewX + viewW / 2, viewY + 1);
+        ctx.lineTo(viewX + viewW / 2 + 8, viewY + 6);
+        ctx.closePath();
+        ctx.fill();
+      }
     }
 
     // Botón "Continuar" — solo en fase "wait"
@@ -9254,8 +9341,20 @@
     ensureAudio();
     var p = canvasPosFromEvent(evt);
     state.pointer.x = p.x; state.pointer.y = p.y; state.pointer.isOver = true;
-    // Body-map: si está activo, atrapamos el tap (solo "Continuar" funciona).
+    // Body-map: si está activo, atrapamos el tap. Si es sobre el viewport,
+    // potencialmente arranca un drag (scroll). Si es sobre el botón Continuar,
+    // se procesa en onPointerUp.
     if (state.bodyMap) {
+      // Si el tap está dentro del viewport (no en el botón), inicia drag de scroll
+      if (UI.bodyMapView && inRect(p.x, p.y, UI.bodyMapView)) {
+        state.bodyMapDrag = {
+          startX: p.x, startY: p.y,
+          startScrollX: state.bodyMap.scrollX || 0,
+          startScrollY: state.bodyMap.scrollY || 0,
+          dragged: false
+        };
+        return;
+      }
       handleBodyMapTap(p.x, p.y);
       return;
     }
@@ -9296,6 +9395,20 @@
   function onPointerMove(evt) {
     var p = canvasPosFromEvent(evt);
     state.pointer.x = p.x; state.pointer.y = p.y; state.pointer.isOver = true;
+    // Drag scroll del world-map
+    if (state.bodyMapDrag) {
+      var bd = state.bodyMapDrag;
+      var bdx = p.x - bd.startX;
+      var bdy = p.y - bd.startY;
+      if (!bd.dragged && (Math.abs(bdx) > TAP_DRAG_THRESHOLD || Math.abs(bdy) > TAP_DRAG_THRESHOLD)) {
+        bd.dragged = true;
+      }
+      if (bd.dragged && state.bodyMap) {
+        state.bodyMap.scrollX = bd.startScrollX - bdx;
+        state.bodyMap.scrollY = bd.startScrollY - bdy;
+      }
+      return;
+    }
     if (state.panelDragPending) {
       var dp = state.panelDragPending;
       var dy = p.y - dp.startY;
@@ -9338,6 +9451,19 @@
   function onPointerUp(evt) {
     if (state.heroLevel && state.heroLevel.active) {
       handleHeroLevelPointerUp(evt.pointerId);
+      return;
+    }
+    // Drag del world-map: si no se movió suficiente, era un tap sobre el mapa
+    // (puede haber tocado el botón Continuar fuera del viewport en realidad,
+    // pero ese se procesa en pointer down). Solo cerramos el drag.
+    if (state.bodyMapDrag) {
+      var bdd = state.bodyMapDrag;
+      state.bodyMapDrag = null;
+      // Si no se movió, podría ser un tap dentro del viewport — no hacemos
+      // nada (tap-on-node se agregará en commit posterior).
+      if (!bdd.dragged) {
+        // No-op por ahora
+      }
       return;
     }
     if (state.panelDragPending) {

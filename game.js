@@ -6572,22 +6572,27 @@
   //
   // Coords x,y relativas al rect del mapa (mapX, mapY, mapW, mapH).
   var MAP_NODES = [
-    { key: "fase1",  x: 0.10, y: 0.55, label: "Fase 1",       color: "#ffb19a", branch: "stem"  },
-    { key: "dissem", x: 0.32, y: 0.55, label: "Diseminación", color: "#e84343", branch: "stem"  },
-    // 5 COMPLICACIONES posibles (fan vertical desde DIS). Por defecto todas en
-    // gris/dim para reflejar que cualquiera puede pasar. La que el jugador
-    // termine jugando se activa con su color real.
-    { key: "endocarditis",  x: 0.62, y: 0.08, label: "Endocarditis",  sub: "corazón",       color: "#c1416a", branch: "complic" },
-    { key: "neumonia",      x: 0.62, y: 0.20, label: "Neumonía",      sub: "pulmón",        color: "#a8d8e8", branch: "complic" },
-    { key: "septicemia",    x: 0.62, y: 0.32, label: "Septicemia",    sub: "sangre",        color: "#dc3545", branch: "complic" },
-    { key: "osteomielitis", x: 0.62, y: 0.44, label: "Osteomielitis", sub: "hueso",         color: "#c8a070", branch: "complic" },
-    { key: "artritis",      x: 0.62, y: 0.56, label: "Artritis",      sub: "articulación",  color: "#8ec5d0", branch: "complic" },
-    // Rama héroes (lower) — escombros 1 paso atrás
-    { key: "hero1",  x: 0.62, y: 0.86, label: "Héroes 1",     color: "#ffd24a", branch: "lower" },
-    { key: "hero2",  x: 0.80, y: 0.86, label: "Héroes 2",     color: "#e0a83a", branch: "lower" },
-    { key: "hero3",  x: 0.95, y: 0.86, label: "Héroes 3",     color: "#c08a2a", branch: "lower" }
+    // === TIMELINE GÉRMENES (arriba) ===
+    { key: "fase1",  x: 0.08, y: 0.20, label: "Fase 1",       color: "#ffb19a", branch: "stem" },
+    { key: "dissem", x: 0.28, y: 0.20, label: "Diseminación", color: "#e84343", branch: "stem" },
+    // 5 COMPLICACIONES posibles (fan vertical desde DIS).
+    { key: "endocarditis",  x: 0.60, y: 0.05, label: "Endocarditis",  sub: "corazón",       color: "#c1416a", branch: "complic" },
+    { key: "neumonia",      x: 0.60, y: 0.12, label: "Neumonía",      sub: "pulmón",        color: "#a8d8e8", branch: "complic" },
+    { key: "septicemia",    x: 0.60, y: 0.20, label: "Septicemia",    sub: "sangre",        color: "#dc3545", branch: "complic" },
+    { key: "osteomielitis", x: 0.60, y: 0.28, label: "Osteomielitis", sub: "hueso",         color: "#c8a070", branch: "complic" },
+    { key: "artritis",      x: 0.60, y: 0.36, label: "Artritis",      sub: "articulación",  color: "#8ec5d0", branch: "complic" },
+    // === TIMELINE HÉROES (abajo, paralelo — escombros de cada fase) ===
+    // mirror estructura germs, cada uno directamente debajo de su germ counterpart
+    { key: "h_fase1",  x: 0.08, y: 0.70, label: "H. Fase 1",     color: "#ffd24a", branch: "h_stem" },
+    { key: "h_dissem", x: 0.28, y: 0.70, label: "H. Disem.",     color: "#e0a83a", branch: "h_stem" },
+    { key: "h_endocarditis",  x: 0.60, y: 0.55, label: "H. Endo",   sub: "escombros",  color: "#ffd24a", branch: "h_complic" },
+    { key: "h_neumonia",      x: 0.60, y: 0.62, label: "H. Neumo",  sub: "escombros",  color: "#ffd24a", branch: "h_complic" },
+    { key: "h_septicemia",    x: 0.60, y: 0.70, label: "H. Septi",  sub: "escombros",  color: "#ffd24a", branch: "h_complic" },
+    { key: "h_osteomielitis", x: 0.60, y: 0.78, label: "H. Osteo",  sub: "escombros",  color: "#ffd24a", branch: "h_complic" },
+    { key: "h_artritis",      x: 0.60, y: 0.86, label: "H. Artri",  sub: "escombros",  color: "#ffd24a", branch: "h_complic" }
   ];
   var MAP_EDGES = [
+    // === Germ timeline ===
     { from: "fase1",  to: "dissem", group: "stem"     },
     // 5 fork-up edges: una por cada complicación posible
     { from: "dissem", to: "endocarditis",  group: "fork-up" },
@@ -6595,14 +6600,25 @@
     { from: "dissem", to: "septicemia",    group: "fork-up" },
     { from: "dissem", to: "osteomielitis", group: "fork-up" },
     { from: "dissem", to: "artritis",      group: "fork-up" },
-    // fork-dn al hero1
-    { from: "dissem", to: "hero1",  group: "fork-dn"  },
-    { from: "hero1",  to: "hero2",  group: "lower"    },
-    { from: "hero2",  to: "hero3",  group: "lower"    }
+    // === Hero timeline (paralelo abajo) ===
+    { from: "h_fase1", to: "h_dissem", group: "h_stem" },
+    { from: "h_dissem", to: "h_endocarditis",  group: "h_fork-up" },
+    { from: "h_dissem", to: "h_neumonia",      group: "h_fork-up" },
+    { from: "h_dissem", to: "h_septicemia",    group: "h_fork-up" },
+    { from: "h_dissem", to: "h_osteomielitis", group: "h_fork-up" },
+    { from: "h_dissem", to: "h_artritis",      group: "h_fork-up" },
+    // === Escombros edges (verticales germ → hero) ===
+    { from: "fase1",          to: "h_fase1",          group: "escombros" },
+    { from: "dissem",         to: "h_dissem",         group: "escombros" },
+    { from: "endocarditis",   to: "h_endocarditis",   group: "escombros" },
+    { from: "neumonia",       to: "h_neumonia",       group: "escombros" },
+    { from: "septicemia",     to: "h_septicemia",     group: "escombros" },
+    { from: "osteomielitis",  to: "h_osteomielitis",  group: "escombros" },
+    { from: "artritis",       to: "h_artritis",       group: "escombros" }
   ];
-  // Orden de progresión del jugador. La complicación real elegida se inserta
-  // dinámicamente; por defecto asumimos endocarditis para el preset de prueba.
-  var MAP_PROGRESSION = ["fase1", "dissem", "hero1", "endocarditis", "hero2", "neumonia", "hero3", "septicemia"];
+  // Orden de progresión del jugador. Los héroes van 1 paso atrás del germ
+  // correspondiente: cuando germs entran a DIS, recién H_F1 está disponible.
+  var MAP_PROGRESSION = ["fase1", "dissem", "h_fase1", "endocarditis", "h_dissem", "h_endocarditis"];
 
   function mapNodeByKey(k) {
     for (var i = 0; i < MAP_NODES.length; i++) if (MAP_NODES[i].key === k) return MAP_NODES[i];
@@ -6742,22 +6758,24 @@
     ctx.globalAlpha = bodyAlpha;
     ctx.font = "bold " + Math.floor(11 * U) + "px Fredoka, sans-serif";
     // Label position depends on branch:
-    //   complic: a la derecha del nodo (horizontal layout)
-    //   stem/lower/upper: arriba/abajo
+    //   complic, h_complic: a la derecha del nodo (horizontal layout)
+    //   stem (germs): arriba del nodo
+    //   h_stem (heroes): abajo del nodo
     var labelX = x, labelY, labelAlign, labelBaseline;
-    if (node.branch === "complic") {
+    if (node.branch === "complic" || node.branch === "h_complic") {
       labelX = x + bodyR + 8;
       labelY = y;
       labelAlign = "left";
       labelBaseline = "middle";
-    } else if (node.branch === "upper") {
-      labelY = y - bodyR - 8;
-      labelAlign = "center";
-      labelBaseline = "bottom";
-    } else {
+    } else if (node.branch === "h_stem") {
       labelY = y + bodyR + 8;
       labelAlign = "center";
       labelBaseline = "top";
+    } else {
+      // stem (germs): label arriba
+      labelY = y - bodyR - 8;
+      labelAlign = "center";
+      labelBaseline = "bottom";
     }
     ctx.textAlign = labelAlign; ctx.textBaseline = labelBaseline;
     // Sombra detrás del texto
@@ -6812,14 +6830,21 @@
       var idx = mapProgressIdx(key);
       if (idx <= curIdx && curIdx >= 0) return "done";
       if (idx === nxtIdx) return "current";
-      // Nodos futuros se ven (dim) solo si el fork ya está visible
       var node = mapNodeByKey(key);
       var forkRevealed = b.forkOpen ? (b.animPhase === "fork" || b.animPhase === "wait") : false;
+      // stem germ siempre visible
       if (node.branch === "stem") return "future";
-      if (!forkRevealed) return "hidden";
-      // Las complicaciones son "possible" — más oscuras/grises que "future"
-      // hasta que el jugador entre en una específica como current.
-      if (node.branch === "complic") return "possible";
+      // h_stem (timeline héroes) siempre visible si el fork está abierto
+      // (los héroes existen como concepto solo después de DIS)
+      if (node.branch === "h_stem") {
+        if (!forkRevealed) return "hidden";
+        return "future";
+      }
+      // complic + h_complic son "possible" gris cuando fork abierto, hidden antes
+      if (node.branch === "complic" || node.branch === "h_complic") {
+        if (!forkRevealed) return "hidden";
+        return "possible";
+      }
       return "future";
     }
 
@@ -6845,24 +6870,31 @@
         drawMapEdge(mapX, mapY, mapW, mapH, edge,
           { revealFrac: rf, glow: (fromS === "done" || toS === "current"), color: "rgba(255, 200, 140, 0.85)" });
       } else if (edge.group === "fork-up") {
-        // 5 edges hacia las complicaciones — grises/oscuras porque son "posibles"
         if (b.forkOpen) {
           var cur = (toS === "current");
           var col = cur ? "rgba(255, 220, 140, 0.85)" : "rgba(120, 120, 145, 0.55)";
           drawMapEdge(mapX, mapY, mapW, mapH, edge,
             { revealFrac: forkFrac, glow: cur, color: col, dashed: !cur && toS !== "done" });
         }
-      } else if (edge.group === "fork-dn") {
+      } else if (edge.group === "h_stem") {
+        // stem de héroes (H_F1 → H_DIS) — dorado tenue
         if (b.forkOpen) {
           drawMapEdge(mapX, mapY, mapW, mapH, edge,
-            { revealFrac: forkFrac, glow: false, color: "rgba(255, 210, 74, 0.85)" });
+            { revealFrac: forkFrac, glow: false, color: "rgba(255, 210, 74, 0.65)" });
         }
-      } else {
-        // Lower branch edges (héroes): dashed si no son done
-        if (toS !== "hidden") {
-          var solidL = (fromS === "done");
+      } else if (edge.group === "h_fork-up") {
+        // 5 forks de héroes hacia las 5 complicaciones hero — todos grises/possibles
+        if (b.forkOpen) {
+          var hcur = (toS === "current");
+          var hcol = hcur ? "rgba(255, 220, 140, 0.85)" : "rgba(120, 120, 145, 0.45)";
           drawMapEdge(mapX, mapY, mapW, mapH, edge,
-            { revealFrac: 1, dashed: !solidL, glow: false });
+            { revealFrac: forkFrac, glow: hcur, color: hcol, dashed: !hcur && toS !== "done" });
+        }
+      } else if (edge.group === "escombros") {
+        // Línea vertical germ → hero (escombros). Dashed gris siempre.
+        if (toS !== "hidden") {
+          drawMapEdge(mapX, mapY, mapW, mapH, edge,
+            { revealFrac: 1, dashed: true, color: "rgba(140, 100, 80, 0.40)", glow: false });
         }
       }
     }
@@ -18684,11 +18716,11 @@
       var key = bm[1];
       // Presets de prueba: cada uno simula una transición distinta del mapa-mundo
       var presets = {
-        fase1:  { currentNode: "fase1",  nextNode: "dissem",       forkOpen: false, title: "MAPA DE LA INVASIÓN",       subtitle: "Los gérmenes rompen la piel y entran al torrente" },
-        dissem: { currentNode: "dissem", nextNode: "hero1",        forkOpen: true,  title: "DISEMINACIÓN COMPLETA",     subtitle: "5 complicaciones posibles · los héroes alcanzan los escombros" },
-        hero1:  { currentNode: "hero1",  nextNode: "endocarditis", forkOpen: true,  title: "HÉROES 1 COMPLETO",         subtitle: "Una complicación se concreta: endocarditis" },
-        fase2:  { currentNode: "endocarditis", nextNode: "hero2",  forkOpen: true,  title: "ENDOCARDITIS DERROTADA",    subtitle: "Los héroes avanzan al órgano siguiente" },
-        fase3:  { currentNode: "neumonia",     nextNode: "hero3",  forkOpen: true,  title: "NEUMONÍA DERROTADA",        subtitle: "Última batalla en lo profundo" }
+        fase1:  { currentNode: "fase1",  nextNode: "dissem",          forkOpen: false, title: "MAPA DE LA INVASIÓN",     subtitle: "Los gérmenes rompen la piel y entran al torrente" },
+        dissem: { currentNode: "dissem", nextNode: "h_fase1",         forkOpen: true,  title: "DISEMINACIÓN COMPLETA",   subtitle: "5 complicaciones posibles · héroes empiezan en escombros" },
+        hero1:  { currentNode: "h_fase1", nextNode: "endocarditis",   forkOpen: true,  title: "HÉROES F1 COMPLETO",      subtitle: "Una complicación se concreta: endocarditis" },
+        fase2:  { currentNode: "endocarditis", nextNode: "h_dissem",  forkOpen: true,  title: "ENDOCARDITIS DERROTADA",  subtitle: "Héroes avanzan a los escombros de la diseminación" },
+        fase3:  { currentNode: "h_dissem",     nextNode: "h_endocarditis", forkOpen: true, title: "HÉROES DISEM. COMPLETO", subtitle: "Última batalla: escombros de endocarditis" }
       };
       var preset = presets[key] || presets.fase1;
       enterBodyMap(preset);

@@ -1826,6 +1826,8 @@
     if (state.loadoutEditing) {
       state.loadoutEditing = false;
       state.paused = false;
+      // Re-calcular layout del dock para reflejar el loadout aplicado.
+      layoutUI();
     }
   }
   function compendiumCells() {
@@ -3085,7 +3087,7 @@
       heroLevelPlayed: {},              // organId → true después del primer juego (no se repite)
       pendingHeroLevel: null,           // { organ, delay } encolado, se dispara cuando delay≤0
       selectedToBuild: null,
-      openGroups: { linea: true, distancia: true }, // grupos abiertos por defecto
+      openGroups: { defensas: true, potenciadores: true, tanques: true, otras: true }, // todos abiertos por defecto
       unlockedTowers: ["neutrofilo", "linfocitoB", "linfocitoT"], // resto se desbloquea con pickups
       unlockPickups: [],                // píldoras flotantes en el campo
       medulaOsea: null,                 // posición de la médula ósea (se setea en layoutUI)
@@ -3507,7 +3509,7 @@
     // Garantiza que el grupo "Sangre" se abra al entrar al puente — antes
     // openGroups podía no tener la key 'sangre' y la plaqueta quedaba bajo
     // un header colapsado. Resetea openGroups para destacar lo relevante.
-    state.openGroups = { linea: true, distancia: true, sangre: true };
+    state.openGroups = { defensas: true, potenciadores: true, tanques: true, otras: true };
     state.unlockScheduleNotified = {};
     state.unlockPickups = [];
     // Cola de pickups que la médula va a emitir en la nueva fase:
@@ -9072,6 +9074,8 @@
                 showMsg("Loadout lleno para esta categoría");
               } else {
                 sfx("tick");
+                // Re-calcular layout del dock para reflejar el cambio inmediatamente
+                layoutUI();
               }
               return;
             }

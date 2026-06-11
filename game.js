@@ -570,8 +570,9 @@
   // mitocondrias) y 12% arriba/abajo. Sin tronco compartido.
   function rebuildDisseminationPath() {
     PATH.orientation = isPortrait ? "portrait" : "landscape";
-    // 3 columnas equiespaciadas para los 3 destinos (triada hematógena).
-    var laneXs = [0.25, 0.50, 0.75];
+    // 3 columnas más juntas — para que las torres puedan interactuar entre
+    // carriles vecinos y no queden espacios muertos sin acción.
+    var laneXs = [0.33, 0.50, 0.67];
     var entryYn = 0.12;   // arriba (grieta de barrera rota)
     var exitYn = 0.88;    // abajo (puerta de órgano)
     PATH.wounds = [];
@@ -1231,12 +1232,13 @@
   // él temprano. Las per-fase se pierden al cambiar de fase y se re-emiten;
   // las permanentes (Mastocito, MAC) si se desbloquean, quedan para siempre.
   var BASIC_TOWERS = ["neutrofilo", "linfocitoB", "linfocitoT"];
+  // Cards de médula menos frecuentes: cada 3 olas en lugar de cada 2.
   var UNLOCK_SCHEDULE = {
-    2:  "langerhans",   // per-fase
-    4:  "complemento",  // permanente (MAC) — segundo pickup
-    6:  "nk",           // per-fase
-    8:  "eosinofilo",   // per-fase
-    10: "mastocito"     // permanente
+    3:  "langerhans",   // per-fase
+    5:  "complemento",  // permanente (MAC)
+    7:  "nk",           // per-fase
+    9:  "eosinofilo",   // per-fase (raramente alcanza esto en F1)
+    11: "mastocito"     // permanente (en dissem/F2)
   };
   var PER_PHASE_TOWERS = ["langerhans", "nk", "eosinofilo"]; // re-emiten al cambiar fase
   var PERSISTENT_UNLOCKABLES = ["mastocito", "complemento"]; // si no llegó a unlocked, también re-aparece
@@ -3182,35 +3184,33 @@
     var cardW = contentW;
     var dockH = dockBottom - dockTop;
 
-    // Zona info/acciones anclada al fondo: tamaño por contenido (stats + 2
-    // botones), nunca más de ~52% del dock para que las cartas tengan lugar.
+    // Pre-compute NETosis reserved height (si está en diseminación) — necesario
+    // para empujar el info zone HACIA ARRIBA y dejar lugar al fondo del dock.
+    var responsesReservedH = 0;
+    var rpH = 0;
+    if (state && state.dissemination) {
+      var rpCardH = Math.round(44 * U);
+      var rpPad = Math.round(5 * U);
+      rpH = rpCardH + 2 * rpPad;
+      responsesReservedH = rpH + dockPad;
+    }
+
+    // Zona info/acciones: empujada hacia arriba si hay NETosis abajo.
     var btnH = Math.round(Math.max(32, Math.min(42, contentW * 0.36)));
     var infoH = Math.min(96 + btnH * 2, Math.round(dockH * 0.52));
-    var infoY = dockBottom - infoH;
+    var infoY = dockBottom - infoH - responsesReservedH;
 
-    // Panel de Respuestas Inmunes (solo en diseminación): se posiciona en
-    // el BORDE INFERIOR DERECHO del screen, FUERA de la columna vertical
-    // del dock — así libera espacio para más torres en el card strip.
+    // Panel NETosis al fondo del dock (debajo del info zone).
     UI.responsePanel = null;
-    var responsesReservedH = 0;  // ya NO reserva espacio en el dock
     if (state && state.dissemination) {
-      // Una sola card de respuesta (NETosis), compacta, anclada al fondo-derecho.
-      var rpCardH = Math.round(42 * U);
-      var rpGap = Math.round(4 * U);
-      var rpPad = Math.round(5 * U);
-      var rpInnerH = 1 * rpCardH;
-      var rpH = rpInnerH + 2 * rpPad;
-      var rpW = Math.max(96, Math.round(110 * U));
-      var rpX = VW - safeRight - rpW - 4;
-      var rpY = VH - safeBottom - rpH - 4;
       UI.responsePanel = {
-        x: rpX,
-        y: rpY,
-        w: rpW,
+        x: contentX,
+        y: dockBottom - rpH,
+        w: contentW,
         h: rpH,
-        cardH: rpCardH,
-        gap: rpGap,
-        pad: rpPad
+        cardH: Math.round(44 * U),
+        gap: Math.round(4 * U),
+        pad: Math.round(5 * U)
       };
     }
 
@@ -3594,7 +3594,7 @@
       swallowAnim: 0,
       mawOpen: 0,
       speedBoost: 1,
-      radiusScale: state.dissemination ? 0.72 : 1,
+      radiusScale: state.dissemination ? 0.94 : 1,    // 0.72 → 0.94 (~1.3x) gérmenes más visibles en diseminación
       noSpore: false,
       childCount: 0,
       childTimer: def.spore ? def.spore.interval * (0.5 + Math.random() * 0.5) : 0,
@@ -10355,7 +10355,8 @@
     if (disseminationScaled) {
       ctx.save();
       ctx.translate(t.x, t.y);
-      ctx.scale(0.75, 0.75);
+      // 0.75 → 0.975 (1.3x) — torres más visibles en diseminación
+      ctx.scale(0.975, 0.975);
       ctx.translate(-t.x, -t.y);
     }
     var stats = towerStats(t);

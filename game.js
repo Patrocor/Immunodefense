@@ -859,6 +859,13 @@
       id: "langerhans", name: "Cel. de Langerhans", shortName: "Langer",
       color: "#3FC1C9", colorDark: "#26797f", cost: 70, desc: "Marca antigeno (+dano)",
       support: "mark",
+      // Ultimate: PRESENTACIÓN ANTIGÉNICA MASIVA + COORDINACIÓN INMUNE.
+      // Las 9 dendritas se extienden enormemente y disparan flags MHC-II
+      // a TODOS los enemies en rango (marca +30% damage por 6s) y al mismo
+      // tiempo libera citoquinas hacia las torres aliadas en rango
+      // (+25% attack speed por 6s). 30s de carga.
+      specialChargeSec: 30,
+      specialName: "Presentación masiva",
       levels: [
         { range: 120, damage: 0, fireRate: 1.0, projectileSpeed: 0, splash: 0, hp: 90,  markBonus: 0.35, markDur: 3.0 },
         { range: 140, damage: 0, fireRate: 1.0, projectileSpeed: 0, splash: 0, hp: 115, markBonus: 0.45, markDur: 3.0 },
@@ -4588,6 +4595,52 @@
       sfx("upgrade");
       return;
     }
+    if (def.id === "langerhans") {
+      // PRESENTACIÓN ANTIGÉNICA MASIVA + COORDINACIÓN INMUNE.
+      // 1) Marca a TODOS los enemies en rango con flag MHC-II → +60%
+      //    damage recibido por 6s (reusa markTimer/markBonus del sistema base)
+      // 2) Buffea TODAS las torres aliadas en rango → +25% fireRate 6s
+      var lStats = towerStats(t);
+      var lR = lStats.range * U;
+      var MARK_BONUS = 0.60;          // +60% (más fuerte que mark base 0.35-0.55)
+      var MARK_DUR = 6.0;
+      var BUFF_DUR = 6.0;
+      // Marcar enemigos en rango (reusa el campo markTimer/markBonus
+      // del sistema base — el dmg modifier en damageEnemy lo aplica auto)
+      for (var i = 0; i < state.enemies.length; i++) {
+        var e = state.enemies[i];
+        if (e.dead || e.dying) continue;
+        var de = Math.hypot(e.x - t.x, e.y - t.y);
+        if (de > lR) continue;
+        e.markTimer = MARK_DUR;
+        e.markBonus = MARK_BONUS;
+        e.revealed = true;
+        // Visual: flag MHC-II flotando sobre el germ
+        pushEffect({
+          kind: "atpText",
+          x: e.x, y: e.y - e.def.radius * U - 8 * U,
+          vy: -28 * U,
+          text: "MHC-II",
+          life: 1.2, max: 1.2,
+          color: "#ffd24a"
+        });
+      }
+      // Buffear torres aliadas en rango (incluyendo Langerhans mismo)
+      for (var ti = 0; ti < state.towers.length; ti++) {
+        var ally = state.towers[ti];
+        if (ally === t) continue;
+        var da = Math.hypot(ally.x - t.x, ally.y - t.y);
+        if (da > lR) continue;
+        ally.langerBuff = 1.25;        // 25% más fireRate
+        ally.langerBuffT = BUFF_DUR;
+      }
+      t.specialAnim = 1.5;             // duración del visual del ultimate
+      t.specialReady = false;
+      t.specialCharge = 0;
+      sfx("upgrade");
+      triggerShake(0.15, 4);
+      return;
+    }
     // Fallback: si la torre no tiene ultimate implementado, no hace nada.
     t.specialReady = false;
     t.specialCharge = 0;
@@ -4983,13 +5036,20 @@
 
   function towerStats(t) {
     var base = t.def.levels[t.level];
-    if (!t.synBuff) return base;
+    var hasLangerBuff = ((t.langerBuffT || 0) > 0) && (t.langerBuff || 0) > 1;
+    if (!t.synBuff && !hasLangerBuff) return base;
     // Devuelve una copia con multiplicadores aplicados.
     var out = {};
     for (var k in base) { if (base.hasOwnProperty(k)) out[k] = base[k]; }
-    if (out.damage != null)   out.damage   = out.damage   * t.synBuff.damage;
-    if (out.range != null)    out.range    = out.range    * t.synBuff.range;
-    if (out.fireRate != null) out.fireRate = out.fireRate * t.synBuff.fireRate;
+    if (t.synBuff) {
+      if (out.damage != null)   out.damage   = out.damage   * t.synBuff.damage;
+      if (out.range != null)    out.range    = out.range    * t.synBuff.range;
+      if (out.fireRate != null) out.fireRate = out.fireRate * t.synBuff.fireRate;
+    }
+    // Buff Langerhans ultimate: fireRate boost temporal
+    if (hasLangerBuff && out.fireRate != null) {
+      out.fireRate = out.fireRate * t.langerBuff;
+    }
     return out;
   }
 
@@ -5124,6 +5184,10 @@
       if (t.levelupAnim > 0) t.levelupAnim -= dt;
       if (t.cooldown > 0) t.cooldown -= dt;
       if (t.muzzleFlash > 0) t.muzzleFlash -= dt;
+      if ((t.langerBuffT || 0) > 0) {
+        t.langerBuffT -= dt;
+        if (t.langerBuffT <= 0) { t.langerBuffT = 0; t.langerBuff = 1; }
+      }
       // Sistema de poder especial: carga continua mientras la torre vive.
       // Duración de carga por torre (depende del def, default 28s).
       var specCharge = (t.def && t.def.specialChargeSec) || 28;
@@ -11506,13 +11570,36 @@
     //  · Cuerpo redondo con núcleo prominente
     var R = 17 * U * pulse;
     var time = state.time;
+    var doingUltimate = (t.def.id === "langerhans" && (t.specialAnim || 0) > 0);
+    // Durante ultimate: las dendritas se EXTIENDEN 2.5× su largo
+    var ultExt = doingUltimate ? (1 + Math.sin((1 - t.specialAnim / 1.5) * Math.PI) * 1.5) : 1;
     ctx.save();
     ctx.translate(t.x, t.y);
+    // Aura cyan/turquesa durante el ultimate (citoquinas hacia aliados)
+    if (doingUltimate) {
+      var auraR = R * (3.0 + Math.sin(time * 6) * 0.20);
+      var auraFrac = 1 - (t.specialAnim / 1.5);
+      var auraA = Math.sin(auraFrac * Math.PI) * 0.65;
+      var auraGrad = ctx.createRadialGradient(0, 0, R * 0.5, 0, 0, auraR);
+      auraGrad.addColorStop(0, "rgba(80, 240, 230, " + (auraA * 0.65) + ")");
+      auraGrad.addColorStop(1, "rgba(80, 240, 230, 0)");
+      ctx.fillStyle = auraGrad;
+      ctx.beginPath(); ctx.arc(0, 0, auraR, 0, Math.PI * 2); ctx.fill();
+      // Anillos pulsantes de citoquinas (3 ondas concéntricas)
+      ctx.strokeStyle = "rgba(120, 240, 230, " + (0.55 * auraA) + ")";
+      ctx.lineWidth = 2 * U;
+      for (var rw = 0; rw < 3; rw++) {
+        var rwR = R * (1.5 + auraFrac * 1.5 + rw * 0.6);
+        ctx.beginPath();
+        ctx.arc(0, 0, rwR, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    }
     // 9 DENDRITAS con flag MHC-II al final (signature del APC)
     var dn = 9;
     for (var i = 0; i < dn; i++) {
       var a = i * Math.PI * 2 / dn + time * 0.3;
-      var len = R * (1.35 + 0.16 * Math.sin(time * 2 + i));
+      var len = R * (1.35 + 0.16 * Math.sin(time * 2 + i)) * ultExt;
       var startX = Math.cos(a) * R * 0.6, startY = Math.sin(a) * R * 0.6;
       var tipX = Math.cos(a) * len, tipY = Math.sin(a) * len;
       // Línea principal de la dendrita

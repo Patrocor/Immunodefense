@@ -952,6 +952,50 @@
     { id: "otras",         label: "Otras estructuras", towers: ["plaqueta"] }
   ];
 
+  // === LOADOUT: jugador elige 5 torres + 2 tanques + 1 barrera para el dock ===
+  // Categoriza una torre según el grupo. "tower" = defensas+potenciadores.
+  var LOADOUT_LIMITS = { towers: 5, tanks: 2, barriers: 1 };
+  function loadoutCategory(typeId) {
+    for (var g = 0; g < TOWER_GROUPS.length; g++) {
+      var grp = TOWER_GROUPS[g];
+      if (grp.towers.indexOf(typeId) >= 0) {
+        if (grp.id === "tanques") return "tank";
+        if (grp.id === "otras")   return "barrier";
+        return "tower";
+      }
+    }
+    return "tower";
+  }
+  function isInLoadout(typeId) {
+    if (!state || !state.loadout) return false;
+    var c = loadoutCategory(typeId);
+    var arr = c === "tower" ? state.loadout.towers
+            : c === "tank"  ? state.loadout.tanks
+            : state.loadout.barriers;
+    return arr.indexOf(typeId) >= 0;
+  }
+  function toggleLoadout(typeId) {
+    if (!state || !state.loadout) return "noop";
+    var c = loadoutCategory(typeId);
+    var arr = c === "tower" ? state.loadout.towers
+            : c === "tank"  ? state.loadout.tanks
+            : state.loadout.barriers;
+    var lim = c === "tower" ? LOADOUT_LIMITS.towers
+            : c === "tank"  ? LOADOUT_LIMITS.tanks
+            : LOADOUT_LIMITS.barriers;
+    var idx = arr.indexOf(typeId);
+    if (idx >= 0) { arr.splice(idx, 1); return "removed"; }
+    if (arr.length >= lim) return "full";
+    arr.push(typeId);
+    return "added";
+  }
+  function loadoutEmpty() {
+    return !state.loadout ||
+      (state.loadout.towers.length === 0 &&
+       state.loadout.tanks.length === 0 &&
+       state.loadout.barriers.length === 0);
+  }
+
   // BASE_SPEED in design px/s; multiplied by U each frame for actual movement.
   var BASE_SPEED = 60;
   var ENEMY_DEFS = {
@@ -1778,6 +1822,11 @@
   function closeCompendium() {
     state.compendiumOpen = false;
     state.compendiumFocus = null;
+    // Si veníamos del modo loadout (vía pausa), des-pausar y volver al juego.
+    if (state.loadoutEditing) {
+      state.loadoutEditing = false;
+      state.paused = false;
+    }
   }
   function compendiumCells() {
     // TODAS las torres del juego (TOWER_LIST orden) + Macrófago Libre.
@@ -1915,7 +1964,22 @@
     ctx.font = "bold 15px Fredoka, sans-serif";
     ctx.textAlign = "left";
     ctx.textBaseline = "middle";
-    ctx.fillText("📖 Compendio", modalX + 12, modalY + headerH / 2);
+    var headerLabel = state.loadoutEditing ? "🎯 Elegí tu loadout" : "📖 Dex";
+    ctx.fillText(headerLabel, modalX + 12, modalY + headerH / 2);
+    // Counters en modo loadout
+    if (state.loadoutEditing && state.loadout) {
+      var lo = state.loadout;
+      var counterY = modalY + headerH + 2;
+      var counterTxt = "Torres " + lo.towers.length + "/" + LOADOUT_LIMITS.towers +
+                       "  ·  Tanques " + lo.tanks.length + "/" + LOADOUT_LIMITS.tanks +
+                       "  ·  Barrera " + lo.barriers.length + "/" + LOADOUT_LIMITS.barriers;
+      ctx.fillStyle = "rgba(20, 12, 18, 0.85)";
+      ctx.fillRect(modalX, counterY, modalW, 22);
+      ctx.fillStyle = "#ffd24a";
+      ctx.font = "bold 11px Fredoka, sans-serif";
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText(counterTxt, modalX + modalW / 2, counterY + 11);
+    }
     // Close
     var closeSize = 30;
     UI.compendiumCloseBtn = {
@@ -2014,6 +2078,28 @@
         ctx.strokeStyle = "rgba(120, 120, 130, 0.30)";
         ctx.lineWidth = 1;
         ctx.strokeRect(cx, cy, cardW, cardH);
+      }
+      // En modo LOADOUT, sobre-renderizar borde verde + check en cards seleccionadas.
+      if (state.loadoutEditing && !locked && typeId !== "macrofagoLibre" && isInLoadout(typeId)) {
+        ctx.strokeStyle = "#7ad05b";
+        ctx.lineWidth = 3;
+        ctx.strokeRect(cx + 1, cy + 1, cardW - 2, cardH - 2);
+        // Checkmark verde en esquina sup-derecha
+        var cmS = 14;
+        ctx.fillStyle = "#7ad05b";
+        ctx.beginPath();
+        ctx.arc(cx + cardW - cmS / 2 - 2, cy + cmS / 2 + 2, cmS / 2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = "#fff";
+        ctx.lineWidth = 1.8;
+        ctx.lineCap = "round";
+        var cmCx = cx + cardW - cmS / 2 - 2;
+        var cmCy = cy + cmS / 2 + 2;
+        ctx.beginPath();
+        ctx.moveTo(cmCx - 3.5, cmCy);
+        ctx.lineTo(cmCx - 1, cmCy + 2.5);
+        ctx.lineTo(cmCx + 3.5, cmCy - 2.5);
+        ctx.stroke();
       }
       // Ícono / sprite — bloqueados se ven en GRIS con alpha reducido.
       var iconCx = cx + cardW / 2;
@@ -3064,6 +3150,9 @@
       waveCountdownActive: true,        // showing "PRÓXIMA OLEADA EN Ns"
       nextIntermediateAt: 4 + Math.random() * 3,  // intermediate stragglers
       cinematicEnd: null,               // when infestacion >= 100, becomes object
+      paused: false,                    // pausa via botón ⏸ — bloquea update loop
+      loadout: { towers: [], tanks: [], barriers: [] },  // selección 5+2+1 del Dex
+      loadoutEditing: false,            // true cuando se abre Dex con pausa para editar
       pathInflammation: [],             // marks where enemies recently passed
       bossActive: null,                 // ref to current boss enemy (if alive)
       showTitle: true,                  // pantalla de título del juego
@@ -3159,12 +3248,14 @@
 
     UI.restartBtn = { x: rightX - btnH, y: topY, w: btnH, h: btnH };
     UI.muteBtn = { x: UI.restartBtn.x - btnH - 4, y: topY, w: btnH, h: btnH };
+    // Botón de PAUSA — abre el Dex en modo loadout para elegir 5+2+1 torres.
+    UI.pauseBtn = { x: UI.muteBtn.x - btnH - 4, y: topY, w: btnH, h: btnH };
     // Next-wave button width: portrait keeps it tight so stats fit beside it.
     var nwMaxByStats = isPortrait
       ? VW - safeLeft - safeRight - btnH * 2 - 28 - 165
       : VW * 0.4;
     var nwW = Math.min(220, Math.max(110, nwMaxByStats));
-    UI.nextWaveBtn = { x: UI.muteBtn.x - nwW - 8, y: topY, w: nwW, h: btnH };
+    UI.nextWaveBtn = { x: UI.pauseBtn.x - nwW - 8, y: topY, w: nwW, h: btnH };
 
     // Dock lateral derecho. UI.cards guarda posiciones en CONTENT-SPACE
     // vertical (contentY); el render aplica scroll vertical y clipping, y el
@@ -3241,11 +3332,17 @@
       if (d && d.disseminationOnly && !inDiss) return false;
       return true;
     }
+    // Dock = SOLO las torres dentro del loadout (5+2+1). Si está vacío,
+    // todo el dock queda vacío y se muestra hint para abrir pausa.
+    var dockEmpty = loadoutEmpty();
+    function isInDock(typeId) {
+      if (!isUnlocked(typeId)) return false;
+      if (dockEmpty) return false;
+      return isInLoadout(typeId);
+    }
     for (var gi = 0; gi < TOWER_GROUPS.length; gi++) {
       var grp = TOWER_GROUPS[gi];
-      // Filtrar el grupo a las torres desbloqueadas. Si ninguna está
-      // desbloqueada, saltamos el grupo entero (no aparece su header).
-      var visibleTowers = grp.towers.filter(isUnlocked);
+      var visibleTowers = grp.towers.filter(isInDock);
       if (visibleTowers.length === 0) continue;
       var gopen = !!openMap[grp.id];
       UI.groupHeaders.push({ id: grp.id, label: grp.label, open: gopen,
@@ -8961,11 +9058,23 @@
           }
         }
       }
-      // Cards (tarjetas con nombre): seleccionar para detalle.
+      // Cards (tarjetas con nombre):
+      //  · Modo NORMAL: seleccionar para detalle/lore
+      //  · Modo LOADOUT (loadoutEditing): toggle inclusión en loadout 5+2+1
       if (UI.compendiumCards) {
         for (var ci = 0; ci < UI.compendiumCards.length; ci++) {
           var card = UI.compendiumCards[ci];
           if (inRect(x, y, card)) {
+            if (state.loadoutEditing && !card.locked && card.typeId !== "macrofagoLibre") {
+              var result = toggleLoadout(card.typeId);
+              if (result === "full") {
+                flashFail();
+                showMsg("Loadout lleno para esta categoría");
+              } else {
+                sfx("tick");
+              }
+              return;
+            }
             state.compendiumSelected = card.typeId;
             // Si era "nuevo", marcar como visto (limpia el badge).
             if (state.dexNew && state.dexNew[card.typeId]) {
@@ -9097,6 +9206,14 @@
       }
       if (inRect(x, y, UI.muteBtn)) {
         setMuted(!audio.muted);
+        sfx("tick");
+        return;
+      }
+      // Botón PAUSA: pausa el juego + abre Dex en modo loadout
+      if (UI.pauseBtn && inRect(x, y, UI.pauseBtn)) {
+        state.paused = true;
+        state.loadoutEditing = true;
+        state.compendiumOpen = true;
         sfx("tick");
         return;
       }
@@ -15170,6 +15287,28 @@
     ctx.fillStyle = "#5a3540";
     ctx.fillRect(mb.x, mb.y, mb.w, mb.h);
     drawSpeakerIcon(mb.x + mb.w / 2, mb.y + mb.h / 2, mb.h * 0.36, audio.muted, "#fff");
+    // Botón PAUSA — abre el Dex en modo loadout (elegir 5+2+1).
+    var pb = UI.pauseBtn;
+    if (pb) {
+      // Glow extra si el loadout está vacío para llamar la atención del jugador
+      var loadoutMissing = loadoutEmpty();
+      if (loadoutMissing) {
+        var lp = 0.5 + 0.5 * Math.sin(state.time * 3);
+        ctx.shadowColor = "rgba(255, 220, 100, " + (0.40 + lp * 0.40) + ")";
+        ctx.shadowBlur = 10 + lp * 6;
+      }
+      ctx.fillStyle = state.paused ? "#7a4a30" : "#5a3540";
+      ctx.fillRect(pb.x, pb.y, pb.w, pb.h);
+      ctx.shadowBlur = 0;
+      // Icono ⏸ — 2 barras verticales
+      ctx.fillStyle = "#fff";
+      var barW = Math.max(2, pb.w * 0.10);
+      var barH = pb.h * 0.46;
+      var bcx = pb.x + pb.w / 2;
+      var bcy = pb.y + pb.h / 2;
+      ctx.fillRect(bcx - barW * 2.2, bcy - barH / 2, barW, barH);
+      ctx.fillRect(bcx + barW * 1.2, bcy - barH / 2, barW, barH);
+    }
     if (state.dissemination) drawAntigenHud();
     // (removido: el botón DEBUG "♥" para saltar a hero corazón ya no se
     // necesita — el flow real del juego pasa por el mapa-mundo después
@@ -15292,7 +15431,30 @@
     // Todo dentro del strip con scroll vertical y clipping.
     var strip = UI.cardStrip;
     var scroll = state.panelScroll || 0;
-    if (strip && strip.h > 0) {
+    // HINT: si el loadout está vacío, mostrar mensaje en lugar de cards.
+    if (loadoutEmpty() && strip && strip.h > 0) {
+      ctx.save();
+      var hintX = strip.x + strip.w / 2;
+      var hintY = strip.y + Math.min(strip.h * 0.40, 80);
+      var pulseH = 0.5 + 0.5 * Math.sin(state.time * 2.5);
+      // Pause icon glow grande
+      ctx.fillStyle = "rgba(255, 220, 100, " + (0.55 + pulseH * 0.30) + ")";
+      ctx.font = "bold " + Math.floor(28 * U) + "px Fredoka, sans-serif";
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText("⏸", hintX, hintY);
+      // Texto
+      ctx.fillStyle = "#ffd24a";
+      ctx.font = "bold " + Math.floor(11 * U) + "px Fredoka, sans-serif";
+      ctx.fillText("PAUSÁ", hintX, hintY + 30);
+      ctx.fillText("Y ELEGÍ TU", hintX, hintY + 48);
+      ctx.fillText("LOADOUT", hintX, hintY + 66);
+      ctx.fillStyle = "rgba(255,255,255,0.55)";
+      ctx.font = "10px Fredoka, sans-serif";
+      ctx.fillText("(5 torres + 2 tanques", hintX, hintY + 92);
+      ctx.fillText("+ 1 barrera)", hintX, hintY + 106);
+      ctx.restore();
+    }
+    if (strip && strip.h > 0 && !loadoutEmpty()) {
       ctx.save();
       ctx.beginPath();
       ctx.rect(strip.x - 6, strip.y, strip.w + 12, strip.h);

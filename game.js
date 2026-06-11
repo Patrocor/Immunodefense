@@ -11179,6 +11179,24 @@
     ctx.lineWidth = 0.9 * U;
     ctx.stroke();
 
+    // RER (Rough Endoplasmic Reticulum) — signature de célula plasmática.
+    // 3 cintas curvadas adentro del citoplasma (entre núcleo y membrana)
+    // indicando la fábrica activa de anticuerpos. Más visibles en ultimate.
+    var rerAlpha = doingUltimate ? 0.85 : 0.55;
+    ctx.strokeStyle = "rgba(40, 90, 55, " + rerAlpha + ")";
+    ctx.lineWidth = Math.max(1.4, 1.8 * U);
+    ctx.lineCap = "round";
+    for (var rer = 0; rer < 3; rer++) {
+      var rerAng = (rer * Math.PI * 2 / 3) + t0 * 0.18;
+      var rerCx = Math.cos(rerAng) * R * 0.72;
+      var rerCy = Math.sin(rerAng) * R * 0.72 + R * 0.08;
+      // Cinta curvada (arco corto perpendicular al radial)
+      var rerTan = rerAng + Math.PI / 2;
+      ctx.beginPath();
+      ctx.arc(rerCx, rerCy, R * 0.16, rerTan - 0.7, rerTan + 0.7);
+      ctx.stroke();
+    }
+
     // ANTICUERPOS Y pegados a la membrana (BCR de superficie).
     // 5 en la membrana orbitando lento. Durante ultimate: 8 + más rápido.
     var ab = doingUltimate ? 8 : 5;
@@ -11399,7 +11417,28 @@
     }
     ctx.globalAlpha = 1;
 
-    // Cara — sharper/militar (parte superior del cuerpo, sobre el núcleo)
+    // CD8 HELMET — banda militar diagonal en la parte superior del cuerpo.
+    // Signature visual de CD8 cytotoxic T cell — distintivo militar.
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(0, 0, R, 0, Math.PI * 2);
+    ctx.clip();
+    var helmetGrad = ctx.createLinearGradient(0, -R, 0, -R * 0.30);
+    helmetGrad.addColorStop(0, "rgba(40, 20, 70, 0.95)");
+    helmetGrad.addColorStop(0.85, "rgba(70, 35, 110, 0.85)");
+    helmetGrad.addColorStop(1, "rgba(70, 35, 110, 0)");
+    ctx.fillStyle = helmetGrad;
+    ctx.fillRect(-R, -R, R * 2, R * 0.75);
+    // Línea blanca de banda diagonal (insignia)
+    ctx.strokeStyle = "rgba(255, 240, 220, 0.55)";
+    ctx.lineWidth = 1.4 * U;
+    ctx.beginPath();
+    ctx.moveTo(-R * 0.85, -R * 0.45);
+    ctx.lineTo(R * 0.85, -R * 0.65);
+    ctx.stroke();
+    ctx.restore();
+
+    // Cara — sharper/militar (parte superior del cuerpo, sobre el helmet)
     var eyeR = R * 0.16;
     var fy = -R * 0.38;
     if (blink) drawClosedEyes(0, fy, eyeR, R * 0.25);
@@ -11434,24 +11473,58 @@
 
   // LANGERHANS — silueta de ESTRELLA DENDRÍTICA (centinela amable que vigila).
   function drawLangerhans(t, pulse, expression, blink) {
+    // Langerhans — célula dendrítica presentadora de antígeno. Biología:
+    //  · DENDRITAS LARGAS extendiéndose en todas direcciones (sensan)
+    //  · Al final de cada dendrita: MHC-II cargado con antígeno
+    //  · Cuerpo redondo con núcleo prominente
     var R = 17 * U * pulse;
-    ctx.save(); ctx.translate(t.x, t.y);
-    ctx.strokeStyle = t.def.colorDark; ctx.lineWidth = Math.max(2, 3 * U); ctx.lineCap = "round"; ctx.lineJoin = "round";
+    var time = state.time;
+    ctx.save();
+    ctx.translate(t.x, t.y);
+    // 9 DENDRITAS con flag MHC-II al final (signature del APC)
     var dn = 9;
     for (var i = 0; i < dn; i++) {
-      var a = i * Math.PI * 2 / dn + state.time * 0.3;
-      var len = R * (1.35 + 0.16 * Math.sin(state.time * 2 + i));
+      var a = i * Math.PI * 2 / dn + time * 0.3;
+      var len = R * (1.35 + 0.16 * Math.sin(time * 2 + i));
+      var startX = Math.cos(a) * R * 0.6, startY = Math.sin(a) * R * 0.6;
+      var tipX = Math.cos(a) * len, tipY = Math.sin(a) * len;
+      // Línea principal de la dendrita
+      ctx.strokeStyle = t.def.colorDark;
+      ctx.lineWidth = Math.max(2, 3 * U);
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
       ctx.beginPath();
-      ctx.moveTo(Math.cos(a) * R * 0.6, Math.sin(a) * R * 0.6);
-      ctx.lineTo(Math.cos(a) * len, Math.sin(a) * len);
+      ctx.moveTo(startX, startY);
+      ctx.lineTo(tipX, tipY);
       ctx.lineTo(Math.cos(a + 0.24) * (len - R * 0.24), Math.sin(a + 0.24) * (len - R * 0.24));
       ctx.stroke();
+      // MHC-II flag al final (signature del APC) — pequeño cuadrado amarillo
+      // con punto rojo en el centro (antígeno cargado)
+      var flagR = R * 0.13;
+      ctx.fillStyle = "#ffd24a";
+      ctx.fillRect(tipX - flagR, tipY - flagR, flagR * 2, flagR * 2);
+      ctx.strokeStyle = "rgba(120, 80, 30, 0.85)";
+      ctx.lineWidth = 0.9 * U;
+      ctx.strokeRect(tipX - flagR, tipY - flagR, flagR * 2, flagR * 2);
+      // Punto rojo (antígeno cargado)
+      ctx.fillStyle = "#d61f1f";
+      ctx.beginPath();
+      ctx.arc(tipX, tipY, flagR * 0.45, 0, Math.PI * 2);
+      ctx.fill();
     }
+    // Cuerpo central
     var grad = ctx.createRadialGradient(-R * 0.3, -R * 0.3, R * 0.2, 0, 0, R);
-    grad.addColorStop(0, "#d6fbfd"); grad.addColorStop(0.6, t.def.color); grad.addColorStop(1, t.def.colorDark);
-    ctx.fillStyle = grad; ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = t.def.colorDark; ctx.lineWidth = Math.max(1.2, 1.5 * U); ctx.stroke();
-    towerFace(R, expression, blink, "happy", "smile");   // centinela amable
+    grad.addColorStop(0, "#d6fbfd");
+    grad.addColorStop(0.6, t.def.color);
+    grad.addColorStop(1, t.def.colorDark);
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(0, 0, R, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = t.def.colorDark;
+    ctx.lineWidth = Math.max(1.2, 1.5 * U);
+    ctx.stroke();
+    towerFace(R, expression, blink, "happy", "smile");
     ctx.restore();
   }
 
@@ -11681,6 +11754,36 @@
       ctx.strokeStyle = "rgba(120, 40, 30, 0.50)";
       ctx.lineWidth = 0.8 * U;
       ctx.stroke();
+    }
+
+    // 2 ANTENAS/CUERNOS arriba — sensores anti-parásitos (signature
+    // visual del cazador eosinofílico). Pulsan sutilmente.
+    var antPulse = Math.sin(time * 2) * 0.05;
+    var antBase = R * 0.65;
+    var antTip = R * 1.10 * (1 + antPulse);
+    ctx.strokeStyle = t.def.colorDark;
+    ctx.lineWidth = Math.max(1.5, 1.9 * U);
+    ctx.lineCap = "round";
+    for (var ant = -1; ant <= 1; ant += 2) {
+      var antAngle = -Math.PI / 2 + ant * 0.35;
+      var antX1 = Math.cos(antAngle) * R * 0.45;
+      var antY1 = Math.sin(antAngle) * R * 0.45;
+      var antX2 = Math.cos(antAngle) * antTip;
+      var antY2 = Math.sin(antAngle) * antTip;
+      ctx.beginPath();
+      ctx.moveTo(antX1, antY1);
+      ctx.lineTo(antX2, antY2);
+      ctx.stroke();
+      // Pelotita roja al final (sensor activo)
+      ctx.fillStyle = "rgba(240, 110, 80, 0.95)";
+      ctx.beginPath();
+      ctx.arc(antX2, antY2, R * 0.10, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "rgba(120, 40, 30, 0.65)";
+      ctx.lineWidth = 0.8 * U;
+      ctx.stroke();
+      ctx.strokeStyle = t.def.colorDark;
+      ctx.lineWidth = Math.max(1.5, 1.9 * U);
     }
 
     // Cara — feroz anti-parásito (parte superior del cuerpo)
@@ -11917,6 +12020,17 @@
       ctx.beginPath();
       ctx.arc(gx, gy, gSize, 0, Math.PI * 2);
       ctx.fill();
+    }
+
+    // IgE RECEPTORS (FcεRI) — pequeñas Y's pegadas a la membrana exterior.
+    // Signature del mastocito: lleno de receptores de IgE que esperan
+    // unirse a alergenos. 6 Y's distribuidos.
+    var nIgE = 6;
+    for (var ig = 0; ig < nIgE; ig++) {
+      var igA = (ig * Math.PI * 2 / nIgE) + time * 0.20;
+      var igX = Math.cos(igA) * (R + 3 * U);
+      var igY = Math.sin(igA) * (R + 3 * U);
+      drawYShape(igX, igY, 3.2 * U, igA + Math.PI / 2, "#e0c8f0", t.def.colorDark);
     }
 
     // Cara — alerta, lista para desgranular

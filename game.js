@@ -1810,6 +1810,13 @@
     state.compendiumFocus = typeId || null;
     state.compendiumSelected = typeId || null;
     state.compendiumScroll = 0;
+    // Si NO se está focalizando un germen, abrir SIEMPRE en modo loadout
+    // (el Dex y la pausa se unifican: ambos permiten elegir el loadout).
+    // Si el tap fue para ver un germen específico, no activar loadout.
+    if (!typeId || !ENEMY_DEFS[typeId]) {
+      state.loadoutEditing = true;
+      state.paused = true;
+    }
     // Tab por defecto: si el typeId es de germen, ir a "germs", si no "cells".
     if (tabOverride) {
       state.compendiumTab = tabOverride;

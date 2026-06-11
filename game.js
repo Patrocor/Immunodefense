@@ -11318,46 +11318,96 @@
   }
 
   function drawLinfocitoT(t, pulse, expression, blink) {
+    // Linfocito T citotóxico (CD8+). Biología:
+    //  · NÚCLEO REDONDO GRANDE (~60% del cuerpo, poco citoplasma)
+    //  · TCR (T-cell receptor) en membrana: 5 formas tipo V angular
+    //  · GRÁNULOS LÍTICOS (perforina/granzima) púrpura intenso
+    //  · Distinto al B: T tiene look militar/citotóxico (vs. B humoral)
     var x = t.x, y = t.y;
     var R = 19 * U * pulse;
+    var time = state.time;
+    var attacking = (expression === "attacking");
     ctx.save();
     ctx.translate(x, y);
-    // Body with internal granules
-    var grad = ctx.createRadialGradient(-R * 0.3, -R * 0.3, R * 0.2, 0, 0, R);
-    grad.addColorStop(0, "#d6c0f5");
-    grad.addColorStop(0.6, t.def.color);
-    grad.addColorStop(1, t.def.colorDark);
-    ctx.fillStyle = grad;
+
+    // CUERPO redondo con tinte violeta-blue cool
+    var bodyGrad = ctx.createRadialGradient(-R * 0.3, -R * 0.3, R * 0.2, 0, 0, R);
+    bodyGrad.addColorStop(0, "#e6d6f5");
+    bodyGrad.addColorStop(0.6, t.def.color);
+    bodyGrad.addColorStop(1, t.def.colorDark);
+    ctx.fillStyle = bodyGrad;
     ctx.beginPath();
     ctx.arc(0, 0, R, 0, Math.PI * 2);
     ctx.fill();
     ctx.strokeStyle = t.def.colorDark;
-    ctx.lineWidth = Math.max(1.2, 1.5 * U);
+    ctx.lineWidth = Math.max(1.4, 1.7 * U);
     ctx.stroke();
-    // Granules pulsing
-    var grans = 5;
-    for (var i = 0; i < grans; i++) {
-      var ga = (i * 1.7 + state.time * 0.4) % (Math.PI * 2);
-      var gd = R * 0.55;
+
+    // NÚCLEO grande característico de linfocito (poco citoplasma)
+    var nucR = R * 0.55;
+    var nucGrad = ctx.createRadialGradient(-nucR * 0.3, -nucR * 0.35, nucR * 0.10, 0, R * 0.10, nucR);
+    nucGrad.addColorStop(0, "rgba(120, 70, 165, 0.95)");
+    nucGrad.addColorStop(1, "rgba(60, 30, 95, 0.95)");
+    ctx.fillStyle = nucGrad;
+    ctx.beginPath();
+    ctx.arc(0, R * 0.10, nucR, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "rgba(40, 20, 70, 0.65)";
+    ctx.lineWidth = 0.9 * U;
+    ctx.stroke();
+
+    // TCR (T-cell receptors) — 5 formas V/anguladas en membrana
+    // (distinta de las Y's del Linfocito B)
+    ctx.strokeStyle = t.def.colorDark;
+    ctx.lineWidth = Math.max(1.4, 1.7 * U);
+    ctx.lineCap = "round";
+    var nTCR = attacking ? 6 : 5;
+    var spinT = attacking ? 1.2 : 0.4;
+    for (var i = 0; i < nTCR; i++) {
+      var ai = i * Math.PI * 2 / nTCR + time * spinT;
+      var ax = Math.cos(ai) * (R + 4 * U);
+      var ay = Math.sin(ai) * (R + 4 * U);
+      // V angular apuntando hacia afuera (radial)
+      var spread = 0.20;
+      var vLen = 5 * U;
+      var perp1A = ai + Math.PI / 2 + spread;
+      var perp2A = ai + Math.PI / 2 - spread;
+      ctx.beginPath();
+      ctx.moveTo(ax + Math.cos(perp1A) * vLen, ay + Math.sin(perp1A) * vLen);
+      ctx.lineTo(ax, ay);
+      ctx.lineTo(ax + Math.cos(perp2A) * vLen, ay + Math.sin(perp2A) * vLen);
+      ctx.stroke();
+    }
+
+    // GRÁNULOS LÍTICOS púrpura intenso (perforina + granzima) — signature
+    // citotóxica. Distribuidos en el citoplasma (entre núcleo y membrana).
+    ctx.fillStyle = "rgba(70, 30, 110, 0.85)";
+    var nLytic = 7;
+    for (var g = 0; g < nLytic; g++) {
+      var ga = (g * 137.5 * Math.PI / 180 + time * 0.15) % (Math.PI * 2);
+      var gd = R * (0.72 + (g % 3) * 0.05);
       var gx = Math.cos(ga) * gd;
       var gy = Math.sin(ga) * gd;
-      var gp = 0.5 + 0.5 * Math.sin(state.time * 3 + i);
-      ctx.fillStyle = "rgba(255, 240, 180, " + (0.4 + gp * 0.5) + ")";
+      // skip si choca con el núcleo
+      var dToNuc = Math.hypot(gx, gy - R * 0.10);
+      if (dToNuc < nucR + R * 0.06) continue;
+      var gPulse = 0.5 + 0.5 * Math.sin(time * 3 + g);
+      ctx.globalAlpha = 0.65 + gPulse * 0.25;
       ctx.beginPath();
-      ctx.arc(gx, gy, R * 0.10 * (0.7 + gp * 0.3), 0, Math.PI * 2);
+      ctx.arc(gx, gy, R * 0.08, 0, Math.PI * 2);
       ctx.fill();
     }
-    // Face — sharper, colder; expression-aware
-    var eyeR = R * 0.20;
-    if (blink) drawClosedEyes(0, -R * 0.08, eyeR, R * 0.30);
-    else if (expression === "dying") drawHurtEyes(0, -R * 0.08, eyeR, R * 0.30);
-    else if (expression === "levelup") drawSparkleEyes(0, -R * 0.08, eyeR, R * 0.30);
-    else if (expression === "attacking") drawFocusedEyes(0, -R * 0.08, eyeR, R * 0.30, R * 0.18, R * 0.08);
-    else drawAnimeEyes(0, -R * 0.08, eyeR, R * 0.30, 0, 0, R * 0.14, R * 0.05, "fierce");
-    if (expression === "dying") drawAnimeMouth(0, R * 0.32, R * 0.5, R * 0.42, "open");
-    else if (expression === "levelup") drawAnimeMouth(0, R * 0.32, R * 0.45, R * 0.25, "smile");
-    else if (expression === "attacking") drawAnimeMouth(0, R * 0.32, R * 0.50, R * 0.30, "fanged");
-    else drawAnimeMouth(0, R * 0.32, R * 0.40, R * 0.20, "neutral");
+    ctx.globalAlpha = 1;
+
+    // Cara — sharper/militar (parte superior del cuerpo, sobre el núcleo)
+    var eyeR = R * 0.16;
+    var fy = -R * 0.38;
+    if (blink) drawClosedEyes(0, fy, eyeR, R * 0.25);
+    else if (expression === "dying") drawHurtEyes(0, fy, eyeR, R * 0.25);
+    else if (expression === "levelup") drawSparkleEyes(0, fy, eyeR, R * 0.25);
+    else if (attacking) drawFocusedEyes(0, fy, eyeR, R * 0.25, R * 0.18, R * 0.06);
+    else drawAnimeEyes(0, fy, eyeR, R * 0.25, 0, 0, R * 0.12, R * 0.04, "fierce");
+    drawAnimeMouth(0, fy + R * 0.28, R * 0.42, R * 0.18, attacking ? "fanged" : "serious");
     ctx.restore();
   }
 
@@ -11557,19 +11607,90 @@
 
   // EOSINÓFILO — cuerpo BILOBULADO (cacahuate) repleto de gránulos rojos (agresivo).
   function drawEosinofilo(t, pulse, expression, blink) {
-    var R = 15 * U * pulse, off = R * 0.55;
-    ctx.save(); ctx.translate(t.x, t.y);
-    function lobe(cxp) {
-      var grad = ctx.createRadialGradient(cxp - R * 0.3, -R * 0.3, R * 0.2, cxp, 0, R);
-      grad.addColorStop(0, "#ffe0cf"); grad.addColorStop(0.6, t.def.color); grad.addColorStop(1, t.def.colorDark);
-      ctx.fillStyle = grad; ctx.beginPath(); ctx.arc(cxp, 0, R, 0, Math.PI * 2); ctx.fill();
+    // Eosinófilo — granulocito anti-parasitario. Biología:
+    //  · NÚCLEO BILOBULADO en forma de "audífonos" (2 lóbulos conectados)
+    //  · GRÁNULOS EOSINOFÍLICOS GIGANTES de color coral/rojo (signature)
+    //    — contienen MBP (Proteína Básica Mayor), tóxica para parásitos
+    //  · Membrana lisa, redonda
+    var R = 17 * U * pulse;
+    var time = state.time;
+    var attacking = (expression === "attacking");
+    ctx.save();
+    ctx.translate(t.x, t.y);
+
+    // CUERPO redondo coral pálido
+    var bodyGrad = ctx.createRadialGradient(-R * 0.3, -R * 0.3, R * 0.2, 0, 0, R);
+    bodyGrad.addColorStop(0, "#ffe5d4");
+    bodyGrad.addColorStop(0.6, t.def.color);
+    bodyGrad.addColorStop(1, t.def.colorDark);
+    ctx.fillStyle = bodyGrad;
+    ctx.beginPath();
+    ctx.arc(0, 0, R, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = t.def.colorDark;
+    ctx.lineWidth = Math.max(1.3, 1.6 * U);
+    ctx.stroke();
+
+    // NÚCLEO BILOBULADO — 2 lóbulos en forma de "audífonos"
+    var lobeR = R * 0.26;
+    var lobeOff = R * 0.24;
+    var lobeY = R * 0.12;
+    var nucColor = "rgba(90, 40, 100, 0.90)";
+    var nucEdge = "rgba(50, 20, 70, 0.85)";
+    // Conexión cromatina central (puente entre lóbulos)
+    ctx.strokeStyle = nucColor;
+    ctx.lineWidth = 2.2 * U;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(-lobeOff, lobeY);
+    ctx.lineTo(lobeOff, lobeY);
+    ctx.stroke();
+    // Lóbulos
+    for (var lo = -1; lo <= 1; lo += 2) {
+      ctx.fillStyle = nucColor;
+      ctx.beginPath();
+      ctx.arc(lo * lobeOff, lobeY, lobeR, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = nucEdge;
+      ctx.lineWidth = 0.9 * U;
+      ctx.stroke();
     }
-    lobe(-off); lobe(off);
-    ctx.strokeStyle = t.def.colorDark; ctx.lineWidth = Math.max(1.2, 1.5 * U);
-    ctx.beginPath(); ctx.arc(-off, 0, R, 0, Math.PI * 2); ctx.stroke();
-    ctx.beginPath(); ctx.arc(off, 0, R, 0, Math.PI * 2); ctx.stroke();
-    for (var g = 0; g < 8; g++) { var ga = g * 0.8 + state.time * 0.2; var lx = (g % 2 ? off : -off); ctx.fillStyle = "rgba(225,90,50,0.85)"; ctx.beginPath(); ctx.arc(lx + Math.cos(ga) * R * 0.45, Math.sin(ga) * R * 0.45, R * 0.13, 0, Math.PI * 2); ctx.fill(); }
-    towerFace(R * 1.15, expression, blink, "fierce", "fanged");
+
+    // GRÁNULOS EOSINOFÍLICOS GIGANTES (signature)
+    // Color coral intenso, tamaño grande, packed densamente.
+    var nGran = 9;
+    for (var g = 0; g < nGran; g++) {
+      var ga = (g * 137.5 * Math.PI / 180 + time * 0.06) % (Math.PI * 2);
+      var gd = R * (0.50 + (g % 3) * 0.12);
+      var gx = Math.cos(ga) * gd;
+      var gy = Math.sin(ga) * gd * 0.85 + R * 0.06;
+      // Skip si choca con los lóbulos del núcleo
+      var dL = Math.hypot(gx + lobeOff, gy - lobeY);
+      var dR = Math.hypot(gx - lobeOff, gy - lobeY);
+      if (dL < lobeR + R * 0.08 || dR < lobeR + R * 0.08) continue;
+      var gSize = R * (0.12 + Math.sin(time * 1.5 + g) * 0.012);
+      // Gránulo coral con highlight
+      var granGrad = ctx.createRadialGradient(gx - gSize * 0.3, gy - gSize * 0.3, 0, gx, gy, gSize);
+      granGrad.addColorStop(0, "rgba(255, 180, 150, 0.95)");
+      granGrad.addColorStop(0.6, "rgba(240, 110, 80, 0.92)");
+      granGrad.addColorStop(1, "rgba(180, 60, 40, 0.88)");
+      ctx.fillStyle = granGrad;
+      ctx.beginPath();
+      ctx.arc(gx, gy, gSize, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "rgba(120, 40, 30, 0.50)";
+      ctx.lineWidth = 0.8 * U;
+      ctx.stroke();
+    }
+
+    // Cara — feroz anti-parásito (parte superior del cuerpo)
+    var faceY = -R * 0.50;
+    var eyeR = R * 0.14;
+    if (blink) drawClosedEyes(0, faceY, eyeR, R * 0.20);
+    else if (expression === "dying") drawHurtEyes(0, faceY, eyeR, R * 0.20);
+    else if (expression === "levelup") drawSparkleEyes(0, faceY, eyeR, R * 0.20);
+    else drawAnimeEyes(0, faceY, eyeR, R * 0.20, 0, 0, R * 0.10, R * 0.04, "fierce");
+    drawAnimeMouth(0, faceY + R * 0.22, R * 0.34, R * 0.16, attacking ? "fanged" : "serious");
     ctx.restore();
   }
 
@@ -11721,26 +11842,91 @@
   }
 
   function drawMastocito(t, pulse, expression, blink) {
+    // Mastocito — célula de respuesta alérgica/inflamatoria. Biología:
+    //  · Cuerpo redondo PACKED con GRÁNULOS BASOFÍLICOS (histamina,
+    //    heparina, triptasa) — densos en violeta intenso, signature.
+    //  · Núcleo redondo central pequeño (no multilobulado, no bilobed)
+    //  · Membrana ligeramente irregular con bumps suaves
+    //  · Cuando se desgranula (ataca): los gránulos emergen como pulsos
     var R = 18 * U * pulse;
-    ctx.save(); ctx.translate(t.x, t.y);
-    if ((t.attackAnim || 0) > 0) {
+    var time = state.time;
+    var attacking = (t.attackAnim || 0) > 0;
+    ctx.save();
+    ctx.translate(t.x, t.y);
+
+    // Onda de degranulación durante ataque
+    if (attacking) {
       var pp = 1 - (t.attackAnim / 0.2);
-      ctx.strokeStyle = colorAlpha(t.def.color, 0.5 * (1 - pp)); ctx.lineWidth = 2 * U;
-      ctx.beginPath(); ctx.arc(0, 0, R * (1.1 + pp * 0.8), 0, Math.PI * 2); ctx.stroke();
+      ctx.strokeStyle = colorAlpha(t.def.color, 0.5 * (1 - pp));
+      ctx.lineWidth = 2 * U;
+      ctx.beginPath();
+      ctx.arc(0, 0, R * (1.1 + pp * 0.8), 0, Math.PI * 2);
+      ctx.stroke();
     }
-    var grad = ctx.createRadialGradient(-R * 0.3, -R * 0.3, R * 0.2, 0, 0, R);
-    grad.addColorStop(0, "#d6e6fb"); grad.addColorStop(0.6, t.def.color); grad.addColorStop(1, t.def.colorDark);
-    ctx.fillStyle = grad;
-    var bumps = 12; ctx.beginPath();
-    for (var i = 0; i <= bumps; i++) {
-      var a = i / bumps * Math.PI * 2, rr = R * (0.92 + ((i % 2) ? 0.13 : 0));
-      var px = Math.cos(a) * rr, py = Math.sin(a) * rr;
+
+    // CUERPO con bumps sutiles en la membrana
+    var bodyGrad = ctx.createRadialGradient(-R * 0.3, -R * 0.3, R * 0.2, 0, 0, R);
+    bodyGrad.addColorStop(0, "#d6e6fb");
+    bodyGrad.addColorStop(0.6, t.def.color);
+    bodyGrad.addColorStop(1, t.def.colorDark);
+    ctx.fillStyle = bodyGrad;
+    var nBumps = 14;
+    ctx.beginPath();
+    for (var i = 0; i <= nBumps; i++) {
+      var bAng = (i / nBumps) * Math.PI * 2;
+      var bump = 1 + Math.sin(bAng * 5 + time * 0.4) * 0.05;
+      var px = Math.cos(bAng) * R * bump;
+      var py = Math.sin(bAng) * R * bump;
       if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
     }
-    ctx.closePath(); ctx.fill();
-    ctx.strokeStyle = t.def.colorDark; ctx.lineWidth = Math.max(1.2, 1.5 * U); ctx.stroke();
-    for (var g = 0; g < 12; g++) { var ga = g * 0.66; var gd = R * (0.28 + 0.42 * ((g % 4) / 3)); ctx.fillStyle = "rgba(255,255,255,0.5)"; ctx.beginPath(); ctx.arc(Math.cos(ga) * gd, Math.sin(ga) * gd, R * 0.085, 0, Math.PI * 2); ctx.fill(); }
-    towerFace(R, expression, blink, "neutral", "neutral");   // alerta/tranquilo
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = t.def.colorDark;
+    ctx.lineWidth = Math.max(1.3, 1.5 * U);
+    ctx.stroke();
+
+    // NÚCLEO redondo central pequeño (signature de mastocito)
+    var nucR = R * 0.23;
+    var nucGrad = ctx.createRadialGradient(-nucR * 0.3, -nucR * 0.3, 0, 0, 0, nucR);
+    nucGrad.addColorStop(0, "rgba(120, 70, 160, 0.95)");
+    nucGrad.addColorStop(1, "rgba(70, 30, 110, 0.95)");
+    ctx.fillStyle = nucGrad;
+    ctx.beginPath();
+    ctx.arc(0, 0, nucR, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "rgba(50, 20, 80, 0.65)";
+    ctx.lineWidth = 0.9 * U;
+    ctx.stroke();
+
+    // GRÁNULOS BASOFÍLICOS DENSOS — histamina + heparina + triptasa
+    // SIGNATURE: muchos gránulos violeta intenso uniformemente distribuidos
+    var nGran = 24;
+    for (var g = 0; g < nGran; g++) {
+      var ga = (g * 137.5 * Math.PI / 180) % (Math.PI * 2);
+      var gdMin = nucR * 1.6, gdMax = R * 0.78;
+      var gd = gdMin + (((g * 13) % 100) / 100) * (gdMax - gdMin);
+      var gx = Math.cos(ga) * gd;
+      var gy = Math.sin(ga) * gd;
+      var gSize = R * 0.07 + ((g * 17) % 10) / 10 * R * 0.025;
+      var gPulse = 0.5 + 0.5 * Math.sin(time * 2.2 + g * 0.7);
+      // Gránulo con gradiente para volumen
+      var gGrad = ctx.createRadialGradient(gx - gSize * 0.3, gy - gSize * 0.3, 0, gx, gy, gSize);
+      gGrad.addColorStop(0, "rgba(180, 130, 220, " + (0.85 + gPulse * 0.10) + ")");
+      gGrad.addColorStop(1, "rgba(90, 40, 130, 0.85)");
+      ctx.fillStyle = gGrad;
+      ctx.beginPath();
+      ctx.arc(gx, gy, gSize, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Cara — alerta, lista para desgranular
+    var faceY = -R * 0.62;
+    var eyeR = R * 0.13;
+    if (blink) drawClosedEyes(0, faceY, eyeR, R * 0.18);
+    else if (expression === "dying") drawHurtEyes(0, faceY, eyeR, R * 0.18);
+    else if (expression === "levelup") drawSparkleEyes(0, faceY, eyeR, R * 0.18);
+    else drawAnimeEyes(0, faceY, eyeR, R * 0.18, 0, 0, R * 0.10, R * 0.04, "happy");
+    drawAnimeMouth(0, faceY + R * 0.20, R * 0.32, R * 0.15, attacking ? "open" : "smile");
     ctx.restore();
   }
 

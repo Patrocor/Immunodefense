@@ -2949,13 +2949,27 @@
   // defiende; el primer germen que cruza una puerta define el escenario de
   // Fase 2. Diseñado para que el ATP/slots NO alcancen los 5 carriles.
   // 3 carriles: la TRIADA HEMATÓGENA CLÁSICA de S. aureus desde piel.
-  // Quitados pulmón (no se siembra hematógenamente desde piel — émbolos
-  // pulmonares son F3 desde endocarditis) y sangre (ya estamos en sangre).
+  // Quitados pulmón (no es destino primario hematógeno desde piel) y sangre
+  // (ya estamos en sangre). El órgano "ganador" (que llene su carga
+  // primero) determina qué Fase 2 se desbloquea en el world-map.
   var DISSEMINATION_ORGANS = [
     { id: "corazon",      label: "CORAZÓN",      scenario: "Endocarditis",      color: "#c1416a", tint: "rgba(193, 65, 106, 0.10)" },
     { id: "hueso",        label: "HUESO",        scenario: "Osteomielitis",     color: "#d8c89a", tint: "rgba(216, 200, 154, 0.10)" },
     { id: "articulacion", label: "ARTICULACIÓN", scenario: "Artritis séptica",  color: "#8ec5d0", tint: "rgba(142, 197, 208, 0.10)" }
   ];
+  // Mapping organ → F2 node key del world-map. Cuando un órgano se llena,
+  // su F2 correspondiente se desbloquea como next.
+  var ORGAN_TO_F2 = {
+    corazon:      "endocarditis",
+    hueso:        "osteomielitis",
+    articulacion: "artritis"
+  };
+  // Subtítulo dramático según el F2 desbloqueado.
+  var F2_SUBTITLE = {
+    endocarditis:  "El corazón comprometido — endocarditis en marcha",
+    osteomielitis: "El hueso atacado — osteomielitis hematógena",
+    artritis:      "Las articulaciones tomadas — artritis séptica"
+  };
 
   // 3 oleadas in crescendo. La curva es gradual: la primera deja margen
   // para construir defensa; la última es avalancha. Velocidad ya está al
@@ -3162,6 +3176,7 @@
       paused: false,                    // pausa via botón ⏸ — bloquea update loop
       loadout: { towers: [], tanks: [], barriers: [] },  // selección 5+2+1 del Dex
       loadoutEditing: false,            // true cuando se abre Dex con pausa para editar
+      unlockedF2: null,                 // qué complicación se desbloqueó tras diseminación
       pathInflammation: [],             // marks where enemies recently passed
       bossActive: null,                 // ref to current boss enemy (if alive)
       showTitle: true,                  // pantalla de título del juego
@@ -19013,23 +19028,32 @@
     }
     if (state.disseminationIntroTimer > 0) state.disseminationIntroTimer -= dt;
     // Hero level encolado: cuenta atrás y dispara cuando el delay llega a 0.
-    // Antes: enterHeroLevel directo. Ahora: pasa por el mapa-mundo (fork
-    // se abre revelando 5 complicaciones posibles + H_F1 chooseable).
+    // El órgano GANADOR de la diseminación determina qué F2 se desbloquea.
     if (state.pendingHeroLevel) {
       state.pendingHeroLevel.delay -= dt;
       if (state.pendingHeroLevel.delay <= 0) {
         var pending = state.pendingHeroLevel;
         state.pendingHeroLevel = null;
         state.heroLevelPlayed = state.heroLevelPlayed || {};
+        // Determinar qué F2 se desbloquea según el órgano ganador.
+        // Si por algún motivo no hubo ganador (edge case), default a endocarditis.
+        var winningOrgan = (state.disseminationOver && state.disseminationOver.organ)
+          ? state.disseminationOver.organ.id
+          : "corazon";
+        var unlockedF2 = ORGAN_TO_F2[winningOrgan] || "endocarditis";
+        var f2Subtitle = F2_SUBTITLE[unlockedF2] || "";
+        // Persistir el F2 desbloqueado (para futuras transiciones).
+        state.unlockedF2 = unlockedF2;
         enterBodyMap({
           currentNode: "dissem",
-          // Por ahora solo h_fase1 está implementado. Las 5 complicaciones
-          // germ quedan en "possible" gris hasta que se implementen como
-          // fases reales. Cuando esté listo: ["endocarditis", "h_fase1"].
-          availableNodes: ["h_fase1"],
+          // F2 desbloqueado por el órgano que cayó + H_F1 hero. Player elige
+          // qué jugar primero. Las otras 2 complicaciones quedan en gris.
+          availableNodes: [unlockedF2, "h_fase1"],
           forkOpen: true,
           title: "DISEMINACIÓN COMPLETA",
-          subtitle: "Los héroes alcanzan los escombros · 5 complicaciones aún posibles",
+          subtitle: f2Subtitle + " · héroes pueden empezar por la piel",
+          // Por ahora F2 TD no implementado: CONTINUAR siempre va a H_F1.
+          // Cuando F2 esté listo, el tap-on-node permitirá elegir.
           onContinue: function () {
             state.heroLevelPlayed[pending.organ] = true;
             enterHeroLevel(pending.organ);

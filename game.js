@@ -315,9 +315,11 @@
     // notch/esquina redondeada del lado derecho.
     // Dock compacto pero LEGIBLE — el ancho permite cards de ~52-65px
     // con contenido contenido (nombre + ícono + costo).
+    // Dock un poco más amplio para mostrar más torres y dar espacio
+    // al card strip hasta tocar (apenas) la cartilla de NETosis.
     SIDE_INNER = isPortrait
-      ? Math.round(Math.max(62, Math.min(78, VW * 0.165)))
-      : Math.round(Math.max(60, Math.min(82, VW * 0.085)));
+      ? Math.round(Math.max(78, Math.min(96, VW * 0.21)))
+      : Math.round(Math.max(72, Math.min(98, VW * 0.10)));
     SIDE_W = SIDE_INNER + safeRight;
     HUD_H = Math.round(hudBase + safeTop);
     PANEL_H = 0;  // legacy: ya no hay franja inferior
@@ -3336,7 +3338,9 @@
     // Cartilla por GRUPOS DESPLEGABLES: cada categoría (cabecera) se abre/cierra
     // de forma independiente. Sin abrir, solo se ven las cabeceras (no satura).
     var stripTop = dockTop + compBtnH + 6;
-    var stripRegionH = Math.max(0, (infoY - dockPad - responsesReservedH) - stripTop);
+    // infoY ya tiene restado responsesReservedH (línea más arriba). El strip
+    // llega hasta infoY menos un padding mínimo — más espacio para torres.
+    var stripRegionH = Math.max(0, (infoY - dockPad) - stripTop);
     var headerH = 28, groupSpacing = 6;
     // Cartas verticales: nombre arriba, ícono al medio, costo abajo.
     // Altura ajustada para que los 3 elementos respiren.
@@ -9089,6 +9093,11 @@
         for (var ci = 0; ci < UI.compendiumCards.length; ci++) {
           var card = UI.compendiumCards[ci];
           if (inRect(x, y, card)) {
+            // Limpiar el badge "nuevo" SIEMPRE que se toque la card
+            // (sea en modo loadout o en modo detalle).
+            if (state.dexNew && state.dexNew[card.typeId]) {
+              delete state.dexNew[card.typeId];
+            }
             if (state.loadoutEditing && !card.locked && card.typeId !== "macrofagoLibre") {
               var result = toggleLoadout(card.typeId);
               if (result === "full") {
@@ -9102,10 +9111,6 @@
               return;
             }
             state.compendiumSelected = card.typeId;
-            // Si era "nuevo", marcar como visto (limpia el badge).
-            if (state.dexNew && state.dexNew[card.typeId]) {
-              delete state.dexNew[card.typeId];
-            }
             return;
           }
         }
@@ -9169,30 +9174,52 @@
         if (x >= rc.x && x <= rc.x + rc.w &&
             y >= rc.y && y <= rc.y + rc.h) {
           var def = RESPONSE_DEFS[rc.key];
-          if (state.antigens.count < def.cost) return;
-          state.armedResponse = (state.armedResponse === rc.key) ? null : rc.key;
+          if (state.antigens.count < def.cost) {
+            flashFail();
+            showMsg("NETosis: necesitás " + def.cost + " antígenos");
+            return;
+          }
+          // Toggle armed state — feedback inmediato
+          var wasArmed = (state.armedResponse === rc.key);
+          state.armedResponse = wasArmed ? null : rc.key;
+          if (!wasArmed) {
+            showMsg("NETosis ARMADA · Toca un carril");
+            sfx("tick");
+          } else {
+            showMsg("NETosis desarmada");
+          }
           return;
         }
       }
     }
-    // Respuesta armada: tap en un carril para detonar NETosis.
-    if (state.armedResponse && state.dissemination) {
+    // Respuesta armada: tap en CUALQUIER PUNTO del carril detona la NETosis.
+    // El NET se spawna en el punto del carril donde el dedo tocó, no
+    // forzosamente en la puerta del órgano.
+    if (state.armedResponse && state.dissemination && x < FIELD_RIGHT) {
       var lane = laneAt(x);
       var type = state.armedResponse;
       var def2 = RESPONSE_DEFS[type];
       if (hasResponseInLaneAny(lane)) {
         showMsg("Ya hay una NET en este carril");
+        flashFail();
         state.armedResponse = null;
         return;
       }
       if (state.antigens.count < def2.cost) {
+        flashFail();
+        showMsg("Antígenos insuficientes");
         state.armedResponse = null;
         return;
       }
-      var laneX = PATH.organDoors ? PATH.organDoors[lane].x : x;
-      var laneY = y;
+      // Posicionar NET en el carril sobre el que se tocó (X del carril,
+      // Y del tap). Esto da control al jugador para elegir DÓNDE en el
+      // carril activar la NET.
+      var laneX = (PATH.laneXs && PATH.laneXs[lane])
+        ? FIELD_LEFT + PATH.laneXs[lane] * FIELD_W
+        : x;
+      var clampedY = Math.max(FIELD_TOP + 20, Math.min(FIELD_BOTTOM - 20, y));
       state.antigens.count -= def2.cost;
-      spawnNet(laneX, laneY);
+      spawnNet(laneX, clampedY);
       state.armedResponse = null;
       sfx("upgrade");
       return;
@@ -11681,119 +11708,103 @@
   // EOSINÓFILO — cuerpo BILOBULADO (cacahuate) repleto de gránulos rojos (agresivo).
   function drawEosinofilo(t, pulse, expression, blink) {
     // Eosinófilo — granulocito anti-parasitario. Biología:
-    //  · NÚCLEO BILOBULADO en forma de "audífonos" (2 lóbulos conectados)
-    //  · GRÁNULOS EOSINOFÍLICOS GIGANTES de color coral/rojo (signature)
-    //    — contienen MBP (Proteína Básica Mayor), tóxica para parásitos
-    //  · Membrana lisa, redonda
-    var R = 17 * U * pulse;
+    //  · CUERPO BILOBULADO (2 esferas conectadas como cacahuete/audífonos)
+    //  · GRÁNULOS EOSINOFÍLICOS GIGANTES de color coral en ambos lóbulos
+    //  · 2 antenas/sensores anti-parásitos
+    var R = 15 * U * pulse;
+    var off = R * 0.55;          // separación de los 2 lóbulos
     var time = state.time;
     var attacking = (expression === "attacking");
     ctx.save();
     ctx.translate(t.x, t.y);
 
-    // CUERPO redondo coral pálido
-    var bodyGrad = ctx.createRadialGradient(-R * 0.3, -R * 0.3, R * 0.2, 0, 0, R);
-    bodyGrad.addColorStop(0, "#ffe5d4");
-    bodyGrad.addColorStop(0.6, t.def.color);
-    bodyGrad.addColorStop(1, t.def.colorDark);
-    ctx.fillStyle = bodyGrad;
-    ctx.beginPath();
-    ctx.arc(0, 0, R, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = t.def.colorDark;
-    ctx.lineWidth = Math.max(1.3, 1.6 * U);
-    ctx.stroke();
-
-    // NÚCLEO BILOBULADO — 2 lóbulos en forma de "audífonos"
-    var lobeR = R * 0.26;
-    var lobeOff = R * 0.24;
-    var lobeY = R * 0.12;
-    var nucColor = "rgba(90, 40, 100, 0.90)";
-    var nucEdge = "rgba(50, 20, 70, 0.85)";
-    // Conexión cromatina central (puente entre lóbulos)
-    ctx.strokeStyle = nucColor;
-    ctx.lineWidth = 2.2 * U;
-    ctx.lineCap = "round";
-    ctx.beginPath();
-    ctx.moveTo(-lobeOff, lobeY);
-    ctx.lineTo(lobeOff, lobeY);
-    ctx.stroke();
-    // Lóbulos
-    for (var lo = -1; lo <= 1; lo += 2) {
-      ctx.fillStyle = nucColor;
+    // CUERPO BILOBULADO — 2 esferas coral conectadas
+    function drawLobe(cxp) {
+      var bodyGrad = ctx.createRadialGradient(cxp - R * 0.3, -R * 0.3, R * 0.2, cxp, 0, R);
+      bodyGrad.addColorStop(0, "#ffe5d4");
+      bodyGrad.addColorStop(0.6, t.def.color);
+      bodyGrad.addColorStop(1, t.def.colorDark);
+      ctx.fillStyle = bodyGrad;
       ctx.beginPath();
-      ctx.arc(lo * lobeOff, lobeY, lobeR, 0, Math.PI * 2);
+      ctx.arc(cxp, 0, R, 0, Math.PI * 2);
       ctx.fill();
-      ctx.strokeStyle = nucEdge;
-      ctx.lineWidth = 0.9 * U;
+      ctx.strokeStyle = t.def.colorDark;
+      ctx.lineWidth = Math.max(1.3, 1.6 * U);
       ctx.stroke();
     }
+    drawLobe(-off);
+    drawLobe(off);
 
-    // GRÁNULOS EOSINOFÍLICOS GIGANTES (signature)
-    // Color coral intenso, tamaño grande, packed densamente.
-    var nGran = 9;
-    for (var g = 0; g < nGran; g++) {
-      var ga = (g * 137.5 * Math.PI / 180 + time * 0.06) % (Math.PI * 2);
-      var gd = R * (0.50 + (g % 3) * 0.12);
-      var gx = Math.cos(ga) * gd;
-      var gy = Math.sin(ga) * gd * 0.85 + R * 0.06;
-      // Skip si choca con los lóbulos del núcleo
-      var dL = Math.hypot(gx + lobeOff, gy - lobeY);
-      var dR = Math.hypot(gx - lobeOff, gy - lobeY);
-      if (dL < lobeR + R * 0.08 || dR < lobeR + R * 0.08) continue;
-      var gSize = R * (0.12 + Math.sin(time * 1.5 + g) * 0.012);
-      // Gránulo coral con highlight
-      var granGrad = ctx.createRadialGradient(gx - gSize * 0.3, gy - gSize * 0.3, 0, gx, gy, gSize);
-      granGrad.addColorStop(0, "rgba(255, 180, 150, 0.95)");
-      granGrad.addColorStop(0.6, "rgba(240, 110, 80, 0.92)");
-      granGrad.addColorStop(1, "rgba(180, 60, 40, 0.88)");
-      ctx.fillStyle = granGrad;
-      ctx.beginPath();
-      ctx.arc(gx, gy, gSize, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = "rgba(120, 40, 30, 0.50)";
-      ctx.lineWidth = 0.8 * U;
-      ctx.stroke();
+    // PUENTE entre los 2 lóbulos (citoplasma conectado) — banda coral entre
+    // los lóbulos para que se vea como un solo organismo bilobulado.
+    var bridgeH = R * 0.55;
+    var bridgeGrad = ctx.createLinearGradient(0, -bridgeH / 2, 0, bridgeH / 2);
+    bridgeGrad.addColorStop(0, t.def.colorDark);
+    bridgeGrad.addColorStop(0.5, t.def.color);
+    bridgeGrad.addColorStop(1, t.def.colorDark);
+    ctx.fillStyle = bridgeGrad;
+    ctx.fillRect(-off, -bridgeH / 2, off * 2, bridgeH);
+
+    // GRÁNULOS EOSINOFÍLICOS GIGANTES en CADA lóbulo (signature)
+    for (var lobeS = -1; lobeS <= 1; lobeS += 2) {
+      var lobeCx = lobeS * off;
+      var nGran = 5;
+      for (var g = 0; g < nGran; g++) {
+        var ga = (g * 137.5 * Math.PI / 180 + time * 0.06 + lobeS) % (Math.PI * 2);
+        var gd = R * (0.42 + (g % 2) * 0.18);
+        var gx = lobeCx + Math.cos(ga) * gd;
+        var gy = Math.sin(ga) * gd;
+        var gSize = R * 0.14;
+        // Gránulo coral con gradiente para volumen
+        var granGrad = ctx.createRadialGradient(gx - gSize * 0.3, gy - gSize * 0.3, 0, gx, gy, gSize);
+        granGrad.addColorStop(0, "rgba(255, 180, 150, 0.95)");
+        granGrad.addColorStop(0.6, "rgba(240, 110, 80, 0.92)");
+        granGrad.addColorStop(1, "rgba(180, 60, 40, 0.88)");
+        ctx.fillStyle = granGrad;
+        ctx.beginPath();
+        ctx.arc(gx, gy, gSize, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = "rgba(120, 40, 30, 0.50)";
+        ctx.lineWidth = 0.8 * U;
+        ctx.stroke();
+      }
     }
 
-    // 2 ANTENAS/CUERNOS arriba — sensores anti-parásitos (signature
-    // visual del cazador eosinofílico). Pulsan sutilmente.
+    // 2 ANTENAS/CUERNOS arriba — sensores anti-parásitos en cada lóbulo
     var antPulse = Math.sin(time * 2) * 0.05;
-    var antBase = R * 0.65;
-    var antTip = R * 1.10 * (1 + antPulse);
+    var antTip = R * 0.85 * (1 + antPulse);
     ctx.strokeStyle = t.def.colorDark;
-    ctx.lineWidth = Math.max(1.5, 1.9 * U);
+    ctx.lineWidth = Math.max(1.4, 1.8 * U);
     ctx.lineCap = "round";
     for (var ant = -1; ant <= 1; ant += 2) {
-      var antAngle = -Math.PI / 2 + ant * 0.35;
-      var antX1 = Math.cos(antAngle) * R * 0.45;
-      var antY1 = Math.sin(antAngle) * R * 0.45;
-      var antX2 = Math.cos(antAngle) * antTip;
-      var antY2 = Math.sin(antAngle) * antTip;
+      var antBaseX = ant * off;
+      var antBaseY = -R * 0.55;
+      var antTipX = antBaseX + ant * R * 0.25;
+      var antTipY = antBaseY - antTip;
       ctx.beginPath();
-      ctx.moveTo(antX1, antY1);
-      ctx.lineTo(antX2, antY2);
+      ctx.moveTo(antBaseX, antBaseY);
+      ctx.lineTo(antTipX, antTipY);
       ctx.stroke();
-      // Pelotita roja al final (sensor activo)
       ctx.fillStyle = "rgba(240, 110, 80, 0.95)";
       ctx.beginPath();
-      ctx.arc(antX2, antY2, R * 0.10, 0, Math.PI * 2);
+      ctx.arc(antTipX, antTipY, R * 0.10, 0, Math.PI * 2);
       ctx.fill();
       ctx.strokeStyle = "rgba(120, 40, 30, 0.65)";
       ctx.lineWidth = 0.8 * U;
       ctx.stroke();
       ctx.strokeStyle = t.def.colorDark;
-      ctx.lineWidth = Math.max(1.5, 1.9 * U);
+      ctx.lineWidth = Math.max(1.4, 1.8 * U);
     }
 
-    // Cara — feroz anti-parásito (parte superior del cuerpo)
-    var faceY = -R * 0.50;
-    var eyeR = R * 0.14;
-    if (blink) drawClosedEyes(0, faceY, eyeR, R * 0.20);
-    else if (expression === "dying") drawHurtEyes(0, faceY, eyeR, R * 0.20);
-    else if (expression === "levelup") drawSparkleEyes(0, faceY, eyeR, R * 0.20);
-    else drawAnimeEyes(0, faceY, eyeR, R * 0.20, 0, 0, R * 0.10, R * 0.04, "fierce");
-    drawAnimeMouth(0, faceY + R * 0.22, R * 0.34, R * 0.16, attacking ? "fanged" : "serious");
+    // CARA — entre los 2 lóbulos (en el puente)
+    var faceY = -R * 0.05;
+    var eyeR = R * 0.18;
+    var eyeGap = off * 0.55;
+    if (blink) drawClosedEyes(0, faceY, eyeR, eyeGap);
+    else if (expression === "dying") drawHurtEyes(0, faceY, eyeR, eyeGap);
+    else if (expression === "levelup") drawSparkleEyes(0, faceY, eyeR, eyeGap);
+    else drawAnimeEyes(0, faceY, eyeR, eyeGap, 0, 0, R * 0.14, R * 0.05, "fierce");
+    drawAnimeMouth(0, faceY + R * 0.34, R * 0.32, R * 0.16, attacking ? "fanged" : "serious");
     ctx.restore();
   }
 

@@ -1166,46 +1166,61 @@
     bossPrimordial:{ id: "bossPrimordial",name: "Patogeno Primordial", baseKind: "primordial",color: "#2A2424", colorDark: "#0a0606", radius: 45, speedMult: 0.50, hp: 1500, reward: 150, viralAdd: 35, isBoss: true, shield: null }
   };
 
-  // Wave 1: only bacteria. Wave 2: bacteria + virus. Wave 3+: all 3 types.
-  // Wave 8: BOSS + escorts.
+  // Cada oleada INTRODUCE un patógeno cutáneo específico, con progresión
+  // pedagógica clara: el jugador aprende un mecanismo nuevo por ola.
+  //
+  //  W1: S. epidermidis (intro: rápido, débil, sin escudo)
+  //  W2: + S. aureus (intro: cápsula → necesita anticuerpos)
+  //  W3: + HSV (intro: virus rápido)
+  //  W4: + C. acnes (intro: anaerobio tough con shield wall)
+  //  W5: + Candida (intro: hongo, ataque catapult, wall shield)
+  //  W6: + Dermatofito (intro: spores hijas) + Pseudomonas (spray + seekers)
+  //  W7: BOSS pyogenes intermedio (cápsula regen)
+  //  W8: BOSS MRSA final + escolta variada (climax — diseminación inevitable)
   var WAVES = [
     { groups: [
-      { type: "bacteria", count: 8, interval: 1.4 }
+      { type: "sepidermidis", count: 8, interval: 1.4 }
     ], hpMult: 1.0 },
     { groups: [
-      { type: "bacteria", count: 6, interval: 1.3 },
-      { type: "virus",    count: 6, interval: 0.7 }
+      { type: "sepidermidis", count: 6, interval: 1.3 },
+      { type: "saureus",      count: 3, interval: 1.6 }
     ], hpMult: 1.0 },
     { groups: [
-      { type: "bacteria", count: 5, interval: 1.3 },
-      { type: "virus",    count: 6, interval: 0.6 },
-      { type: "hongo",    count: 4, interval: 1.0 }
+      { type: "sepidermidis", count: 4, interval: 1.3 },
+      { type: "saureus",      count: 3, interval: 1.5 },
+      { type: "hsv",          count: 6, interval: 0.7 }
     ], hpMult: 1.05 },
     { groups: [
-      { type: "virus",    count: 10, interval: 0.55 },
-      { type: "hongo",    count:  6, interval: 0.9  },
-      { type: "bacteria", count:  4, interval: 1.3  }
+      { type: "saureus", count: 4, interval: 1.4 },
+      { type: "hsv",     count: 6, interval: 0.65 },
+      { type: "cacnes",  count: 4, interval: 1.2 }
     ], hpMult: 1.10 },
     { groups: [
-      { type: "hongo",    count: 10, interval: 0.85 },
-      { type: "bacteria", count:  6, interval: 1.20 },
-      { type: "virus",    count:  8, interval: 0.50 }
+      { type: "saureus", count: 4, interval: 1.3 },
+      { type: "hsv",     count: 7, interval: 0.55 },
+      { type: "cacnes",  count: 3, interval: 1.2 },
+      { type: "candida", count: 3, interval: 1.0 }
     ], hpMult: 1.15 },
     { groups: [
-      { type: "bacteria", count:  8, interval: 1.10 },
-      { type: "virus",    count: 12, interval: 0.45 },
-      { type: "hongo",    count:  8, interval: 0.85 }
+      { type: "saureus",     count: 5, interval: 1.2 },
+      { type: "hsv",         count: 8, interval: 0.55 },
+      { type: "candida",     count: 3, interval: 1.0 },
+      { type: "dermatofito", count: 3, interval: 1.2 },
+      { type: "pseudomonas", count: 2, interval: 1.6 }
     ], hpMult: 1.25 },
     { groups: [
-      { type: "hongo",    count: 14, interval: 0.7 },
-      { type: "virus",    count: 14, interval: 0.4 },
-      { type: "bacteria", count:  8, interval: 1.0 }
+      { type: "saureus",      count: 6, interval: 1.0 },
+      { type: "hsv",          count: 10, interval: 0.5 },
+      { type: "pseudomonas",  count: 3, interval: 1.3 },
+      { type: "candida",      count: 3, interval: 1.0 },
+      { type: "bossPyogenes", count: 1, interval: 0 }
     ], hpMult: 1.35 },
     { groups: [
-      { type: "bacteria", count:  6, interval: 1.0 },
-      { type: "virus",    count: 10, interval: 0.5 },
-      { type: "boss",     count:  1, interval: 0.0 },
-      { type: "hongo",    count:  6, interval: 0.9 }
+      { type: "saureus",      count: 5, interval: 1.0 },
+      { type: "sepidermidis", count: 6, interval: 1.0 },
+      { type: "pseudomonas",  count: 4, interval: 1.0 },
+      { type: "hsv",          count: 10, interval: 0.45 },
+      { type: "bossMRSA",     count: 1, interval: 0 }
     ], hpMult: 1.5 }
   ];
 

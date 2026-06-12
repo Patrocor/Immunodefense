@@ -4660,12 +4660,14 @@
   // Dispara una BALA GORDA Y (perforante) desde uno de los cañones del
   // Linfocito B durante el ultimate. side = "left" | "right".
   // Sin spread — dirección estable hacia el path locked.
-  function spawnAntibodyBeam(t, side) {
+  // backwards = true: dispara en sentido OPUESTO (hacia atrás de la torre).
+  function spawnAntibodyBeam(t, side, backwards) {
     var aim = t.cannonTarget;
     if (!aim) return;
     var aimX = aim.x - t.x, aimY = aim.y - t.y;
     var aimLen = Math.hypot(aimX, aimY) || 1;
     var nx = aimX / aimLen, ny = aimY / aimLen;
+    if (backwards) { nx = -nx; ny = -ny; }    // invertir dirección
     var perpX = -ny, perpY = nx;
     var sign = (side === "left") ? -1 : 1;
     var R_ult = 26 * U;             // body inflated approx
@@ -5197,14 +5199,19 @@
       }
       if ((t.specialAnim || 0) > 0) t.specialAnim -= dt;
       // Linfocito B ultimate: cañones disparan rayos continuos mientras
-      // dure specialAnim. ~16 disparos/s por cañón (alternando).
+      // dure specialAnim. ~16 disparos/s por cañón × 4 cañones (2 al frente +
+      // 2 atrás) = cobertura 360° estilo "tanque de balas".
       if (t.def.id === "linfocitoB" && (t.specialAnim || 0) > 0 && t.cannonTarget) {
         if ((t.cannonRecoil || 0) > 0) t.cannonRecoil -= dt;
         t.cannonFireT = (t.cannonFireT || 0) - dt;
         if (t.cannonFireT <= 0) {
           t.cannonFireT = 0.06;
-          spawnAntibodyBeam(t, "left");
-          spawnAntibodyBeam(t, "right");
+          // 2 cañones hacia el target (frente)
+          spawnAntibodyBeam(t, "left",  false);
+          spawnAntibodyBeam(t, "right", false);
+          // 2 cañones hacia atrás (rango razonable detrás de la torre)
+          spawnAntibodyBeam(t, "left",  true);
+          spawnAntibodyBeam(t, "right", true);
         }
       }
       // NK ultimate: frenesí citotóxico — gira rápido y dispara
@@ -6640,37 +6647,58 @@
     var frac = e.medFxTimer / e.medFxMax;                     // 1 -> 0
     var t = state.time;
     if (e.medFxId === "ralentizador") {
-      // 3 anillos azules concéntricos pulsantes alrededor del germen +
-      // ícono "Zzz" microscópico flotando arriba.
+      // 4 anillos azules concéntricos MÁS GRUESOS + halo azul + Zzz grande
       ctx.save();
+      // Halo radial azul tenue de fondo (multiplicador visual)
+      var haloR = rad * 2.4;
+      var haloGrad = ctx.createRadialGradient(e.x, e.y, rad * 0.5, e.x, e.y, haloR);
+      haloGrad.addColorStop(0, "rgba(91, 141, 239, " + (0.45 * frac) + ")");
+      haloGrad.addColorStop(1, "rgba(91, 141, 239, 0)");
+      ctx.fillStyle = haloGrad;
+      ctx.beginPath(); ctx.arc(e.x, e.y, haloR, 0, Math.PI * 2); ctx.fill();
+      // 4 anillos concéntricos (era 3) con líneas más gruesas
       ctx.strokeStyle = "#5B8DEF";
-      for (var i = 0; i < 3; i++) {
-        var phase = (t * 1.5 + i * 0.33) % 1;                // 0..1
-        var r = rad * (1.2 + phase * 1.1);
-        var a = (1 - phase) * 0.65 * frac;
+      for (var i = 0; i < 4; i++) {
+        var phase = (t * 1.5 + i * 0.25) % 1;
+        var r = rad * (1.1 + phase * 1.35);
+        var a = (1 - phase) * 0.85 * frac;
         ctx.globalAlpha = a;
-        ctx.lineWidth = 2;
+        ctx.lineWidth = 3.5;        // era 2
         ctx.beginPath(); ctx.arc(e.x, e.y, r, 0, Math.PI * 2); ctx.stroke();
       }
-      // Zzz arriba del germen
-      ctx.globalAlpha = 0.85 * frac;
-      ctx.fillStyle = "#5B8DEF";
-      ctx.font = "bold " + Math.floor(11 * U) + "px Fredoka, sans-serif";
+      // Zzz más grande
+      ctx.globalAlpha = 0.95 * frac;
+      ctx.fillStyle = "#9bb8ff";
+      ctx.strokeStyle = "#2a4a8a";
+      ctx.lineWidth = 2;
+      ctx.font = "bold " + Math.floor(15 * U) + "px Fredoka, sans-serif";
       ctx.textAlign = "left"; ctx.textBaseline = "middle";
-      var zzY = e.y - rad - 8 * U - Math.sin(t * 4) * 2;
+      var zzY = e.y - rad - 10 * U - Math.sin(t * 4) * 3;
+      ctx.strokeText("Zz", e.x + rad * 0.3, zzY);
       ctx.fillText("Zz", e.x + rad * 0.3, zzY);
       ctx.restore();
       return;
     }
     if (e.medFxId === "paralizante") {
-      // Jaula hexagonal turquesa rotando lento alrededor del germen + chispitas.
+      // Jaula hex MÁS GRANDE + GROSOR + glow turquesa + chispitas dobles
+      ctx.save();
+      // Halo turquesa radial
+      var phR = rad * 2.6;
+      var phGrad = ctx.createRadialGradient(e.x, e.y, rad * 0.5, e.x, e.y, phR);
+      phGrad.addColorStop(0, "rgba(63, 200, 224, " + (0.40 * frac) + ")");
+      phGrad.addColorStop(1, "rgba(63, 200, 224, 0)");
+      ctx.fillStyle = phGrad;
+      ctx.beginPath(); ctx.arc(e.x, e.y, phR, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
       ctx.save();
       ctx.translate(e.x, e.y);
       ctx.rotate(t * 0.8);
+      ctx.shadowColor = "#3FC8E0";
+      ctx.shadowBlur = 8;
       ctx.strokeStyle = "#3FC8E0";
-      ctx.lineWidth = 2.2;
-      ctx.globalAlpha = 0.85 * frac;
-      var hexR = rad * 1.55;
+      ctx.lineWidth = 4;            // era 2.2
+      ctx.globalAlpha = 0.95 * frac;
+      var hexR = rad * 1.80;        // era 1.55
       ctx.beginPath();
       for (var h = 0; h < 6; h++) {
         var ang = h * Math.PI / 3;
@@ -6680,45 +6708,69 @@
       }
       ctx.closePath();
       ctx.stroke();
-      // Pequeños "candados" en cada vértice del hexágono
-      ctx.fillStyle = "#3FC8E0";
-      ctx.globalAlpha = 0.90 * frac;
+      ctx.shadowBlur = 0;
+      // Candados MÁS grandes en cada vértice
+      ctx.fillStyle = "#7ce3f5";
+      ctx.globalAlpha = 1 * frac;
       for (var h2 = 0; h2 < 6; h2++) {
         var ang2 = h2 * Math.PI / 3;
         ctx.beginPath();
-        ctx.arc(Math.cos(ang2) * hexR, Math.sin(ang2) * hexR, 2.5 * U, 0, Math.PI * 2);
+        ctx.arc(Math.cos(ang2) * hexR, Math.sin(ang2) * hexR, 4.2 * U, 0, Math.PI * 2);
         ctx.fill();
+        ctx.strokeStyle = "#1a6a8a";
+        ctx.lineWidth = 1.2;
+        ctx.stroke();
       }
       ctx.restore();
-      // Chispitas afuera (no rotan, frame-independientes)
+      // Chispitas afuera (más + más grandes)
       ctx.save();
       ctx.fillStyle = "#a4f0ff";
-      ctx.globalAlpha = 0.85 * frac;
-      for (var s = 0; s < 5; s++) {
-        var sang = (t * 3 + s * 1.257) % (Math.PI * 2);
-        var sr = rad * (1.7 + Math.sin(t * 5 + s) * 0.2);
+      ctx.globalAlpha = 0.95 * frac;
+      for (var s = 0; s < 8; s++) {
+        var sang = (t * 3 + s * 0.785) % (Math.PI * 2);
+        var sr = rad * (1.95 + Math.sin(t * 5 + s) * 0.25);
         var sx = e.x + Math.cos(sang) * sr;
         var sy = e.y + Math.sin(sang) * sr;
-        ctx.beginPath(); ctx.arc(sx, sy, 1.5 * U, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(sx, sy, 2.5 * U, 0, Math.PI * 2); ctx.fill();
       }
       ctx.restore();
       return;
     }
     if (e.medFxId === "disolvente") {
-      // Partículas magenta orbitando rápido + crackle sobre el escudo si lo tiene.
+      // Partículas magenta MÁS GRANDES + halo + crackle
       ctx.save();
+      // Halo magenta de fondo
+      var doR = rad * 2.4;
+      var doGrad = ctx.createRadialGradient(e.x, e.y, rad * 0.5, e.x, e.y, doR);
+      doGrad.addColorStop(0, "rgba(224, 85, 200, " + (0.45 * frac) + ")");
+      doGrad.addColorStop(1, "rgba(224, 85, 200, 0)");
+      ctx.fillStyle = doGrad;
+      ctx.beginPath(); ctx.arc(e.x, e.y, doR, 0, Math.PI * 2); ctx.fill();
+      // 12 partículas orbitales más grandes
       ctx.fillStyle = "#E055C8";
-      ctx.globalAlpha = 0.85 * frac;
-      for (var o = 0; o < 8; o++) {
-        var oang = (t * 5 + o * 0.785) % (Math.PI * 2);
-        var orR = rad * (1.25 + Math.sin(t * 7 + o) * 0.10);
+      ctx.globalAlpha = 0.95 * frac;
+      for (var o = 0; o < 12; o++) {
+        var oang = (t * 5 + o * 0.523) % (Math.PI * 2);
+        var orR = rad * (1.30 + Math.sin(t * 7 + o) * 0.15);
         var ox = e.x + Math.cos(oang) * orR;
         var oy = e.y + Math.sin(oang) * orR;
-        ctx.beginPath(); ctx.arc(ox, oy, 2.2 * U, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(ox, oy, 3.5 * U, 0, Math.PI * 2); ctx.fill();
       }
-      // Flash magenta breve sobre el cuerpo
-      ctx.globalAlpha = 0.25 * frac;
+      // Flash magenta más intenso sobre el cuerpo
+      ctx.globalAlpha = 0.45 * frac;
       ctx.beginPath(); ctx.arc(e.x, e.y, rad, 0, Math.PI * 2); ctx.fill();
+      // Líneas de crackle radiando del centro (efecto de disolución)
+      ctx.strokeStyle = "#ff80e0";
+      ctx.lineWidth = 2;
+      ctx.globalAlpha = 0.75 * frac;
+      for (var cr = 0; cr < 6; cr++) {
+        var cAng = (cr * Math.PI * 2 / 6) + t * 0.5;
+        var cR1 = rad * 0.4, cR2 = rad * 1.2;
+        ctx.beginPath();
+        ctx.moveTo(e.x + Math.cos(cAng) * cR1, e.y + Math.sin(cAng) * cR1);
+        ctx.lineTo(e.x + Math.cos(cAng) * cR2, e.y + Math.sin(cAng) * cR2);
+        ctx.stroke();
+      }
       ctx.restore();
       return;
     }
@@ -11340,7 +11392,8 @@
       else drawAnimeMouth(0, R * 0.32, R * 0.42, R * 0.20, "serious");
     }
 
-    // ── DOS CAÑONES estilo "Rambo" durante el ultimate ──
+    // ── CUATRO CAÑONES estilo "Rambo 360°" durante el ultimate ──
+    // 2 al frente (hacia target) + 2 atrás (rango opuesto) = cobertura total
     if (doingUltimate && t.cannonTarget) {
       var aimX = t.cannonTarget.x - x;
       var aimY = t.cannonTarget.y - y;
@@ -11349,15 +11402,18 @@
       var perpX = -ny, perpY = nx;
       var aimAng = Math.atan2(ny, nx);
       var recoil = (t.cannonRecoil || 0) > 0 ? (t.cannonRecoil / 0.06) : 0;
-      function drawCannon(sign) {
-        var cbX = sign * perpX * R * 0.85;
-        var cbY = sign * perpY * R * 0.85;
-        // Recoil: cañón se desplaza hacia atrás (opuesto al disparo).
-        cbX -= nx * recoil * 3 * U;
-        cbY -= ny * recoil * 3 * U;
+      function drawCannon(sign, backwards) {
+        var bnx = backwards ? -nx : nx;
+        var bny = backwards ? -ny : ny;
+        var bAng = backwards ? aimAng + Math.PI : aimAng;
+        var bPerpX = -bny, bPerpY = bnx;
+        var cbX = sign * bPerpX * R * 0.85;
+        var cbY = sign * bPerpY * R * 0.85;
+        cbX -= bnx * recoil * 3 * U;
+        cbY -= bny * recoil * 3 * U;
         ctx.save();
         ctx.translate(cbX, cbY);
-        ctx.rotate(aimAng);
+        ctx.rotate(bAng);
         // Base circular (mount del cañón).
         ctx.fillStyle = "#3aa05c";
         ctx.beginPath();
@@ -11366,20 +11422,17 @@
         ctx.strokeStyle = "#1a4a2a";
         ctx.lineWidth = 1.4 * U;
         ctx.stroke();
-        // Barrel (rectángulo extendiéndose hacia adelante).
+        // Barrel
         var barrelLen = 14 * U;
         ctx.fillStyle = "#2c8049";
         ctx.fillRect(0, -3.5 * U, barrelLen, 7 * U);
         ctx.strokeStyle = "#1a4a2a";
         ctx.lineWidth = 1.3 * U;
         ctx.strokeRect(0, -3.5 * U, barrelLen, 7 * U);
-        // Muzzle (sección final más ancha).
         ctx.fillStyle = "#1a4a2a";
         ctx.fillRect(barrelLen - 2 * U, -4.5 * U, 4 * U, 9 * U);
-        // Highlight central del barrel.
         ctx.fillStyle = "rgba(255, 255, 255, 0.30)";
         ctx.fillRect(2 * U, -2.5 * U, barrelLen - 4 * U, 1.5 * U);
-        // Muzzle flash si acaba de disparar (recoil > 0).
         if (recoil > 0) {
           var fa = recoil * 0.85;
           ctx.fillStyle = "rgba(255, 255, 200, " + fa + ")";
@@ -11393,8 +11446,10 @@
         }
         ctx.restore();
       }
-      drawCannon(-1);   // left
-      drawCannon( 1);   // right
+      drawCannon(-1, false);  // frente izquierdo
+      drawCannon( 1, false);  // frente derecho
+      drawCannon(-1, true);   // atrás izquierdo
+      drawCannon( 1, true);   // atrás derecho
     }
 
     ctx.restore();
@@ -13607,17 +13662,25 @@
     // Sutil "wriggle" (cada coco oscila con phase distinta) para que
     // el cuerpo se sienta vivo y reptante. Bias horizontal: head al
     // FRENTE (derecha), cola atrás (izquierda).
-    function wrig(i, amp) { return Math.sin(t * 2.0 + i * 0.9 + e.wobble) * amp * U; }
+    // SERPENTEO ondulante — amplitud aumentada + frecuencia + sync entre
+    // cocos para crear una verdadera onda viajera por el cuerpo (como
+    // una serpiente). Cada coco oscila MÁS y la fase atrasa progresivamente
+    // hacia la cola → onda visible recorre toda la longitud.
+    function wrig(i, amp) {
+      // i*1.35 = retraso de fase atrasa fuerte hacia la cola → onda viajera
+      // amp*3.2 = amplitud 2x mayor para que se vea claramente serpenteo
+      return Math.sin(t * 3.2 + i * 1.35 + e.wobble) * amp * 3.2 * U;
+    }
     var cluster = [
       // Justo atrás de la cabeza
       { x: -bigR * 0.95, y:  bigR * 0.12 + wrig(1, 1.5), r: bigR * 0.65 },
       // Cuerpo medio (tres cocos a lo largo del eje X, ondulando Y)
       { x: -bigR * 1.80, y: -bigR * 0.15 + wrig(2, 1.8), r: bigR * 0.58 },
-      { x: -bigR * 2.55, y:  bigR * 0.20 + wrig(3, 1.8), r: bigR * 0.50 },
-      { x: -bigR * 3.20, y: -bigR * 0.10 + wrig(4, 1.6), r: bigR * 0.42 },
-      // Cola (más pequeños hacia atrás)
-      { x: -bigR * 3.75, y:  bigR * 0.18 + wrig(5, 1.4), r: bigR * 0.32 },
-      { x: -bigR * 4.20, y: -bigR * 0.05 + wrig(6, 1.2), r: bigR * 0.24 },
+      { x: -bigR * 2.55, y:  bigR * 0.20 + wrig(3, 2.0), r: bigR * 0.50 },
+      { x: -bigR * 3.20, y: -bigR * 0.10 + wrig(4, 2.0), r: bigR * 0.42 },
+      // Cola (más pequeños hacia atrás, amplitud mayor — la cola serpentea más)
+      { x: -bigR * 3.75, y:  bigR * 0.18 + wrig(5, 2.2), r: bigR * 0.32 },
+      { x: -bigR * 4.20, y: -bigR * 0.05 + wrig(6, 2.4), r: bigR * 0.24 },
       // Cresta sobre la cabeza (mini coco asomando arriba, da volumen)
       { x: -bigR * 0.25, y: -bigR * 0.95,                   r: bigR * 0.32 }
     ];

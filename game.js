@@ -3779,8 +3779,10 @@
       tooltipShown: false,
       dead: false
     });
-    // Trigger MRSA cinematic banner the moment the boss is queued up.
-    if (typeId === "bossMRSA" && !state.mrsaIntro) {
+    // Trigger MRSA cinematic banner SOLO en Fase 1 (no en Diseminación).
+    // En Diseminación el MRSA puede aparecer como germen más, sin el
+    // dramatic banner que ya no aporta narrativa nueva.
+    if (typeId === "bossMRSA" && !state.mrsaIntro && !state.dissemination) {
       state.mrsaIntro = { t: 0, duration: 2.5 };
     }
   }
@@ -15752,8 +15754,9 @@
       drawHudStat("⊛ Acto", state.dissemination ? "II — Diseminación" : "I — Invasión",
         leftX + Math.min(160, VW * 0.22), statsY, "#d6c0a0", fontStat, fontLabel);
     }
-    // Viral load bar — full width below HUD, inside field area.
-    drawViralBar();
+    // Viral load bar — solo en Fase 1. En Diseminación no aplica (el
+    // progreso se mide por carriles que llenan su carga de germs).
+    if (!state.dissemination) drawViralBar();
 
     // Status del HUD: solo informa "se viene una oleada" con el contador.
     // Sin número de oleada en curso ni de la oleada que se acerca.

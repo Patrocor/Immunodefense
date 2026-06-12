@@ -4789,8 +4789,11 @@
       }
       if (laneIdx >= 0) {
         var laneBr = PATH.branches[laneIdx];
-        var towerY = t.y;       // anchor: solo afecta y < towerY
-        // 1. Daño colateral SOLO a gérmenes ARRIBA de la torre.
+        var towerY = t.y;
+        // El martillazo en Diseminación ahora tiene RANGO HACIA ATRÁS:
+        // afecta arriba (forward, donde germs vienen) Y un rango razonable
+        // hacia abajo (atrás de la torre). backRange = 4×R = ~120px.
+        var backRange = 28 * 4 * U;          // rango hacia atrás (abajo)
         var laneDmg = dmg * 0.6;
         for (var lei = 0; lei < state.enemies.length; lei++) {
           if (hitIds[lei]) continue;
@@ -4798,7 +4801,11 @@
           if (!len || len.dead || len.dying || len.absorbing) continue;
           if (len.state !== "walking" && len.state !== "blocked") continue;
           if (len.heridaIdx !== laneIdx) continue;
-          if (len.y > towerY) continue;     // solo arriba (y menor)
+          // FORWARD: cualquier germ arriba de la torre. BACKWARD: solo
+          // los que estén dentro del rango razonable hacia abajo.
+          var inForward = (len.y <= towerY);
+          var inBackward = (len.y > towerY && (len.y - towerY) <= backRange);
+          if (!inForward && !inBackward) continue;
           len.hp -= laneDmg;
           len.hitFlash = 0.40;
           len.hurtTimer = 0.25;
@@ -4809,16 +4816,19 @@
           }
           pushDamageNumber(len.x, len.y - len.def.radius * U, "🌀 " + laneDmg, "#ffd24a");
         }
-        // 2. Vibración visual: spawn de anillos shock distribuidos
-        //    desde la torre hacia arriba (y < towerY).
+        // Vibración visual: anillos shock distribuidos en el carril,
+        // arriba Y abajo (dentro del rango razonable atrás).
         var totalLen = laneBr.length || 100;
-        var nVibs = 18;
+        var nVibs = 22;                       // más anillos (era 18)
         var shockIdx = 0;
         for (var v = 0; v < nVibs; v++) {
           var prog = (v + 0.5) / nVibs * totalLen;
           var pt2 = sampleBeziers(laneBr.beziers, prog);
           if (!pt2) continue;
-          if (pt2.y > towerY) continue;     // skip samples por debajo de la torre
+          // Forward: arriba de la torre. Backward: hasta backRange abajo.
+          var fwd = pt2.y <= towerY;
+          var bwd = pt2.y > towerY && (pt2.y - towerY) <= backRange;
+          if (!fwd && !bwd) continue;
           pushEffect({
             kind: "shock",
             x: pt2.x, y: pt2.y,
@@ -4829,7 +4839,6 @@
           });
           shockIdx++;
         }
-        // 3. Screen shake reforzado.
         triggerShake(0.35, 9);
       }
     }
@@ -5199,19 +5208,14 @@
       }
       if ((t.specialAnim || 0) > 0) t.specialAnim -= dt;
       // Linfocito B ultimate: cañones disparan rayos continuos mientras
-      // dure specialAnim. ~16 disparos/s por cañón × 4 cañones (2 al frente +
-      // 2 atrás) = cobertura 360° estilo "tanque de balas".
+      // dure specialAnim. ~16 disparos/s por cañón (alternando).
       if (t.def.id === "linfocitoB" && (t.specialAnim || 0) > 0 && t.cannonTarget) {
         if ((t.cannonRecoil || 0) > 0) t.cannonRecoil -= dt;
         t.cannonFireT = (t.cannonFireT || 0) - dt;
         if (t.cannonFireT <= 0) {
           t.cannonFireT = 0.06;
-          // 2 cañones hacia el target (frente)
-          spawnAntibodyBeam(t, "left",  false);
-          spawnAntibodyBeam(t, "right", false);
-          // 2 cañones hacia atrás (rango razonable detrás de la torre)
-          spawnAntibodyBeam(t, "left",  true);
-          spawnAntibodyBeam(t, "right", true);
+          spawnAntibodyBeam(t, "left");
+          spawnAntibodyBeam(t, "right");
         }
       }
       // NK ultimate: frenesí citotóxico — gira rápido y dispara
@@ -11392,8 +11396,7 @@
       else drawAnimeMouth(0, R * 0.32, R * 0.42, R * 0.20, "serious");
     }
 
-    // ── CUATRO CAÑONES estilo "Rambo 360°" durante el ultimate ──
-    // 2 al frente (hacia target) + 2 atrás (rango opuesto) = cobertura total
+    // ── DOS CAÑONES estilo "Rambo" durante el ultimate ──
     if (doingUltimate && t.cannonTarget) {
       var aimX = t.cannonTarget.x - x;
       var aimY = t.cannonTarget.y - y;
@@ -11402,19 +11405,14 @@
       var perpX = -ny, perpY = nx;
       var aimAng = Math.atan2(ny, nx);
       var recoil = (t.cannonRecoil || 0) > 0 ? (t.cannonRecoil / 0.06) : 0;
-      function drawCannon(sign, backwards) {
-        var bnx = backwards ? -nx : nx;
-        var bny = backwards ? -ny : ny;
-        var bAng = backwards ? aimAng + Math.PI : aimAng;
-        var bPerpX = -bny, bPerpY = bnx;
-        var cbX = sign * bPerpX * R * 0.85;
-        var cbY = sign * bPerpY * R * 0.85;
-        cbX -= bnx * recoil * 3 * U;
-        cbY -= bny * recoil * 3 * U;
+      function drawCannon(sign) {
+        var cbX = sign * perpX * R * 0.85;
+        var cbY = sign * perpY * R * 0.85;
+        cbX -= nx * recoil * 3 * U;
+        cbY -= ny * recoil * 3 * U;
         ctx.save();
         ctx.translate(cbX, cbY);
-        ctx.rotate(bAng);
-        // Base circular (mount del cañón).
+        ctx.rotate(aimAng);
         ctx.fillStyle = "#3aa05c";
         ctx.beginPath();
         ctx.arc(0, 0, 6 * U, 0, Math.PI * 2);
@@ -11422,7 +11420,6 @@
         ctx.strokeStyle = "#1a4a2a";
         ctx.lineWidth = 1.4 * U;
         ctx.stroke();
-        // Barrel
         var barrelLen = 14 * U;
         ctx.fillStyle = "#2c8049";
         ctx.fillRect(0, -3.5 * U, barrelLen, 7 * U);
@@ -11446,10 +11443,8 @@
         }
         ctx.restore();
       }
-      drawCannon(-1, false);  // frente izquierdo
-      drawCannon( 1, false);  // frente derecho
-      drawCannon(-1, true);   // atrás izquierdo
-      drawCannon( 1, true);   // atrás derecho
+      drawCannon(-1);
+      drawCannon( 1);
     }
 
     ctx.restore();

@@ -2937,19 +2937,33 @@
     }
   }
 
+  // Número actual de carriles (3: triada hematógena clásica).
+  function laneCount() {
+    return (PATH.laneXs && PATH.laneXs.length) ? PATH.laneXs.length : 3;
+  }
+
   function hasResponseInLaneAny(lane) {
     if (!state.nets || !PATH.organDoors || !PATH.organDoors[lane]) return false;
     var laneX = PATH.organDoors[lane].x;
+    var nLanes = laneCount();
     for (var i = 0; i < state.nets.length; i++) {
-      if (Math.abs(state.nets[i].x - laneX) < (FIELD_W / 5) * 0.45) return true;
+      if (Math.abs(state.nets[i].x - laneX) < (FIELD_W / nLanes) * 0.45) return true;
     }
     return false;
   }
 
+  // Devuelve el índice del carril MÁS CERCANO al X del tap.
+  // (Antes asumía 5 carriles uniformemente distribuidos: bug con 3 lanes
+  // donde corazón quedaba mapeado al carril del centro.)
   function laneAt(x) {
+    if (!PATH.laneXs || !PATH.laneXs.length) return 0;
     var rel = (x - FIELD_LEFT) / FIELD_W;
-    var idx = Math.floor(rel * 5);
-    return Math.max(0, Math.min(4, idx));
+    var bestIdx = 0, bestD = Infinity;
+    for (var i = 0; i < PATH.laneXs.length; i++) {
+      var d = Math.abs(PATH.laneXs[i] - rel);
+      if (d < bestD) { bestD = d; bestIdx = i; }
+    }
+    return bestIdx;
   }
 
   // ============ NIVEL PUENTE: DISEMINACIÓN ============
@@ -11276,7 +11290,10 @@
     // Inflación durante el ultimate (plasmocito mode).
     var ultBoost = 1.0;
     if (doingUltimate) {
-      var ut = 1 - t.specialAnim / 0.90;     // 0→1 progreso
+      // Progreso 0→1 normalizado a la duración real del ultimate (1.6s).
+      // BUG fix: antes dividía por 0.90 → ut negativo los primeros 0.7s →
+      // ultBoost negativo → R negativo → flickering del cuerpo.
+      var ut = Math.max(0, Math.min(1, 1 - t.specialAnim / 1.6));
       // Crece en los primeros 0.2 (ut 0→0.22), mantiene, decrece en último 0.2
       if (ut < 0.22) ultBoost = 1 + (ut / 0.22) * 0.45;
       else if (ut < 0.78) ultBoost = 1.45;

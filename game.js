@@ -3299,7 +3299,8 @@
     bossPyogenes:    { name: "BOSS Pyogenes",   desc: "Bacteria carnívora con cápsula regen" },
     bossMRSA:        { name: "BOSS MRSA",       desc: "Resistente a antibióticos clásicos" },
     bossPseudomonas: { name: "BOSS Pseudomonas",desc: "Devora torres con tentáculos" },
-    bossClostridium: { name: "BOSS Clostridium",desc: "Necrosis gaseosa — devora todo" }
+    bossClostridium: { name: "BOSS Clostridium",desc: "Necrosis gaseosa — devora todo" },
+    macrofagoLibre:  { name: "Macrófago Libre",  desc: "Fagocita gérmenes detenidos · aliado" }
   };
 
   function updateGermIntro(dt) {
@@ -3356,21 +3357,44 @@
     var spriteSize = bh - 10;
     var spriteCx = bxFinal + 5 + spriteSize / 2;
     var spriteCy = by + bh / 2;
-    var def = ENEMY_DEFS[bi.typeId];
-    if (def) {
+    if (bi.typeId === "macrofagoLibre") {
+      // Mini macrófago: cuerpo amber con dedos
       ctx.save();
-      // Clip al área del sprite
-      ctx.beginPath();
-      ctx.rect(bxFinal + 4, by + 5, spriteSize, spriteSize);
-      ctx.clip();
-      drawTooltipSprite(def, spriteCx, spriteCy, spriteSize * 0.40);
+      ctx.translate(spriteCx, spriteCy);
+      var miniR = spriteSize * 0.36;
+      ctx.fillStyle = "#E8923A";
+      ctx.beginPath(); ctx.arc(0, 0, miniR, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = "#A8581A";
+      ctx.lineWidth = 1.3;
+      ctx.stroke();
+      // 4 mini-dedos
+      for (var mf = 0; mf < 4; mf++) {
+        var mfA = mf * Math.PI / 2 + 0.4;
+        ctx.fillStyle = "#E8923A";
+        ctx.beginPath();
+        ctx.arc(Math.cos(mfA) * miniR * 1.25, Math.sin(mfA) * miniR * 1.25, miniR * 0.30, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = "#A8581A";
+        ctx.stroke();
+      }
       ctx.restore();
+    } else {
+      var def = ENEMY_DEFS[bi.typeId];
+      if (def) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(bxFinal + 4, by + 5, spriteSize, spriteSize);
+        ctx.clip();
+        drawTooltipSprite(def, spriteCx, spriteCy, spriteSize * 0.40);
+        ctx.restore();
+      }
     }
-    // Etiqueta "NUEVO" mini arriba
-    ctx.fillStyle = "#ffd24a";
+    // Etiqueta mini arriba — "NUEVO INVASOR" para germs / "ALIADO" para macrófago
+    var isAlly = (bi.typeId === "macrofagoLibre");
+    ctx.fillStyle = isAlly ? "#7ad05b" : "#ffd24a";
     ctx.font = "bold 9px Fredoka, sans-serif";
     ctx.textAlign = "left"; ctx.textBaseline = "top";
-    ctx.fillText("NUEVO INVASOR", bxFinal + spriteSize + 14, by + 5);
+    ctx.fillText(isAlly ? "ALIADO" : "NUEVO INVASOR", bxFinal + spriteSize + 14, by + 5);
     // Nombre
     ctx.fillStyle = "#fff";
     ctx.font = "bold 13px Fredoka, sans-serif";
@@ -5856,8 +5880,9 @@
   }
 
   // -------- MACRÓFAGO autónomo (ronda, muerde y FAGOCITA) -----------------
-  var GUARDIAN_INTERVAL = 28;     // s entre apariciones
-  var GUARDIAN_MAX = 2;           // vivos a la vez
+  var GUARDIAN_INTERVAL = 22;     // s entre apariciones (era 28)
+  var GUARDIAN_MAX = 3;           // vivos a la vez (era 2)
+  var MACROFAGO_MANUAL_COST = 60; // ATP para llamar manual
   var GUARDIAN_HP = 80;
   var GUARDIAN_BITE_DMG = 30;
   var GUARDIAN_BITE_CD = 0.8;
@@ -5941,6 +5966,13 @@
       shape: Math.random() * Math.PI * 2
     });
     showMsg("¡Macrófago al rescate!");
+    // Intro banner la primera vez en F1
+    if (!state.dissemination && !state.germIntroSeen) state.germIntroSeen = {};
+    if (!state.dissemination && !state.germIntroSeen["macrofagoLibre"]) {
+      state.germIntroSeen["macrofagoLibre"] = true;
+      state.germIntroQueue = state.germIntroQueue || [];
+      state.germIntroQueue.push("macrofagoLibre");
+    }
   }
 
   function updateGuardians(dt) {
@@ -6180,8 +6212,53 @@
     ctx.fillStyle = g.hitFlash > 0 ? "#ffd0d0" : body;
     ctx.beginPath(); ctx.arc(0, 0, R * 0.80, 0, Math.PI * 2); ctx.fill();
     ctx.strokeStyle = COLD; ctx.lineWidth = 1.6 * U; ctx.stroke();
-    ctx.fillStyle = "rgba(150, 80, 30, 0.28)";
-    ctx.beginPath(); ctx.ellipse(R * 0.16, R * 0.06, R * 0.28, R * 0.22, 0.4, 0, Math.PI * 2); ctx.fill();
+    // RECEPTORES DE SUPERFICIE — pequeños bumps en la membrana (TLR, Fc, CR3).
+    // Signature de la membrana del macrófago: muchos receptores sensando.
+    ctx.fillStyle = "rgba(120, 60, 20, 0.65)";
+    ctx.strokeStyle = COLD;
+    ctx.lineWidth = 0.9 * U;
+    for (var rc = 0; rc < 7; rc++) {
+      var rcA = (rc * Math.PI * 2 / 7) + state.time * 0.15 + seed;
+      var rcX = Math.cos(rcA) * R * 0.80;
+      var rcY = Math.sin(rcA) * R * 0.80;
+      ctx.beginPath();
+      ctx.arc(rcX, rcY, R * 0.07, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    }
+    // NÚCLEO KIDNEY (forma de riñón) — signature del macrófago. Lóbulo
+    // grande con concavidad de un lado.
+    ctx.fillStyle = "rgba(110, 60, 140, 0.85)";
+    ctx.strokeStyle = "rgba(60, 30, 90, 0.85)";
+    ctx.lineWidth = 1.1 * U;
+    ctx.beginPath();
+    var kNX = -R * 0.06, kNY = -R * 0.10;
+    var kR = R * 0.28;
+    ctx.moveTo(kNX + kR, kNY);
+    ctx.quadraticCurveTo(kNX + kR, kNY - kR * 1.1, kNX, kNY - kR * 0.9);
+    ctx.quadraticCurveTo(kNX - kR * 1.2, kNY - kR * 0.5, kNX - kR * 0.95, kNY + kR * 0.4);
+    ctx.quadraticCurveTo(kNX - kR * 0.4, kNY + kR * 0.95, kNX + kR * 0.4, kNY + kR * 0.85);
+    ctx.quadraticCurveTo(kNX + kR * 1.05, kNY + kR * 0.35, kNX + kR, kNY);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    // LISOSOMAS — pequeñas vesículas oscuras (orgánulos de digestión)
+    // signature del fagocito.
+    ctx.fillStyle = "rgba(70, 30, 100, 0.75)";
+    for (var ly = 0; ly < 5; ly++) {
+      var lyAng = ly * 1.7 + seed * 0.5 + state.time * 0.1;
+      var lyDist = R * (0.45 + (ly % 3) * 0.08);
+      var lyX = Math.cos(lyAng) * lyDist;
+      var lyY = Math.sin(lyAng) * lyDist + R * 0.18;
+      // Skip si choca con el núcleo
+      if (Math.hypot(lyX - kNX, lyY - kNY) < kR + R * 0.10) continue;
+      ctx.beginPath();
+      ctx.arc(lyX, lyY, R * 0.06, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // Sombra interna sutil (volumen)
+    ctx.fillStyle = "rgba(150, 80, 30, 0.18)";
+    ctx.beginPath(); ctx.ellipse(R * 0.16, R * 0.30, R * 0.30, R * 0.18, 0.4, 0, Math.PI * 2); ctx.fill();
     var eyeR = R * 0.20, gap = R * 0.30, faceY = -R * 0.12;
     if (maw > 0.05) {
       // ¡Fagocitando! Ojos apretados de esfuerzo + BOCA enorme abierta.
@@ -6231,16 +6308,17 @@
 
   // -------- MEDICAMENTO ---------------------------------------------------
   function layoutMed() {
-    // Fila inferior con 3 indicadores HORIZONTALES alineados:
-    //  [ antiséptico ] [ medicamento (4 bloques) ] [ C3b dots ]
+    // Fila inferior con 4 indicadores HORIZONTALES alineados:
+    //  [ antiséptico ] [ medicamento (4 bloques) ] [ C3b dots ] [ Mφ call ]
     var rowH = Math.max(34, 38 * U);
     var rowY = FIELD_BOTTOM - rowH - 8 * U;
     var gap = 6 * U;
     var availableW = FIELD_W - 16 * U;
-    // Proporciones equilibradas — antes el medvial dominaba (1.20×).
-    // Ahora los tres están más balanceados y la fila se siente menos cargada.
+    // Botón Macrófago es CUADRADO (rowH × rowH) — restamos su ancho del available
+    var macW = rowH;
+    var availableW2 = availableW - macW - gap;
     var totalRatio = 0.55 + 1.00 + 0.55;
-    var unit = (availableW - gap * 2) / totalRatio;
+    var unit = (availableW2 - gap * 2) / totalRatio;
     var topicalW = Math.round(unit * 0.55);
     var medW = Math.round(unit * 1.00);
     var c3bW = Math.round(unit * 0.55);
@@ -6249,6 +6327,7 @@
     UI.topicalVial = { x: startX, y: rowY, w: topicalW, h: rowH };
     UI.medVial = { x: startX + topicalW + gap, y: rowY, w: medW, h: rowH };
     UI.c3bMeter = { x: startX + topicalW + gap + medW + gap, y: rowY, w: c3bW, h: rowH };
+    UI.macrofagoBtn = { x: UI.c3bMeter.x + c3bW + gap, y: rowY, w: macW, h: rowH };
   }
 
   // Bloques llenos (0..MED_BLOCKS) según la carga acumulada.
@@ -6432,6 +6511,59 @@
       : "rgba(255,255,255,0.85)";
     var lbl = ready ? "▸ Antiséptico" : "🧴 " + Math.round(ratio * 100) + "%";
     ctx.fillText(lbl, v.x + v.w / 2, v.y + v.h / 2);
+    ctx.restore();
+  }
+
+  // Botón Macrófago — llamada manual: tap arma, tap field spawnea uno.
+  function drawMacrofagoBtn() {
+    var v = UI.macrofagoBtn; if (!v) return;
+    var canAfford = state.atp >= MACROFAGO_MANUAL_COST;
+    var armed = !!state.armedMacrofago;
+    var max = (state.guardians && state.guardians.length >= GUARDIAN_MAX);
+    var enabled = canAfford && !max;
+    ctx.save();
+    // Fondo + tinte amber
+    ctx.fillStyle = armed ? "rgba(232, 146, 58, 0.40)" : "rgba(20,8,12,0.55)";
+    ctx.fillRect(v.x, v.y, v.w, v.h);
+    if (!armed) {
+      ctx.fillStyle = "rgba(232, 146, 58, 0.12)";
+      ctx.fillRect(v.x + 1, v.y + 1, v.w - 2, v.h - 2);
+    }
+    // Borde: pulsa dorado si armado, blanco si listo, rojo tenue si bloqueado
+    if (armed) {
+      var pp = 0.5 + 0.5 * Math.sin(state.time * 5);
+      ctx.strokeStyle = "rgba(255, 210, 100, " + (0.7 + pp * 0.30) + ")";
+      ctx.lineWidth = 2.5;
+    } else if (enabled) {
+      ctx.strokeStyle = "rgba(232, 146, 58, 0.85)";
+      ctx.lineWidth = 1.5;
+    } else {
+      ctx.strokeStyle = "rgba(200, 100, 100, 0.45)";
+      ctx.lineWidth = 1;
+    }
+    ctx.strokeRect(v.x, v.y, v.w, v.h);
+    // Mini macrófago en el centro
+    ctx.globalAlpha = enabled ? 1 : 0.45;
+    var cx = v.x + v.w / 2, cy = v.y + v.h * 0.42;
+    var mR = v.h * 0.18;
+    ctx.fillStyle = "#E8923A";
+    ctx.strokeStyle = "#A8581A";
+    ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.arc(cx, cy, mR, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    // 4 dedos
+    for (var f = 0; f < 4; f++) {
+      var fa = f * Math.PI / 2 + 0.4;
+      ctx.fillStyle = "#E8923A";
+      ctx.beginPath();
+      ctx.arc(cx + Math.cos(fa) * mR * 1.30, cy + Math.sin(fa) * mR * 1.30, mR * 0.32, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    }
+    // Costo abajo
+    ctx.fillStyle = canAfford ? "#ffd24a" : "rgba(220, 100, 100, 0.85)";
+    ctx.font = "bold " + Math.max(9, Math.min(11, v.h * 0.26)) + "px Fredoka, sans-serif";
+    ctx.textAlign = "center"; ctx.textBaseline = "bottom";
+    ctx.fillText("⚡" + MACROFAGO_MANUAL_COST, v.x + v.w / 2, v.y + v.h - 2);
     ctx.restore();
   }
 
@@ -9616,6 +9748,51 @@
     // Tópico: tocar el bloque (lleno) lanza el ácido al camino.
     if (!state.dissemination && UI.topicalVial && inRect(x, y, UI.topicalVial)) {
       if (state.topicalCharge >= TOPICAL_MAX) { applyTopical(); return; }
+    }
+    // Botón Macrófago — armar/desarmar manual call.
+    if (!state.dissemination && UI.macrofagoBtn && inRect(x, y, UI.macrofagoBtn)) {
+      if (state.atp < MACROFAGO_MANUAL_COST) {
+        flashFail();
+        showMsg("Necesitás " + MACROFAGO_MANUAL_COST + " ATP");
+        return;
+      }
+      if (state.guardians && state.guardians.length >= GUARDIAN_MAX) {
+        flashFail();
+        showMsg("Máximo " + GUARDIAN_MAX + " macrófagos vivos");
+        return;
+      }
+      state.armedMacrofago = !state.armedMacrofago;
+      if (state.armedMacrofago) {
+        showMsg("Macrófago ARMADO · Toca dónde quieras invocarlo");
+        sfx("tick");
+      } else {
+        showMsg("Macrófago desarmado");
+      }
+      return;
+    }
+    // Macrófago armado: tap en el field para invocarlo en ese punto.
+    if (!state.dissemination && state.armedMacrofago && x < FIELD_RIGHT && y > FIELD_TOP) {
+      if (state.atp < MACROFAGO_MANUAL_COST) {
+        flashFail();
+        state.armedMacrofago = false;
+        return;
+      }
+      state.atp -= MACROFAGO_MANUAL_COST;
+      state.armedMacrofago = false;
+      // Spawn macrofago en el punto tapeado (no por los costados)
+      state.guardians.push({
+        x: x, y: y, vx: 0, vy: 0,
+        hp: GUARDIAN_HP, maxHp: GUARDIAN_HP,
+        state: "roaming", alpha: 1, scale: 1,
+        biteCd: 0, wobble: Math.random() * Math.PI * 2,
+        blinkTimer: 0, nextBlink: state.time + 2 + Math.random() * 3,
+        tearTimer: 0, hitFlash: 0, attackAnim: 0,
+        mouthOpen: 0, swallow: 0, engulfTarget: null, engulfT: 0,
+        shape: Math.random() * Math.PI * 2
+      });
+      sfx("upgrade");
+      pushEffect({ kind: "atpText", x: x, y: y - 30 * U, vy: -36 * U, text: "¡Mφ invocado!", life: 1.0, max: 1.0, color: "#E8923A" });
+      return;
     }
     // Lymphatic drip drop: highest priority so finger taps grant ATP.
     if (tryClickDrip(x, y)) return;
@@ -18123,7 +18300,7 @@
     safeDraw("LymphDrop", drawLymphDrop);
     safeDraw("MedulaOsea", drawMedulaOsea);
     safeDraw("UnlockPickups", drawUnlockPickups);
-    if (!state.dissemination) { safeDraw("MedVial", drawMedVial); safeDraw("Topical", drawTopical); }
+    if (!state.dissemination) { safeDraw("MedVial", drawMedVial); safeDraw("Topical", drawTopical); safeDraw("MacrofagoBtn", drawMacrofagoBtn); }
     for (var k = 0; k < state.projectiles.length; k++) {
       var pr = state.projectiles[k];
       safeDraw("Projectile", function () { drawProjectile(pr); });

@@ -3282,6 +3282,106 @@
     state.effects.push(ef);
   }
 
+  // Banner intro la primera vez que un germen aparece en F1.
+  // Línea breve + sprite preview. Toast sutil arriba del field.
+  var GERM_INTRO = {
+    sepidermidis:    { name: "S. epidermidis",  desc: "Coco gram+ rápido pero débil" },
+    saureus:         { name: "S. aureus",       desc: "Cápsula resistente — usá anticuerpos" },
+    hsv:             { name: "Herpes (HSV)",    desc: "Virus rápido y errático" },
+    cacnes:          { name: "C. acnes",        desc: "Anaerobio lento pero tough" },
+    candida:         { name: "Candida",         desc: "Levadura fúngica con catapult" },
+    dermatofito:     { name: "Dermatofito",     desc: "Hongo que suelta esporas hijas" },
+    pseudomonas:     { name: "Pseudomonas",     desc: "Dispara esporas que cazan torres" },
+    sarna:           { name: "Sarna",           desc: "Ácaro que se entierra y reaparece" },
+    hpv:             { name: "HPV",             desc: "Verruga con coraza regenerable" },
+    molluscum:       { name: "Molluscum",       desc: "Poxvirus que se divide al morir" },
+    malassezia:      { name: "Malassezia",      desc: "Levadura aceitosa — baja cadencia" },
+    bossPyogenes:    { name: "BOSS Pyogenes",   desc: "Bacteria carnívora con cápsula regen" },
+    bossMRSA:        { name: "BOSS MRSA",       desc: "Resistente a antibióticos clásicos" },
+    bossPseudomonas: { name: "BOSS Pseudomonas",desc: "Devora torres con tentáculos" },
+    bossClostridium: { name: "BOSS Clostridium",desc: "Necrosis gaseosa — devora todo" }
+  };
+
+  function updateGermIntro(dt) {
+    if (!state.germIntroActive && state.germIntroQueue && state.germIntroQueue.length) {
+      var nextId = state.germIntroQueue.shift();
+      state.germIntroActive = { typeId: nextId, t: 0, max: 3.2 };
+    }
+    if (state.germIntroActive) {
+      state.germIntroActive.t += dt;
+      if (state.germIntroActive.t >= state.germIntroActive.max) {
+        state.germIntroActive = null;
+      }
+    }
+  }
+
+  function drawGermIntroBanner() {
+    var bi = state.germIntroActive;
+    if (!bi) return;
+    var info = GERM_INTRO[bi.typeId];
+    if (!info) return;
+    // Animación: slide-in 0.3s, hold 2.5s, slide-out 0.4s
+    var t = bi.t, max = bi.max;
+    var slideIn = 0.30, slideOut = 0.40;
+    var holdEnd = max - slideOut;
+    var slideFrac;
+    if (t < slideIn) {
+      slideFrac = t / slideIn;
+    } else if (t < holdEnd) {
+      slideFrac = 1;
+    } else {
+      slideFrac = Math.max(0, 1 - (t - holdEnd) / slideOut);
+    }
+    if (slideFrac <= 0) return;
+    // Layout compacto top-center del field
+    var bw = Math.min(VW * 0.62, 260);
+    var bh = 44;
+    var bxFinal = (VW - bw) / 2;
+    var byFinal = FIELD_TOP + 6;
+    // Slide desde arriba (Y negativo cuando slideFrac=0)
+    var by = byFinal - (1 - slideFrac) * (bh + 12);
+    ctx.save();
+    ctx.globalAlpha = slideFrac;
+    // Fondo
+    var bgGrad = ctx.createLinearGradient(bxFinal, by, bxFinal, by + bh);
+    bgGrad.addColorStop(0, "rgba(40, 20, 28, 0.92)");
+    bgGrad.addColorStop(1, "rgba(20, 10, 14, 0.92)");
+    ctx.fillStyle = bgGrad;
+    ctx.fillRect(bxFinal, by, bw, bh);
+    // Borde dorado tenue
+    ctx.strokeStyle = "rgba(255, 200, 100, 0.55)";
+    ctx.lineWidth = 1.2;
+    ctx.strokeRect(bxFinal, by, bw, bh);
+    // Sprite preview (mini) en la izquierda
+    var spriteSize = bh - 10;
+    var spriteCx = bxFinal + 5 + spriteSize / 2;
+    var spriteCy = by + bh / 2;
+    var def = ENEMY_DEFS[bi.typeId];
+    if (def) {
+      ctx.save();
+      // Clip al área del sprite
+      ctx.beginPath();
+      ctx.rect(bxFinal + 4, by + 5, spriteSize, spriteSize);
+      ctx.clip();
+      drawTooltipSprite(def, spriteCx, spriteCy, spriteSize * 0.40);
+      ctx.restore();
+    }
+    // Etiqueta "NUEVO" mini arriba
+    ctx.fillStyle = "#ffd24a";
+    ctx.font = "bold 9px Fredoka, sans-serif";
+    ctx.textAlign = "left"; ctx.textBaseline = "top";
+    ctx.fillText("NUEVO INVASOR", bxFinal + spriteSize + 14, by + 5);
+    // Nombre
+    ctx.fillStyle = "#fff";
+    ctx.font = "bold 13px Fredoka, sans-serif";
+    ctx.fillText(info.name, bxFinal + spriteSize + 14, by + 16);
+    // Descripción
+    ctx.fillStyle = "rgba(220, 220, 230, 0.78)";
+    ctx.font = "10px Fredoka, sans-serif";
+    ctx.fillText(info.desc, bxFinal + spriteSize + 14, by + 30);
+    ctx.restore();
+  }
+
   // Death FX único por tipo de germen. Se dispara UNA VEZ cuando el germ
   // entra a estado dying. Spawn de partículas + sombra contextual.
   function spawnGermDeathFx(e) {
@@ -3811,6 +3911,14 @@
   function spawnEnemy(typeId, hpMult) {
     var def = ENEMY_DEFS[typeId];
     if (!def) return;
+    // Banner intro la PRIMERA VEZ que aparece un tipo de germen en F1.
+    // Solo en F1 (en diseminación los germs son rapidito y no necesita).
+    if (!state.dissemination && !state.germIntroSeen) state.germIntroSeen = {};
+    if (!state.dissemination && !state.germIntroSeen[typeId] && GERM_INTRO[typeId]) {
+      state.germIntroSeen[typeId] = true;
+      state.germIntroQueue = state.germIntroQueue || [];
+      state.germIntroQueue.push(typeId);
+    }
     var diff = getDifficulty();
     // Buff global de HP: +5% para gérmenes regulares, +10% para bosses.
     var globalHpBuff = def.isBoss ? 1.10 : 1.05;
@@ -18030,6 +18138,7 @@
     safeDraw("MedFx", drawMedFx);
     safeDraw("Ghost", drawGhost);
     safeDraw("DamageNumbers", drawDamageNumbers);
+    safeDraw("GermIntroBanner", drawGermIntroBanner);
     safeDraw("Atmosphere", drawAtmosphere);
     // HUD y panel SIEMPRE visibles (excepto en title/intro, que tienen su
     // propio overlay). La cinemática vieja ya no se usa (era el placeholder
@@ -20045,6 +20154,7 @@
       }
     }
     updateEffects(dt);
+    updateGermIntro(dt);
     if (state.msgTimer > 0) state.msgTimer -= dt;
     render();
     requestAnimationFrame(loop);

@@ -3281,6 +3281,110 @@
     if (state.effects.length >= MAX_EFFECTS) state.effects.shift();
     state.effects.push(ef);
   }
+
+  // Death FX único por tipo de germen. Se dispara UNA VEZ cuando el germ
+  // entra a estado dying. Spawn de partículas + sombra contextual.
+  function spawnGermDeathFx(e) {
+    if (!e || !e.def) return;
+    var rad = (e.def.radius || 16) * U * (e.radiusScale || 1);
+    var id = e.def.id;
+    var burst = function (n, color, speed, life, size) {
+      for (var i = 0; i < n; i++) {
+        var ang = (i / n) * Math.PI * 2 + Math.random() * 0.3;
+        var sp = speed * (0.7 + Math.random() * 0.6);
+        pushEffect({
+          kind: "particle",
+          x: e.x, y: e.y,
+          vx: Math.cos(ang) * sp,
+          vy: Math.sin(ang) * sp,
+          r: size || rad * 0.18,
+          color: color,
+          life: life, max: life
+        });
+      }
+    };
+    // S. aureus: racimo de cocos amarillos explota
+    if (id === "saureus" || id === "bossMRSA") {
+      burst(8, "#F9A825", 90 * U, 0.7, rad * 0.22);
+      burst(6, "#FFD180", 60 * U, 0.55, rad * 0.14);
+      return;
+    }
+    // S. epidermidis: cadena se rompe en gris-azul
+    if (id === "sepidermidis") {
+      burst(7, "#90A4AE", 110 * U, 0.8, rad * 0.18);
+      burst(5, "#CFD8DC", 70 * U, 0.55, rad * 0.10);
+      return;
+    }
+    // HSV: capside crackea + DNA spills, partículas lavanda + púrpura
+    if (id === "hsv") {
+      burst(12, "#9575CD", 130 * U, 0.85, rad * 0.16);
+      burst(6, "#4527A0", 80 * U, 0.65, rad * 0.10);
+      // shockring lavanda
+      pushEffect({ kind: "shock", x: e.x, y: e.y, r: rad * 1.5, life: 0.45, max: 0.45, color: "#9575CD" });
+      return;
+    }
+    // C. acnes: sebum spill + burbujas anaerobio
+    if (id === "cacnes") {
+      burst(8, "#C9A66B", 80 * U, 0.7, rad * 0.18);
+      burst(5, "#FFE0B0", 50 * U, 0.85, rad * 0.14);
+      return;
+    }
+    // Candida: yeast deflate — gotas verde-amarillo
+    if (id === "candida") {
+      burst(10, "#A8D070", 100 * U, 0.75, rad * 0.16);
+      burst(4, "#D8EFA8", 65 * U, 0.65, rad * 0.10);
+      return;
+    }
+    // Dermatofito: spore release — esporas dispersas
+    if (id === "dermatofito") {
+      burst(14, "#9CA85A", 120 * U, 0.95, rad * 0.13);
+      burst(6, "#5E6A2C", 70 * U, 0.6, rad * 0.10);
+      return;
+    }
+    // Pseudomonas: pyocyanin spill — nube turquesa
+    if (id === "pseudomonas" || id === "bossPseudomonas") {
+      burst(10, "#26A69A", 110 * U, 0.85, rad * 0.18);
+      burst(6, "#80DEEA", 60 * U, 0.7, rad * 0.12);
+      pushEffect({ kind: "shock", x: e.x, y: e.y, r: rad * 1.4, life: 0.5, max: 0.5, color: "#26A69A" });
+      return;
+    }
+    // Sarna: legs curl + body crumble — partículas marrones
+    if (id === "sarna") {
+      burst(8, "#8a5a2b", 95 * U, 0.7, rad * 0.16);
+      burst(5, "#4d3014", 55 * U, 0.55, rad * 0.10);
+      return;
+    }
+    // HPV: shell shatter — fragmentos olivos/dorados
+    if (id === "hpv") {
+      burst(10, "#8a9a5e", 110 * U, 0.85, rad * 0.16);
+      burst(6, "#c2cf90", 60 * U, 0.6, rad * 0.12);
+      pushEffect({ kind: "shock", x: e.x, y: e.y, r: rad * 1.4, life: 0.5, max: 0.5, color: "#8a9a5e" });
+      return;
+    }
+    // Molluscum: brick crumble + HP bodies fly out
+    if (id === "molluscum") {
+      burst(8, "#e8d6c0", 100 * U, 0.75, rad * 0.18);
+      burst(5, "#b89a78", 60 * U, 0.6, rad * 0.10);
+      // Henderson-Paterson bodies "salen volando"
+      burst(3, "#785030", 130 * U, 0.85, rad * 0.13);
+      return;
+    }
+    // Malassezia: cluster disperse + grease splash
+    if (id === "malassezia") {
+      burst(9, "#d8c060", 95 * U, 0.75, rad * 0.18);
+      burst(5, "#f0e29a", 55 * U, 0.6, rad * 0.10);
+      return;
+    }
+    // Pyogenes / bosses generic: explosión grande roja
+    if (id === "bossPyogenes" || id === "bossClostridium") {
+      burst(16, "#E84393", 140 * U, 1.0, rad * 0.20);
+      burst(10, "#FFD180", 90 * U, 0.85, rad * 0.14);
+      pushEffect({ kind: "shock", x: e.x, y: e.y, r: rad * 2.0, life: 0.6, max: 0.6, color: "#ffd24a" });
+      return;
+    }
+    // Fallback genérico
+    burst(8, e.def.color || "#ff6868", 95 * U, 0.7, rad * 0.16);
+  }
   function pushDamageNumber(x, y, text, color) {
     if (state.damageNumbers.length >= MAX_DAMAGE_NUMBERS) state.damageNumbers.shift();
     state.damageNumbers.push({
@@ -3958,6 +4062,12 @@
     for (var i = 0; i < state.enemies.length; i++) {
       var e = state.enemies[i];
       if (e.dead) continue;
+      // Detectar entrada a estado dying — spawn FX único por tipo de germ.
+      // Solo se ejecuta UNA vez por germen al morir.
+      if (e.dying && !e._deathFxSpawned) {
+        e._deathFxSpawned = true;
+        spawnGermDeathFx(e);
+      }
       // Blink ticks for everyone, even dying.
       if (e.blinkTimer > 0) e.blinkTimer -= dt;
       else if (state.time >= e.nextBlink) {

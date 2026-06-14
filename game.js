@@ -12707,8 +12707,8 @@
     else if (def.id === "malassezia")   drawMalassezia(e, rad * scale, expression, blink);
     // Fase 1 piel: bacilos cutáneos reusan drawEcoli (recoloreado por def).
     else if (def.id === "cacnes")       drawCacnes(e, rad * scale, expression, blink);
-    else if (def.id === "pseudomonas")  drawEcoli(e, rad * scale, expression, blink);
-    else if (def.id === "bossPseudomonas") drawEcoli(e, rad * scale, expression, blink);
+    else if (def.id === "pseudomonas")  drawPseudomonas(e, rad * scale, expression, blink);
+    else if (def.id === "bossPseudomonas") drawPseudomonas(e, rad * scale, expression, blink);
     // Sprint 8C-2: bosses con morfología real, antes del fallback genérico.
     else if (def.id === "bossPyogenes")      drawBossPyogenes(e, rad * scale, expression, blink);
     else if (def.id === "bossMRSA")          drawBossMRSA(e, rad * scale, expression, blink);
@@ -13003,31 +13003,105 @@
 
   // SARNA — ácaro ovalado segmentado con 8 patitas; se entierra (madriguera).
   function drawSarna(e, rad, expression, blink) {
-    var R = rad, w = e.wobble || 0;
+    // Sarcoptes scabiei — ácaro arácnido. Signatures biológicas:
+    //  · 8 PATAS (4 a cada lado) articuladas con knee bend
+    //  · QUELÍCEROS (mandíbulas) puntiagudos al frente
+    //  · CUERPO OVOIDE marrón
+    //  · TRAIL DE HUEVOS si está poniendo (spore mechanic)
+    //  · TÚNEL/BURROW visible bajo la piel cuando burrowed
+    var R = rad, w = e.wobble || 0, t = state.time;
     ctx.save(); ctx.translate(e.x, e.y);
+    // Túnel/burrow más prominente con líneas serpenteantes
     if (e.burrowed) {
       ctx.fillStyle = "rgba(90,60,30,0.55)";
-      ctx.beginPath(); ctx.ellipse(0, R * 0.55, R * 1.15, R * 0.5, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath();
+      ctx.ellipse(0, R * 0.55, R * 1.15, R * 0.5, 0, 0, Math.PI * 2);
+      ctx.fill();
+      // Línea del túnel serpenteante (visible bajo la piel)
+      ctx.strokeStyle = "rgba(60, 40, 20, 0.45)";
+      ctx.lineWidth = Math.max(1.2, 1.8 * U);
+      ctx.setLineDash([3, 3]);
+      ctx.beginPath();
+      for (var tu = 0; tu < 12; tu++) {
+        var tuX = (tu - 6) * R * 0.18;
+        var tuY = R * 0.55 + Math.sin(tu * 0.6 + t * 0.5) * R * 0.10;
+        if (tu === 0) ctx.moveTo(tuX, tuY); else ctx.lineTo(tuX, tuY);
+      }
+      ctx.stroke();
+      ctx.setLineDash([]);
       ctx.globalAlpha = e.revealed ? 0.6 : 0.22;
     }
-    ctx.strokeStyle = e.def.colorDark; ctx.lineWidth = Math.max(1.4, 2 * U); ctx.lineCap = "round";
+    // 8 PATAS articuladas con knee bend (signature arácnido)
+    ctx.strokeStyle = e.def.colorDark;
+    ctx.lineWidth = Math.max(1.4, 2 * U);
+    ctx.lineCap = "round";
     for (var i = 0; i < 8; i++) {
-      var side = (i < 4 ? -1 : 1), idx = i % 4, ly = (-0.45 + idx * 0.32) * R, bend = Math.sin(w * 2 + i) * 0.18;
+      var side = (i < 4 ? -1 : 1), idx = i % 4;
+      var ly = (-0.45 + idx * 0.32) * R;
+      var bend = Math.sin(w * 2 + i + t * 1.2) * 0.18;
+      // Pata articulada en 2 segmentos (femur + tibia)
+      var kneeX = side * R * 1.15;
+      var kneeY = ly + R * 0.12 + bend * R * 0.7;
+      var tipX = side * R * 1.50;
+      var tipY = ly + R * 0.50 + bend * R;
       ctx.beginPath();
-      ctx.moveTo(side * R * 0.7, ly);
-      ctx.lineTo(side * R * 1.25, ly + R * 0.18 + bend * R);
-      ctx.lineTo(side * R * 1.5, ly + R * 0.45 + bend * R);
+      ctx.moveTo(side * R * 0.70, ly);
+      ctx.lineTo(kneeX, kneeY);
+      ctx.lineTo(tipX, tipY);
+      ctx.stroke();
+      // Pelitos en la punta de cada pata (signature arácnido)
+      ctx.lineWidth = 0.9 * U;
+      ctx.beginPath();
+      ctx.moveTo(tipX, tipY);
+      ctx.lineTo(tipX + side * 2 * U, tipY - 2 * U);
+      ctx.moveTo(tipX, tipY);
+      ctx.lineTo(tipX + side * 2.5 * U, tipY);
+      ctx.moveTo(tipX, tipY);
+      ctx.lineTo(tipX + side * 2 * U, tipY + 2 * U);
+      ctx.stroke();
+      ctx.lineWidth = Math.max(1.4, 2 * U);
+    }
+    // CUERPO ovoide
+    var grad = ctx.createRadialGradient(-R * 0.3, -R * 0.3, R * 0.2, 0, 0, R * 1.1);
+    grad.addColorStop(0, e.def.colorLight || "#c79a5e");
+    grad.addColorStop(0.6, e.def.color);
+    grad.addColorStop(1, e.def.colorDark);
+    ctx.fillStyle = (e.hitFlash > 0) ? "#fff" : grad;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, R * 0.95, R * 1.05, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = e.def.colorDark;
+    ctx.lineWidth = Math.max(1, 1.3 * U);
+    ctx.stroke();
+    // Bandas dorsales
+    ctx.strokeStyle = "rgba(0,0,0,0.18)";
+    ctx.lineWidth = 1;
+    for (var s = 1; s <= 2; s++) {
+      ctx.beginPath();
+      ctx.ellipse(0, R * 0.20 * s, R * 0.8, R * 0.26, 0, 0, Math.PI);
       ctx.stroke();
     }
-    var grad = ctx.createRadialGradient(-R * 0.3, -R * 0.3, R * 0.2, 0, 0, R * 1.1);
-    grad.addColorStop(0, e.def.colorLight || "#c79a5e"); grad.addColorStop(0.6, e.def.color); grad.addColorStop(1, e.def.colorDark);
-    ctx.fillStyle = (e.hitFlash > 0) ? "#fff" : grad;
-    ctx.beginPath(); ctx.ellipse(0, 0, R * 0.95, R * 1.05, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = e.def.colorDark; ctx.lineWidth = Math.max(1, 1.3 * U); ctx.stroke();
-    ctx.strokeStyle = "rgba(0,0,0,0.18)"; ctx.lineWidth = 1;
-    for (var s = 1; s <= 2; s++) { ctx.beginPath(); ctx.ellipse(0, R * 0.20 * s, R * 0.8, R * 0.26, 0, 0, Math.PI); ctx.stroke(); }
+    // QUELÍCEROS (mandíbulas) — 2 puntas saliendo al frente (arriba en el ácaro)
+    ctx.fillStyle = e.def.colorDark;
+    for (var ch = -1; ch <= 1; ch += 2) {
+      ctx.beginPath();
+      ctx.moveTo(ch * R * 0.18, -R * 0.85);
+      ctx.lineTo(ch * R * 0.30, -R * 1.12);
+      ctx.lineTo(ch * R * 0.42, -R * 0.85);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = "#2a1a08";
+      ctx.lineWidth = 1 * U;
+      ctx.stroke();
+    }
     germFace(R, expression, blink, R * 0.30);
-    if (e.burrowed && e.revealed) { ctx.strokeStyle = "rgba(63,193,201,0.9)"; ctx.lineWidth = 2 * U; ctx.beginPath(); ctx.arc(0, 0, R * 1.2, 0, Math.PI * 2); ctx.stroke(); }
+    if (e.burrowed && e.revealed) {
+      ctx.strokeStyle = "rgba(63,193,201,0.9)";
+      ctx.lineWidth = 2 * U;
+      ctx.beginPath();
+      ctx.arc(0, 0, R * 1.2, 0, Math.PI * 2);
+      ctx.stroke();
+    }
     ctx.restore();
   }
 
@@ -13049,18 +13123,73 @@
     ctx.restore();
   }
 
-  // MOLLUSCUM — cúpula nacarada cerosa con hoyuelo central umbilicado.
+  // MOLLUSCUM CONTAGIOSUM — poxvirus. Signatures biológicas:
+  //  · BRICK-SHAPE (forma de ladrillo) — poxvirus morfología distintiva,
+  //    no esférica como otros virus
+  //  · UMBILICACIÓN CENTRAL — hoyuelo característico (papula umbilicada)
+  //  · HENDERSON-PATERSON BODIES — cuerpos de inclusión visibles (puntos
+  //    grandes dentro)
+  //  · TEXTURA CEROSA — highlight nacarado superficial
   function drawMolluscum(e, rad, expression, blink) {
     var R = rad;
-    ctx.save(); ctx.translate(e.x, e.y);
+    var t = state.time;
+    ctx.save();
+    ctx.translate(e.x, e.y);
+    // BRICK SHAPE: rect redondeado de proporciones poxvirus (más ancho que alto)
+    var bw = R * 1.05;
+    var bh = R * 0.90;
+    var cornerR = R * 0.30;
     var grad = ctx.createRadialGradient(-R * 0.3, -R * 0.4, R * 0.2, 0, 0, R * 1.1);
-    grad.addColorStop(0, "#ffffff"); grad.addColorStop(0.5, e.def.colorLight || "#fbf2e6"); grad.addColorStop(1, e.def.color);
+    grad.addColorStop(0, "#ffffff");
+    grad.addColorStop(0.5, e.def.colorLight || "#fbf2e6");
+    grad.addColorStop(1, e.def.color);
     ctx.fillStyle = (e.hitFlash > 0) ? "#fff" : grad;
-    ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = e.def.colorDark; ctx.lineWidth = Math.max(1.2, 1.5 * U); ctx.stroke();
-    // Hoyuelo central umbilicado (arriba para no chocar con la cara).
-    ctx.fillStyle = "rgba(150,120,90,0.5)"; ctx.beginPath(); ctx.ellipse(0, -R * 0.55, R * 0.2, R * 0.14, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = "rgba(255,255,255,0.5)"; ctx.beginPath(); ctx.ellipse(-R * 0.38, -R * 0.4, R * 0.2, R * 0.1, -0.5, 0, Math.PI * 2); ctx.fill();
+    // Path brick redondeado
+    ctx.beginPath();
+    ctx.moveTo(-bw + cornerR, -bh);
+    ctx.lineTo(bw - cornerR, -bh);
+    ctx.quadraticCurveTo(bw, -bh, bw, -bh + cornerR);
+    ctx.lineTo(bw, bh - cornerR);
+    ctx.quadraticCurveTo(bw, bh, bw - cornerR, bh);
+    ctx.lineTo(-bw + cornerR, bh);
+    ctx.quadraticCurveTo(-bw, bh, -bw, bh - cornerR);
+    ctx.lineTo(-bw, -bh + cornerR);
+    ctx.quadraticCurveTo(-bw, -bh, -bw + cornerR, -bh);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = e.def.colorDark;
+    ctx.lineWidth = Math.max(1.2, 1.5 * U);
+    ctx.stroke();
+    // UMBILICACIÓN CENTRAL — hoyuelo característico arriba
+    ctx.fillStyle = "rgba(150,120,90,0.55)";
+    ctx.beginPath();
+    ctx.ellipse(0, -R * 0.55, R * 0.22, R * 0.16, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "rgba(120, 90, 60, 0.65)";
+    ctx.lineWidth = 0.9 * U;
+    ctx.stroke();
+    // HENDERSON-PATERSON BODIES (cuerpos de inclusión virales) — 3 puntitos
+    // marrones dentro del cuerpo. Signature histológica de molluscum.
+    var hpPositions = [
+      { x: -R * 0.30, y:  R * 0.25, r: R * 0.10 },
+      { x:  R * 0.32, y:  R * 0.15, r: R * 0.09 },
+      { x:  R * 0.05, y:  R * 0.42, r: R * 0.08 }
+    ];
+    for (var hpi = 0; hpi < hpPositions.length; hpi++) {
+      var hp = hpPositions[hpi];
+      ctx.fillStyle = "rgba(120, 80, 50, 0.70)";
+      ctx.beginPath();
+      ctx.arc(hp.x, hp.y, hp.r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "rgba(80, 50, 30, 0.60)";
+      ctx.lineWidth = 0.8 * U;
+      ctx.stroke();
+    }
+    // TEXTURA CEROSA — highlight nacarado superficial
+    ctx.fillStyle = "rgba(255,255,255,0.55)";
+    ctx.beginPath();
+    ctx.ellipse(-R * 0.38, -R * 0.4, R * 0.22, R * 0.11, -0.5, 0, Math.PI * 2);
+    ctx.fill();
     germFace(R, expression, blink, R * 0.30);
     ctx.restore();
   }
@@ -13145,6 +13274,123 @@
     }
     if (expression === "dying" || expression === "hurt") drawAnimeMouth(0, bh * 0.30, bw * 0.55, bh * 0.40, "open");
     else drawAnimeMouth(0, bh * 0.30, bw * 0.65, bh * 0.30, "wicked");
+    ctx.restore();
+  }
+
+  // PSEUDOMONAS AERUGINOSA — bacilo gram-negativo con signatures:
+  //  · Forma alargada (bastoncillo cilíndrico)
+  //  · PYOCYANIN — pigmento azul-verde característico (aura)
+  //  · FLAGELO POLAR MONOTRICO — un solo flagelo en un extremo
+  //  · BIOFILM MATRIX — capa exopolisacárida translúcida
+  function drawPseudomonas(e, rad, expression, blink) {
+    var hit = e.hitFlash > 0;
+    var t = state.time;
+    var def = e.def;
+    // Heading tracking
+    if (e._lastPosX == null) { e._lastPosX = e.x; e._lastPosY = e.y; e._heading = 0; }
+    var dxM = e.x - e._lastPosX, dyM = e.y - e._lastPosY;
+    if (Math.hypot(dxM, dyM) > 0.5) {
+      var targetAng = Math.atan2(dyM, dxM);
+      var diffAng = targetAng - e._heading;
+      while (diffAng >  Math.PI) diffAng -= Math.PI * 2;
+      while (diffAng < -Math.PI) diffAng += Math.PI * 2;
+      e._heading += diffAng * 0.15;
+    }
+    e._lastPosX = e.x; e._lastPosY = e.y;
+
+    ctx.save();
+    ctx.translate(e.x, e.y);
+    var breathe = 1 + Math.sin(t * 1.5 + e.wobble) * 0.05;
+    var bL = rad * 1.40 * breathe;
+    var bW = rad * 0.62 * breathe;
+
+    ctx.save();
+    ctx.rotate(e._heading || 0);
+
+    // PYOCYANIN AURA — pigmento azul-verde (signature). Halo radial
+    // que rodea al bacilo, más intenso cerca del cuerpo.
+    var pyoR = bL * 1.55;
+    var pyoGrad = ctx.createRadialGradient(0, 0, bL * 0.55, 0, 0, pyoR);
+    pyoGrad.addColorStop(0,    "rgba(80, 240, 220, 0.0)");
+    pyoGrad.addColorStop(0.45, "rgba(40, 200, 180, 0.50)");
+    pyoGrad.addColorStop(1,    "rgba(20, 130, 120, 0)");
+    ctx.fillStyle = pyoGrad;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, pyoR, bW * 2.4, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // BIOFILM MATRIX — gota translúcida envolviendo al bacilo (matriz
+    // exopolisacárida resistente). Doble capa sutil.
+    ctx.fillStyle = "rgba(180, 230, 220, 0.30)";
+    ctx.beginPath();
+    ctx.ellipse(0, 0, bL * 1.20, bW * 1.55, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "rgba(80, 180, 170, 0.45)";
+    ctx.lineWidth = Math.max(0.9, 1.2 * U);
+    ctx.beginPath();
+    ctx.ellipse(0, 0, bL * 1.20, bW * 1.55, 0, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // FLAGELO POLAR MONOTRICO — saliendo de la cola con ondulación
+    // sinusoidal (signature de pseudomonas).
+    ctx.strokeStyle = "#208078";
+    ctx.lineWidth = Math.max(1.4, 1.8 * U);
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    var flagSegs = 14;
+    for (var fs = 0; fs <= flagSegs; fs++) {
+      var fsF = fs / flagSegs;
+      var fx = -bL * 0.95 - fsF * bL * 1.10;
+      var fy = Math.sin(fsF * Math.PI * 3 + t * 6 + e.wobble) * bW * 0.55 * (1 - fsF * 0.3);
+      if (fs === 0) ctx.moveTo(fx, fy); else ctx.lineTo(fx, fy);
+    }
+    ctx.stroke();
+
+    // CUERPO BACILO — cápsula horizontal con gradiente turquesa
+    var bodyGrad = ctx.createLinearGradient(0, -bW, 0, bW);
+    bodyGrad.addColorStop(0, def.colorLight || "#80DEEA");
+    bodyGrad.addColorStop(0.5, def.color);
+    bodyGrad.addColorStop(1, def.colorDark);
+    ctx.fillStyle = hit ? "#ffffff" : bodyGrad;
+    // Cápsula (rect con extremos redondeados)
+    ctx.beginPath();
+    ctx.moveTo(-bL * 0.95, -bW);
+    ctx.lineTo(bL * 0.95, -bW);
+    ctx.arc(bL * 0.95, 0, bW, -Math.PI / 2, Math.PI / 2);
+    ctx.lineTo(-bL * 0.95, bW);
+    ctx.arc(-bL * 0.95, 0, bW, Math.PI / 2, Math.PI * 1.5);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = def.colorDark;
+    ctx.lineWidth = Math.max(1.2, 1.6 * U);
+    ctx.stroke();
+
+    // Membrana doble (gram-negativa) — línea interna más clara dentro
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.35)";
+    ctx.lineWidth = 1 * U;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, bL * 0.85, bW * 0.72, 0, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Highlight perlado superior (efecto humedo)
+    ctx.fillStyle = "rgba(255, 255, 255, 0.35)";
+    ctx.beginPath();
+    ctx.ellipse(0, -bW * 0.45, bL * 0.65, bW * 0.18, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.restore();
+
+    // CARA UPRIGHT (centrada en el cuerpo)
+    var hpFracFace = (def && def.hp > 0) ? (e.hp / def.hp) : 1;
+    var lowHp = hpFracFace < 0.20;
+    var sadFace = (expression === "dying" || expression === "hurt" || lowHp);
+    var eyeR = bW * 0.42, fgap = bW * 0.55;
+    if (blink) drawClosedEyes(0, 0, eyeR, fgap);
+    else if (sadFace) drawHurtEyes(0, 0, eyeR, fgap);
+    else drawAnimeEyes(0, 0, eyeR, fgap, 0, 0, bW * 0.15, bW * 0.06, "evil");
+    if (sadFace) drawAnimeMouth(0, bW * 0.55, bW * 0.55, bW * 0.40, "open");
+    else drawAnimeMouth(0, bW * 0.55, bW * 0.55, bW * 0.20, "fanged");
+
     ctx.restore();
   }
 
@@ -16592,6 +16838,8 @@
     else if (def.id === "hpv") drawHPV(fakeEnemy, R, "idle", false);
     else if (def.id === "molluscum") drawMolluscum(fakeEnemy, R, "idle", false);
     else if (def.id === "malassezia") drawMalassezia(fakeEnemy, R, "idle", false);
+    else if (def.id === "pseudomonas") drawPseudomonas(fakeEnemy, R, "idle", false);
+    else if (def.id === "bossPseudomonas") drawPseudomonas(fakeEnemy, R, "idle", false);
     else if (kind === "bacteria") drawBacteria(fakeEnemy, R, "idle", false);
     else if (kind === "virus") drawVirus(fakeEnemy, R, "idle", false);
     else if (kind === "hongo") drawHongo(fakeEnemy, R, "idle", false);

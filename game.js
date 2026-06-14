@@ -4454,8 +4454,20 @@
           if (Math.hypot(e.x - sk.x, e.y - sk.y) < sk.r) { slickFactor = 1.3; break; }
         }
       }
-      if (e.state !== "blocked" && !e.devourTarget && !e.beingEngulfed) {
+      if (e.state !== "blocked" && !e.devourTarget && !e.beingEngulfed && !e.beingDropped) {
         e.progress += pxSpeed * medFactor * (e.speedBoost || 1) * burrowFactor * enrageMult * slickFactor * dt;
+      }
+      // DROP ANIMATION — germ cayendo del macrófago muerto. Gravedad
+      // acelerada hacia su posición original en el path.
+      if (e.beingDropped) {
+        e.dropT = (e.dropT || 0) + dt;
+        var dropFrac = Math.min(1, e.dropT / 0.30);
+        var dropEase = dropFrac * dropFrac;       // accelera (gravedad)
+        e.y = e.dropFromY + (e.dropTargetY - e.dropFromY) * dropEase;
+        if (dropFrac >= 1) {
+          e.beingDropped = false;
+          // El path system tomará control en el próximo frame
+        }
       }
       // Dermatofito: suelta esporas hijas mientras avanza.
       if (e.def.spore && !e.noSpore && e.state === "walking" &&
@@ -4653,6 +4665,9 @@
           triggerLevelEnd();
         }
         continue;
+      } else if (e.beingEngulfed || e.beingDropped) {
+        // Posición ya gestionada por updateGuardianEngulf o el drop fall.
+        // No overridear con path position.
       } else {
         var p = pathPos(e.progress, hi);
         if (e.state === "blocked") {
@@ -5893,38 +5908,85 @@
   var ENGULF_RANGE = 26;          // px diseño: distancia para empezar a engullir
   var ENGULF_TIME = 0.9;          // s que tarda la fagocitosis
 
-  // Libera al germen que el macrófago estaba engullendo (al huir/morir): se
-  // restaura su tamaño y vuelve a avanzar (evita que quede chico y atascado).
+  // Libera al germen que el macrófago estaba engullendo (al huir/morir).
+  // El germen CAE de vuelta a su posición original en el path (animación
+  // breve de gravedad) y continúa su camino.
   function releaseEngulf(g) {
     var e = g.engulfTarget;
-    if (e && !e.dead) { e.beingEngulfed = false; e.engulfScale = null; }
-    g.engulfTarget = null; g.mouthOpen = 0;
+    if (e && !e.dead) {
+      e.beingEngulfed = false;
+      e.engulfScale = null;             // tamaño normal restaurado
+      // Trigger drop animation: cae de la posición actual a la del path
+      e.beingDropped = true;
+      e.dropFromY = e.y;
+      e.dropTargetY = g.engulfSy;
+      e.dropT = 0;
+    }
+    g.engulfTarget = null;
+    g.mouthOpen = 0;
+    g.tongueExtend = 0;
+    g.engulfPhase = null;
   }
 
-  // Fagocitosis: el macrófago se traga a un germen detenido/ralentizado.
+  // Fagocitosis con 3 FASES animadas:
+  //  · LICK (0 → 0.20s): el macrófago saca la lengua y se relame
+  //  · LIFT (0.20 → 0.45s): levanta al germen del path hacia su boca
+  //  · ENGULF (0.45 → 1.0s): el germen se encoge dentro del macrófago
+  var ENGULF_LICK_END = 0.20;
+  var ENGULF_LIFT_END = 0.45;
+  var ENGULF_TOTAL = 1.0;
   function updateGuardianEngulf(g, dt) {
     var e = g.engulfTarget;
     if (!e || e.dead || e.dying || state.enemies.indexOf(e) === -1) {
       if (e) e.beingEngulfed = false;
-      g.engulfTarget = null; g.mouthOpen = 0; return;
+      g.engulfTarget = null; g.mouthOpen = 0; g.tongueExtend = 0;
+      g.engulfPhase = null; return;
     }
     g.engulfT += dt;
-    var k = Math.min(1, g.engulfT / ENGULF_TIME);
-    g.mouthOpen = Math.sin(Math.min(1, k * 1.2) * Math.PI * 0.5);  // abre rápido
-    // El macrófago se posa sobre el germen; el germen se encoge hacia su boca.
+    var t = g.engulfT;
     var mouthX = g.x, mouthY = g.y + 10 * U * g.scale;
-    e.engulfScale = Math.max(0.05, 1 - k);
-    // Bamboleo de "masticar" mientras succiona.
-    e.x = g.engulfSx + (mouthX - g.engulfSx) * k + Math.sin(state.time * 30) * 2 * U * (1 - k);
-    e.y = g.engulfSy + (mouthY - g.engulfSy) * k;
-    // Partículas de succión del germen hacia la boca.
-    if (Math.random() < 0.5) {
+    // LICK PHASE — lengua se extiende, germen QUIETO en su lugar.
+    if (t < ENGULF_LICK_END) {
+      g.engulfPhase = "lick";
+      var lickFrac = t / ENGULF_LICK_END;
+      // Tongue extend: 0 → 1 con overshoot final (relamida)
+      g.tongueExtend = Math.sin(lickFrac * Math.PI * 0.5);
+      g.mouthOpen = lickFrac * 0.30;       // boca apenas abierta
+      // Germen permanece quieto (mantener posición inicial)
+      e.x = g.engulfSx;
+      e.y = g.engulfSy;
+      e.engulfScale = 1;
+      return;
+    }
+    // LIFT PHASE — el germen se LEVANTA del path hacia la boca.
+    if (t < ENGULF_LIFT_END) {
+      g.engulfPhase = "lift";
+      var liftFrac = (t - ENGULF_LICK_END) / (ENGULF_LIFT_END - ENGULF_LICK_END);
+      var liftEase = liftFrac * liftFrac;     // ease-in (acelera al levantar)
+      g.tongueExtend = 1 - liftFrac * 0.6;    // lengua se retrae un poco
+      g.mouthOpen = 0.30 + liftFrac * 0.50;   // boca se abre más
+      e.x = g.engulfSx + (mouthX - g.engulfSx) * liftEase;
+      e.y = g.engulfSy + (mouthY - g.engulfSy) * liftEase;
+      e.engulfScale = 1 - liftFrac * 0.25;    // sutil reducción durante lift
+      return;
+    }
+    // ENGULF PHASE — el germen se encoge dentro de la boca.
+    g.engulfPhase = "engulf";
+    var engulfFrac = (t - ENGULF_LIFT_END) / (ENGULF_TOTAL - ENGULF_LIFT_END);
+    engulfFrac = Math.min(1, engulfFrac);
+    g.tongueExtend = (1 - engulfFrac) * 0.4;  // lengua dentro
+    g.mouthOpen = Math.sin(engulfFrac * Math.PI * 0.5);
+    e.engulfScale = 0.75 - engulfFrac * 0.70;
+    e.x = mouthX + Math.sin(state.time * 30) * 1.5 * U * (1 - engulfFrac);
+    e.y = mouthY;
+    // Partículas de succión hacia la boca
+    if (Math.random() < 0.55) {
       pushEffect({ kind: "particle", x: e.x + (Math.random() - 0.5) * 10 * U, y: e.y,
-        vx: (mouthX - e.x) * 2, vy: (mouthY - e.y) * 2 - 6 * U,
+        vx: (mouthX - e.x) * 2, vy: -8 * U,
         life: 0.25, max: 0.3, color: e.def.color });
     }
-    if (k >= 1) {
-      // ¡Fagocitado! El germen desaparece dentro del macrófago.
+    if (engulfFrac >= 1) {
+      // ¡FAGOCITADO! El germen desaparece dentro del macrófago.
       e.beingEngulfed = false;
       e.engulfScale = null;
       if (!e.dying) {
@@ -5933,7 +5995,9 @@
           e.antigenSpawned = true;
         }
         e.dead = true;
-        state.atp += e.def.reward; state.pathogensDefeated += 1; META.totalPathogensDefeated += 1;
+        state.atp += e.def.reward;
+        state.pathogensDefeated += 1;
+        META.totalPathogensDefeated += 1;
         pushEffect({ kind: "atpText", x: g.x, y: g.y - 22 * U, vy: -36 * U,
           text: "+" + e.def.reward + " ATP", life: 0.8, max: 0.8 });
       }
@@ -5941,7 +6005,11 @@
         var pa = Math.random() * Math.PI * 2, ps = (15 + Math.random() * 30) * U;
         pushEffect({ kind: "particle", x: g.x, y: g.y, vx: Math.cos(pa) * ps, vy: Math.sin(pa) * ps - 8 * U, life: 0.4, max: 0.5, color: e.def.color });
       }
-      g.swallow = 0.6; g.mouthOpen = 0; g.engulfTarget = null;
+      g.swallow = 0.6;
+      g.mouthOpen = 0;
+      g.tongueExtend = 0;
+      g.engulfTarget = null;
+      g.engulfPhase = null;
       pushDamageNumber(g.x, g.y - 24 * U, "¡ÑAM!", "#ffd24a");
       sfx("sell");
     }
@@ -6260,16 +6328,57 @@
     ctx.fillStyle = "rgba(150, 80, 30, 0.18)";
     ctx.beginPath(); ctx.ellipse(R * 0.16, R * 0.30, R * 0.30, R * 0.18, 0.4, 0, Math.PI * 2); ctx.fill();
     var eyeR = R * 0.20, gap = R * 0.30, faceY = -R * 0.12;
-    if (maw > 0.05) {
-      // ¡Fagocitando! Ojos apretados de esfuerzo + BOCA enorme abierta.
+    var tongueExt = g.tongueExtend || 0;
+    // Función helper para dibujar la lengua (la usamos ENCIMA del mouth)
+    function _drawTongue() {
+      var tngLen = R * 0.55 * tongueExt;
+      var tngWobble = Math.sin(state.time * 8) * 2 * U * tongueExt;
+      var tngX0 = -R * 0.06 + tngWobble;
+      var tngY0 = R * 0.22;
+      var tngTipY = tngY0 + tngLen;
+      ctx.fillStyle = "#ff7a8a";
+      ctx.strokeStyle = "#c04050";
+      ctx.lineWidth = 1.3 * U;
+      ctx.beginPath();
+      ctx.moveTo(tngX0 - R * 0.12, tngY0);
+      ctx.quadraticCurveTo(tngX0 - R * 0.18, tngTipY * 0.7, tngX0 - R * 0.05, tngTipY);
+      ctx.quadraticCurveTo(tngX0 + R * 0.06, tngTipY + R * 0.06, tngX0 + R * 0.12, tngTipY - R * 0.04);
+      ctx.quadraticCurveTo(tngX0 + R * 0.18, tngTipY * 0.7, tngX0 + R * 0.12, tngY0);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      ctx.strokeStyle = "rgba(180, 50, 70, 0.55)";
+      ctx.lineWidth = 0.9 * U;
+      ctx.beginPath();
+      ctx.moveTo(tngX0, tngY0 + 2 * U);
+      ctx.lineTo(tngX0, tngTipY - 2 * U);
+      ctx.stroke();
+      if (tongueExt > 0.6) {
+        ctx.fillStyle = "rgba(255, 240, 240, 0.78)";
+        ctx.beginPath();
+        ctx.arc(tngX0 + R * 0.08, tngTipY + R * 0.02, R * 0.04, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    if (maw > 0.5) {
+      // ¡Engullendo! Boca enorme abierta. (Solo durante LIFT/ENGULF, no LICK)
       drawFocusedEyes(0, faceY, eyeR, gap, R * 0.18, R * 0.06);
       ctx.fillStyle = "rgba(15, 25, 45, 0.92)";
       ctx.beginPath();
       ctx.ellipse(0, R * 0.28, R * (0.35 + 0.55 * maw), R * (0.25 + 0.6 * maw), 0, 0, Math.PI * 2);
       ctx.fill();
-      // lengua/borde
       ctx.strokeStyle = "#ff9bb0"; ctx.lineWidth = 2 * U;
       ctx.beginPath(); ctx.ellipse(0, R * 0.28, R * (0.35 + 0.55 * maw), R * (0.25 + 0.6 * maw), 0, 0, Math.PI * 2); ctx.stroke();
+      // Lengua se asoma por la boca abierta (si todavía hay tongueExtend)
+      if (tongueExt > 0.01) _drawTongue();
+    } else if (tongueExt > 0.01) {
+      // LICK PHASE — ojos hambrientos + boca apenas abierta + lengua afuera
+      drawAnimeEyes(0, faceY, eyeR, gap, 0, 0, R * 0.10, R * 0.04, "happy");
+      ctx.fillStyle = "rgba(15, 25, 45, 0.85)";
+      ctx.beginPath();
+      ctx.ellipse(0, R * 0.22, R * 0.24, R * (0.10 + 0.15 * tongueExt), 0, 0, Math.PI * 2);
+      ctx.fill();
+      _drawTongue();
     } else if (fleeing) {
       drawHurtEyes(0, faceY, eyeR, gap);
       drawAnimeMouth(0, R * 0.42, R * 0.5, R * 0.5, "open");

@@ -13919,6 +13919,24 @@
     ctx.ellipse(0, -bodyW * 1.30, bodyL * 0.90, bodyW * 0.22, 0, 0, Math.PI * 2);
     ctx.fill();
 
+    // ANAEROBIC GAS BUBBLES — signature del bacilo anaerobio que fermenta
+    // sebo. 3 burbujitas saliendo de la parte superior, flotando hacia arriba.
+    for (var gb = 0; gb < 3; gb++) {
+      var gbT = ((t * 0.6 + gb * 0.4 + e.wobble * 0.1) % 1.6) / 1.6;  // 0→1 ciclo
+      var gbAlpha = Math.sin(gbT * Math.PI) * 0.65;
+      if (gbAlpha <= 0) continue;
+      var gbX = ((gb - 1) * bodyL * 0.20) + Math.sin(gbT * Math.PI * 2) * 1.5 * U;
+      var gbY = -bodyW * 0.95 - gbT * bodyW * 2.5;
+      var gbR = (1.3 + gbT * 1.0) * U;
+      ctx.fillStyle = "rgba(220, 180, 90, " + (gbAlpha * 0.65) + ")";
+      ctx.beginPath();
+      ctx.arc(gbX, gbY, gbR, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "rgba(150, 110, 30, " + (gbAlpha * 0.50) + ")";
+      ctx.lineWidth = 0.7 * U;
+      ctx.stroke();
+    }
+
     // Helper para dibujar cápsula horizontal (bastoncillo).
     function drawBacBody(fillStyle, strokeStyle, strokeW) {
       var rx = bodyL, ry = bodyW;
@@ -14112,6 +14130,13 @@
       ctx.stroke();
     }
 
+    // 2.5. TEGUMENTO (capa amorfa entre cápside y envoltura) — fuzzy
+    // ring tenue de tono lavanda. Signature de los virus herpes.
+    ctx.fillStyle = "rgba(170, 145, 215, 0.28)";
+    ctx.beginPath();
+    ctx.arc(0, 0, bodyR * 1.05, 0, Math.PI * 2);
+    ctx.fill();
+
     // 3. CÁPSIDE icosaédrica (representada como hexágono — simetría
     // rotacional 5-3-2 del icosaedro real, simplificado en 2D).
     var capR = bodyR * 0.88;
@@ -14141,6 +14166,27 @@
       ctx.beginPath();
       ctx.moveTo(0, 0);
       ctx.lineTo(fx, fy);
+      ctx.stroke();
+    }
+
+    // 4.5. DNA CORE (dsDNA enrollado en el centro de la cápside).
+    // Doble espiral viscosa girando lento, distintiva de los herpesvirus.
+    ctx.strokeStyle = "rgba(40, 20, 80, 0.85)";
+    ctx.lineWidth = 1.4 * U;
+    ctx.lineCap = "round";
+    var dnaPhase = t * 0.6;
+    var dnaR = capR * 0.38;
+    // 2 hebras enrolladas — sinusoides cruzadas que giran
+    for (var d = 0; d < 2; d++) {
+      ctx.beginPath();
+      var nPts = 12;
+      for (var dp = 0; dp <= nPts; dp++) {
+        var dpFrac = dp / nPts;
+        var dpAng = dpFrac * Math.PI * 2 + d * Math.PI + dnaPhase;
+        var dpx = Math.cos(dpAng) * dnaR;
+        var dpy = (dpFrac - 0.5) * dnaR * 1.6;
+        if (dp === 0) ctx.moveTo(dpx, dpy); else ctx.lineTo(dpx, dpy);
+      }
       ctx.stroke();
     }
 
@@ -14404,6 +14450,34 @@
     ctx.beginPath();
     ctx.ellipse(-bw * 0.35, -bh * 0.40, bw * 0.32, bh * 0.20, -0.3, 0, Math.PI * 2);
     ctx.fill();
+
+    // YEAST BUDDING (gemación asexual) — signature de Candida. 2 yeasts
+    // hijas asomando por costados, pinching off de la madre.
+    var budPulse = 0.5 + 0.5 * Math.sin(t * 1.3 + e.wobble);
+    for (var bd = 0; bd < 2; bd++) {
+      var bdAng = bd === 0 ? (Math.PI * 0.18) : (-Math.PI * 0.20);
+      var bdDist = bw * 1.05 + budPulse * bw * 0.10;
+      var bdX = Math.cos(bdAng) * bdDist;
+      var bdY = Math.sin(bdAng) * bdDist * (bh / bw);
+      var bdR = bw * 0.34 * (0.6 + budPulse * 0.20);
+      // Cuerpo de la yeast hija
+      var bdGrad = ctx.createRadialGradient(bdX - bdR * 0.3, bdY - bdR * 0.3, bdR * 0.15, bdX, bdY, bdR);
+      bdGrad.addColorStop(0, "#D8EFA8");
+      bdGrad.addColorStop(0.6, "#A8D070");
+      bdGrad.addColorStop(1, "#6B8E47");
+      ctx.fillStyle = bdGrad;
+      ctx.beginPath();
+      ctx.arc(bdX, bdY, bdR, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "#6B8E47";
+      ctx.lineWidth = Math.max(0.9, 1.2 * U);
+      ctx.stroke();
+      // Mini-highlight
+      ctx.fillStyle = "rgba(255,255,255,0.32)";
+      ctx.beginPath();
+      ctx.arc(bdX - bdR * 0.30, bdY - bdR * 0.32, bdR * 0.30, 0, Math.PI * 2);
+      ctx.fill();
+    }
     // Cara
     var eyeR = bw * 0.28;
     var faceY = -bh * 0.10;

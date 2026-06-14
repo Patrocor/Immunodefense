@@ -5898,12 +5898,12 @@
   var GUARDIAN_INTERVAL = 22;     // s entre apariciones (era 28)
   var GUARDIAN_MAX = 3;           // vivos a la vez (era 2)
   var MACROFAGO_MANUAL_COST = 60; // ATP para llamar manual
-  var GUARDIAN_HP = 80;
+  var GUARDIAN_HP = 92;           // 80 * 1.15 → 92 (15% más resistencia)
   var GUARDIAN_BITE_DMG = 30;
   var GUARDIAN_BITE_CD = 0.8;
   var GUARDIAN_BITE_RANGE = 30;   // px diseño (* U)
   var GUARDIAN_SPEED = 70;        // px diseño/s (* U)
-  var GUARDIAN_CRIT = 0.30;       // se retira al 30% de vida
+  var GUARDIAN_CRIT = 0.20;       // se retira al 20% (era 30%) — aguanta más
   var ENGULF_SEEK = 150;          // px diseño: detecta germen vulnerable
   var ENGULF_RANGE = 26;          // px diseño: distancia para empezar a engullir
   var ENGULF_TIME = 0.9;          // s que tarda la fagocitosis
@@ -6213,7 +6213,74 @@
 
   function drawGuardians() {
     if (!state.guardians) return;
+    // PRIMERO: efectos PRE-macrofago (halo de succión bajo el cuerpo)
+    for (var i = 0; i < state.guardians.length; i++) drawEngulfFx(state.guardians[i]);
     for (var i = 0; i < state.guardians.length; i++) drawGuardian(state.guardians[i]);
+  }
+
+  // Halo de succión + tractor beam cuando el macrófago está engullendo.
+  // Se dibuja DEBAJO del macrófago y del germen para que se vea como
+  // un campo de fuerza succionando.
+  function drawEngulfFx(g) {
+    if (!g.engulfTarget || !g.engulfPhase) return;
+    var e = g.engulfTarget;
+    if (!e || e.dead) return;
+    var mouthX = g.x, mouthY = g.y + 10 * U * g.scale;
+    var R = 24 * U * g.scale;
+    var t = state.time;
+    var ph = g.engulfPhase;
+    ctx.save();
+    // HALO PULSANTE alrededor de la boca (campo de succión)
+    var pulse = 0.5 + 0.5 * Math.sin(t * 8);
+    var haloR = R * (1.0 + pulse * 0.30);
+    if (ph === "lift" || ph === "engulf") {
+      var haloGrad = ctx.createRadialGradient(mouthX, mouthY, R * 0.4, mouthX, mouthY, haloR * 1.6);
+      haloGrad.addColorStop(0, "rgba(255, 200, 130, " + (0.55 + pulse * 0.20) + ")");
+      haloGrad.addColorStop(0.6, "rgba(232, 146, 58, 0.30)");
+      haloGrad.addColorStop(1, "rgba(232, 146, 58, 0)");
+      ctx.fillStyle = haloGrad;
+      ctx.beginPath();
+      ctx.arc(mouthX, mouthY, haloR * 1.6, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // TRACTOR BEAM: líneas de succión del germen a la boca (durante lift)
+    if (ph === "lift") {
+      var dxL = mouthX - e.x, dyL = mouthY - e.y;
+      var lenL = Math.hypot(dxL, dyL) || 1;
+      var nxL = dxL / lenL, nyL = dyL / lenL;
+      var perpX = -nyL, perpY = nxL;
+      ctx.strokeStyle = "rgba(255, 220, 140, 0.65)";
+      ctx.lineWidth = 1.5 * U;
+      ctx.lineCap = "round";
+      // 3 líneas paralelas pulsantes (efecto succión cónica)
+      for (var ln = -1; ln <= 1; ln++) {
+        var offL = ln * 4 * U;
+        var startX = e.x + perpX * offL;
+        var startY = e.y + perpY * offL;
+        var endX = mouthX + perpX * offL * 0.3;
+        var endY = mouthY + perpY * offL * 0.3;
+        // Línea con pulso de opacidad
+        var lineAlpha = 0.4 + 0.4 * Math.sin(t * 12 + ln * 1.5);
+        ctx.globalAlpha = lineAlpha;
+        ctx.beginPath();
+        ctx.moveTo(startX, startY);
+        ctx.lineTo(endX, endY);
+        ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+    }
+    // ANILLO de impacto en el momento del swallow (germen entra a la boca)
+    if (ph === "engulf") {
+      var engulfFrac = (g.engulfT - 0.45) / 0.55;
+      engulfFrac = Math.min(1, Math.max(0, engulfFrac));
+      ctx.strokeStyle = "rgba(255, 230, 150, " + (0.85 * (1 - engulfFrac)) + ")";
+      ctx.lineWidth = 2.5 * U;
+      var ringR = R * 0.40 + engulfFrac * R * 0.50;
+      ctx.beginPath();
+      ctx.arc(mouthX, mouthY, ringR, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.restore();
   }
 
   function drawGuardian(g) {
@@ -6251,34 +6318,56 @@
     ctx.translate(g.x, g.y);
     // Gulp: squash-stretch al tragar (se ensancha y achata).
     if (swallow > 0) { var sw = swallow / 0.6; ctx.scale(1 + sw * 0.40, 1 - sw * 0.22); }
-    // DEDOS DE GUANTE: seudópodos redondeados (con yema) que se estiran al
-    // atacar/engullir, como una mano que agarra.
-    var reach = (maw > 0.05 || g.attackAnim > 0) ? 1.45 : 1.0;
+    // PSEUDÓPODOS TISSUE-RESIDENT: 11 pseudópodos cortos en movimiento
+    // ameboide constante. Cada uno se extiende y retrae con un ciclo de
+    // pulso INDEPENDIENTE (basado en su seed). Da la sensación de un
+    // macrófago tisular vivo que está sintiendo el entorno constantemente.
+    var reach = (maw > 0.05 || g.attackAnim > 0) ? 1.35 : 1.0;
     ctx.lineCap = "round"; ctx.lineJoin = "round";
-    var nF = 6, b0 = R * 0.58;
+    var nF = 11, b0 = R * 0.62;
     for (var f = 0; f < nF; f++) {
-      var fa = f / nF * Math.PI * 2 + seed * 0.5 + Math.sin(state.time * 1.6 + f) * 0.10;
-      var fl = R * (0.50 + 0.55 * Math.abs(Math.sin(f * 2.1 + seed))) * reach;
-      var bend = Math.sin(state.time * 3 + f * 1.5) * R * 0.16;
+      var fSeed = f * 1.73 + seed * 0.5;
+      // Movimiento ameboide: cada pseudópodo pulsa con su propia fase
+      var pulseT = state.time * 1.4 + fSeed;
+      var pulse = (Math.sin(pulseT) + 1) * 0.5;   // 0..1 cyclical
+      // Posición angular SUTILMENTE móvil (no perfectamente equidistantes)
+      var fa = f / nF * Math.PI * 2 + Math.sin(state.time * 0.8 + f) * 0.12;
+      // Longitud corta + variación independiente
+      var fl = R * (0.20 + pulse * 0.35) * reach;
+      var bend = Math.sin(state.time * 2.5 + f * 1.5) * R * 0.10;
       var bx = Math.cos(fa) * b0, by = Math.sin(fa) * b0;
       var tx = Math.cos(fa) * (b0 + fl), ty = Math.sin(fa) * (b0 + fl);
       var nx = -Math.sin(fa), ny = Math.cos(fa);
       var mx = (bx + tx) / 2 + nx * bend, my = (by + ty) / 2 + ny * bend;
-      ctx.strokeStyle = COLD; ctx.lineWidth = R * 0.50;
+      // Stroke principal (más fino que antes para que se vean varios)
+      ctx.strokeStyle = COLD; ctx.lineWidth = R * 0.36;
       ctx.beginPath(); ctx.moveTo(bx, by); ctx.quadraticCurveTo(mx, my, tx, ty); ctx.stroke();
-      ctx.strokeStyle = (g.hitFlash > 0) ? "#ffd0d0" : COL; ctx.lineWidth = R * 0.40;
+      ctx.strokeStyle = (g.hitFlash > 0) ? "#ffd0d0" : COL; ctx.lineWidth = R * 0.28;
       ctx.beginPath(); ctx.moveTo(bx, by); ctx.quadraticCurveTo(mx, my, tx, ty); ctx.stroke();
+      // Yema redondeada al final del pseudópodo
       ctx.fillStyle = (g.hitFlash > 0) ? "#ffd0d0" : COL;
-      ctx.strokeStyle = COLD; ctx.lineWidth = 1.3 * U;
-      ctx.beginPath(); ctx.arc(tx, ty, R * 0.21, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      ctx.strokeStyle = COLD; ctx.lineWidth = 1.1 * U;
+      ctx.beginPath(); ctx.arc(tx, ty, R * 0.14, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
     }
-    // Cuerpo central redondeado.
+    // Cuerpo central AMEBOIDE — contorno ondulado, no perfectamente redondo.
+    // Membrana viva que se ondula sutilmente con el tiempo.
     var body = ctx.createRadialGradient(-R * 0.3, -R * 0.3, R * 0.2, 0, 0, R * 0.95);
     body.addColorStop(0, "#f7cf95");
     body.addColorStop(0.6, COL);
     body.addColorStop(1, COLD);
     ctx.fillStyle = g.hitFlash > 0 ? "#ffd0d0" : body;
-    ctx.beginPath(); ctx.arc(0, 0, R * 0.80, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath();
+    var nWaves = 14;
+    for (var bw = 0; bw <= nWaves; bw++) {
+      var bwAng = (bw / nWaves) * Math.PI * 2 + seed * 0.3;
+      var bwBump = 1 + Math.sin(bwAng * 4 + state.time * 1.3 + seed) * 0.05;
+      var bwR = R * 0.80 * bwBump;
+      var bwX = Math.cos(bwAng) * bwR;
+      var bwY = Math.sin(bwAng) * bwR;
+      if (bw === 0) ctx.moveTo(bwX, bwY); else ctx.lineTo(bwX, bwY);
+    }
+    ctx.closePath();
+    ctx.fill();
     ctx.strokeStyle = COLD; ctx.lineWidth = 1.6 * U; ctx.stroke();
     // RECEPTORES DE SUPERFICIE — pequeños bumps en la membrana (TLR, Fc, CR3).
     // Signature de la membrana del macrófago: muchos receptores sensando.

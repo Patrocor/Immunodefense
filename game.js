@@ -1012,35 +1012,35 @@
     saureus: {
       id: "saureus", name: "Staphylococcus aureus", baseKind: "bacteria",
       color: "#F9A825", colorDark: "#9c6e0a", radius: 27,
-      speedMult: 0.7, hp: 525, reward: 18, viralAdd: 8, attack: 12, power: { type: "burst", range: 135, cooldown: 4, dmg: 13, slowFire: 3 }, isBoss: false,
+      speedMult: 0.7, hp: 578, reward: 18, viralAdd: 8, attack: 12, power: { type: "burst", range: 135, cooldown: 4, dmg: 13, slowFire: 3 }, isBoss: false,
       shield: { type: "capsula", maxHP: 5, regenRate: 0, regenDelay: 0, doubleRing: true },
       tooltip: "Bacteria con cápsula y capacidad de formar biofilm protector. Causa infecciones cutáneas, neumonía y septicemia. Algunas cepas (MRSA) son resistentes a antibióticos."
     },
     influenza: {
       id: "influenza", name: "Virus Influenza", baseKind: "virus",
       color: "#66BB6A", colorDark: "#357a32", radius: 9,
-      speedMult: 1.5, hp: 150, reward: 10, viralAdd: 6, isBoss: false,
+      speedMult: 1.5, hp: 165, reward: 10, viralAdd: 6, isBoss: false,
       shield: null,
       tooltip: "Virus de RNA muy rápido y mutable. Sin defensas estructurales fuertes. Causa la gripe estacional. Su mutabilidad le permite evadir la inmunidad previa."
     },
     vih: {
       id: "vih", name: "Virus VIH", baseKind: "virus",
       color: "#7B1FA2", colorDark: "#3e0e54", radius: 11,
-      speedMult: 1.0, hp: 270, reward: 20, viralAdd: 8, isBoss: false,
+      speedMult: 1.0, hp: 297, reward: 20, viralAdd: 8, isBoss: false,
       shield: { type: "spike", maxHP: 4, regenRate: 4 / 12, regenDelay: 0, requiresT: true },
       tooltip: "Retrovirus con envoltura de proteínas spike (gp120/gp41). Solo los Linfocitos T citotóxicos pueden eliminarlo eficazmente. Ataca al sistema inmune y causa el SIDA."
     },
     candida: {
       id: "candida", name: "Candida albicans", baseKind: "hongo",
       color: "#EC407A", colorDark: "#7a1d3e", radius: 27,
-      speedMult: 0.9, hp: 375, reward: 15, viralAdd: 8, attack: 6, power: { type: "catapult", range: 150, cooldown: 5, dmg: 32 }, isBoss: false,
+      speedMult: 0.9, hp: 413, reward: 15, viralAdd: 8, attack: 6, power: { type: "catapult", range: 150, cooldown: 5, dmg: 32 }, isBoss: false,
       shield: { type: "wall", maxHP: 4, regenRate: 0, regenDelay: 0 },
       tooltip: "Hongo levadura con pared celular de quitina y β-glucanos. Causa candidiasis. Su pared rígida lo protege parcialmente del ataque inmune."
     },
     dermatofito: {
       id: "dermatofito", name: "Trichophyton rubrum", shortName: "Dermatofito", baseKind: "hongo",
       color: "#9CA85A", colorDark: "#5E6A2C", radius: 23,
-      speedMult: 0.85, hp: 320, reward: 14, viralAdd: 7, attack: 5, isBoss: false,
+      speedMult: 0.85, hp: 352, reward: 14, viralAdd: 7, attack: 5, isBoss: false,
       shield: { type: "wall", maxHP: 2, regenRate: 0, regenDelay: 0 },
       spore: { interval: 3.2, childHpFrac: 0.2, childSpeedMult: 1.9, maxChildren: 5 },
       tooltip: "Hongo dermatofito de la tiña (pie de atleta y tiña corporal o 'ringworm'). Mientras avanza suelta esporas hijas que corren más rápido."
@@ -1049,7 +1049,7 @@
     sepidermidis: {
       id: "sepidermidis", name: "Staphylococcus epidermidis", baseKind: "bacteria",
       color: "#90A4AE", colorDark: "#546E7A", radius: 27,
-      speedMult: 1.3, hp: 120, reward: 6, viralAdd: 4, attack: 3, isBoss: false,
+      speedMult: 1.3, hp: 132, reward: 6, viralAdd: 4, attack: 3, isBoss: false,
       shield: null,
       tentacles: { range: 70, dmg: 7, interval: 1.8, pulses: 3, pulseGap: 0.22 },
       tooltip: "Coco gram positivo de la flora normal de la piel. Rápido y débil... pero cuando pasa pegado a una torre saca SEUDÓPODOS y le mete puñetazos. Forma biofilm sobre catéteres y prótesis."
@@ -1057,21 +1057,21 @@
     hsv: {
       id: "hsv", name: "Herpes simplex (HSV)", baseKind: "virus",
       color: "#9575CD", colorDark: "#4527A0", radius: 26,
-      speedMult: 1.55, hp: 130, reward: 9, viralAdd: 6, attack: 4, isBoss: false,
+      speedMult: 1.55, hp: 143, reward: 9, viralAdd: 6, attack: 4, isBoss: false,
       shield: null,
       tooltip: "Virus con envoltura que causa vesículas dolorosas en piel y mucosas (herpes labial/genital). Muy rápido y queda latente en los nervios para reactivarse. Poca vida, pero difícil de atrapar."
     },
     cacnes: {
       id: "cacnes", name: "Cutibacterium acnes", baseKind: "bacteria",
       color: "#C9A66B", colorDark: "#7a5c33", colorLight: "#E8D2A8", radius: 20,
-      speedMult: 0.7, hp: 280, reward: 12, viralAdd: 6, attack: 4, isBoss: false,
+      speedMult: 0.7, hp: 308, reward: 12, viralAdd: 6, attack: 4, isBoss: false,
       shield: { type: "wall", maxHP: 2, regenRate: 0, regenDelay: 0 },
       tooltip: "Bacilo anaerobio del folículo piloso, responsable del acné. Lento y resistente; su biofilm en el poro lo protege parcialmente del ataque inmune."
     },
     pseudomonas: {
       id: "pseudomonas", name: "Pseudomonas aeruginosa", baseKind: "bacteria",
       color: "#26A69A", colorDark: "#00695C", colorLight: "#80DEEA", radius: 20,
-      speedMult: 1.0, hp: 360, reward: 16, viralAdd: 7, attack: 10, power: { type: "spray", range: 115, cooldown: 5, stun: 2.4, dmg: 16 }, isBoss: false,
+      speedMult: 1.0, hp: 396, reward: 16, viralAdd: 7, attack: 10, power: { type: "spray", range: 115, cooldown: 5, stun: 2.4, dmg: 16 }, isBoss: false,
       shield: { type: "wall", maxHP: 3, regenRate: 3 / 12, regenDelay: 8 },
       seekers: { interval: 7.5, hp: 8, speed: 75, dmg: 22 },   // esporas buscadoras de torres disparadoras (cañón MAC, NK, linfocito B/T, eosinófilo)
       tooltip: "Bacilo gram negativo de heridas húmedas. Además de su spray paralizante, suelta esporas que vuelan hacia las torres disparadoras (cañón MAC, Linfocito B/T, NK, Eosinófilo) para destruirlas. Piocianina y biofilm resistente."
@@ -1080,7 +1080,7 @@
     sarna: {
       id: "sarna", name: "Sarcoptes scabiei", shortName: "Ácaro sarna", baseKind: "parasito",
       color: "#8a5a2b", colorDark: "#4d3014", colorLight: "#c79a5e", radius: 24,
-      speedMult: 1.0, hp: 220, reward: 13, viralAdd: 7, attack: 6, isBoss: false,
+      speedMult: 1.0, hp: 242, reward: 13, viralAdd: 7, attack: 6, isBoss: false,
       shield: null,
       burrow: { interval: 5.0, duration: 1.5, speedMult: 1.9, surfaceJump: 90 },
       spore: { interval: 4.5, childHpFrac: 0.2, childSpeedMult: 1.6, maxChildren: 3 },
@@ -1089,14 +1089,14 @@
     hpv: {
       id: "hpv", name: "Virus del papiloma (HPV)", shortName: "HPV", baseKind: "virus",
       color: "#8a9a5e", colorDark: "#4f5a2c", colorLight: "#c2cf90", radius: 25,
-      speedMult: 0.6, hp: 360, reward: 15, viralAdd: 8, attack: 6, isBoss: false,
+      speedMult: 0.6, hp: 396, reward: 15, viralAdd: 8, attack: 6, isBoss: false,
       shield: { type: "wall", maxHP: 4, regenRate: 4 / 9, regenDelay: 3 },
       tooltip: "Virus de las verrugas. Su coraza de queratina se regenera y amortigua los golpes, así que es muy duro y lento. La Célula NK le rompe el escudo y le hace daño extra."
     },
     molluscum: {
       id: "molluscum", name: "Molluscum contagiosum", shortName: "Molluscum", baseKind: "virus",
       color: "#e8d6c0", colorDark: "#b89a78", colorLight: "#fbf2e6", radius: 24,
-      speedMult: 1.0, hp: 170, reward: 11, viralAdd: 6, attack: 4, isBoss: false,
+      speedMult: 1.0, hp: 187, reward: 11, viralAdd: 6, attack: 4, isBoss: false,
       shield: null,
       spore: { interval: 3.5, childHpFrac: 0.4, childSpeedMult: 1.0, maxChildren: 3 },
       deathSplit: { count: 2, hpFrac: 0.35 },
@@ -1105,7 +1105,7 @@
     malassezia: {
       id: "malassezia", name: "Malassezia", shortName: "Malassezia", baseKind: "hongo",
       color: "#d8c060", colorDark: "#8a7320", colorLight: "#f0e29a", radius: 24,
-      speedMult: 0.85, hp: 240, reward: 12, viralAdd: 7, attack: 5, isBoss: false,
+      speedMult: 0.85, hp: 264, reward: 12, viralAdd: 7, attack: 5, isBoss: false,
       shield: null,
       greaseAura: { range: 95, slowFire: 1.5 },
       tooltip: "Levadura grasa de la piel (pitiriasis versicolor y caspa). Suelta una película aceitosa que 'engrasa' a las torres cercanas y les baja la cadencia de disparo. Cae con daño bruto o antiséptico."
@@ -1114,28 +1114,28 @@
     bossPyogenes: {
       id: "bossPyogenes", name: "Streptococcus pyogenes", baseKind: "bacteria",
       color: "#C62828", colorDark: "#5a0d0d", radius: 32,
-      speedMult: 0.8, hp: 1050, reward: 50, viralAdd: 15, attack: 25, power: { type: "burst", range: 165, cooldown: 3, dmg: 24, slowFire: 3 }, isBoss: true,
+      speedMult: 0.8, hp: 1155, reward: 50, viralAdd: 15, attack: 25, power: { type: "burst", range: 165, cooldown: 3, dmg: 24, slowFire: 3 }, isBoss: true,
       shield: { type: "capsula", maxHP: 6, regenRate: 6 / 8, regenDelay: 0 },
       tooltip: "La 'bacteria carnívora'. Causa fascitis necrotizante y faringitis severa. Su cápsula y exotoxinas la hacen muy peligrosa."
     },
     bossMRSA: {
       id: "bossMRSA", name: "MRSA", baseKind: "bacteria",
       color: "#424242", colorDark: "#1a1a1a", radius: 38,
-      speedMult: 0.6, hp: 2700, reward: 150, viralAdd: 35, attack: 35, power: { type: "spray", range: 165, cooldown: 3, stun: 3, dmg: 28 }, isBoss: true,
+      speedMult: 0.6, hp: 2970, reward: 150, viralAdd: 35, attack: 35, power: { type: "spray", range: 165, cooldown: 3, stun: 3, dmg: 28 }, isBoss: true,
       shield: { type: "capsula", maxHP: 10, regenRate: 2 / 6, regenDelay: 0, doubleRing: true, mrsaHalo: true },
       tooltip: "Staphylococcus aureus multi-resistente a antibióticos. Una de las amenazas microbiológicas más serias del siglo XXI. Combina cápsula, biofilm y resistencia genética. Su erradicación requiere arsenal completo del sistema inmune."
     },
     bossPseudomonas: {
       id: "bossPseudomonas", name: "Pseudomonas aeruginosa", baseKind: "bacteria",
       color: "#00ACC1", colorDark: "#00606e", colorLight: "#4DD0E1", radius: 30,
-      speedMult: 0.9, hp: 1400, reward: 65, viralAdd: 18, attack: 22, power: { type: "devour", range: 130, cooldown: 11, pull: 1.5 }, isBoss: true,
+      speedMult: 0.9, hp: 1540, reward: 65, viralAdd: 18, attack: 22, power: { type: "devour", range: 130, cooldown: 11, pull: 1.5 }, isBoss: true,
       shield: { type: "wall", maxHP: 6, regenRate: 6 / 8, regenDelay: 0 },
       tooltip: "Pseudomonas invasiva: ectima gangrenoso. Coloniza heridas y quemaduras extensas, destruye el tejido y resiste muchos antibióticos. Su biofilm se regenera con rapidez."
     },
     bossClostridium: {
       id: "bossClostridium", name: "Clostridium perfringens", baseKind: "bacteria",
       color: "#546E7A", colorDark: "#263238", radius: 32,
-      speedMult: 0.55, hp: 1650, reward: 80, viralAdd: 22, attack: 28, power: { type: "devour", range: 120, cooldown: 13, pull: 1.8 }, isBoss: true,
+      speedMult: 0.55, hp: 1815, reward: 80, viralAdd: 22, attack: 28, power: { type: "devour", range: 120, cooldown: 13, pull: 1.8 }, isBoss: true,
       shield: { type: "wall", maxHP: 5, regenRate: 0, regenDelay: 0 },
       tooltip: "Bacilo anaerobio de la gangrena gaseosa. Sus toxinas necrosan músculo y piel produciendo gas en los tejidos. Avanza lento e implacable; emergencia quirúrgica."
     },
@@ -1143,27 +1143,27 @@
     bacteria: {
       id: "bacteria", name: "Bacteria", baseKind: "bacteria",
       color: "#E74C3C", colorDark: "#922a1f", radius: 14, speedMult: 0.6,
-      hp: 200, reward: 10, viralAdd: 5, isBoss: false, shield: null
+      hp: 220, reward: 10, viralAdd: 5, isBoss: false, shield: null
     },
     virus: {
       id: "virus", name: "Virus", baseKind: "virus",
       color: "#8E44AD", colorDark: "#5a2c70", radius: 9, speedMult: 1.5,
-      hp: 80, reward: 5, viralAdd: 6, isBoss: false, shield: null
+      hp: 88, reward: 5, viralAdd: 6, isBoss: false, shield: null
     },
     hongo: {
       id: "hongo", name: "Hongo", baseKind: "hongo",
       color: "#E91E63", colorDark: "#8c1240", radius: 12, speedMult: 1.0,
-      hp: 140, reward: 15, viralAdd: 8, isBoss: false, shield: null
+      hp: 154, reward: 15, viralAdd: 8, isBoss: false, shield: null
     },
     boss: {
       id: "boss", name: "Boss", baseKind: "bacteria",
       color: "#E74C3C", colorDark: "#5a1010", radius: 42, speedMult: 0.4,
-      hp: 2000, reward: 100, viralAdd: 20, isBoss: true, shield: null
+      hp: 2200, reward: 100, viralAdd: 20, isBoss: true, shield: null
     },
-    bossBacteria:  { id: "bossBacteria",  name: "Mega Bacteria",      baseKind: "bacteria",  color: "#8B0000", colorDark: "#3d0a0a", radius: 35, speedMult: 0.40, hp:  600, reward:  50, viralAdd: 15, isBoss: true, shield: null },
-    bossVirus:     { id: "bossVirus",     name: "Virus Mutado",        baseKind: "virus",     color: "#6A1B9A", colorDark: "#3a0f5b", radius: 22, speedMult: 1.20, hp:  700, reward:  60, viralAdd: 18, isBoss: true, shield: null },
-    bossHongo:     { id: "bossHongo",     name: "Hongo Invasivo",      baseKind: "hongo",     color: "#C2185B", colorDark: "#6a0d33", radius: 33, speedMult: 0.90, hp:  850, reward:  80, viralAdd: 22, isBoss: true, shield: null },
-    bossPrimordial:{ id: "bossPrimordial",name: "Patogeno Primordial", baseKind: "primordial",color: "#2A2424", colorDark: "#0a0606", radius: 45, speedMult: 0.50, hp: 1500, reward: 150, viralAdd: 35, isBoss: true, shield: null }
+    bossBacteria:  { id: "bossBacteria",  name: "Mega Bacteria",      baseKind: "bacteria",  color: "#8B0000", colorDark: "#3d0a0a", radius: 35, speedMult: 0.40, hp:  660, reward:  50, viralAdd: 15, isBoss: true, shield: null },
+    bossVirus:     { id: "bossVirus",     name: "Virus Mutado",        baseKind: "virus",     color: "#6A1B9A", colorDark: "#3a0f5b", radius: 22, speedMult: 1.20, hp:  770, reward:  60, viralAdd: 18, isBoss: true, shield: null },
+    bossHongo:     { id: "bossHongo",     name: "Hongo Invasivo",      baseKind: "hongo",     color: "#C2185B", colorDark: "#6a0d33", radius: 33, speedMult: 0.90, hp:  935, reward:  80, viralAdd: 22, isBoss: true, shield: null },
+    bossPrimordial:{ id: "bossPrimordial",name: "Patogeno Primordial", baseKind: "primordial",color: "#2A2424", colorDark: "#0a0606", radius: 45, speedMult: 0.50, hp: 1650, reward: 150, viralAdd: 35, isBoss: true, shield: null }
   };
 
   // Cada oleada INTRODUCE un patógeno cutáneo específico, con progresión

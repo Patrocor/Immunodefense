@@ -568,15 +568,17 @@
 
   // ============ PATH DEL NIVEL PUENTE (5 carriles VERTICALES) ============
   // Cada carril es vertical: spawn arriba (la barrera rota), puerta de órgano
-  // abajo. Campo al 80%: 15% de margen lateral (deja sitio para las dos
-  // mitocondrias) y 12% arriba/abajo. Sin tronco compartido.
+  // abajo. Usa casi todo el campo (las mitocondrias laterales viven en
+  // 6.5%/93.5%, bien afuera de este rango) para que no queden franjas
+  // muertas a los costados ni arriba/abajo. Sin tronco compartido.
   function rebuildDisseminationPath() {
     PATH.orientation = isPortrait ? "portrait" : "landscape";
-    // 3 columnas más juntas — para que las torres puedan interactuar entre
-    // carriles vecinos y no queden espacios muertos sin acción.
-    var laneXs = [0.33, 0.50, 0.67];
-    var entryYn = 0.12;   // arriba (grieta de barrera rota)
-    var exitYn = 0.88;    // abajo (puerta de órgano)
+    // 3 columnas bien separadas — usan casi todo el ancho del campo en vez
+    // de apretarse en el tercio central, así las torres tienen sentido en
+    // toda la pantalla y no solo cerca del medio.
+    var laneXs = [0.16, 0.50, 0.84];
+    var entryYn = 0.07;   // arriba (grieta de barrera rota)
+    var exitYn = 0.93;    // abajo (puerta de órgano)
     PATH.wounds = [];
     PATH.branches = [];
     PATH.totalForBranch = [];
@@ -1172,13 +1174,13 @@
   // pulso descarga exactamente el daño que el tick continuo habría hecho
   // en "pulseGap" segundos. Solo cambia la presentación.
   var SIGNATURE_ATTACK_DEFS = {
-    dermatofito: { pulseGap: 0.55, punchDur: 0.35, color: "#9CA85A" },
-    hsv:         { pulseGap: 0.38, punchDur: 0.30, color: "#9575CD" },
-    cacnes:      { pulseGap: 0.70, punchDur: 0.42, color: "#C9A66B" },
-    sarna:       { pulseGap: 0.60, punchDur: 0.28, color: "#8a5a2b" },
-    hpv:         { pulseGap: 0.50, punchDur: 0.32, color: "#8a9a5e" },
-    molluscum:   { pulseGap: 0.55, punchDur: 0.40, color: "#e8d6c0" },
-    malassezia:  { pulseGap: 0.60, punchDur: 0.35, color: "#d8c060" }
+    dermatofito: { pulseGap: 0.55, punchDur: 0.46, color: "#9CA85A" },
+    hsv:         { pulseGap: 0.38, punchDur: 0.40, color: "#9575CD" },
+    cacnes:      { pulseGap: 0.70, punchDur: 0.55, color: "#C9A66B" },
+    sarna:       { pulseGap: 0.60, punchDur: 0.38, color: "#8a5a2b" },
+    hpv:         { pulseGap: 0.50, punchDur: 0.42, color: "#8a9a5e" },
+    molluscum:   { pulseGap: 0.55, punchDur: 0.52, color: "#e8d6c0" },
+    malassezia:  { pulseGap: 0.60, punchDur: 0.46, color: "#d8c060" }
   };
 
   // Cada oleada INTRODUCE un patógeno cutáneo específico, con progresión
@@ -2702,7 +2704,7 @@
   function spawnNet(laneX, laneY) {
     var topY = FIELD_TOP + FIELD_H * 0.06;
     var bottomY = FIELD_TOP + FIELD_H * 0.92;
-    var laneW = (FIELD_W / 5) * 0.78;
+    var laneW = (FIELD_W * laneGapFrac()) * 0.78;
     // Hebras: mitad brotan hacia arriba, mitad hacia abajo desde el tap.
     var nUp = 5, nDown = 5;
     var strands = [];
@@ -2970,6 +2972,15 @@
   // Número actual de carriles (3: triada hematógena clásica).
   function laneCount() {
     return (PATH.laneXs && PATH.laneXs.length) ? PATH.laneXs.length : 3;
+  }
+
+  // Separación real (fracción de FIELD_W) entre carriles vecinos. Reemplaza
+  // los viejos "FIELD_W / 5" hardcodeados de cuando había 5 carriles —
+  // ahora se ajusta solo si laneXs cambia (ver rebuildDisseminationPath).
+  function laneGapFrac() {
+    var xs = PATH.laneXs;
+    if (!xs || xs.length < 2) return 0.2;
+    return xs[1] - xs[0];
   }
 
   function hasResponseInLaneAny(lane) {
@@ -4727,11 +4738,20 @@
             if (e.sigPulseT <= 0) {
               var sigDmg = e.def.attack * ATTACK_MULT * atkMult * sigCfg.pulseGap;
               nearestSig.hp -= sigDmg;
-              nearestSig.hitFlash = 0.20;
+              nearestSig.hitFlash = 0.28;
               nearestSig.dmgAccum = (nearestSig.dmgAccum || 0) + sigDmg;
               e.sigPunchT = sigCfg.punchDur;
               e.sigX = nearestSig.x; e.sigY = nearestSig.y;
               e.sigPulseT = sigCfg.pulseGap;
+              // Ráfaga de partículas de impacto, color del germen — para que
+              // el golpe se note de un vistazo aun en medio del combate.
+              for (var sigP = 0; sigP < 6; sigP++) {
+                var sigA = Math.random() * Math.PI * 2, sigSp = (35 + Math.random() * 45) * U;
+                pushEffect({ kind: "particle", x: nearestSig.x, y: nearestSig.y,
+                  vx: Math.cos(sigA) * sigSp, vy: Math.sin(sigA) * sigSp - 12 * U,
+                  life: 0.45, max: 0.55, color: sigCfg.color });
+              }
+              pushEffect({ kind: "placeFlash", x: nearestSig.x, y: nearestSig.y, life: 0.22, max: 0.22 });
             }
           } else {
             e.sigPulseT = null;
@@ -5608,8 +5628,23 @@
       if (t.cooldown > 0) continue;
       var stats = towerStats(t);
       var rangePx = stats.range * U;
-      // Cañón manual: no autoataca; el jugador apunta y dispara desde handleClick.
-      if (t.def.manualFire) continue;
+      // Cañón MAC: dispara automático a un germen al azar dentro de rango en
+      // cuanto está listo (el jugador igual puede apuntar manualmente desde
+      // handleClick si quiere elegir el punto de impacto él mismo).
+      if (t.def.manualFire) {
+        var macCandidates = [];
+        for (var mi = 0; mi < state.enemies.length; mi++) {
+          var me = state.enemies[mi];
+          if (me.dead || me.dying || me.absorbing || me.state === "falling" || me.state === "entering") continue;
+          if (me.burrowed && !me.revealed) continue;
+          if (Math.hypot(me.x - t.x, me.y - t.y) <= rangePx) macCandidates.push(me);
+        }
+        if (macCandidates.length) {
+          var macTarget = macCandidates[Math.floor(Math.random() * macCandidates.length)];
+          fireCannonAt(t, macTarget.x, macTarget.y);
+        }
+        continue;
+      }
       // Torres de SOPORTE: aplican aura a todos los gérmenes en rango (sin
       // objetivo único). Langerhans marca (+daño y revela); Mastocito ralentiza.
       if (t.def.support) {
@@ -13097,42 +13132,46 @@
     var tx = e.sigX, ty = e.sigY;
     ctx.save();
     if (e.def.id === "dermatofito") {
-      // Ráfaga de esporas urticantes en abanico.
-      for (var fi = 0; fi < 3; fi++) {
-        var fk = Math.min(1, k * 1.3 + fi * 0.08);
-        var fa = (fi - 1) * 0.35;
-        var fx = e.x + (tx - e.x) * fk + Math.sin(fa) * 10 * U * fk;
-        var fy = e.y + (ty - e.y) * fk - Math.cos(fa) * 4 * U * fk;
-        ctx.fillStyle = colorAlpha(cfg.color, 0.85 * (1 - fk * 0.4));
-        ctx.beginPath(); ctx.arc(fx, fy, (2.4 - fi * 0.4) * U, 0, Math.PI * 2); ctx.fill();
+      // Ráfaga de esporas urticantes en abanico — más grandes y con halo.
+      ctx.shadowColor = colorAlpha(cfg.color, 0.9); ctx.shadowBlur = 7;
+      for (var fi = 0; fi < 4; fi++) {
+        var fk = Math.min(1, k * 1.3 + fi * 0.07);
+        var fa = (fi - 1.5) * 0.4;
+        var fx = e.x + (tx - e.x) * fk + Math.sin(fa) * 14 * U * fk;
+        var fy = e.y + (ty - e.y) * fk - Math.cos(fa) * 6 * U * fk;
+        ctx.fillStyle = colorAlpha(cfg.color, 0.95 * (1 - fk * 0.3));
+        ctx.beginPath(); ctx.arc(fx, fy, (4.0 - fi * 0.5) * U, 0, Math.PI * 2); ctx.fill();
       }
-      if (k > 0.7) {
-        ctx.strokeStyle = colorAlpha("#f5e7a0", 0.8 * (1 - k) * 3.3);
-        ctx.lineWidth = 1.5 * U;
-        for (var ic = 0; ic < 2; ic++) {
-          var iax = tx + (ic - 0.5) * 8 * U;
-          ctx.beginPath(); ctx.moveTo(iax - 3 * U, ty - 3 * U); ctx.lineTo(iax + 3 * U, ty + 3 * U); ctx.stroke();
+      ctx.shadowBlur = 0;
+      if (k > 0.6) {
+        var itchA = Math.min(1, (k - 0.6) / 0.35) * (1 - Math.max(0, k - 0.95) / 0.05);
+        ctx.strokeStyle = colorAlpha("#f5e7a0", 0.9 * itchA);
+        ctx.lineWidth = 2.4 * U;
+        for (var ic = 0; ic < 3; ic++) {
+          var iax = tx + (ic - 1) * 11 * U;
+          ctx.beginPath(); ctx.moveTo(iax - 5 * U, ty - 5 * U); ctx.lineTo(iax + 5 * U, ty + 5 * U); ctx.stroke();
         }
       }
     } else if (e.def.id === "hsv") {
       // Vesícula que se infla en el germen y estalla sobre la torre.
       var growK = Math.min(1, k * 1.8);
-      var vr = (3 + growK * 5) * U;
+      var vr = (5 + growK * 9) * U;
       var vx = e.x + (tx - e.x) * Math.min(1, k * 1.15);
       var vy = e.y + (ty - e.y) * Math.min(1, k * 1.15);
-      ctx.shadowColor = colorAlpha(cfg.color, 0.9); ctx.shadowBlur = 9;
-      ctx.fillStyle = colorAlpha("#c9b6f0", 0.55);
+      ctx.shadowColor = colorAlpha(cfg.color, 1); ctx.shadowBlur = 16;
+      ctx.fillStyle = colorAlpha("#c9b6f0", 0.7);
       ctx.beginPath(); ctx.arc(vx, vy, vr, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = colorAlpha("#fff", 0.6); ctx.lineWidth = 1.5 * U; ctx.stroke();
       ctx.shadowBlur = 0;
-      if (k > 0.75) {
-        var burstA = (k - 0.75) / 0.25;
-        ctx.strokeStyle = colorAlpha(cfg.color, 0.7 * (1 - burstA));
-        ctx.lineWidth = 2 * U;
-        for (var hb = 0; hb < 5; hb++) {
-          var hba = Math.PI * 2 * hb / 5;
+      if (k > 0.7) {
+        var burstA = (k - 0.7) / 0.3;
+        ctx.strokeStyle = colorAlpha(cfg.color, 0.85 * (1 - burstA));
+        ctx.lineWidth = 3.2 * U; ctx.lineCap = "round";
+        for (var hb = 0; hb < 6; hb++) {
+          var hba = Math.PI * 2 * hb / 6;
           ctx.beginPath();
           ctx.moveTo(tx, ty);
-          ctx.lineTo(tx + Math.cos(hba) * 10 * U * burstA, ty + Math.sin(hba) * 10 * U * burstA);
+          ctx.lineTo(tx + Math.cos(hba) * 18 * U * burstA, ty + Math.sin(hba) * 18 * U * burstA);
           ctx.stroke();
         }
       }
@@ -13140,66 +13179,77 @@
       // Burbuja anaeróbica oscura que sube y revienta grasosa.
       var bk = Math.min(1, k * 1.1);
       var bx = e.x + (tx - e.x) * bk;
-      var by = e.y + (ty - e.y) * bk - Math.sin(bk * Math.PI) * 22 * U;
-      ctx.fillStyle = colorAlpha("#3a2a12", 0.7);
-      ctx.beginPath(); ctx.arc(bx, by, (3 + bk * 2) * U, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = colorAlpha(cfg.color, 0.6); ctx.lineWidth = 1 * U;
+      var by = e.y + (ty - e.y) * bk - Math.sin(bk * Math.PI) * 26 * U;
+      ctx.shadowColor = colorAlpha(cfg.color, 0.7); ctx.shadowBlur = 6;
+      ctx.fillStyle = colorAlpha("#3a2a12", 0.85);
+      ctx.beginPath(); ctx.arc(bx, by, (5 + bk * 3.5) * U, 0, Math.PI * 2); ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.strokeStyle = colorAlpha(cfg.color, 0.85); ctx.lineWidth = 1.8 * U;
       ctx.stroke();
-      if (k > 0.82) {
-        ctx.fillStyle = colorAlpha("#5a4220", 0.45 * (1 - (k - 0.82) / 0.18));
-        ctx.beginPath(); ctx.ellipse(tx, ty + 4 * U, 9 * U, 4 * U, 0, 0, Math.PI * 2); ctx.fill();
+      if (k > 0.78) {
+        ctx.fillStyle = colorAlpha("#5a4220", 0.7 * (1 - (k - 0.78) / 0.22));
+        ctx.beginPath(); ctx.ellipse(tx, ty + 5 * U, 15 * U, 6.5 * U, 0, 0, Math.PI * 2); ctx.fill();
       }
     } else if (e.def.id === "sarna") {
       // Zarpazo rápido al emerger cerca de la torre — casi sin viaje,
-      // golpe percusivo (3 tajos cortos).
-      if (k < 0.55) {
-        ctx.strokeStyle = colorAlpha("#fff5e0", 0.85 * (1 - k / 0.55));
-        ctx.lineWidth = 2.2 * U; ctx.lineCap = "round";
+      // golpe percusivo (3 tajos cortos, más anchos y con halo blanco).
+      if (k < 0.6) {
+        var slashA = 0.95 * (1 - k / 0.6);
+        ctx.shadowColor = "rgba(255,255,255,0.9)"; ctx.shadowBlur = 8;
+        ctx.strokeStyle = colorAlpha("#fff5e0", slashA);
+        ctx.lineWidth = 3.6 * U; ctx.lineCap = "round";
         for (var cl = 0; cl < 3; cl++) {
-          var clOff = (cl - 1) * 6 * U;
+          var clOff = (cl - 1) * 9 * U;
           ctx.beginPath();
-          ctx.moveTo(tx - 9 * U + clOff, ty - 9 * U);
-          ctx.lineTo(tx + 9 * U + clOff, ty + 9 * U);
+          ctx.moveTo(tx - 14 * U + clOff, ty - 14 * U);
+          ctx.lineTo(tx + 14 * U + clOff, ty + 14 * U);
           ctx.stroke();
         }
+        ctx.shadowBlur = 0;
       }
     } else if (e.def.id === "hpv") {
       // Verrugas que brotan en el trayecto y "pinchan" la torre.
-      var enr = e.enraged ? 1.4 : 1;
-      for (var wi = 0; wi < 4; wi++) {
+      var enr = e.enraged ? 1.6 : 1;
+      ctx.shadowColor = colorAlpha(cfg.color, 0.8); ctx.shadowBlur = 6;
+      for (var wi = 0; wi < 5; wi++) {
         var wk = Math.min(1, k * 1.2 + wi * 0.1);
-        var wx = e.x + (tx - e.x) * (0.3 + wi * 0.18);
-        var wy = e.y + (ty - e.y) * (0.3 + wi * 0.18);
-        var wr = (1.6 + Math.sin(wk * Math.PI) * 2.4) * U * enr;
-        ctx.fillStyle = colorAlpha(cfg.color, 0.7);
+        var wx = e.x + (tx - e.x) * (0.25 + wi * 0.16);
+        var wy = e.y + (ty - e.y) * (0.25 + wi * 0.16);
+        var wr = (2.6 + Math.sin(wk * Math.PI) * 3.8) * U * enr;
+        ctx.fillStyle = colorAlpha(cfg.color, 0.85);
         ctx.beginPath(); ctx.arc(wx, wy, wr, 0, Math.PI * 2); ctx.fill();
       }
+      ctx.shadowBlur = 0;
     } else if (e.def.id === "molluscum") {
       // Perla cerosa lobbeada en arco que se derrite sobre la torre.
       var pk = Math.min(1, k * 1.05);
       var px = e.x + (tx - e.x) * pk;
-      var py = e.y + (ty - e.y) * pk - Math.sin(pk * Math.PI) * 26 * U;
-      ctx.fillStyle = colorAlpha(cfg.color, 0.95);
-      ctx.beginPath(); ctx.arc(px, py, 4 * U, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = colorAlpha("#8a7050", 0.6);
-      ctx.beginPath(); ctx.arc(px, py, 1.5 * U, 0, Math.PI * 2); ctx.fill();
-      if (k > 0.85) {
-        ctx.fillStyle = colorAlpha(cfg.color, 0.5 * (1 - (k - 0.85) / 0.15));
-        ctx.beginPath(); ctx.ellipse(tx, ty + 3 * U, 8 * U, 3.5 * U, 0, 0, Math.PI * 2); ctx.fill();
+      var py = e.y + (ty - e.y) * pk - Math.sin(pk * Math.PI) * 32 * U;
+      ctx.shadowColor = colorAlpha(cfg.color, 0.8); ctx.shadowBlur = 8;
+      ctx.fillStyle = colorAlpha(cfg.color, 1);
+      ctx.beginPath(); ctx.arc(px, py, 6.5 * U, 0, Math.PI * 2); ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = colorAlpha("#8a7050", 0.7);
+      ctx.beginPath(); ctx.arc(px, py, 2.4 * U, 0, Math.PI * 2); ctx.fill();
+      if (k > 0.82) {
+        ctx.fillStyle = colorAlpha(cfg.color, 0.75 * (1 - (k - 0.82) / 0.18));
+        ctx.beginPath(); ctx.ellipse(tx, ty + 4 * U, 14 * U, 6 * U, 0, 0, Math.PI * 2); ctx.fill();
       }
     } else if (e.def.id === "malassezia") {
       // Chorrito de aceite en arco bajo, brillo resbaladizo.
       var ok = Math.min(1, k * 1.1);
       var ox = e.x + (tx - e.x) * ok;
-      var oy = e.y + (ty - e.y) * ok - Math.sin(ok * Math.PI) * 9 * U;
-      ctx.strokeStyle = colorAlpha(cfg.color, 0.55);
-      ctx.lineWidth = 3 * U; ctx.lineCap = "round";
-      ctx.beginPath(); ctx.moveTo(e.x, e.y); ctx.quadraticCurveTo((e.x + ox) / 2, oy - 6 * U, ox, oy); ctx.stroke();
-      ctx.fillStyle = colorAlpha("#fff3c0", 0.6);
-      ctx.beginPath(); ctx.arc(ox, oy, 1.6 * U, 0, Math.PI * 2); ctx.fill();
-      if (k > 0.8) {
-        ctx.fillStyle = colorAlpha(cfg.color, 0.4 * (1 - (k - 0.8) / 0.2));
-        ctx.beginPath(); ctx.ellipse(tx, ty + 2 * U, 7 * U, 2.5 * U, 0, 0, Math.PI * 2); ctx.fill();
+      var oy = e.y + (ty - e.y) * ok - Math.sin(ok * Math.PI) * 13 * U;
+      ctx.shadowColor = colorAlpha(cfg.color, 0.7); ctx.shadowBlur = 6;
+      ctx.strokeStyle = colorAlpha(cfg.color, 0.85);
+      ctx.lineWidth = 5 * U; ctx.lineCap = "round";
+      ctx.beginPath(); ctx.moveTo(e.x, e.y); ctx.quadraticCurveTo((e.x + ox) / 2, oy - 9 * U, ox, oy); ctx.stroke();
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = colorAlpha("#fff3c0", 0.85);
+      ctx.beginPath(); ctx.arc(ox, oy, 2.8 * U, 0, Math.PI * 2); ctx.fill();
+      if (k > 0.75) {
+        ctx.fillStyle = colorAlpha(cfg.color, 0.65 * (1 - (k - 0.75) / 0.25));
+        ctx.beginPath(); ctx.ellipse(tx, ty + 3 * U, 12 * U, 4.5 * U, 0, 0, Math.PI * 2); ctx.fill();
       }
     }
     ctx.restore();
@@ -18943,7 +18993,7 @@
     hp = hp || 0; hpMax = hpMax || 1; flash = flash || 0;
     var r = 22 * U;
     var yMem = yDoor - r * 1.3;
-    var laneW = (FIELD_W / 5);
+    var laneW = (FIELD_W * laneGapFrac());
     var w = laneW * 0.75;
     var h = 8 * U;
     var ratio = hp / hpMax;

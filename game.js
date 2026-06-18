@@ -573,10 +573,10 @@
   // muertas a los costados ni arriba/abajo. Sin tronco compartido.
   function rebuildDisseminationPath() {
     PATH.orientation = isPortrait ? "portrait" : "landscape";
-    // 3 columnas bien separadas — usan casi todo el ancho del campo en vez
-    // de apretarse en el tercio central, así las torres tienen sentido en
-    // toda la pantalla y no solo cerca del medio.
-    var laneXs = [0.16, 0.50, 0.84];
+    // 3 columnas bien separadas y anchas (cada una con sitio para 2 gérmenes
+    // uno junto al otro) — usan casi todo el ancho del campo en vez de
+    // apretarse en el tercio central, pero sin pegarse a los bordes.
+    var laneXs = [0.22, 0.50, 0.78];
     var entryYn = 0.07;   // arriba (grieta de barrera rota)
     var exitYn = 0.93;    // abajo (puerta de órgano)
     PATH.wounds = [];
@@ -10289,10 +10289,11 @@
         if (Math.hypot(x - PATH.wounds[w].x, y - PATH.wounds[w].y) < 26 * U) return false;
       }
     }
-    // Puertas de órgano (abajo).
+    // Puertas de órgano (abajo) — radio de exclusión acorde al óvalo más
+    // ancho que dibuja drawOrganDoor (rx ≈ 31*U).
     if (PATH.organDoors) {
       for (var d = 0; d < PATH.organDoors.length; d++) {
-        if (Math.hypot(x - PATH.organDoors[d].x, y - PATH.organDoors[d].y) < 30 * U) return false;
+        if (Math.hypot(x - PATH.organDoors[d].x, y - PATH.organDoors[d].y) < 34 * U) return false;
       }
     }
     return true;
@@ -18907,12 +18908,16 @@
     ctx.fillStyle = g;
     ctx.fillRect(0, FIELD_TOP, VW, FIELD_H);
     if (!PATH.laneXs) return;
-    // Rectángulo del campo de carriles (80% del field, centrado).
-    var bridgeLeft = FIELD_LEFT + FIELD_W * 0.13;
-    var bridgeRight = FIELD_LEFT + FIELD_W * 0.87;
-    var bridgeTop = FIELD_TOP + FIELD_H * 0.06;
-    var bridgeBottom = FIELD_TOP + FIELD_H * 0.94;
-    var laneW = (bridgeRight - bridgeLeft) / 5;
+    // Rectángulo del campo de carriles (centrado, enmarca los 3 carriles
+    // con un margen chico afuera de sus bandas de color).
+    var bridgeLeft = FIELD_LEFT + FIELD_W * 0.08;
+    var bridgeRight = FIELD_LEFT + FIELD_W * 0.92;
+    var bridgeTop = FIELD_TOP + FIELD_H * 0.045;
+    var bridgeBottom = FIELD_TOP + FIELD_H * 0.955;
+    // Ancho real de cada banda de carril: la separación entre carriles
+    // vecinos (no un /5 fijo de cuando había 5 carriles) — con sitio de
+    // sobra para que pasen 2 gérmenes uno junto al otro.
+    var laneW = FIELD_W * laneGapFrac() * 0.85;
     // Tintes verticales por carril.
     for (var i = 0; i < PATH.laneXs.length; i++) {
       var organ = DISSEMINATION_ORGANS[i];
@@ -19089,24 +19094,27 @@
     flash = flash || 0;
     var pct = Math.min(1, load / 10);
     ctx.save();
-    var r = 20 * U;
+    // Ovalada: más ancha que alta, para ser congruente con carriles anchos.
+    var rx = 20 * U * 1.55;
+    var ry = 20 * U * 1.15;
+    var rBig = Math.max(rx, ry);
     // Halo de color del órgano (más intenso con load y con flash).
     var haloA = 0.8 + flash * 1.2 + pct * 0.6;
-    var grd = ctx.createRadialGradient(x, y, 4, x, y, r * (1.6 + flash * 0.5));
+    var grd = ctx.createRadialGradient(x, y, 4, x, y, rBig * (1.6 + flash * 0.5));
     grd.addColorStop(0, colorAlpha(organ.color, Math.min(1, haloA)));
     grd.addColorStop(1, "rgba(0,0,0,0)");
     ctx.fillStyle = grd;
-    ctx.fillRect(x - r * 2.5, y - r * 2.5, r * 5, r * 5);
+    ctx.fillRect(x - rBig * 2.5, y - rBig * 2.5, rBig * 5, rBig * 5);
     // Disco oscuro de fondo.
     ctx.fillStyle = "rgba(20, 10, 14, 0.92)";
     ctx.beginPath();
-    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2);
     ctx.fill();
     // Relleno del color del órgano según el load (anillo que se va llenando).
     if (pct > 0) {
       ctx.fillStyle = colorAlpha(organ.color, 0.35 + pct * 0.45);
       ctx.beginPath();
-      ctx.arc(x, y, r, -Math.PI / 2, -Math.PI / 2 + pct * Math.PI * 2);
+      ctx.ellipse(x, y, rx, ry, 0, -Math.PI / 2, -Math.PI / 2 + pct * Math.PI * 2);
       ctx.lineTo(x, y);
       ctx.closePath();
       ctx.fill();
@@ -19115,7 +19123,7 @@
     ctx.strokeStyle = organ.color;
     ctx.lineWidth = 3 + flash * 4;
     ctx.beginPath();
-    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2);
     ctx.stroke();
     // Ícono central.
     ctx.fillStyle = organ.color;
@@ -19132,11 +19140,11 @@
     ctx.font = "bold " + Math.floor(11 * U) + "px Fredoka, sans-serif";
     var loadColor = pct >= 0.7 ? "#ff7a7a" : (pct >= 0.4 ? "#ffd24a" : "rgba(240, 220, 200, 0.95)");
     ctx.fillStyle = loadColor;
-    ctx.fillText(load + " / 10", x, y - r - 8 * U);
+    ctx.fillText(load + " / 10", x, y - ry - 8 * U);
     // Etiqueta del órgano más arriba.
     ctx.font = "bold " + Math.floor(10 * U) + "px Fredoka, sans-serif";
     ctx.fillStyle = "rgba(240, 220, 200, 0.80)";
-    ctx.fillText(organ.label, x, y - r - 20 * U);
+    ctx.fillText(organ.label, x, y - ry - 20 * U);
     ctx.restore();
   }
 

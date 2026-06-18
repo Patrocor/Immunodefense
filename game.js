@@ -1166,6 +1166,21 @@
     bossPrimordial:{ id: "bossPrimordial",name: "Patogeno Primordial", baseKind: "primordial",color: "#2A2424", colorDark: "#0a0606", radius: 45, speedMult: 0.50, hp: 1650, reward: 150, viralAdd: 35, isBoss: true, shield: null }
   };
 
+  // Ataques de firma: gérmenes que solo tenían daño de contacto continuo
+  // (def.attack sin power propio) ahora golpean en pulsos discretos y bien
+  // visibles en vez de un tick invisible. El DPS promedio NO cambia: cada
+  // pulso descarga exactamente el daño que el tick continuo habría hecho
+  // en "pulseGap" segundos. Solo cambia la presentación.
+  var SIGNATURE_ATTACK_DEFS = {
+    dermatofito: { pulseGap: 0.55, punchDur: 0.35, color: "#9CA85A" },
+    hsv:         { pulseGap: 0.38, punchDur: 0.30, color: "#9575CD" },
+    cacnes:      { pulseGap: 0.70, punchDur: 0.42, color: "#C9A66B" },
+    sarna:       { pulseGap: 0.60, punchDur: 0.28, color: "#8a5a2b" },
+    hpv:         { pulseGap: 0.50, punchDur: 0.32, color: "#8a9a5e" },
+    molluscum:   { pulseGap: 0.55, punchDur: 0.40, color: "#e8d6c0" },
+    malassezia:  { pulseGap: 0.60, punchDur: 0.35, color: "#d8c060" }
+  };
+
   // Cada oleada INTRODUCE un patógeno cutáneo específico, con progresión
   // pedagógica clara: el jugador aprende un mecanismo nuevo por ola.
   //
@@ -4000,6 +4015,7 @@
       seekerCd: def.seekers ? def.seekers.interval * (0.5 + Math.random() * 0.6) : 0,
       tentTimer: def.tentacles ? def.tentacles.interval * (0.4 + Math.random() * 0.6) : 0,
       tentTarget: null, tentPulsesLeft: 0, tentPulseT: 0, tentPunchT: 0,
+      sigPulseT: null, sigPunchT: 0, sigX: 0, sigY: 0,
       x: outX, y: outY,
       vx: (Math.random() - 0.5) * 16 * U,
       vy: 0,
@@ -4688,20 +4704,50 @@
       // Combate: gérmenes agresivos dañan torres dentro del aura al pasar
       // (sin detenerse). Solo en el camino y si no están siendo absorbidos.
       if (e.toxinTimer > 0) e.toxinTimer -= dt;
+      if (e.sigPunchT > 0) e.sigPunchT -= dt;
       if (e.def.attack > 0 && !e.absorbing &&
           (e.state === "walking" || e.state === "blocked")) {
         var aura = enemyAuraRadiusPx(e.def);
         var atkMult = (e.enraged && e.def.id === "hpv") ? 1.5 : 1;   // HPV furioso pega más
-        for (var ti = 0; ti < state.towers.length; ti++) {
-          var tw = state.towers[ti];
-          if (tw.def.immuneToAura) continue;   // Cañón MAC: inmune al aura de contacto
-          if (Math.hypot(tw.x - e.x, tw.y - e.y) < aura) {
-            var admg = e.def.attack * ATTACK_MULT * atkMult * dt;
-            tw.hp -= admg;
-            tw.hitFlash = 0.16;
-            tw.dmgAccum = (tw.dmgAccum || 0) + admg;
-            e.toxinTimer = 0.22;
-            e.toxinX = tw.x; e.toxinY = tw.y;
+        var sigCfg = SIGNATURE_ATTACK_DEFS[e.def.id];
+        if (sigCfg) {
+          // Ataque de firma: en vez de tickear daño invisible a todas las
+          // torres en el aura, busca la más cercana y golpea en pulsos
+          // discretos y visibles (mismo DPS promedio que el tick continuo).
+          var nearestSig = null, nsd = Infinity;
+          for (var sti = 0; sti < state.towers.length; sti++) {
+            var stw = state.towers[sti];
+            if (stw.def.immuneToAura) continue;
+            var sd = Math.hypot(stw.x - e.x, stw.y - e.y);
+            if (sd < aura && sd < nsd) { nsd = sd; nearestSig = stw; }
+          }
+          if (nearestSig) {
+            if (e.sigPulseT == null) e.sigPulseT = sigCfg.pulseGap * 0.5;
+            else e.sigPulseT -= dt;
+            if (e.sigPulseT <= 0) {
+              var sigDmg = e.def.attack * ATTACK_MULT * atkMult * sigCfg.pulseGap;
+              nearestSig.hp -= sigDmg;
+              nearestSig.hitFlash = 0.20;
+              nearestSig.dmgAccum = (nearestSig.dmgAccum || 0) + sigDmg;
+              e.sigPunchT = sigCfg.punchDur;
+              e.sigX = nearestSig.x; e.sigY = nearestSig.y;
+              e.sigPulseT = sigCfg.pulseGap;
+            }
+          } else {
+            e.sigPulseT = null;
+          }
+        } else {
+          for (var ti = 0; ti < state.towers.length; ti++) {
+            var tw = state.towers[ti];
+            if (tw.def.immuneToAura) continue;   // Cañón MAC: inmune al aura de contacto
+            if (Math.hypot(tw.x - e.x, tw.y - e.y) < aura) {
+              var admg = e.def.attack * ATTACK_MULT * atkMult * dt;
+              tw.hp -= admg;
+              tw.hitFlash = 0.16;
+              tw.dmgAccum = (tw.dmgAccum || 0) + admg;
+              e.toxinTimer = 0.22;
+              e.toxinX = tw.x; e.toxinY = tw.y;
+            }
           }
         }
       }
@@ -13042,6 +13088,123 @@
     ctx.restore();
   }
 
+  // Ataques de firma por germen (ver SIGNATURE_ATTACK_DEFS). Se dibuja
+  // mientras e.sigPunchT > 0, con k=0 al iniciar el pulso y k=1 al terminar.
+  function drawSignatureAttack(e) {
+    var cfg = SIGNATURE_ATTACK_DEFS[e.def.id];
+    if (!cfg || !((e.sigPunchT || 0) > 0)) return;
+    var k = 1 - Math.max(0, e.sigPunchT) / cfg.punchDur;   // 0 → 1
+    var tx = e.sigX, ty = e.sigY;
+    ctx.save();
+    if (e.def.id === "dermatofito") {
+      // Ráfaga de esporas urticantes en abanico.
+      for (var fi = 0; fi < 3; fi++) {
+        var fk = Math.min(1, k * 1.3 + fi * 0.08);
+        var fa = (fi - 1) * 0.35;
+        var fx = e.x + (tx - e.x) * fk + Math.sin(fa) * 10 * U * fk;
+        var fy = e.y + (ty - e.y) * fk - Math.cos(fa) * 4 * U * fk;
+        ctx.fillStyle = colorAlpha(cfg.color, 0.85 * (1 - fk * 0.4));
+        ctx.beginPath(); ctx.arc(fx, fy, (2.4 - fi * 0.4) * U, 0, Math.PI * 2); ctx.fill();
+      }
+      if (k > 0.7) {
+        ctx.strokeStyle = colorAlpha("#f5e7a0", 0.8 * (1 - k) * 3.3);
+        ctx.lineWidth = 1.5 * U;
+        for (var ic = 0; ic < 2; ic++) {
+          var iax = tx + (ic - 0.5) * 8 * U;
+          ctx.beginPath(); ctx.moveTo(iax - 3 * U, ty - 3 * U); ctx.lineTo(iax + 3 * U, ty + 3 * U); ctx.stroke();
+        }
+      }
+    } else if (e.def.id === "hsv") {
+      // Vesícula que se infla en el germen y estalla sobre la torre.
+      var growK = Math.min(1, k * 1.8);
+      var vr = (3 + growK * 5) * U;
+      var vx = e.x + (tx - e.x) * Math.min(1, k * 1.15);
+      var vy = e.y + (ty - e.y) * Math.min(1, k * 1.15);
+      ctx.shadowColor = colorAlpha(cfg.color, 0.9); ctx.shadowBlur = 9;
+      ctx.fillStyle = colorAlpha("#c9b6f0", 0.55);
+      ctx.beginPath(); ctx.arc(vx, vy, vr, 0, Math.PI * 2); ctx.fill();
+      ctx.shadowBlur = 0;
+      if (k > 0.75) {
+        var burstA = (k - 0.75) / 0.25;
+        ctx.strokeStyle = colorAlpha(cfg.color, 0.7 * (1 - burstA));
+        ctx.lineWidth = 2 * U;
+        for (var hb = 0; hb < 5; hb++) {
+          var hba = Math.PI * 2 * hb / 5;
+          ctx.beginPath();
+          ctx.moveTo(tx, ty);
+          ctx.lineTo(tx + Math.cos(hba) * 10 * U * burstA, ty + Math.sin(hba) * 10 * U * burstA);
+          ctx.stroke();
+        }
+      }
+    } else if (e.def.id === "cacnes") {
+      // Burbuja anaeróbica oscura que sube y revienta grasosa.
+      var bk = Math.min(1, k * 1.1);
+      var bx = e.x + (tx - e.x) * bk;
+      var by = e.y + (ty - e.y) * bk - Math.sin(bk * Math.PI) * 22 * U;
+      ctx.fillStyle = colorAlpha("#3a2a12", 0.7);
+      ctx.beginPath(); ctx.arc(bx, by, (3 + bk * 2) * U, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = colorAlpha(cfg.color, 0.6); ctx.lineWidth = 1 * U;
+      ctx.stroke();
+      if (k > 0.82) {
+        ctx.fillStyle = colorAlpha("#5a4220", 0.45 * (1 - (k - 0.82) / 0.18));
+        ctx.beginPath(); ctx.ellipse(tx, ty + 4 * U, 9 * U, 4 * U, 0, 0, Math.PI * 2); ctx.fill();
+      }
+    } else if (e.def.id === "sarna") {
+      // Zarpazo rápido al emerger cerca de la torre — casi sin viaje,
+      // golpe percusivo (3 tajos cortos).
+      if (k < 0.55) {
+        ctx.strokeStyle = colorAlpha("#fff5e0", 0.85 * (1 - k / 0.55));
+        ctx.lineWidth = 2.2 * U; ctx.lineCap = "round";
+        for (var cl = 0; cl < 3; cl++) {
+          var clOff = (cl - 1) * 6 * U;
+          ctx.beginPath();
+          ctx.moveTo(tx - 9 * U + clOff, ty - 9 * U);
+          ctx.lineTo(tx + 9 * U + clOff, ty + 9 * U);
+          ctx.stroke();
+        }
+      }
+    } else if (e.def.id === "hpv") {
+      // Verrugas que brotan en el trayecto y "pinchan" la torre.
+      var enr = e.enraged ? 1.4 : 1;
+      for (var wi = 0; wi < 4; wi++) {
+        var wk = Math.min(1, k * 1.2 + wi * 0.1);
+        var wx = e.x + (tx - e.x) * (0.3 + wi * 0.18);
+        var wy = e.y + (ty - e.y) * (0.3 + wi * 0.18);
+        var wr = (1.6 + Math.sin(wk * Math.PI) * 2.4) * U * enr;
+        ctx.fillStyle = colorAlpha(cfg.color, 0.7);
+        ctx.beginPath(); ctx.arc(wx, wy, wr, 0, Math.PI * 2); ctx.fill();
+      }
+    } else if (e.def.id === "molluscum") {
+      // Perla cerosa lobbeada en arco que se derrite sobre la torre.
+      var pk = Math.min(1, k * 1.05);
+      var px = e.x + (tx - e.x) * pk;
+      var py = e.y + (ty - e.y) * pk - Math.sin(pk * Math.PI) * 26 * U;
+      ctx.fillStyle = colorAlpha(cfg.color, 0.95);
+      ctx.beginPath(); ctx.arc(px, py, 4 * U, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = colorAlpha("#8a7050", 0.6);
+      ctx.beginPath(); ctx.arc(px, py, 1.5 * U, 0, Math.PI * 2); ctx.fill();
+      if (k > 0.85) {
+        ctx.fillStyle = colorAlpha(cfg.color, 0.5 * (1 - (k - 0.85) / 0.15));
+        ctx.beginPath(); ctx.ellipse(tx, ty + 3 * U, 8 * U, 3.5 * U, 0, 0, Math.PI * 2); ctx.fill();
+      }
+    } else if (e.def.id === "malassezia") {
+      // Chorrito de aceite en arco bajo, brillo resbaladizo.
+      var ok = Math.min(1, k * 1.1);
+      var ox = e.x + (tx - e.x) * ok;
+      var oy = e.y + (ty - e.y) * ok - Math.sin(ok * Math.PI) * 9 * U;
+      ctx.strokeStyle = colorAlpha(cfg.color, 0.55);
+      ctx.lineWidth = 3 * U; ctx.lineCap = "round";
+      ctx.beginPath(); ctx.moveTo(e.x, e.y); ctx.quadraticCurveTo((e.x + ox) / 2, oy - 6 * U, ox, oy); ctx.stroke();
+      ctx.fillStyle = colorAlpha("#fff3c0", 0.6);
+      ctx.beginPath(); ctx.arc(ox, oy, 1.6 * U, 0, Math.PI * 2); ctx.fill();
+      if (k > 0.8) {
+        ctx.fillStyle = colorAlpha(cfg.color, 0.4 * (1 - (k - 0.8) / 0.2));
+        ctx.beginPath(); ctx.ellipse(tx, ty + 2 * U, 7 * U, 2.5 * U, 0, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+    ctx.restore();
+  }
+
   function drawEnemy(e) {
     var def = e.def;
     var rad = def.radius * U * (e.radiusScale || 1);
@@ -13204,6 +13367,7 @@
       }
       ctx.restore();
     }
+    drawSignatureAttack(e);
     var expression = e.dying ? "dying"
       : e.hurtTimer > 0 ? "hurt"
       : (e.def.isBoss && e.enraged) ? "enraged"

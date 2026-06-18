@@ -425,7 +425,7 @@
     { x: 0.50, y: 0.10 }
   ];
   var CONFLUENCE_POS = { x: 0.50, y: 0.16 };
-  var VESSEL_POS = { x: 0.50, y: 0.88 };   // vaso al fondo — alineado con el CENTRO de la boca del vaso pintada en bg-skin-field.png (v2)
+  var VESSEL_POS = { x: 0.50, y: 0.88 };   // vaso al fondo — alineado con el CENTRO de la boca del vaso pintada en bg-skin-field.webp (v2)
   // El germen recorre casi todo el camino antes de ser absorbido por el vaso.
   // (Antes 0.88: con la serpentina nueva, más larga, eso lo hacía entrar
   // saltándose ~12-15% del recorrido.) 0.97 deja solo un breve floreo final.
@@ -1588,7 +1588,7 @@
     }
     // Cuerpo de la médula: PNG pictórico si está cargado, sino fallback
     // al canvas histórico (hueso + bulbos + centro rosado).
-    var medulaImg = ASSETS.get("assets/fase1/props/medula.png");
+    var medulaImg = ASSETS.get("assets/fase1/props/medula.webp");
     if (medulaImg) {
       // PNG horizontal 1024×512 (ratio 2:1). El canvas original abarca
       // ~72×36 unidades (28*2 + bulbos a -38..+38 horizontal, ±18 vertical).
@@ -2523,7 +2523,7 @@
   function drawAntigenDrops() {
     if (!state.antigens) return;
     var drops = state.antigens.drops;
-    var coinImg = ASSETS.get("assets/fase1/props/antigeno-coin.png");
+    var coinImg = ASSETS.get("assets/fase1/props/antigeno-coin.webp");
     for (var i = 0; i < drops.length; i++) {
       var d = drops[i];
       var pulse = 0.5 + 0.5 * Math.sin(state.time * 6 + i);
@@ -8691,7 +8691,7 @@
 
     // Cuerpo de la mitocondria: PNG pictórico si está cargado, sino
     // fallback al canvas histórico (membrana + matriz + crestas).
-    var mitoImg = ASSETS.get("assets/fase1/props/mitocondria.png");
+    var mitoImg = ASSETS.get("assets/fase1/props/mitocondria.webp");
     if (mitoImg) {
       // El PNG es horizontal 1024×640 (ratio ~1.6). Dibujamos cubriendo
       // 2*rxp × 2*ryp con el mismo centro. La pulsación viene de rxp/ryp.
@@ -14162,16 +14162,16 @@
   // Wrapper genérico: intenta dibujar el sprite PNG del germen (vivo o
   // muriendo según HP). Si no está cargado, llama al fallback canvas.
   // germId: id del germen (ej. "saureus"). Espera archivos en
-  //   assets/fase1/germs/<germId>.png y <germId>-dying.png
-  // fallbackFn: función canvas a llamar si las PNGs no cargan.
+  //   assets/fase1/germs/<germId>.webp y <germId>-dying.webp
+  // fallbackFn: función canvas a llamar si los sprites no cargan.
   function drawGermSprite(e, rad, germId, fallbackFn, expression, blink) {
     var def = e.def;
     var hpFrac = (def && def.hp > 0) ? (e.hp / def.hp) : 1;
     var dying  = hpFrac < 0.30;
     var base   = "assets/fase1/germs/" + germId;
-    var img    = ASSETS.get(dying ? base + "-dying.png" : base + ".png");
+    var img    = ASSETS.get(dying ? base + "-dying.webp" : base + ".webp");
     // Si la dying no cargó pero la viva sí, fallback gradual.
-    if (!img && dying) img = ASSETS.get(base + ".png");
+    if (!img && dying) img = ASSETS.get(base + ".webp");
     if (!img) {
       fallbackFn(e, rad, expression, blink);
       return;
@@ -17501,8 +17501,8 @@
   var INTRO_Z0 = [1.04, 1.03, 1.05, 1.06, 1.00];
   var INTRO_Z1 = [1.11, 1.08, 1.14, 1.26, 1.55];
   var INTRO_SRC = [
-    "assets/intro/intro1.jpg", "assets/intro/intro2.jpg", "assets/intro/intro3.jpg",
-    "assets/intro/intro4.jpg", "assets/intro/intro5.jpg"
+    "assets/intro/intro1.webp", "assets/intro/intro2.webp", "assets/intro/intro3.webp",
+    "assets/intro/intro4.webp", "assets/intro/intro5.webp"
   ];
   var introImgs = INTRO_SRC.map(function (s) { var im = new Image(); im.src = s; return im; });
 
@@ -18441,7 +18441,7 @@
       // Si el PNG pictórico del field está cargado, lo usamos como fondo
       // completo (cubre skin zone, dermis, hipodermis y vaso). Si no,
       // fallback a las primitivas canvas históricas.
-      var fase1Bg = ASSETS.get("assets/fase1/bg-skin-field.png");
+      var fase1Bg = ASSETS.get("assets/fase1/bg-skin-field.webp");
       if (fase1Bg) {
         safeDraw("Fase1Bg", function () {
           ctx.drawImage(fase1Bg, FIELD_LEFT, FIELD_TOP, FIELD_W, FIELD_H);
@@ -18479,7 +18479,7 @@
     // drawVessel canvas (con label "TORRENTE") solo si el bg pictórico NO
     // está cargado. Cuando el PNG está, el vaso ya viene pintado y el
     // overlay canvas duplicaba/desalineaba.
-    if (!state.dissemination && !ASSETS.get("assets/fase1/bg-skin-field.png")) {
+    if (!state.dissemination && !ASSETS.get("assets/fase1/bg-skin-field.webp")) {
       safeDraw("Vessel", drawVessel);
     }
     for (var jb = 0; jb < state.enemies.length; jb++) {
@@ -19562,10 +19562,10 @@
         stateName = lineNow.expr;
       }
     }
-    var assetPath = "assets/piel/" + type + "-" + stateName + ".png";
+    var assetPath = "assets/piel/" + type + "-" + stateName + ".webp";
     var img = ASSETS.get(assetPath);
     if (!img && stateName !== "idle") {
-      img = ASSETS.get("assets/piel/" + type + "-idle.png");
+      img = ASSETS.get("assets/piel/" + type + "-idle.webp");
     }
     // Direccion NATIVA del sprite (en source). Los sprites base están
     // dibujados mirando a la derecha; algunas expresiones específicas
@@ -19862,7 +19862,7 @@
     // todo el escenario; encima dibujamos partículas, vapor de la herida
     // y rayos de luz para dar vida.
     var bgBottomScreen = hl.bgBottom || groundY;
-    var sceneImg = (hl.organ === "piel") ? ASSETS.get("assets/piel/scene1-wound-exterior.png") : null;
+    var sceneImg = (hl.organ === "piel") ? ASSETS.get("assets/piel/scene1-wound-exterior.webp") : null;
     if (sceneImg) {
       // BG FIJO: cubre desde el tope del campo hasta justo arriba de los
       // controles. La imagen es el piso (incluye corte dérmico debajo de
@@ -19962,10 +19962,10 @@
       // Sprite según estado: "leaving" usa demodex-walk, "eating" usa
       // demodex-eating (incluye la gota de sebo ya pintada).
       var demoImgPath = (dmd.state === "eating")
-        ? "assets/piel/demodex-eating.png"
-        : "assets/piel/demodex-walk.png";
+        ? "assets/piel/demodex-eating.webp"
+        : "assets/piel/demodex-walk.webp";
       var demoImg = ASSETS.get(demoImgPath);
-      if (!demoImg) demoImg = ASSETS.get("assets/piel/demodex-walk.png"); // fallback
+      if (!demoImg) demoImg = ASSETS.get("assets/piel/demodex-walk.webp"); // fallback
       if (demoImg) {
         var dH = 80 * dScale;
         var dW = dH * (demoImg.width / demoImg.height);
@@ -20120,7 +20120,7 @@
     // Mac: durante la entrada cinemática se renderiza con el sprite
     // mac-demodex (montado en el mite). Al detenerse, se "desmonta" y
     // pasa al sprite normal.
-    var macDemodexImg = ASSETS.get("assets/piel/mac-demodex.png");
+    var macDemodexImg = ASSETS.get("assets/piel/mac-demodex.webp");
     if (hl.macEntry && hl.macEntry.active && macDemodexImg) {
       // El sprite es 1024x1024 (ChatGPT no respetó el 2:1 ratio). El
       // conjunto Mac+demodex ocupa el centro del frame. Renderizamos

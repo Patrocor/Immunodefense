@@ -342,6 +342,11 @@
   var DRIP_INTERVAL = 8.0;
   var DRIP_REWARD = 25;
   var DRIP_WINDOW = 3.0;
+  var DRIP_SIZE_MULT = 1.5;          // gota de mitocondria, 1.5x más grande
+  // Mini gota de energía: residuo que expulsa el macrófago al fagocitar.
+  // 0.5x del tamaño YA agrandado de la gota normal (no del original).
+  var MACROFAGO_DROP_SIZE_MULT = DRIP_SIZE_MULT * 0.5;
+  var MACROFAGO_DROP_REWARD = 12;    // ATP fijo, reemplaza el reward variable del germen
 
   // -------- COMBAT: gérmenes atacan torres --------------------------------
   // Sin recuperación: el daño es permanente; a 0 de vida la torre muere.
@@ -3257,6 +3262,7 @@
       mrsaIntro: null,                   // {t, duration} during MRSA boss spawn
       vistos: null,                      // populated below from localStorage
       antigens: { count: 0, drops: [] },
+      energyDrops: [],
       nets: [],
       armedResponse: null
     };
@@ -4018,7 +4024,7 @@
       swallowAnim: 0,
       mawOpen: 0,
       speedBoost: 1,
-      radiusScale: state.dissemination ? 0.94 : 1,    // 0.72 → 0.94 (~1.3x) gérmenes más visibles en diseminación
+      radiusScale: state.dissemination ? 0.846 : 1,    // 0.72→0.94 (1.3x), luego -10% (0.846) por carriles angostos
       noSpore: false,
       childCount: 0,
       childTimer: def.spore ? def.spore.interval * (0.5 + Math.random() * 0.5) : 0,
@@ -6080,11 +6086,12 @@
           e.antigenSpawned = true;
         }
         e.dead = true;
-        state.atp += e.def.reward;
         state.pathogensDefeated += 1;
         META.totalPathogensDefeated += 1;
-        pushEffect({ kind: "atpText", x: g.x, y: g.y - 22 * U, vy: -36 * U,
-          text: "+" + e.def.reward + " ATP", life: 0.8, max: 0.8 });
+        // El ATP ya no se acredita solo: el macrófago expulsa una mini
+        // gota de energía que hay que tappear para cobrarla (residuo de
+        // la fagocitosis, ver MACROFAGO_DROP_REWARD).
+        spawnEnergyDrop(g.x, g.y - 10 * U);
       }
       for (var pk = 0; pk < 10; pk++) {
         var pa = Math.random() * Math.PI * 2, ps = (15 + Math.random() * 30) * U;
@@ -8829,11 +8836,12 @@
   }
 
   function drawLymphDrop() {
-    drawDripFor(state.lymph && state.lymph.drop);
-    if (DRIP_R && DRIP_R.active) drawDripFor(state.lymphR && state.lymphR.drop);
+    drawDripFor(state.lymph && state.lymph.drop, DRIP_SIZE_MULT);
+    if (DRIP_R && DRIP_R.active) drawDripFor(state.lymphR && state.lymphR.drop, DRIP_SIZE_MULT);
   }
-  function drawDripFor(d) {
+  function drawDripFor(d, sizeMult) {
     if (!d) return;
+    sizeMult = sizeMult || 1;
     // Collection animation: 1.0 -> 1.5 -> 0 with white flash.
     if (d.collected) {
       var ct = d.collectAnim / 0.30;
@@ -8845,11 +8853,11 @@
       ctx.globalAlpha = ca;
       ctx.fillStyle = "rgba(255, 255, 255, " + ca + ")";
       ctx.beginPath();
-      ctx.arc(0, 0, 14 * U * cs, 0, Math.PI * 2);
+      ctx.arc(0, 0, 14 * U * cs * sizeMult, 0, Math.PI * 2);
       ctx.fill();
       ctx.fillStyle = "#FFEB3B";
       ctx.beginPath();
-      ctx.arc(0, 0, 9 * U * cs, 0, Math.PI * 2);
+      ctx.arc(0, 0, 9 * U * cs * sizeMult, 0, Math.PI * 2);
       ctx.fill();
       ctx.restore();
       return;
@@ -8859,7 +8867,7 @@
     var alpha = Math.max(0, Math.min(1, d.life / Math.min(d.max, 1.5)));
     if (d.life > 1.5) alpha = 1;
     var pulse = 0.85 + Math.sin(state.time * 5) * 0.18;
-    var R = 9 * U;     // body radius (~18px diameter)
+    var R = 9 * U * sizeMult;     // body radius (~18px diameter at sizeMult=1)
     var haloR = R * (2.0 + 0.3 * pulse);
     ctx.save();
     // Outer glow halo
@@ -8895,6 +8903,68 @@
     ctx.ellipse(-R * 0.30, -R * 0.50, R * 0.30, R * 0.50, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
+  }
+
+  // -------- MINI GOTAS DE ENERGÍA (residuo de fagocitosis) ---------------
+  // Cada vez que el macrófago termina de engullir un germen (en CUALQUIER
+  // nivel donde haya macrófago), expulsa una mini gota de ATP tappeable en
+  // vez de dar el ATP automático — reusa el visual de drawDripFor a menor
+  // escala (MACROFAGO_DROP_SIZE_MULT).
+  function spawnEnergyDrop(x, y) {
+    if (!state.energyDrops) state.energyDrops = [];
+    state.energyDrops.push({
+      x: x, baseX: x, y: y,
+      vy: -22 * U, ay: 30 * U,
+      life: 6.0, max: 6.0,
+      phase: Math.random() * Math.PI * 2,
+      collected: false, collectAnim: 0
+    });
+  }
+  function updateEnergyDrops(dt) {
+    if (!state.energyDrops) return;
+    for (var i = 0; i < state.energyDrops.length; i++) {
+      var d = state.energyDrops[i];
+      if (d.collected) { d.collectAnim += dt; continue; }
+      d.life -= dt;
+      d.vy += d.ay * dt;
+      d.vy = Math.min(d.vy, 38 * U);
+      d.y += d.vy * dt;
+      d.x = d.baseX + Math.sin(state.time * Math.PI + d.phase) * 10 * U;
+    }
+    state.energyDrops = state.energyDrops.filter(function (d) {
+      return d.collected ? d.collectAnim < 0.30 : d.life > 0;
+    });
+  }
+  function drawEnergyDrops() {
+    if (!state.energyDrops) return;
+    for (var i = 0; i < state.energyDrops.length; i++) {
+      drawDripFor(state.energyDrops[i], MACROFAGO_DROP_SIZE_MULT);
+    }
+  }
+  function tryTapEnergyDrop(x, y) {
+    if (!state.energyDrops) return false;
+    for (var i = 0; i < state.energyDrops.length; i++) {
+      var d = state.energyDrops[i];
+      if (d.collected) continue;
+      if (Math.hypot(x - d.x, y - d.y) <= 30 * U) {
+        state.atp += MACROFAGO_DROP_REWARD;
+        pushEffect({
+          kind: "atpText", x: d.x, y: d.y - 6 * U, vy: -36 * U,
+          text: "+" + MACROFAGO_DROP_REWARD + " ATP", life: 0.85, max: 0.85,
+          color: "#FFD93D"
+        });
+        for (var p = 0; p < 6; p++) {
+          var a = Math.random() * Math.PI * 2, sp = (35 + Math.random() * 40) * U;
+          pushEffect({ kind: "particle", x: d.x, y: d.y,
+            vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
+            life: 0.35 + Math.random() * 0.2, max: 0.55, color: "#FFD93D" });
+        }
+        sfx("upgrade");
+        d.collected = true; d.collectAnim = 0;
+        return true;
+      }
+    }
+    return false;
   }
 
   // Connective tissue render (cached).
@@ -10078,6 +10148,7 @@
       return;
     }
     // Lymphatic drip drop: highest priority so finger taps grant ATP.
+    if (tryTapEnergyDrop(x, y)) return;
     if (tryClickDrip(x, y)) return;
     // HUD
     if (y < FIELD_TOP) {
@@ -10266,15 +10337,23 @@
     return true;
   }
 
-  // En el nivel puente: terreno libre. Solo se bloquean las mitocondrias,
-  // las grietas de spawn arriba, las puertas de órgano abajo y las propias
-  // torres. El path NO bloquea — el jugador puede colocar dentro de un carril.
+  // En el nivel puente: el path NO bloquea — el jugador puede colocar
+  // dentro de un carril. Pero SOLO dentro de la franja real de los 3
+  // carriles (sin eso, una torre puesta en el margen lateral nunca tiene
+  // un germen cerca y desperdicia su alcance). Lo que se bloquea: las
+  // mitocondrias, las grietas de spawn arriba, las puertas de órgano
+  // abajo y las propias torres.
   function canPlaceTowerAtDissemination(x, y) {
     var pad = 12 * U;
     if (y < FIELD_TOP + pad || y > FIELD_BOTTOM - pad) return false;
-    if (x < FIELD_LEFT + pad || x > FIELD_RIGHT - pad) return false;
+    if (PATH.laneXs && PATH.laneXs.length) {
+      var halfLaneW = (FIELD_W * laneGapFrac()) / 2;
+      var laneBandLeft = FIELD_LEFT + PATH.laneXs[0] * FIELD_W - halfLaneW;
+      var laneBandRight = FIELD_LEFT + PATH.laneXs[PATH.laneXs.length - 1] * FIELD_W + halfLaneW;
+      if (x < laneBandLeft + pad || x > laneBandRight - pad) return false;
+    } else if (x < FIELD_LEFT + pad || x > FIELD_RIGHT - pad) return false;
     for (var i = 0; i < state.towers.length; i++) {
-      if (Math.hypot(state.towers[i].x - x, state.towers[i].y - y) < 28 * U) return false;
+      if (Math.hypot(state.towers[i].x - x, state.towers[i].y - y) < 25.2 * U) return false;
     }
     // Mitocondrias laterales.
     if (Math.abs(x - DRIP.x) < DRIP.w + 10 * U &&
@@ -11358,8 +11437,9 @@
     if (disseminationScaled) {
       ctx.save();
       ctx.translate(t.x, t.y);
-      // 0.75 → 0.975 (1.3x) — torres más visibles en diseminación
-      ctx.scale(0.975, 0.975);
+      // 0.75 → 0.975 (1.3x) más visibles, luego -10% (0.8775) para que
+      // encajen en la franja angosta de carriles ya juntos.
+      ctx.scale(0.8775, 0.8775);
       ctx.translate(-t.x, -t.y);
     }
     var stats = towerStats(t);
@@ -18684,6 +18764,7 @@
       safeDraw("Wound", drawWound);
     }
     safeDraw("LymphNode", drawLymphNode);
+    safeDraw("EnergyDrops", drawEnergyDrops);
     safeDraw("Restos", drawRestos);
     safeDraw("Collectors", drawCollectors);
     safeDraw("Barricada", drawBarricada);
@@ -18921,12 +19002,10 @@
     var bridgeRight = FIELD_LEFT + FIELD_W * 0.92;
     var bridgeTop = FIELD_TOP + FIELD_H * 0.045;
     var bridgeBottom = FIELD_TOP + FIELD_H * 0.955;
-    // Ancho de banda fijo, desacoplado de la separación real entre
-    // carriles (laneGapFrac) — con sitio de sobra para que pasen 2
-    // gérmenes uno junto al otro. Como es mayor que el gap actual entre
-    // carriles, las bandas vecinas se superponen a propósito (campo
-    // fusionado en vez de 3 columnas separadas).
-    var laneW = FIELD_W * 0.24;
+    // Ancho de banda EXACTAMENTE igual a la separación entre carriles
+    // vecinos: las bandas se tocan borde a borde, sin huecos y sin
+    // superponerse (medio ancho = mitad de la distancia entre centros).
+    var laneW = FIELD_W * laneGapFrac();
     // Tintes verticales por carril.
     for (var i = 0; i < PATH.laneXs.length; i++) {
       var organ = DISSEMINATION_ORGANS[i];
@@ -20720,6 +20799,7 @@
       updateNecroticPatches(dt);
       updateMegakaryocyte(dt);
       updateAntigenDrops(dt);
+      updateEnergyDrops(dt);
       updateNets(dt);
       updateUnlockPickups(dt);
       // Spawneo retardado de pickups per-fase al cambiar de fase.

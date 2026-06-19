@@ -856,6 +856,12 @@
       colorDark: "#5d44a0",
       cost: 121,
       desc: "Citotoxico (area)",
+      // Ultimate: APOPTOSIS — marca con granzima a los enemigos más
+      // avanzados en rango (hasta 5); tras un breve retraso, todos
+      // explotan juntos con daño masivo (ejecución retardada, no más
+      // splash instantáneo).
+      specialChargeSec: 32,
+      specialName: "Apoptosis",
       levels: [
         { range: 110, damage:  40, fireRate: 0.7, projectileSpeed: 320, splash: 55, hp: 90 },
         { range: 125, damage:  65, fireRate: 0.85, projectileSpeed: 360, splash: 65, hp: 120 },
@@ -901,6 +907,11 @@
       id: "eosinofilo", name: "Eosinofilo", shortName: "Eosin",
       color: "#F2774E", colorDark: "#a8401f", cost: 88, desc: "Antiparasito (granulos)",
       bonusVs: { kind: "parasito", mult: 2.6 },
+      // Ultimate: DESCARGA DE GRÁNULOS — daño instantáneo a TODOS los
+      // enemigos en rango; a los parásitos además les queda un DoT
+      // corrosivo fuerte (refuerza el bonus normal vs parásitos).
+      specialChargeSec: 28,
+      specialName: "Descarga de gránulos",
       levels: [
         { range: 150, damage: 28, fireRate: 1.0, projectileSpeed: 380, splash: 30, hp: 90 },
         { range: 170, damage: 42, fireRate: 1.2, projectileSpeed: 420, splash: 35, hp: 115 },
@@ -912,6 +923,11 @@
       id: "mastocito", name: "Mastocito", shortName: "Masto",
       color: "#4F8FE0", colorDark: "#2c5da0", cost: 75, desc: "Histamina (ralentiza)",
       support: "slow",
+      // Ultimate: DESGRANULACIÓN — onda de choque única: daño +
+      // ralentización mucho más fuertes que su aura pasiva, en un radio
+      // mayor (1.6x del rango normal).
+      specialChargeSec: 30,
+      specialName: "Desgranulación",
       persistAcrossPhases: true,  // tank/soporte tisular: una vez desbloqueado, queda
       levels: [
         { range: 110, damage: 0, fireRate: 1.0, projectileSpeed: 0, splash: 0, hp: 95,  slowDur: 1.2, dotPerSec: 4 },
@@ -4465,6 +4481,16 @@
       if (e.stunTimer > 0) e.stunTimer -= dt;
       if (e.slowTimer > 0) e.slowTimer -= dt;
       if (e.markTimer > 0) { e.markTimer -= dt; if (e.markTimer <= 0) e.revealed = false; }
+      // DoT genérico (ej. gránulos corrosivos del ultimate de Eosinófilo).
+      // Tickea cada 0.4s, como el resto de los DoTs de aura del juego.
+      if (e.dotTimer > 0) {
+        e.dotTimer -= dt;
+        e.dotTickT = (e.dotTickT || 0) - dt;
+        if (e.dotTickT <= 0) {
+          e.dotTickT += 0.4;
+          damageEnemy(e, (e.dotDps || 0) * 0.4, e.dotSource || "eosinofilo");
+        }
+      }
       // Sarna: madriguera (se entierra, intocable salvo si está marcada).
       var burrowFactor = 1;
       if (e.def.burrow && (e.state === "walking")) {
@@ -5011,6 +5037,77 @@
       t.specialCharge = 0;
       sfx("upgrade");
       triggerShake(0.15, 4);
+      return;
+    }
+    if (def.id === "linfocitoT") {
+      // APOPTOSIS: marca con granzima a los enemigos más avanzados en
+      // rango (hasta 5) y los ejecuta juntos tras un breve retraso.
+      var ltStats = towerStats(t);
+      var ltR = ltStats.range * U;
+      var ltCandidates = [];
+      for (var li = 0; li < state.enemies.length; li++) {
+        var le = state.enemies[li];
+        if (le.dead || le.dying || le.absorbing) continue;
+        if (le.burrowed && !le.revealed) continue;
+        if (Math.hypot(le.x - t.x, le.y - t.y) > ltR) continue;
+        ltCandidates.push(le);
+      }
+      ltCandidates.sort(function (a, b) { return b.progress - a.progress; });
+      t.apoptosisTargets = ltCandidates.slice(0, 5);
+      for (var lj = 0; lj < t.apoptosisTargets.length; lj++) {
+        t.apoptosisTargets[lj].apoptosisMarked = true;
+      }
+      t.apoptosisBurst = false;
+      t.specialAnim = 2.1;
+      t.specialReady = false;
+      t.specialCharge = 0;
+      sfx("upgrade");
+      return;
+    }
+    if (def.id === "eosinofilo") {
+      // DESCARGA DE GRÁNULOS: daño instantáneo a todos en rango; DoT
+      // corrosivo extra a los parásitos.
+      var eoStats = towerStats(t);
+      var eoR = eoStats.range * U;
+      for (var ei2 = 0; ei2 < state.enemies.length; ei2++) {
+        var ee = state.enemies[ei2];
+        if (ee.dead || ee.dying || ee.absorbing) continue;
+        if (ee.burrowed && !ee.revealed) continue;
+        if (Math.hypot(ee.x - t.x, ee.y - t.y) > eoR) continue;
+        damageEnemy(ee, eoStats.damage * 1.5, "eosinofilo");
+        if (ee.def.baseKind === "parasito") {
+          ee.dotTimer = Math.max(ee.dotTimer || 0, 4.0);
+          ee.dotDps = eoStats.damage * 0.8;
+          ee.dotSource = "eosinofilo";
+        }
+        pushEffect({ kind: "particle", x: t.x, y: t.y,
+          vx: (ee.x - t.x) * 1.5, vy: (ee.y - t.y) * 1.5 - 10 * U,
+          life: 0.4, max: 0.45, color: t.def.color });
+      }
+      t.specialAnim = 1.0;
+      t.specialReady = false;
+      t.specialCharge = 0;
+      sfx("upgrade");
+      triggerShake(0.10, 3);
+      return;
+    }
+    if (def.id === "mastocito") {
+      // DESGRANULACIÓN: onda de choque única, radio mayor que el aura normal.
+      var maStats = towerStats(t);
+      var maR = maStats.range * U * 1.6;
+      for (var mi2 = 0; mi2 < state.enemies.length; mi2++) {
+        var me2 = state.enemies[mi2];
+        if (me2.dead || me2.dying || me2.absorbing) continue;
+        if (me2.burrowed && !me2.revealed) continue;
+        if (Math.hypot(me2.x - t.x, me2.y - t.y) > maR) continue;
+        me2.slowTimer = Math.max(me2.slowTimer || 0, 3.0);
+        damageEnemy(me2, (maStats.dotPerSec || 4) * 8, "mastocito");
+      }
+      t.specialAnim = 1.0;
+      t.specialReady = false;
+      t.specialCharge = 0;
+      sfx("upgrade");
+      triggerShake(0.12, 4);
       return;
     }
     // Fallback: si la torre no tiene ultimate implementado, no hace nada.
@@ -5598,6 +5695,28 @@
         if (t.frenzyFireT <= 0) {
           t.frenzyFireT = 0.05;             // 20 disparos/s
           spawnPerforinBolt(t);
+        }
+      }
+      // Linfocito T ultimate: tras el retraso de carga (1.8s, specialAnim
+      // arrancó en 2.1), ejecuta a todos los marcados juntos, una sola vez.
+      if (t.def.id === "linfocitoT" && (t.specialAnim || 0) > 0 && t.apoptosisTargets && !t.apoptosisBurst) {
+        if (t.specialAnim <= 0.3) {
+          t.apoptosisBurst = true;
+          var ltBurstStats = towerStats(t);
+          for (var lb = 0; lb < t.apoptosisTargets.length; lb++) {
+            var lbE = t.apoptosisTargets[lb];
+            lbE.apoptosisMarked = false;
+            if (lbE.dead || lbE.dying) continue;
+            damageEnemy(lbE, ltBurstStats.damage * 3, "linfocitoT");
+            for (var lp = 0; lp < 8; lp++) {
+              var lpa = Math.random() * Math.PI * 2, lps = (30 + Math.random() * 40) * U;
+              pushEffect({ kind: "particle", x: lbE.x, y: lbE.y,
+                vx: Math.cos(lpa) * lps, vy: Math.sin(lpa) * lps,
+                life: 0.4, max: 0.5, color: "#9370DB" });
+            }
+          }
+          sfx("sell");
+          triggerShake(0.12, 4);
         }
       }
       // Estreptolisina O: DoT activo mientras lisisTimer > 0.
@@ -6446,6 +6565,38 @@
         if (state.guardians[rg].engulfTarget === re) { held = true; break; }
       }
       if (!held) { re.beingEngulfed = false; re.engulfScale = null; }
+    }
+  }
+
+  // Marca de granzima (cruz sobre fondo oscuro) sobre cada enemigo elegido
+  // por el ultimate "Apoptosis" del Linfocito T, mientras espera el burst.
+  function drawApoptosisMarks() {
+    for (var ti = 0; ti < state.towers.length; ti++) {
+      var t = state.towers[ti];
+      if (t.def.id !== "linfocitoT" || !t.apoptosisTargets) continue;
+      for (var i = 0; i < t.apoptosisTargets.length; i++) {
+        var e = t.apoptosisTargets[i];
+        if (!e || e.dead || !e.apoptosisMarked) continue;
+        var pulse = 0.7 + 0.3 * Math.sin(state.time * 10);
+        var mr = 7 * U;
+        ctx.save();
+        ctx.translate(e.x, e.y - (e.def.radius || 16) * U - 10 * U);
+        ctx.globalAlpha = pulse;
+        ctx.fillStyle = "#2a1040";
+        ctx.strokeStyle = "#c9a0ff";
+        ctx.lineWidth = 1.4 * U;
+        ctx.beginPath();
+        ctx.arc(0, 0, mr, 0, Math.PI * 2);
+        ctx.fill(); ctx.stroke();
+        ctx.strokeStyle = "#e6d6ff";
+        ctx.lineWidth = 1.6 * U;
+        ctx.lineCap = "round";
+        ctx.beginPath();
+        ctx.moveTo(-mr * 0.5, -mr * 0.5); ctx.lineTo(mr * 0.5, mr * 0.5);
+        ctx.moveTo(mr * 0.5, -mr * 0.5); ctx.lineTo(-mr * 0.5, mr * 0.5);
+        ctx.stroke();
+        ctx.restore();
+      }
     }
   }
 
@@ -12621,6 +12772,18 @@
     ctx.save();
     ctx.translate(x, y);
 
+    // Ultimate Apoptosis: aura púrpura pulsante mientras espera el burst
+    // (specialAnim arranca en 2.1 y el burst ocurre cerca de 0.3 restante).
+    if (t.apoptosisTargets && !t.apoptosisBurst && (t.specialAnim || 0) > 0) {
+      var apFrac = 1 - Math.max(0, (t.specialAnim - 0.3)) / 1.8;
+      var apR = R * (1.6 + Math.sin(time * 10) * 0.15 + apFrac * 0.8);
+      var apGrad = ctx.createRadialGradient(0, 0, R * 0.5, 0, 0, apR);
+      apGrad.addColorStop(0, "rgba(147, 112, 219, 0.55)");
+      apGrad.addColorStop(1, "rgba(147, 112, 219, 0)");
+      ctx.fillStyle = apGrad;
+      ctx.beginPath(); ctx.arc(0, 0, apR, 0, Math.PI * 2); ctx.fill();
+    }
+
     // CUERPO redondo con tinte violeta-blue cool
     var bodyGrad = ctx.createRadialGradient(-R * 0.3, -R * 0.3, R * 0.2, 0, 0, R);
     bodyGrad.addColorStop(0, "#e6d6f5");
@@ -12987,6 +13150,19 @@
     ctx.save();
     ctx.translate(t.x, t.y);
 
+    // Ultimate Descarga de gránulos: anillo expansivo de gránulos al disparar.
+    if ((t.specialAnim || 0) > 0) {
+      var goFrac = 1 - t.specialAnim / 1.0;
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, 1 - goFrac);
+      ctx.strokeStyle = t.def.color;
+      ctx.lineWidth = 3 * U;
+      ctx.beginPath();
+      ctx.arc(0, 0, R * (1.5 + goFrac * 5), 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
+
     // CUERPO BILOBULADO — 2 esferas coral conectadas
     function drawLobe(cxp) {
       var bodyGrad = ctx.createRadialGradient(cxp - R * 0.3, -R * 0.3, R * 0.2, cxp, 0, R);
@@ -13245,6 +13421,23 @@
       ctx.beginPath();
       ctx.arc(0, 0, R * (1.1 + pp * 0.8), 0, Math.PI * 2);
       ctx.stroke();
+    }
+
+    // Ultimate Desgranulación: misma onda pero MUCHO más grande e intensa
+    // (cuerpo se hincha un poco antes de estallar).
+    if ((t.specialAnim || 0) > 0) {
+      var dgFrac = 1 - t.specialAnim / 1.0;
+      var dgSwell = dgFrac < 0.25 ? (dgFrac / 0.25) : (1 - (dgFrac - 0.25) / 0.75);
+      ctx.save();
+      ctx.scale(1 + dgSwell * 0.25, 1 + dgSwell * 0.25);
+      ctx.strokeStyle = colorAlpha(t.def.color, 0.7 * (1 - dgFrac));
+      ctx.lineWidth = 4 * U;
+      for (var dgW = 0; dgW < 3; dgW++) {
+        ctx.beginPath();
+        ctx.arc(0, 0, R * (1.2 + dgFrac * 7 - dgW * 0.7), 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      ctx.restore();
     }
 
     // CUERPO con bumps sutiles en la membrana
@@ -19129,6 +19322,7 @@
       var tw = state.towers[i];
       safeDraw("Tower:" + (tw.def && tw.def.id), function () { drawTower(tw); });
     }
+    safeDraw("ApoptosisMarks", drawApoptosisMarks);
     safeDraw("Guardians", drawGuardians);
     safeDraw("Fragments", drawFragments);
     safeDraw("CannonShots", drawCannonShots);

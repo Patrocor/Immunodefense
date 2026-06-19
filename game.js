@@ -6016,6 +6016,9 @@
   var HARPOON_THROW_TIME = 0.25;
   var HARPOON_PULL_TIME = 0.4;
   var HARPOON_FLAME_TIME = HARPOON_THROW_TIME + HARPOON_PULL_TIME + 0.3;
+  var HARPOON_SHOUT_TIME = 0.9;
+  var GUARDIAN_COL = "#E8923A", GUARDIAN_COLD = "#A8581A";   // ámbar macrófago
+  var HARPOON_COLOR = "#5C300E";    // un poco más oscuro que GUARDIAN_COLD, para el arpón/cadena
   var ENGULF_TIME = 0.9;          // s que tarda la fagocitosis
 
   // Libera al germen que el macrófago estaba engullendo (al huir/morir).
@@ -6060,6 +6063,7 @@
     // Cancela también el halo/escala del arpón — si no, al llegar a 0 el
     // decay de harpoonFlameT fuerza g.scale=1 y pisa el shrink de la huida.
     g.harpoonFlameT = 0;
+    g.harpoonShoutT = 0;
     g.scale = 1;
   }
 
@@ -6135,6 +6139,7 @@
     best.harpoonPhase = "throw";
     best.harpoonT = 0;
     best.harpoonFlameT = HARPOON_FLAME_TIME;
+    best.harpoonShoutT = HARPOON_SHOUT_TIME;
     best.scale = 1.15;
     target.beingEngulfed = true;
     mu.charge = 0;
@@ -6327,6 +6332,7 @@
         g.harpoonFlameT -= dt;
         if (g.harpoonFlameT <= 0) { g.harpoonFlameT = 0; g.scale = 1; }
       }
+      if ((g.harpoonShoutT || 0) > 0) g.harpoonShoutT -= dt;
 
       if (g.state === "fleeing") {
         // Huye llorando hacia el borde y se desvanece.
@@ -6445,61 +6451,128 @@
 
   function drawGuardians() {
     if (!state.guardians) return;
-    // PRIMERO: efectos PRE-macrofago (halo de succión bajo el cuerpo)
+    // PRIMERO: efectos PRE-macrofago (halos detrás del cuerpo)
     for (var i = 0; i < state.guardians.length; i++) drawEngulfFx(state.guardians[i]);
-    for (var i = 0; i < state.guardians.length; i++) drawHarpoonFx(state.guardians[i]);
+    for (var i = 0; i < state.guardians.length; i++) drawHarpoonGlow(state.guardians[i]);
     for (var i = 0; i < state.guardians.length; i++) drawGuardian(state.guardians[i]);
+    // DESPUÉS: lo que tiene que verse SIEMPRE por encima del cuerpo
+    // (llamas envolventes, cadena/arpón y el globo "¡Ven aquí!").
+    for (var i = 0; i < state.guardians.length; i++) drawHarpoonOverlay(state.guardians[i]);
   }
 
-  // Halo rojo tipo llama (mientras dura harpoonFlameT) + cadena con punta
-  // de arpón entre el macrófago y su objetivo (solo durante throw/pull).
-  function drawHarpoonFx(g) {
+  // Glow ambiental sutil detrás del cuerpo mientras dura harpoonFlameT.
+  // Las llamas propiamente dichas se dibujan ENCIMA en drawHarpoonOverlay
+  // — solo este glow de fondo va detrás (si no, el cuerpo opaco las tapa
+  // casi por completo y "no se visualizan bien").
+  function drawHarpoonGlow(g) {
+    if ((g.harpoonFlameT || 0) <= 0) return;
+    ctx.save();
+    var pulse = 0.7 + 0.3 * Math.sin(state.time * 14);
+    var fr = 30 * U * (g.scale || 1) * pulse;
+    var fg = ctx.createRadialGradient(g.x, g.y, fr * 0.3, g.x, g.y, fr);
+    fg.addColorStop(0, "rgba(255, 110, 30, 0.40)");
+    fg.addColorStop(1, "rgba(200, 30, 20, 0)");
+    ctx.fillStyle = fg;
+    ctx.beginPath();
+    ctx.arc(g.x, g.y, fr, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // Llamas envolventes (lenguas radiales y flickerantes alrededor del
+  // cuerpo) + cadena/arpón gruesos hacia el objetivo + globo "¡Ven aquí!".
+  // Todo dibujado DESPUÉS del cuerpo para que nunca quede tapado.
+  function drawHarpoonOverlay(g) {
+    var R = 24 * U * (g.scale || 1);
     if ((g.harpoonFlameT || 0) > 0) {
       ctx.save();
-      var flamePulse = 0.7 + 0.3 * Math.sin(state.time * 14);
-      var fr = 26 * U * (g.scale || 1) * flamePulse;
-      var fg = ctx.createRadialGradient(g.x, g.y, fr * 0.3, g.x, g.y, fr);
-      fg.addColorStop(0, "rgba(255, 90, 30, 0.55)");
-      fg.addColorStop(0.6, "rgba(200, 30, 20, 0.35)");
-      fg.addColorStop(1, "rgba(200, 30, 20, 0)");
-      ctx.fillStyle = fg;
+      var nFlames = 9;
+      for (var f = 0; f < nFlames; f++) {
+        var ang = (f / nFlames) * Math.PI * 2 + state.time * 1.6;
+        var flick = 0.55 + 0.45 * Math.sin(state.time * 17 + f * 2.3);
+        var baseR = R * 0.80;
+        var len = (12 + flick * 16) * U;
+        var bx2 = g.x + Math.cos(ang) * baseR, by2 = g.y + Math.sin(ang) * baseR;
+        var tx2 = g.x + Math.cos(ang) * (baseR + len), ty2 = g.y + Math.sin(ang) * (baseR + len);
+        var px = -Math.sin(ang) * (4.5 * U), py = Math.cos(ang) * (4.5 * U);
+        var flameGrad = ctx.createLinearGradient(bx2, by2, tx2, ty2);
+        flameGrad.addColorStop(0, "rgba(255, 210, 80, 0.95)");
+        flameGrad.addColorStop(0.5, "rgba(255, 110, 30, 0.90)");
+        flameGrad.addColorStop(1, "rgba(190, 30, 20, 0)");
+        ctx.fillStyle = flameGrad;
+        ctx.beginPath();
+        ctx.moveTo(bx2 - px, by2 - py);
+        ctx.quadraticCurveTo((bx2 + tx2) / 2 + px * 0.5, (by2 + ty2) / 2 + py * 0.5, tx2, ty2);
+        ctx.quadraticCurveTo((bx2 + tx2) / 2 - px * 0.5, (by2 + ty2) / 2 - py * 0.5, bx2 + px, by2 + py);
+        ctx.closePath();
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+    if (g.harpoonPhase && g.harpoonTarget) {
+      var e = g.harpoonTarget;
+      var farX = (g.harpoonPhase === "throw") ? g.harpoonTipX : e.x;
+      var farY = (g.harpoonPhase === "throw") ? g.harpoonTipY : e.y;
+      ctx.save();
+      ctx.strokeStyle = HARPOON_COLOR;
+      ctx.lineWidth = 6 * U;
+      ctx.lineCap = "round";
       ctx.beginPath();
-      ctx.arc(g.x, g.y, fr, 0, Math.PI * 2);
+      ctx.moveTo(g.x, g.y);
+      ctx.lineTo(farX, farY);
+      ctx.stroke();
+      // Eslabones de la cadena (círculos gruesos a lo largo de la línea).
+      var segs = 6;
+      ctx.fillStyle = HARPOON_COLOR;
+      ctx.strokeStyle = "rgba(0,0,0,0.35)";
+      ctx.lineWidth = 1 * U;
+      for (var i = 1; i < segs; i++) {
+        var t = i / segs;
+        var lx = g.x + (farX - g.x) * t;
+        var ly = g.y + (farY - g.y) * t;
+        ctx.beginPath();
+        ctx.arc(lx, ly, 4.2 * U, 0, Math.PI * 2);
+        ctx.fill(); ctx.stroke();
+      }
+      // Punta de arpón en el extremo, más grande.
+      ctx.fillStyle = HARPOON_COLOR;
+      ctx.beginPath();
+      ctx.moveTo(farX, farY - 10 * U);
+      ctx.lineTo(farX + 8 * U, farY + 7 * U);
+      ctx.lineTo(farX - 8 * U, farY + 7 * U);
+      ctx.closePath();
       ctx.fill();
       ctx.restore();
     }
-    if (!g.harpoonPhase || !g.harpoonTarget) return;
-    var e = g.harpoonTarget;
-    var farX = (g.harpoonPhase === "throw") ? g.harpoonTipX : e.x;
-    var farY = (g.harpoonPhase === "throw") ? g.harpoonTipY : e.y;
-    ctx.save();
-    ctx.strokeStyle = "rgba(180, 30, 20, 0.85)";
-    ctx.lineWidth = 3 * U;
-    ctx.lineCap = "round";
-    ctx.beginPath();
-    ctx.moveTo(g.x, g.y);
-    ctx.lineTo(farX, farY);
-    ctx.stroke();
-    // Eslabones de la cadena (círculos a lo largo de la línea).
-    var segs = 6;
-    ctx.fillStyle = "rgba(90, 15, 10, 0.9)";
-    for (var i = 1; i < segs; i++) {
-      var t = i / segs;
-      var lx = g.x + (farX - g.x) * t;
-      var ly = g.y + (farY - g.y) * t;
-      ctx.beginPath();
-      ctx.arc(lx, ly, 2.2 * U, 0, Math.PI * 2);
-      ctx.fill();
+    if ((g.harpoonShoutT || 0) > 0) {
+      var stT = g.harpoonShoutT;
+      var fadeIn = Math.min(1, (HARPOON_SHOUT_TIME - stT) / 0.15);
+      var fadeOut = Math.min(1, stT / 0.25);
+      var a = Math.max(0, Math.min(fadeIn, fadeOut));
+      if (a > 0) {
+        var bw = 86 * U, bh = 30 * U;
+        var bx = g.x - bw / 2, by = g.y - R * 1.7 - bh;
+        ctx.save();
+        ctx.globalAlpha = a;
+        ctx.lineWidth = 2 * U; ctx.lineJoin = "round";
+        ctx.fillStyle = "#fff8ec";
+        ctx.strokeStyle = "#3a1408";
+        roundRect(bx, by, bw, bh, 8 * U);
+        ctx.fill(); ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(g.x - 8 * U, by + bh - 1);
+        ctx.lineTo(g.x, by + bh + 10 * U);
+        ctx.lineTo(g.x + 10 * U, by + bh - 1);
+        ctx.closePath();
+        ctx.fillStyle = "#fff8ec"; ctx.fill();
+        ctx.strokeStyle = "#3a1408"; ctx.stroke();
+        ctx.fillStyle = "#3a1408";
+        ctx.font = "bold " + Math.floor(11 * U) + "px Fredoka, sans-serif";
+        ctx.textAlign = "center"; ctx.textBaseline = "middle";
+        ctx.fillText("¡Ven aquí!", g.x, by + bh / 2);
+        ctx.restore();
+      }
     }
-    // Punta de arpón en el extremo.
-    ctx.fillStyle = "#7a1410";
-    ctx.beginPath();
-    ctx.moveTo(farX, farY - 6 * U);
-    ctx.lineTo(farX + 5 * U, farY + 4 * U);
-    ctx.lineTo(farX - 5 * U, farY + 4 * U);
-    ctx.closePath();
-    ctx.fill();
-    ctx.restore();
   }
 
   // Halo de succión + tractor beam cuando el macrófago está engullendo.
@@ -6589,7 +6662,7 @@
     var maw = g.mouthOpen || 0;                 // 0..1 al engullir
     var swallow = g.swallow || 0;
     var R = 24 * U * g.scale * (1 + Math.sin(g.wobble) * 0.05);  // más grande
-    var COL = "#E8923A", COLD = "#A8581A";       // ámbar macrófago
+    var COL = GUARDIAN_COL, COLD = GUARDIAN_COLD;
     var seed = g.shape || 0;
     ctx.save();
     ctx.globalAlpha = Math.max(0, g.alpha);

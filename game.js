@@ -3264,6 +3264,7 @@
       vistos: null,                      // populated below from localStorage
       antigens: { count: 0, drops: [] },
       energyDrops: [],
+      macrofagoUltimate: { charge: 0, ready: false },
       nets: [],
       armedResponse: null
     };
@@ -3604,15 +3605,18 @@
     // También reserva espacio para el medidor de C3b, que en diseminación se
     // reubica arriba de la cartilla de NETosis (antes vivía en la fila
     // inferior del campo, donde quedaba pegado/superpuesto con ella).
+    // Y arriba del C3b, la tarjeta del ultimate "Arpón" del macrófago.
     var responsesReservedH = 0;
     var rpH = 0;
     var c3bMeterH = Math.round(34 * U);
     var c3bMeterGap = Math.round(4 * U);
+    var ultCardH = Math.round(34 * U);
+    var ultCardGap = Math.round(4 * U);
     if (state && state.dissemination) {
       var rpCardH = Math.round(44 * U);
       var rpPad = Math.round(5 * U);
       rpH = rpCardH + 2 * rpPad;
-      responsesReservedH = rpH + c3bMeterH + c3bMeterGap + dockPad;
+      responsesReservedH = rpH + c3bMeterH + c3bMeterGap + ultCardH + ultCardGap + dockPad;
     }
 
     // Zona info/acciones: empujada hacia arriba si hay NETosis abajo.
@@ -6001,6 +6005,17 @@
   var GUARDIAN_CRIT = 0.20;       // se retira al 20% (era 30%) — aguanta más
   var ENGULF_SEEK = 150;          // px diseño: detecta germen vulnerable
   var ENGULF_RANGE = 26;          // px diseño: distancia para empezar a engullir
+
+  // -------- ULTIMATE MACRÓFAGO: ARPÓN (lanza-cadena estilo "¡Ven aquí!") --
+  // Carga única y global (no por macrófago): cuando está lista, el jugador
+  // la tappea y se ejecuta sobre el macrófago vivo con más HP, sobre el
+  // germen más avanzado dentro de rango. Throw → Pull → handoff a la
+  // fagocitosis normal (lick/lift/engulf) ya existente.
+  var MACROFAGO_ULT_CHARGE_SEC = 40;
+  var MACROFAGO_ULT_RANGE = 250;   // px diseño (* U)
+  var HARPOON_THROW_TIME = 0.25;
+  var HARPOON_PULL_TIME = 0.4;
+  var HARPOON_FLAME_TIME = HARPOON_THROW_TIME + HARPOON_PULL_TIME + 0.3;
   var ENGULF_TIME = 0.9;          // s que tarda la fagocitosis
 
   // Libera al germen que el macrófago estaba engullendo (al huir/morir).
@@ -6023,6 +6038,110 @@
     g.mouthOpen = 0;
     g.tongueExtend = 0;
     g.engulfPhase = null;
+  }
+
+  // Libera al germen agarrado por el arpón si se interrumpe antes de
+  // llegar a la boca (ej. el macrófago entra en pánico a mitad de pull).
+  function releaseHarpoon(g) {
+    var e = g.harpoonTarget;
+    if (e && !e.dead) {
+      e.beingEngulfed = false;
+      if (g.harpoonPhase === "pull") {
+        // A mitad de camino siendo arrastrado: que caiga de vuelta a su
+        // posición original en el path (misma animación que releaseEngulf).
+        e.beingDropped = true;
+        e.dropFromX = e.x; e.dropTargetX = g.harpoonFromX;
+        e.dropFromY = e.y; e.dropTargetY = g.harpoonFromY;
+        e.dropT = 0;
+      }
+    }
+    g.harpoonTarget = null;
+    g.harpoonPhase = null;
+    // Cancela también el halo/escala del arpón — si no, al llegar a 0 el
+    // decay de harpoonFlameT fuerza g.scale=1 y pisa el shrink de la huida.
+    g.harpoonFlameT = 0;
+    g.scale = 1;
+  }
+
+  // Ultimate "Arpón": throw (lanza la cadena) → pull (tirón brusco hacia
+  // la boca) → handoff a la fagocitosis normal de 3 fases ya existente.
+  function updateHarpoon(g, dt) {
+    var e = g.harpoonTarget;
+    if (!e || e.dead || e.dying || state.enemies.indexOf(e) === -1) {
+      if (e) e.beingEngulfed = false;
+      g.harpoonTarget = null; g.harpoonPhase = null;
+      return;
+    }
+    g.harpoonT += dt;
+    if (g.harpoonPhase === "throw") {
+      var tt = Math.min(1, g.harpoonT / HARPOON_THROW_TIME);
+      g.harpoonTipX = g.x + (e.x - g.x) * tt;
+      g.harpoonTipY = g.y + (e.y - g.y) * tt;
+      if (tt >= 1) {
+        g.harpoonPhase = "pull";
+        g.harpoonT = 0;
+        g.harpoonFromX = e.x; g.harpoonFromY = e.y;
+      }
+      return;
+    }
+    // PULL: tirón brusco (ease-in) hacia el macrófago.
+    var pt = Math.min(1, g.harpoonT / HARPOON_PULL_TIME);
+    var pe = pt * pt;
+    e.x = g.harpoonFromX + (g.x - g.harpoonFromX) * pe;
+    e.y = g.harpoonFromY + (g.y - g.harpoonFromY) * pe;
+    if (pt >= 1) {
+      g.harpoonTarget = null;
+      g.harpoonPhase = null;
+      g.engulfTarget = e;
+      g.engulfT = 0;
+      g.engulfSx = e.x; g.engulfSy = e.y;
+    }
+  }
+
+  // Elige el macrófago vivo con más HP (libre, sin fagocitosis/arpón en
+  // curso) y el germen más avanzado dentro de rango. Si falta cualquiera
+  // de los dos, no consume la carga — el jugador puede esperar y reintentar.
+  function tryActivateMacrofagoUltimate() {
+    var mu = state.macrofagoUltimate;
+    if (!mu.ready) return false;
+    var best = null;
+    for (var i = 0; i < state.guardians.length; i++) {
+      var g = state.guardians[i];
+      if (g.dead || g.kind === "dendriticT" || g.state === "fleeing") continue;
+      if (g.engulfTarget || g.harpoonTarget) continue;
+      if (!best || g.hp > best.hp) best = g;
+    }
+    if (!best) {
+      flashFail();
+      showMsg("Sin macrófago disponible");
+      return false;
+    }
+    var target = null, bestProgress = -1;
+    var rangePx = MACROFAGO_ULT_RANGE * U;
+    for (var j = 0; j < state.enemies.length; j++) {
+      var e = state.enemies[j];
+      if (e.dead || e.dying || e.absorbing || e.beingEngulfed || e.beingDropped) continue;
+      if (e.state === "falling" || e.state === "entering") continue;
+      if (e.burrowed && !e.revealed) continue;
+      if (Math.hypot(e.x - best.x, e.y - best.y) > rangePx) continue;
+      if (e.progress > bestProgress) { bestProgress = e.progress; target = e; }
+    }
+    if (!target) {
+      flashFail();
+      showMsg("Sin objetivo en rango del arpón");
+      return false;
+    }
+    best.harpoonTarget = target;
+    best.harpoonPhase = "throw";
+    best.harpoonT = 0;
+    best.harpoonFlameT = HARPOON_FLAME_TIME;
+    best.scale = 1.15;
+    target.beingEngulfed = true;
+    mu.charge = 0;
+    mu.ready = false;
+    sfx("macroAttack");
+    showMsg("¡Arpón!");
+    return true;
   }
 
   // Fagocitosis con 3 FASES animadas:
@@ -6142,6 +6261,13 @@
   }
 
   function updateGuardians(dt) {
+    // Carga del ultimate "Arpón": global, independiente de cuántos
+    // macrófagos haya vivos (se valida que exista uno recién al activar).
+    var mu = state.macrofagoUltimate;
+    if (!mu.ready) {
+      mu.charge = Math.min(1, mu.charge + dt / MACROFAGO_ULT_CHARGE_SEC);
+      if (mu.charge >= 1) mu.ready = true;
+    }
     // Aparición periódica (tras oleada 2).
     state.guardianTimer -= dt;
     if (state.guardianTimer <= 0) {
@@ -6197,6 +6323,10 @@
       if (g.swallow > 0) g.swallow -= dt;
       if (g.blinkTimer > 0) g.blinkTimer -= dt;
       else if (state.time >= g.nextBlink) { g.blinkTimer = 0.1; g.nextBlink = state.time + 2 + Math.random() * 3; }
+      if ((g.harpoonFlameT || 0) > 0) {
+        g.harpoonFlameT -= dt;
+        if (g.harpoonFlameT <= 0) { g.harpoonFlameT = 0; g.scale = 1; }
+      }
 
       if (g.state === "fleeing") {
         // Huye llorando hacia el borde y se desvanece.
@@ -6231,7 +6361,7 @@
       }
       if (g.hp <= g.maxHp * GUARDIAN_CRIT) {
         // ¡Pánico! Se retira (llorando) al borde más cercano.
-        g.state = "fleeing"; releaseEngulf(g);
+        g.state = "fleeing"; releaseEngulf(g); releaseHarpoon(g);
         var leftDist = g.x - FIELD_LEFT, rightDist = FIELD_RIGHT - g.x;
         g.targetX = (leftDist < rightDist) ? FIELD_LEFT - 60 * U : FIELD_RIGHT + 60 * U;
         g.targetY = g.y - 30 * U;
@@ -6239,6 +6369,10 @@
         showMsg("¡El macrófago se retira!");
         continue;
       }
+
+      // Ultimate Arpón en curso (throw/pull) — tiene prioridad sobre el
+      // comportamiento normal, pero NO sobre el pánico/huida de arriba.
+      if (g.harpoonTarget) { updateHarpoon(g, dt); continue; }
 
       // Fagocitosis en curso (engullendo un germen detenido).
       if (g.engulfTarget) { updateGuardianEngulf(g, dt); continue; }
@@ -6313,7 +6447,59 @@
     if (!state.guardians) return;
     // PRIMERO: efectos PRE-macrofago (halo de succión bajo el cuerpo)
     for (var i = 0; i < state.guardians.length; i++) drawEngulfFx(state.guardians[i]);
+    for (var i = 0; i < state.guardians.length; i++) drawHarpoonFx(state.guardians[i]);
     for (var i = 0; i < state.guardians.length; i++) drawGuardian(state.guardians[i]);
+  }
+
+  // Halo rojo tipo llama (mientras dura harpoonFlameT) + cadena con punta
+  // de arpón entre el macrófago y su objetivo (solo durante throw/pull).
+  function drawHarpoonFx(g) {
+    if ((g.harpoonFlameT || 0) > 0) {
+      ctx.save();
+      var flamePulse = 0.7 + 0.3 * Math.sin(state.time * 14);
+      var fr = 26 * U * (g.scale || 1) * flamePulse;
+      var fg = ctx.createRadialGradient(g.x, g.y, fr * 0.3, g.x, g.y, fr);
+      fg.addColorStop(0, "rgba(255, 90, 30, 0.55)");
+      fg.addColorStop(0.6, "rgba(200, 30, 20, 0.35)");
+      fg.addColorStop(1, "rgba(200, 30, 20, 0)");
+      ctx.fillStyle = fg;
+      ctx.beginPath();
+      ctx.arc(g.x, g.y, fr, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+    if (!g.harpoonPhase || !g.harpoonTarget) return;
+    var e = g.harpoonTarget;
+    var farX = (g.harpoonPhase === "throw") ? g.harpoonTipX : e.x;
+    var farY = (g.harpoonPhase === "throw") ? g.harpoonTipY : e.y;
+    ctx.save();
+    ctx.strokeStyle = "rgba(180, 30, 20, 0.85)";
+    ctx.lineWidth = 3 * U;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(g.x, g.y);
+    ctx.lineTo(farX, farY);
+    ctx.stroke();
+    // Eslabones de la cadena (círculos a lo largo de la línea).
+    var segs = 6;
+    ctx.fillStyle = "rgba(90, 15, 10, 0.9)";
+    for (var i = 1; i < segs; i++) {
+      var t = i / segs;
+      var lx = g.x + (farX - g.x) * t;
+      var ly = g.y + (farY - g.y) * t;
+      ctx.beginPath();
+      ctx.arc(lx, ly, 2.2 * U, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // Punta de arpón en el extremo.
+    ctx.fillStyle = "#7a1410";
+    ctx.beginPath();
+    ctx.moveTo(farX, farY - 6 * U);
+    ctx.lineTo(farX + 5 * U, farY + 4 * U);
+    ctx.lineTo(farX - 5 * U, farY + 4 * U);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
   }
 
   // Halo de succión + tractor beam cuando el macrófago está engullendo.
@@ -6636,6 +6822,14 @@
         w: rp.w - 2 * rp.pad,
         h: c3bH
       };
+      var ultH = Math.round(34 * U);
+      var ultGap = Math.round(4 * U);
+      UI.macrofagoUltCard = {
+        x: UI.c3bMeter.x,
+        y: UI.c3bMeter.y - ultGap - ultH,
+        w: UI.c3bMeter.w,
+        h: ultH
+      };
     } else {
       var totalRatio = 0.55 + 1.00 + 0.55;
       var unit = (availableW2 - gap * 2) / totalRatio;
@@ -6646,6 +6840,13 @@
       UI.medVial = { x: startX + topicalW + gap, y: rowY, w: medW, h: rowH };
       UI.c3bMeter = { x: startX + topicalW + gap + medW + gap, y: rowY, w: c3bW, h: rowH };
       UI.macrofagoBtn = { x: UI.c3bMeter.x + c3bW + gap, y: rowY, w: macW, h: rowH };
+      var ultH2 = rowH, ultGap2 = 6 * U;
+      UI.macrofagoUltCard = {
+        x: UI.c3bMeter.x,
+        y: UI.c3bMeter.y - ultGap2 - ultH2,
+        w: UI.c3bMeter.w,
+        h: ultH2
+      };
     }
   }
 
@@ -7118,6 +7319,30 @@
       ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(s.x, s.y, R * 0.45, 0, Math.PI * 2); ctx.fill();
       ctx.fillStyle = "#1a1a22"; ctx.beginPath(); ctx.arc(s.x, s.y, R * 0.22, 0, Math.PI * 2); ctx.fill();
     }
+  }
+
+  // Tarjeta del ultimate "Arpón" del macrófago — barra de carga + tap
+  // para activar cuando está lista (ver tryActivateMacrofagoUltimate).
+  function drawMacrofagoUltMeter() {
+    var v = UI.macrofagoUltCard;
+    if (!v) return;
+    var mu = state.macrofagoUltimate;
+    var ready = mu.ready;
+    ctx.save();
+    ctx.fillStyle = "rgba(20,8,12,0.55)";
+    ctx.fillRect(v.x, v.y, v.w, v.h);
+    var pct = Math.max(0, Math.min(1, mu.charge));
+    ctx.fillStyle = "rgba(255,90,40,0.35)";
+    ctx.fillRect(v.x, v.y, v.w * pct, v.h);
+    ctx.strokeStyle = ready ? "rgba(255,110,40,0.95)" : "rgba(255,255,255,0.45)";
+    ctx.lineWidth = ready ? 2 : 1;
+    ctx.strokeRect(v.x, v.y, v.w, v.h);
+    ctx.font = "bold " + Math.max(10, Math.min(12, v.h * 0.32)) + "px Fredoka, sans-serif";
+    ctx.textBaseline = "middle";
+    ctx.textAlign = "left";
+    ctx.fillStyle = ready ? "#ffd9c0" : "rgba(255,255,255,0.75)";
+    ctx.fillText(ready ? "▸ Arpón" : "Arpón", v.x + 7, v.y + v.h / 2);
+    ctx.restore();
   }
 
   function drawComplementMeter() {
@@ -10130,6 +10355,15 @@
     // Tópico: tocar el bloque (lleno) lanza el ácido al camino.
     if (!state.dissemination && UI.topicalVial && inRect(x, y, UI.topicalVial)) {
       if (state.topicalCharge >= TOPICAL_MAX) { applyTopical(); return; }
+    }
+    // Tarjeta del ultimate "Arpón" — tap activa si está lista.
+    if (UI.macrofagoUltCard && inRect(x, y, UI.macrofagoUltCard)) {
+      if (!state.macrofagoUltimate.ready) {
+        flashFail();
+        return;
+      }
+      tryActivateMacrofagoUltimate();
+      return;
     }
     // Botón Macrófago — armar/desarmar manual call.
     if (!state.dissemination && UI.macrofagoBtn && inRect(x, y, UI.macrofagoBtn)) {
@@ -18861,6 +19095,8 @@
       drawCompendiumButton();
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       drawComplementMeter();
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      drawMacrofagoUltMeter();
       if (state.dissemination) {
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         drawImmuneResponsePanel();

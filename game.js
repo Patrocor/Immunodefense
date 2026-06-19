@@ -18996,16 +18996,19 @@
     ctx.fillStyle = g;
     ctx.fillRect(0, FIELD_TOP, VW, FIELD_H);
     if (!PATH.laneXs) return;
-    // Rectángulo del campo de carriles (centrado, enmarca los 3 carriles
-    // con un margen chico afuera de sus bandas de color).
-    var bridgeLeft = FIELD_LEFT + FIELD_W * 0.08;
-    var bridgeRight = FIELD_LEFT + FIELD_W * 0.92;
-    var bridgeTop = FIELD_TOP + FIELD_H * 0.045;
-    var bridgeBottom = FIELD_TOP + FIELD_H * 0.955;
     // Ancho de banda EXACTAMENTE igual a la separación entre carriles
     // vecinos: las bandas se tocan borde a borde, sin huecos y sin
     // superponerse (medio ancho = mitad de la distancia entre centros).
     var laneW = FIELD_W * laneGapFrac();
+    // Rectángulo del campo de carriles: abraza la franja REAL de los 3
+    // carriles (borde del carril 0 a borde del carril N-1) con un margen
+    // chico afuera, en vez de un rectángulo fijo más ancho que el área
+    // jugable (eso confundía dónde es espacio libre vs. terreno de juego).
+    var laneBandMargin = 6 * U;
+    var bridgeLeft = FIELD_LEFT + PATH.laneXs[0] * FIELD_W - laneW / 2 - laneBandMargin;
+    var bridgeRight = FIELD_LEFT + PATH.laneXs[PATH.laneXs.length - 1] * FIELD_W + laneW / 2 + laneBandMargin;
+    var bridgeTop = FIELD_TOP + FIELD_H * 0.045;
+    var bridgeBottom = FIELD_TOP + FIELD_H * 0.955;
     // Tintes verticales por carril.
     for (var i = 0; i < PATH.laneXs.length; i++) {
       var organ = DISSEMINATION_ORGANS[i];

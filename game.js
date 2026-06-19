@@ -3064,7 +3064,7 @@
     candida:         [2, 1, 1]    // candidiasis sistémica → endocarditis
   };
   function pickDisseminationLane(typeId) {
-    var weights = GERM_AFFINITY[typeId] || [1, 1, 1, 1, 1];
+    var weights = GERM_AFFINITY[typeId] || [1, 1, 1];
     var total = 0;
     for (var i = 0; i < weights.length; i++) total += weights[i];
     var r = Math.random() * total;
@@ -3218,7 +3218,7 @@
       disseminationOver: null,         // { germ, organ } cuando un órgano llena
       disseminationIntroTimer: 0,      // banner de entrada al puente
       disseminationOrganLoad: [0,0,0],       // 0..10 (germenes pasando tras romper barrera) — 3 carriles
-      disseminationFlash: [0,0,0,0,0],       // brillo de impacto al recibir germen
+      disseminationFlash: [0,0,0],       // brillo de impacto al recibir germen
       disseminationBarrierHP:     [0, 0, 0],
       disseminationBarrierMax:    [0, 0, 0],
       disseminationBarrierBroken: [false, false, false],
@@ -4490,6 +4490,7 @@
         e.dropT = (e.dropT || 0) + dt;
         var dropFrac = Math.min(1, e.dropT / 0.30);
         var dropEase = dropFrac * dropFrac;       // accelera (gravedad)
+        e.x = e.dropFromX + (e.dropTargetX - e.dropFromX) * dropEase;
         e.y = e.dropFromY + (e.dropTargetY - e.dropFromY) * dropEase;
         if (dropFrac >= 1) {
           e.beingDropped = false;
@@ -4628,7 +4629,7 @@
           var organ = (PATH.organDoors && PATH.organDoors[lane])
             ? PATH.organDoors[lane].organ
             : DISSEMINATION_ORGANS[lane] || DISSEMINATION_ORGANS[0];
-          if (!state.disseminationFlash) state.disseminationFlash = [0,0,0,0,0];
+          if (!state.disseminationFlash) state.disseminationFlash = [0,0,0];
 
           if (!state.disseminationBarrierBroken[lane] && state.disseminationBarrierHP[lane] > 0) {
             // El germen es absorbido por la barrera: muere, barrera -1 HP.
@@ -5635,7 +5636,7 @@
         var macCandidates = [];
         for (var mi = 0; mi < state.enemies.length; mi++) {
           var me = state.enemies[mi];
-          if (me.dead || me.dying || me.absorbing || me.state === "falling" || me.state === "entering") continue;
+          if (me.dead || me.dying || me.absorbing || me.beingEngulfed || me.beingDropped || me.state === "falling" || me.state === "entering") continue;
           if (me.burrowed && !me.revealed) continue;
           if (Math.hypot(me.x - t.x, me.y - t.y) <= rangePx) macCandidates.push(me);
         }
@@ -5651,7 +5652,7 @@
         var acted = false;
         for (var sj = 0; sj < state.enemies.length; sj++) {
           var se = state.enemies[sj];
-          if (se.dead || se.dying || se.absorbing || se.state === "falling" || se.state === "entering") continue;
+          if (se.dead || se.dying || se.absorbing || se.beingEngulfed || se.beingDropped || se.state === "falling" || se.state === "entering") continue;
           if (Math.hypot(se.x - t.x, se.y - t.y) > rangePx) continue;
           acted = true;
           if (t.def.support === "mark") {
@@ -5682,7 +5683,7 @@
       var target = null, bestProgress = -1;
       for (var j = 0; j < state.enemies.length; j++) {
         var e = state.enemies[j];
-        if (e.dead || e.dying || e.absorbing || e.state === "falling" || e.state === "entering") continue;
+        if (e.dead || e.dying || e.absorbing || e.beingEngulfed || e.beingDropped || e.state === "falling" || e.state === "entering") continue;
         if (e.burrowed && !e.revealed) continue;   // sarna enterrada: intocable salvo si está marcada
         var d = Math.hypot(e.x - t.x, e.y - t.y);
         if (d <= rangePx && e.progress > bestProgress) {
@@ -5999,6 +6000,8 @@
       e.engulfScale = null;             // tamaño normal restaurado
       // Trigger drop animation: cae de la posición actual a la del path
       e.beingDropped = true;
+      e.dropFromX = e.x;
+      e.dropTargetX = g.engulfSx;
       e.dropFromY = e.y;
       e.dropTargetY = g.engulfSy;
       e.dropT = 0;
@@ -10520,7 +10523,10 @@
       }
     } else if (e.key === "Escape") {
       if (state.confirmRestart) state.confirmRestart = false;
-      else { state.selectedToBuild = null; state.selectedTower = null; clearRangeHint(); }
+      else {
+        state.selectedToBuild = null; state.selectedTower = null; clearRangeHint();
+        state.armedResponse = null; state.armedMacrofago = false;
+      }
     } else if (e.key === "1") { selectBuildType("neutrofilo");
     } else if (e.key === "2") { selectBuildType("linfocitoB");
     } else if (e.key === "3") { selectBuildType("linfocitoT");

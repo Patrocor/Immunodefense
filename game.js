@@ -573,10 +573,11 @@
   // muertas a los costados ni arriba/abajo. Sin tronco compartido.
   function rebuildDisseminationPath() {
     PATH.orientation = isPortrait ? "portrait" : "landscape";
-    // 3 columnas bien separadas y anchas (cada una con sitio para 2 gérmenes
-    // uno junto al otro) — usan casi todo el ancho del campo en vez de
-    // apretarse en el tercio central, pero sin pegarse a los bordes.
-    var laneXs = [0.22, 0.50, 0.78];
+    // 3 columnas acercadas al centro — el ancho de banda (ver
+    // drawDisseminationField) ya no depende de esta separación, así que se
+    // mantiene ancha (sitio para 2 gérmenes) y de hecho se superpone un
+    // poco entre carriles vecinos, dando una sensación de campo fusionado.
+    var laneXs = [0.32, 0.50, 0.68];
     var entryYn = 0.07;   // arriba (grieta de barrera rota)
     var exitYn = 0.93;    // abajo (puerta de órgano)
     PATH.wounds = [];
@@ -18920,10 +18921,12 @@
     var bridgeRight = FIELD_LEFT + FIELD_W * 0.92;
     var bridgeTop = FIELD_TOP + FIELD_H * 0.045;
     var bridgeBottom = FIELD_TOP + FIELD_H * 0.955;
-    // Ancho real de cada banda de carril: la separación entre carriles
-    // vecinos (no un /5 fijo de cuando había 5 carriles) — con sitio de
-    // sobra para que pasen 2 gérmenes uno junto al otro.
-    var laneW = FIELD_W * laneGapFrac() * 0.85;
+    // Ancho de banda fijo, desacoplado de la separación real entre
+    // carriles (laneGapFrac) — con sitio de sobra para que pasen 2
+    // gérmenes uno junto al otro. Como es mayor que el gap actual entre
+    // carriles, las bandas vecinas se superponen a propósito (campo
+    // fusionado en vez de 3 columnas separadas).
+    var laneW = FIELD_W * 0.24;
     // Tintes verticales por carril.
     for (var i = 0; i < PATH.laneXs.length; i++) {
       var organ = DISSEMINATION_ORGANS[i];

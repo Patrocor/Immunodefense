@@ -818,7 +818,7 @@
       desc: "Cuerpo a cuerpo",
       // Ultimate: MARTILLAZO CELULAR — al cargar, tap dispara un mazo
       // proteico contra el germen más cercano en su rango (damage 8x).
-      specialChargeSec: 24,
+      specialChargeSec: 24 * 1.15,  // +15%: poderes tardan un poco más en cargar
       specialName: "Martillazo",
       levels: [
         { range:  90, damage: 25, fireRate: 1.0, projectileSpeed:   0, splash:  0, hp: 120 },
@@ -839,7 +839,7 @@
       // Ultimate: DIFERENCIACIÓN A PLASMOCITO — la torre se infla y
       // dispara una ráfaga de 30 anticuerpos Y al sector más cercano
       // del camino. Cada Y golpea a un germen del área.
-      specialChargeSec: 28,
+      specialChargeSec: 28 * 1.15,  // +15%: poderes tardan un poco más en cargar
       specialName: "Plasmocito",
       levels: [
         { range: 180, damage: 2, fireRate: 12, projectileSpeed: 460, splash: 0, hp: 70 },
@@ -872,7 +872,7 @@
       // a TODOS los enemies en rango (marca +30% damage por 6s) y al mismo
       // tiempo libera citoquinas hacia las torres aliadas en rango
       // (+25% attack speed por 6s). 30s de carga.
-      specialChargeSec: 30,
+      specialChargeSec: 30 * 1.15,  // +15%: poderes tardan un poco más en cargar
       specialName: "Presentación masiva",
       levels: [
         { range: 120, damage: 0, fireRate: 1.0, projectileSpeed: 0, splash: 0, hp: 90,  markBonus: 0.35, markDur: 3.0 },
@@ -888,7 +888,7 @@
       // Ultimate: FRENESÍ CITOTÓXICO — rota como tornado fucsia y
       // dispara una tormenta de perforinas penetrantes que ignoran
       // escudos. 26s de carga.
-      specialChargeSec: 26,
+      specialChargeSec: 26 * 1.15,  // +15%: poderes tardan un poco más en cargar
       specialName: "Frenesí",
       levels: [
         { range: 170, damage: 22, fireRate: 1.2, projectileSpeed: 430, splash: 0, hp: 95 },
@@ -931,10 +931,11 @@
       lifetimeDecay: 2.5,           // HP perdidos por segundo (se consume solo)
       // El "tiro" es una mancha de ácido en el campo: fireRate como cadencia mínima
       // entre tiros manuales; splash define el radio del charco; damage es el DoT/s.
+      // fireRate /1.15: +15% de tiempo entre disparos (cooldown = 1/fireRate).
       levels: [
-        { range: 400, damage: 28, fireRate: 0.7, projectileSpeed: 0, splash: 42, hp: 100, acidDur: 4.0, travelTime: 1.1 },
-        { range: 460, damage: 40, fireRate: 0.9, projectileSpeed: 0, splash: 50, hp: 130, acidDur: 4.5, travelTime: 1.0 },
-        { range: 520, damage: 56, fireRate: 1.1, projectileSpeed: 0, splash: 58, hp: 160, acidDur: 5.0, travelTime: 0.95 }
+        { range: 400, damage: 28, fireRate: 0.7 / 1.15, projectileSpeed: 0, splash: 42, hp: 100, acidDur: 4.0, travelTime: 1.1 },
+        { range: 460, damage: 40, fireRate: 0.9 / 1.15, projectileSpeed: 0, splash: 50, hp: 130, acidDur: 4.5, travelTime: 1.0 },
+        { range: 520, damage: 56, fireRate: 1.1 / 1.15, projectileSpeed: 0, splash: 58, hp: 160, acidDur: 5.0, travelTime: 0.95 }
       ],
       upgradeCost: [120, 200]
     },
@@ -3600,13 +3601,18 @@
 
     // Pre-compute NETosis reserved height (si está en diseminación) — necesario
     // para empujar el info zone HACIA ARRIBA y dejar lugar al fondo del dock.
+    // También reserva espacio para el medidor de C3b, que en diseminación se
+    // reubica arriba de la cartilla de NETosis (antes vivía en la fila
+    // inferior del campo, donde quedaba pegado/superpuesto con ella).
     var responsesReservedH = 0;
     var rpH = 0;
+    var c3bMeterH = Math.round(34 * U);
+    var c3bMeterGap = Math.round(4 * U);
     if (state && state.dissemination) {
       var rpCardH = Math.round(44 * U);
       var rpPad = Math.round(5 * U);
       rpH = rpCardH + 2 * rpPad;
-      responsesReservedH = rpH + dockPad;
+      responsesReservedH = rpH + c3bMeterH + c3bMeterGap + dockPad;
     }
 
     // Zona info/acciones: empujada hacia arriba si hay NETosis abajo.
@@ -6598,8 +6604,11 @@
 
   // -------- MEDICAMENTO ---------------------------------------------------
   function layoutMed() {
-    // Fila inferior con 4 indicadores HORIZONTALES alineados:
-    //  [ antiséptico ] [ medicamento (4 bloques) ] [ C3b dots ] [ Mφ call ]
+    // Fila inferior con indicadores HORIZONTALES alineados:
+    //  [ antiséptico ] [ medicamento (4 bloques) ] ([ C3b dots ]) [ Mφ call ]
+    // En diseminación el C3b NO va en esta fila — se reubica arriba de la
+    // cartilla de NETosis (dock lateral) para no quedar pegado/superpuesto
+    // con ella, que vive en la misma esquina inferior de la pantalla.
     var rowH = Math.max(34, 38 * U);
     var rowY = FIELD_BOTTOM - rowH - 8 * U;
     var gap = 6 * U;
@@ -6607,17 +6616,37 @@
     // Botón Macrófago es CUADRADO (rowH × rowH) — restamos su ancho del available
     var macW = rowH;
     var availableW2 = availableW - macW - gap;
-    var totalRatio = 0.55 + 1.00 + 0.55;
-    var unit = (availableW2 - gap * 2) / totalRatio;
-    var topicalW = Math.round(unit * 0.55);
-    var medW = Math.round(unit * 1.00);
-    var c3bW = Math.round(unit * 0.55);
-
     var startX = FIELD_LEFT + 8 * U;
-    UI.topicalVial = { x: startX, y: rowY, w: topicalW, h: rowH };
-    UI.medVial = { x: startX + topicalW + gap, y: rowY, w: medW, h: rowH };
-    UI.c3bMeter = { x: startX + topicalW + gap + medW + gap, y: rowY, w: c3bW, h: rowH };
-    UI.macrofagoBtn = { x: UI.c3bMeter.x + c3bW + gap, y: rowY, w: macW, h: rowH };
+
+    if (state.dissemination && UI.responsePanel) {
+      var totalRatio2 = 0.55 + 1.00;
+      var unit2 = (availableW2 - gap) / totalRatio2;
+      var topicalW2 = Math.round(unit2 * 0.55);
+      var medW2 = Math.round(unit2 * 1.00);
+      UI.topicalVial = { x: startX, y: rowY, w: topicalW2, h: rowH };
+      UI.medVial = { x: startX + topicalW2 + gap, y: rowY, w: medW2, h: rowH };
+      UI.macrofagoBtn = { x: UI.medVial.x + medW2 + gap, y: rowY, w: macW, h: rowH };
+
+      var rp = UI.responsePanel;
+      var c3bH = Math.round(34 * U);
+      var c3bGap = Math.round(4 * U);
+      UI.c3bMeter = {
+        x: rp.x + rp.pad,
+        y: rp.y + rp.pad - c3bGap - c3bH,
+        w: rp.w - 2 * rp.pad,
+        h: c3bH
+      };
+    } else {
+      var totalRatio = 0.55 + 1.00 + 0.55;
+      var unit = (availableW2 - gap * 2) / totalRatio;
+      var topicalW = Math.round(unit * 0.55);
+      var medW = Math.round(unit * 1.00);
+      var c3bW = Math.round(unit * 0.55);
+      UI.topicalVial = { x: startX, y: rowY, w: topicalW, h: rowH };
+      UI.medVial = { x: startX + topicalW + gap, y: rowY, w: medW, h: rowH };
+      UI.c3bMeter = { x: startX + topicalW + gap + medW + gap, y: rowY, w: c3bW, h: rowH };
+      UI.macrofagoBtn = { x: UI.c3bMeter.x + c3bW + gap, y: rowY, w: macW, h: rowH };
+    }
   }
 
   // Bloques llenos (0..MED_BLOCKS) según la carga acumulada.

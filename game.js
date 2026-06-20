@@ -816,10 +816,11 @@
       colorDark: "#7E5FB0",
       cost: 55,
       desc: "Cuerpo a cuerpo",
-      // Ultimate: MARTILLAZO CELULAR — al cargar, tap dispara un mazo
-      // proteico contra el germen más cercano en su rango (damage 8x).
+      // Ultimate: BOMBARDEO DE DEFENSINAS — 7 gránulos caen escalonados
+      // sobre un tramo ancho del camino (dmg 2.2x c/u), cerrando con un
+      // shockwave propio (dmg 6x). Ver triggerTowerSpecial/updateTowers.
       specialChargeSec: 24 * 1.15,  // +15%: poderes tardan un poco más en cargar
-      specialName: "Martillazo",
+      specialName: "Bombardeo de Defensinas",
       levels: [
         { range:  90, damage: 25, fireRate: 1.0, projectileSpeed:   0, splash:  0, hp: 120 },
         { range: 100, damage: 45, fireRate: 1.2, projectileSpeed:   0, splash:  0, hp: 160 },
@@ -5070,13 +5071,24 @@
     if (!t || !t.specialReady) return;
     var def = t.def;
     if (def.id === "neutrofilo") {
-      // MARTILLAZO CELULAR: cae sobre el camino más cercano (o
-      // vertical arriba en diseminación, donde los lanes son verticales).
-      t.hammerTarget = computeUltimateTarget(t);
-      t.specialAnim = 0.65;
+      // BOMBARDEO DE DEFENSINAS: 7 gránulos caen escalonados sobre un
+      // tramo ancho del camino (±70px de arco alrededor del punto que da
+      // computeUltimateTarget), seguidos de un shockwave propio al
+      // aterrizar. Ver updateTowers() para la resolución por frame.
+      var center = computeUltimateTarget(t);
+      var arc = nearestPathProgress(center.x, center.y);
+      var offsets = [-70, -46, -23, 0, 23, 46, 70];
+      t.bombardImpacts = [];
+      for (var bi = 0; bi < offsets.length; bi++) {
+        var pt;
+        if (arc) pt = pathPos(arc.progress + offsets[bi] * U, arc.heridaIdx);
+        else pt = center;
+        t.bombardImpacts.push({ x: pt.x, y: pt.y, tOffset: 0.3 + bi * 0.19, hit: false });
+      }
+      t.bombardLanded = false;
+      t.specialAnim = 2.4;
       t.specialReady = false;
       t.specialCharge = 0;
-      t.hammerImpacted = false;
       sfx("upgrade");
       return;
     }
@@ -5789,6 +5801,31 @@
         if (t.specialCharge >= 1) t.specialReady = true;
       }
       if ((t.specialAnim || 0) > 0) t.specialAnim -= dt;
+      // Neutrófilo ultimate: Bombardeo de Defensinas — dispara cada
+      // gránulo cuando le toca su turno y, al llegar a la fase de
+      // aterrizaje (1.6s), el shockwave propio una sola vez.
+      if (t.def.id === "neutrofilo" && t.bombardImpacts) {
+        var elapsed = 2.4 - (t.specialAnim || 0);
+        for (var nb = 0; nb < t.bombardImpacts.length; nb++) {
+          var imp = t.bombardImpacts[nb];
+          if (!imp.hit && elapsed >= imp.tOffset) {
+            imp.hit = true;
+            var nbStats = towerStats(t);
+            dealAoEDamageAt(imp.x, imp.y, 18 * U, nbStats.damage * 2.2);
+            triggerShake(0.08, 2);
+          }
+        }
+        if (!t.bombardLanded && elapsed >= 1.6) {
+          t.bombardLanded = true;
+          var ndStats = towerStats(t);
+          dealAoEDamageAt(t.x, t.y, 32 * U, ndStats.damage * 6);
+          triggerShake(0.30, 7);
+        }
+        if ((t.specialAnim || 0) <= 0) {
+          t.bombardImpacts = null;
+          t.bombardLanded = false;
+        }
+      }
       // Linfocito B ultimate: cañones disparan rayos continuos mientras
       // dure specialAnim. ~16 disparos/s por cañón (alternando).
       if (t.def.id === "linfocitoB" && (t.specialAnim || 0) > 0 && t.cannonTarget) {
@@ -17522,7 +17559,7 @@
       hitFlash: 0,
       blinkTimer: 0, attackAnim: 0, levelupAnim: 0, muzzleFlash: 0,
       stunTimer: 0, slowFireTimer: 0,
-      hammerTarget: null, cannonTarget: null, frenzyTarget: null
+      bombardImpacts: null, cannonTarget: null, frenzyTarget: null
     };
     var factor = TOWER_PREVIEW_PULSE_FACTOR[typeId] || 0.82;
     var pulse = (R / (18 * U)) * factor;

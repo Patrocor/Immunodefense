@@ -14248,7 +14248,7 @@
     // Sprint 8C-2: bosses con morfología real, antes del fallback genérico.
     else if (def.id === "bossPyogenes")      drawBossPyogenes(e, rad * scale, expression, blink);
     else if (def.id === "bossMRSA")          drawBossMRSA(e, rad * scale, expression, blink);
-    else if (def.id === "bossClostridium")   drawBoss(e, rad * scale, expression, blink);
+    else if (def.id === "bossClostridium")   drawBossClostridium(e, rad * scale, expression, blink);
     else if (kind === "bacteria")       drawBacteria(e, rad * scale, expression, blink);
     else if (kind === "virus")          drawVirus(e, rad * scale, expression, blink);
     else if (kind === "hongo")          drawHongo(e, rad * scale, expression, blink);
@@ -16662,6 +16662,125 @@
     if (expression === "dying") drawAnimeMouth(0, bigR * 0.36, bigR * 0.65, bigR * 0.55, "open");
     else if (expression === "hurt") drawAnimeMouth(0, bigR * 0.36, bigR * 0.55, bigR * 0.45, "open");
     else drawAnimeMouth(0, bigR * 0.36, bigR * 0.62, bigR * 0.36, "fanged");
+    ctx.restore();
+  }
+
+  // Clostridium perfringens: bacilo anaerobio esporulado de la gangrena
+  // gaseosa. Signature propia (no el fallback genérico de drawBoss):
+  // cuerpo en bastón (rod) con esporas terminales claras, halo necrótico
+  // verde-negro (tejido gangrenoso, no rojo como Pyogenes) y burbujas de
+  // gas ascendiendo — la crepitación es el signo clínico real de esta
+  // bacteria. Avanza lento e implacable (speedMult más bajo de los 4 jefes).
+  function drawBossClostridium(e, rad, expression, blink) {
+    var hit = e.hitFlash > 0;
+    var t = state.time;
+    ctx.save();
+    ctx.translate(e.x, e.y);
+    var lumber = Math.sin(t * 1.1 + e.wobble) * 0.05;   // bamboleo lento y pesado
+
+    // Halo necrótico verde-negro (tejido muerto por gangrena, no rojo).
+    if (!hit) {
+      var necroPulse = 0.5 + 0.4 * Math.sin(t * 1.3);
+      var auraR = rad * 1.55;
+      var auraG = ctx.createRadialGradient(0, 0, rad * 0.6, 0, 0, auraR);
+      auraG.addColorStop(0, "rgba(55, 75, 55, " + (0.30 * necroPulse) + ")");
+      auraG.addColorStop(0.55, "rgba(22, 32, 26, " + (0.24 * necroPulse) + ")");
+      auraG.addColorStop(1, "rgba(10, 12, 12, 0)");
+      ctx.fillStyle = auraG;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, auraR, auraR * 0.6, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    ctx.rotate(lumber);
+    // Cuerpo: bastón alargado, extremos redondeados (bacilo real, no óvalo).
+    var bodyLen = rad * 1.95, bodyW = rad * 0.76;
+    var halfL = bodyLen / 2, halfW = bodyW / 2;
+    var grad = ctx.createLinearGradient(-halfL, 0, halfL, 0);
+    grad.addColorStop(0, e.def.colorDark);
+    grad.addColorStop(0.5, e.def.color);
+    grad.addColorStop(1, e.def.colorDark);
+    ctx.fillStyle = hit ? "#ffffff" : grad;
+    ctx.beginPath();
+    ctx.moveTo(-halfL + halfW, -halfW);
+    ctx.lineTo(halfL - halfW, -halfW);
+    ctx.arc(halfL - halfW, 0, halfW, -Math.PI / 2, Math.PI / 2);
+    ctx.lineTo(-halfL + halfW, halfW);
+    ctx.arc(-halfL + halfW, 0, halfW, Math.PI / 2, Math.PI * 1.5);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = "#0d150f";
+    ctx.lineWidth = Math.max(1.6, 2 * U);
+    ctx.stroke();
+
+    // Esporas terminales (signature: bacteria esporulada) — esferas claras
+    // en cada extremo del bastón.
+    if (!hit) {
+      ctx.fillStyle = "rgba(190, 210, 180, 0.85)";
+      ctx.strokeStyle = "#3a4a3a";
+      ctx.lineWidth = Math.max(0.9, 1 * U);
+      ctx.beginPath(); ctx.arc(-halfL + halfW * 0.45, 0, halfW * 0.46, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      ctx.beginPath(); ctx.arc(halfL - halfW * 0.45, 0, halfW * 0.46, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    }
+
+    // Burbujas de gas ascendiendo — crepitación, el signo clínico real de
+    // la gangrena gaseosa. Cada una sube y se desvanece en loop propio.
+    if (!hit) {
+      for (var b = 0; b < 6; b++) {
+        var bSeed = b * 1.91 + (e.shape || 0);
+        var bCycle = (t * 0.45 + bSeed) % 2.2;
+        var bx = Math.sin(bSeed * 3.1) * bodyLen * 0.32;
+        var by = halfW * 0.7 - bCycle * rad * 0.85;
+        var bAlpha = Math.max(0, 1 - bCycle / 2.2);
+        var bR = (1.6 + (b % 3) * 0.7) * U;
+        ctx.fillStyle = "rgba(205, 225, 195, " + (0.55 * bAlpha) + ")";
+        ctx.strokeStyle = "rgba(120, 150, 120, " + (0.6 * bAlpha) + ")";
+        ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.arc(bx, by, bR, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      }
+    }
+    ctx.rotate(-lumber);
+
+    // Cara: mismo lenguaje que los otros jefes (ojos con glow + pupila,
+    // cejas, boca anime) pero con tinte verdoso en vez de rojo.
+    var eyeR = bodyW * 0.30;
+    if (expression === "dying") {
+      drawHurtEyes(0, 0, eyeR, bodyLen * 0.22, "#1f2e22");
+    } else if (expression === "hurt") {
+      drawHurtEyes(0, 0, eyeR, bodyLen * 0.22);
+    } else {
+      var glowMult = expression === "enraged" ? 1.4 : 1.0;
+      ctx.fillStyle = "rgba(170, 210, 150, " + (0.5 * glowMult) + ")";
+      ctx.beginPath();
+      ctx.arc(-bodyLen * 0.15, 0, eyeR * 1.6 * glowMult, 0, Math.PI * 2);
+      ctx.arc(bodyLen * 0.15, 0, eyeR * 1.6 * glowMult, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#ffffff";
+      ctx.beginPath();
+      ctx.ellipse(-bodyLen * 0.15, 0, eyeR, eyeR * 1.05, 0, 0, Math.PI * 2);
+      ctx.ellipse(bodyLen * 0.15, 0, eyeR, eyeR * 1.05, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = expression === "enraged" ? "#7ad65a" : "#4caf50";
+      ctx.beginPath();
+      ctx.arc(-bodyLen * 0.15, 0, eyeR * 0.6, 0, Math.PI * 2);
+      ctx.arc(bodyLen * 0.15, 0, eyeR * 0.6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#0e1a10";
+      ctx.beginPath();
+      ctx.arc(-bodyLen * 0.15, 0, eyeR * 0.32, 0, Math.PI * 2);
+      ctx.arc(bodyLen * 0.15, 0, eyeR * 0.32, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.strokeStyle = "#0e1a10";
+    ctx.lineWidth = Math.max(2, 2.5 * U);
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(-bodyLen * 0.30, -bodyW * 0.55);
+    ctx.lineTo(-bodyLen * 0.06, -bodyW * 0.35);
+    ctx.moveTo(bodyLen * 0.30, -bodyW * 0.55);
+    ctx.lineTo(bodyLen * 0.06, -bodyW * 0.35);
+    ctx.stroke();
+    drawAnimeMouth(0, bodyW * 0.40, bodyLen * 0.30, bodyW * 0.45, "fanged");
     ctx.restore();
   }
 

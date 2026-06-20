@@ -18490,15 +18490,23 @@
         // germen chico, que se encoge y desaparece — luego suelta la
         // mini gota REAL (drawDripFor, mismo tamaño que en juego) que
         // hay que tappear para cobrar el ATP.
-        var mx = cx - dw * 0.16, my = cy - dh * 0.02;
+        var mx = cx - dw * 0.10, my = cy + dh * 0.02;
         var eatT = Math.min(1, bp / 0.5);
         if (eatT < 1) {
           ctx.fillStyle = "#7CFC9E";
-          ctx.beginPath(); ctx.arc(mx + dh * 0.14, my, dh * 0.08 * (1 - eatT), 0, Math.PI * 2); ctx.fill();
+          ctx.beginPath(); ctx.arc(mx + dh * 0.28, my - dh * 0.05, dh * 0.07 * (1 - eatT), 0, Math.PI * 2); ctx.fill();
         }
-        ctx.fillStyle = GUARDIAN_COL;
-        ctx.beginPath(); ctx.arc(mx, my, dh * 0.17, 0, Math.PI * 2); ctx.fill();
-        ctx.strokeStyle = GUARDIAN_COLD; ctx.lineWidth = 1.5; ctx.stroke();
+        // Macrófago REAL (drawGuardian: 11 pseudópodos, núcleo riñón,
+        // lisosomas, receptores de membrana) escalado para entrar en la
+        // mini-pantalla — nada de un círculo genérico.
+        var fakeG = {
+          x: mx, y: my,
+          scale: (dh * 0.20) / (24 * U),
+          wobble: state.time * 5, shape: 0, alpha: 1,
+          mouthOpen: 0, swallow: 0, attackAnim: 0, hitFlash: 0, tongueExtend: 0,
+          blinkTimer: 0, nextBlink: state.time + 999, state: "roaming"
+        };
+        drawGuardian(fakeG);
         if (bp > 0.55) {
           var dropP = Math.min(1, (bp - 0.55) / 0.45);
           var fakeDrop = {

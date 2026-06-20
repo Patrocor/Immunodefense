@@ -4170,8 +4170,10 @@
       var bonus = 12 + state.waveIdx * 2;
       state.atp += bonus;
       // Transición a NIVEL PUENTE: al cerrar la ola 18 (boss MRSA) en Fase 1.
+      // Mismo fade + mapa-mundo que la sobrecarga viral (ya no es un corte
+      // abrupto), pero con tono de victoria — ver triggerPhaseVictory.
       if (!state.dissemination && state.waveIdx === 18) {
-        enterDissemination();
+        triggerPhaseVictory();
         return;
       }
       // Auto-schedule next wave: base gap shrinks with wave, infestation
@@ -8879,7 +8881,8 @@
       state.phaseTransition = {
         t: 0,
         duration: 1.4,
-        target: "dissemination"
+        target: "dissemination",
+        outcome: "overload"     // la infección te desbordó
       };
       sfx("playerHurt");
       triggerShake(0.5, 6);
@@ -8887,6 +8890,23 @@
   }
   // Backward-compat shim: old code may still call triggerLevelEnd().
   function triggerLevelEnd() { triggerCinematicEnd(); }
+
+  // Segundo camino hacia Diseminación: derrotaste al jefe de la oleada 18
+  // por tu cuenta, antes de que la carga viral te desbordara. Mismo fade +
+  // mapa-mundo que triggerCinematicEnd, pero con tono/texto/sonido propios
+  // (ver outcome "victory" en el render de phaseTransition y en el título
+  // del body-map) — usa los sfx "victory"/"defeat" que ya existían sin uso.
+  function triggerPhaseVictory() {
+    if (state.phaseTransition || state.dissemination) return;
+    state.phaseTransition = {
+      t: 0,
+      duration: 1.4,
+      target: "dissemination",
+      outcome: "victory"
+    };
+    sfx("victory");
+    triggerShake(0.25, 3);
+  }
 
   function restartFromLevel1() {
     state = newState();
@@ -19789,22 +19809,26 @@
       ctx.save();
       ctx.fillStyle = "rgba(8, 4, 8, " + veilAlpha + ")";
       ctx.fillRect(0, 0, VW, VH);
-      // Texto narrativo "La barrera se rompe..." con leve aparición y latido.
+      // Texto narrativo, distinto según cómo se llegó a Diseminación
+      // (derrota del jefe vs. sobrecarga viral) — con leve aparición y latido.
       if (k > 0.15) {
         var ta = Math.min(1, (k - 0.15) / 0.20);
         if (k > 0.70) ta *= Math.max(0, 1 - (k - 0.70) / 0.30);
         ctx.globalAlpha = ta;
-        ctx.fillStyle = "#ff6868";
+        var phVictory = ph.outcome === "victory";
+        ctx.fillStyle = phVictory ? "#7CFC9E" : "#ff6868";
         ctx.font = "bold " + Math.floor(28 * U) + "px Fredoka, sans-serif";
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
         ctx.strokeStyle = "rgba(0,0,0,0.85)";
         ctx.lineWidth = 3;
-        ctx.strokeText("LA BARRERA SE ROMPE", VW / 2, VH * 0.46);
-        ctx.fillText("LA BARRERA SE ROMPE", VW / 2, VH * 0.46);
-        ctx.fillStyle = "#d4a888";
+        var phLine1 = phVictory ? "¡INFECCIÓN CONTENIDA!" : "LA BARRERA SE ROMPE";
+        var phLine2 = phVictory ? "avanzás al torrente sanguíneo por tu cuenta…" : "la infección entra en sangre…";
+        ctx.strokeText(phLine1, VW / 2, VH * 0.46);
+        ctx.fillText(phLine1, VW / 2, VH * 0.46);
+        ctx.fillStyle = phVictory ? "#bfe8c8" : "#d4a888";
         ctx.font = "italic " + Math.floor(15 * U) + "px Fredoka, sans-serif";
-        ctx.fillText("la infección entra en sangre…", VW / 2, VH * 0.54);
+        ctx.fillText(phLine2, VW / 2, VH * 0.54);
         ctx.globalAlpha = 1;
       }
       ctx.restore();
@@ -21735,13 +21759,17 @@
         if (state.phaseTransition.target === "dissemination") {
           // Antes: enterDissemination() directo.
           // Ahora: abrir el mapa-mundo primero. Player tap CONTINUAR
-          // dispara enterDissemination en el callback.
+          // dispara enterDissemination en el callback. Título/subtítulo
+          // distintos según cómo se llegó (derrota del jefe vs. sobrecarga).
+          var ptVictory = state.phaseTransition.outcome === "victory";
           enterBodyMap({
             currentNode: "fase1",
             availableNodes: ["dissem"],
             forkOpen: false,
-            title: "FASE 1 SUPERADA",
-            subtitle: "La infección rompe la barrera de la piel · diseminación inminente",
+            title: ptVictory ? "¡MRSA DERROTADO!" : "FASE 1 SUPERADA",
+            subtitle: ptVictory
+              ? "Contuviste la infección en la piel — pero ya alcanzó el torrente sanguíneo"
+              : "La infección rompe la barrera de la piel · diseminación inminente",
             onContinue: function () { enterDissemination(); }
           });
         }

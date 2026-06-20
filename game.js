@@ -18414,7 +18414,7 @@
   var TUTORIAL_CARDS = [
     { demo: "pickCell", title: "Elegí una célula", text: "Tocá una tarjeta del panel para elegir qué célula vas a colocar." },
     { demo: "placeCell", title: "Colocala en el campo", text: "Tocá el campo de juego para plantarla ahí." },
-    { demo: "startWave", title: "Las oleadas llegan solas", text: "No hace falta que toques nada: cada oleada arranca sola tras una breve cuenta atrás. Aprovechá ese tiempo para ubicar torres." },
+    { demo: "macrofagoDrop", title: "El macrófago ayuda solo", text: "Aparece y muerde gérmenes por su cuenta. Cuando fagocita uno, suelta una mini gota: tocala para cobrar el ATP." },
     { demo: "upgradeSell", title: "Mejorá o vendé", text: "Tocá una torre puesta para subirla de nivel o venderla." },
     { demo: "chargeSpecial", title: "Cargá el poder especial", text: "Cada torre tiene un ultimate: se carga solo y brilla cuando está listo para tocar." },
     { demo: "openDex", title: "Mirá el Dex", text: "Ahí vas a encontrar a todos los gérmenes y células que descubras." }
@@ -18485,17 +18485,42 @@
           ctx.strokeStyle = "rgba(255,255,255," + ((bp - 0.85) / 0.15) + ")"; ctx.lineWidth = 2;
           ctx.beginPath(); ctx.arc(fieldX, cy, dh * (0.12 + (bp - 0.85) * 1.0), 0, Math.PI * 2); ctx.stroke();
         }
-      } else if (type === "startWave") {
-        // Caja REAL de cuenta atrás (mismo estilo que el HUD: ver "nb"
-        // en drawHUD), con segundos animados 3→0 en loop.
-        var boxW = dw * 0.7, boxH = dh * 0.30;
-        ctx.fillStyle = "rgba(20, 14, 18, 0.65)";
-        ctx.fillRect(cx - boxW / 2, cy - boxH / 2, boxW, boxH);
-        var secs = Math.max(0, 3 - Math.floor(bp * 3.999));
-        ctx.fillStyle = "#ffd6c4";
-        ctx.font = "bold " + Math.floor(dh * 0.13) + "px Fredoka, sans-serif";
-        ctx.textAlign = "center"; ctx.textBaseline = "middle";
-        ctx.fillText("PRÓXIMA OLEADA EN " + secs + "s", cx, cy);
+      } else if (type === "macrofagoDrop") {
+        // Macrófago (mismo color real GUARDIAN_COL/COLD) mordiendo un
+        // germen chico, que se encoge y desaparece — luego suelta la
+        // mini gota REAL (drawDripFor, mismo tamaño que en juego) que
+        // hay que tappear para cobrar el ATP.
+        var mx = cx - dw * 0.16, my = cy - dh * 0.02;
+        var eatT = Math.min(1, bp / 0.5);
+        if (eatT < 1) {
+          ctx.fillStyle = "#7CFC9E";
+          ctx.beginPath(); ctx.arc(mx + dh * 0.14, my, dh * 0.08 * (1 - eatT), 0, Math.PI * 2); ctx.fill();
+        }
+        ctx.fillStyle = GUARDIAN_COL;
+        ctx.beginPath(); ctx.arc(mx, my, dh * 0.17, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = GUARDIAN_COLD; ctx.lineWidth = 1.5; ctx.stroke();
+        if (bp > 0.55) {
+          var dropP = Math.min(1, (bp - 0.55) / 0.45);
+          var fakeDrop = {
+            x: mx + dw * 0.26, y: my - dh * 0.20,
+            life: 5, max: 5,
+            collected: dropP > 0.8,
+            collectAnim: dropP > 0.8 ? (dropP - 0.8) / 0.2 * 0.30 : 0
+          };
+          drawDripFor(fakeDrop, MACROFAGO_DROP_SIZE_MULT * 1.5);
+          if (dropP > 0.60 && dropP < 0.82) {
+            ctx.fillStyle = "rgba(255,224,189,0.95)"; ctx.strokeStyle = "rgba(0,0,0,0.4)"; ctx.lineWidth = 1;
+            ctx.beginPath(); ctx.arc(fakeDrop.x, fakeDrop.y - dh * 0.16, dw * 0.045, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+          }
+          if (dropP > 0.8) {
+            ctx.globalAlpha = 1 - (dropP - 0.8) / 0.2;
+            ctx.fillStyle = "#FFD93D";
+            ctx.font = "bold " + Math.floor(dh * 0.12) + "px Fredoka, sans-serif";
+            ctx.textAlign = "center"; ctx.textBaseline = "middle";
+            ctx.fillText("+ATP", fakeDrop.x, fakeDrop.y - dh * 0.30);
+            ctx.globalAlpha = 1;
+          }
+        }
       } else if (type === "upgradeSell") {
         drawTowerPreview("neutrofilo", cx, cy - dh * 0.16, dh * 0.16, true);
         ctx.globalAlpha = bp;

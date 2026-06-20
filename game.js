@@ -3615,6 +3615,8 @@
     var contentW = Math.max(20, contentRight - contentX);
     var dockTop = FIELD_TOP + dockPad;
     var dockBottom = VH - safeBottom - dockPad;
+    UI.dockBottom = dockBottom;
+    UI.dockPad = dockPad;
 
     var cardGap = 8;
     var cardCount = TOWER_LIST.length;   // ahora 7 torres: cartilla desplegable
@@ -3627,17 +3629,18 @@
     // reubica arriba de la cartilla de NETosis (antes vivía en la fila
     // inferior del campo, donde quedaba pegado/superpuesto con ella).
     // Y arriba del C3b, la tarjeta del ultimate "Arpón" del macrófago.
-    var responsesReservedH = 0;
-    var rpH = 0;
     var c3bMeterH = Math.round(34 * U);
     var c3bMeterGap = Math.round(4 * U);
     var ultCardH = Math.round(34 * U);
     var ultCardGap = Math.round(4 * U);
+    // C3b + Arpón siempre reservan espacio al fondo del dock, en ambas fases.
+    var responsesReservedH = c3bMeterH + c3bMeterGap + ultCardH + ultCardGap + dockPad;
+    var rpH = 0;
     if (state && state.dissemination) {
       var rpCardH = Math.round(44 * U);
       var rpPad = Math.round(5 * U);
       rpH = rpCardH + 2 * rpPad;
-      responsesReservedH = rpH + c3bMeterH + c3bMeterGap + ultCardH + ultCardGap + dockPad;
+      responsesReservedH += rpH;
     }
 
     // Zona info/acciones: empujada hacia arriba si hay NETosis abajo.

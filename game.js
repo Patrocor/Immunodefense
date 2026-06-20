@@ -5333,183 +5333,6 @@
     });
   }
 
-  // Aplica el daño + efectos del martillazo en el momento del impacto.
-  // El martillazo es zona: daña a TODOS los gérmenes en un radio del
-  // punto de impacto en el camino. En DISEMINACIÓN: también vibra toda
-  // la columna del lane y daña a todos los gérmenes en ese lane.
-  function resolveNeutrofiloHammer(t) {
-    var ht = t.hammerTarget;
-    if (!ht) return;
-    var stats = towerStats(t);
-    var dmg = stats.damage * 8;
-    var hitRadius = 32 * U;
-    var hitIds = {};                       // para evitar doble-daño en lane
-    for (var ei = 0; ei < state.enemies.length; ei++) {
-      var en = state.enemies[ei];
-      if (en.dead || en.dying || en.absorbing) continue;
-      if (en.state !== "walking" && en.state !== "blocked") continue;
-      var ex = en.x - ht.x, ey = en.y - ht.y;
-      if (ex * ex + ey * ey > hitRadius * hitRadius) continue;
-      en.hp -= dmg;
-      en.hitFlash = 0.45;
-      en.hurtTimer = 0.30;
-      if (en.hp <= 0 && !en.dying) {
-        en.hp = 0; en.dying = true; en.dyingTimer = 0.30;
-        state.atp += en.def.reward;
-        state.pathogensDefeated += 1;
-      }
-      pushDamageNumber(en.x, en.y - en.def.radius * U, "💥 " + dmg, "#ffd24a");
-      hitIds[ei] = true;
-    }
-
-    // ── DISEMINACIÓN: vibrar la COLUMNA del lane DESDE LA TORRE HACIA
-    //    ARRIBA (no abajo) ──
-    if (state.dissemination && PATH.branches && PATH.branches.length) {
-      // Encontrar el lane más cercano al impacto.
-      var laneIdx = -1, laneMinD = Infinity;
-      for (var bi = 0; bi < PATH.branches.length; bi++) {
-        var br = PATH.branches[bi];
-        if (!br || !br.beziers) continue;
-        for (var biz = 0; biz < br.beziers.length; biz++) {
-          var samples = br.beziers[biz].samples;
-          if (!samples) continue;
-          for (var sj = 0; sj < samples.length; sj++) {
-            var s = samples[sj];
-            var dx = s.x - ht.x, dy = s.y - ht.y;
-            var d = dx * dx + dy * dy;
-            if (d < laneMinD) { laneMinD = d; laneIdx = bi; }
-          }
-        }
-      }
-      if (laneIdx >= 0) {
-        var laneBr = PATH.branches[laneIdx];
-        var towerY = t.y;
-        // El martillazo en Diseminación ahora tiene RANGO HACIA ATRÁS:
-        // afecta arriba (forward, donde germs vienen) Y un rango razonable
-        // hacia abajo (atrás de la torre). backRange = 4×R = ~120px.
-        var backRange = 28 * 4 * U;          // rango hacia atrás (abajo)
-        var laneDmg = dmg * 0.6;
-        for (var lei = 0; lei < state.enemies.length; lei++) {
-          if (hitIds[lei]) continue;
-          var len = state.enemies[lei];
-          if (!len || len.dead || len.dying || len.absorbing) continue;
-          if (len.state !== "walking" && len.state !== "blocked") continue;
-          if (len.heridaIdx !== laneIdx) continue;
-          // FORWARD: cualquier germ arriba de la torre. BACKWARD: solo
-          // los que estén dentro del rango razonable hacia abajo.
-          var inForward = (len.y <= towerY);
-          var inBackward = (len.y > towerY && (len.y - towerY) <= backRange);
-          if (!inForward && !inBackward) continue;
-          len.hp -= laneDmg;
-          len.hitFlash = 0.40;
-          len.hurtTimer = 0.25;
-          if (len.hp <= 0 && !len.dying) {
-            len.hp = 0; len.dying = true; len.dyingTimer = 0.30;
-            state.atp += len.def.reward;
-            state.pathogensDefeated += 1;
-          }
-          pushDamageNumber(len.x, len.y - len.def.radius * U, "🌀 " + laneDmg, "#ffd24a");
-        }
-        // Vibración visual: anillos shock distribuidos en el carril,
-        // arriba Y abajo (dentro del rango razonable atrás).
-        var totalLen = laneBr.length || 100;
-        var nVibs = 22;                       // más anillos (era 18)
-        var shockIdx = 0;
-        for (var v = 0; v < nVibs; v++) {
-          var prog = (v + 0.5) / nVibs * totalLen;
-          var pt2 = sampleBeziers(laneBr.beziers, prog);
-          if (!pt2) continue;
-          // Forward: arriba de la torre. Backward: hasta backRange abajo.
-          var fwd = pt2.y <= towerY;
-          var bwd = pt2.y > towerY && (pt2.y - towerY) <= backRange;
-          if (!fwd && !bwd) continue;
-          pushEffect({
-            kind: "shock",
-            x: pt2.x, y: pt2.y,
-            r: 22 * U,
-            life: 0.55 + shockIdx * 0.025,
-            max: 0.55 + shockIdx * 0.025,
-            color: "#ffd24a"
-          });
-          shockIdx++;
-        }
-        triggerShake(0.35, 9);
-      }
-    }
-    // Shake fuerte (Mjölnir golpeando)
-    triggerShake(0.25, 6);
-    // CRÁTER en el path: dura ~2.5s, decal jagged que envejece.
-    pushEffect({
-      kind: "pathCrack",
-      x: ht.x, y: ht.y,
-      r: 30 * U,
-      life: 2.5, max: 2.5,
-      seed: Math.random() * 1000
-    });
-    // Onda de choque expansiva
-    pushEffect({
-      kind: "explosion",
-      x: ht.x, y: ht.y,
-      r: 4, max: 75 * U,
-      life: 0.50, max: 0.50
-    });
-    // 2 nubes de polvo (capas para densidad)
-    pushEffect({
-      kind: "dust",
-      x: ht.x, y: ht.y,
-      r: 10 * U, r0: 10 * U, maxR: 62 * U,
-      life: 0.75, max: 0.75,
-      color: "#e8d2a8"
-    });
-    pushEffect({
-      kind: "dust",
-      x: ht.x + 8 * U, y: ht.y - 4 * U,
-      r: 6 * U, r0: 6 * U, maxR: 40 * U,
-      life: 0.55, max: 0.55,
-      color: "#fff"
-    });
-    // 16 chispas radiales doradas
-    for (var sk = 0; sk < 16; sk++) {
-      var sa = sk * (Math.PI * 2 / 16) + Math.random() * 0.3;
-      var spd = (110 + Math.random() * 120) * U;
-      pushEffect({
-        kind: "particle",
-        x: ht.x, y: ht.y,
-        vx: Math.cos(sa) * spd,
-        vy: Math.sin(sa) * spd - 20 * U,
-        life: 0.50 + Math.random() * 0.30,
-        max: 0.80,
-        color: "#ffd24a"
-      });
-    }
-    // 10 ESCOMBROS (shards del path) — caen con gravedad
-    for (var sh = 0; sh < 10; sh++) {
-      var sang = -Math.PI / 2 + (Math.random() - 0.5) * Math.PI * 1.2;
-      var sspd = (140 + Math.random() * 130) * U;
-      pushEffect({
-        kind: "shard",
-        x: ht.x + (Math.random() - 0.5) * 12 * U,
-        y: ht.y + (Math.random() - 0.5) * 8 * U,
-        vx: Math.cos(sang) * sspd,
-        vy: Math.sin(sang) * sspd,
-        rot: Math.random() * Math.PI * 2,
-        rotSpd: (Math.random() - 0.5) * 14,
-        size: (5 + Math.random() * 6) * U,
-        life: 0.85 + Math.random() * 0.40,
-        max: 1.25,
-        color: "#b89070"
-      });
-    }
-    // Texto cómico "¡POW!" flotando
-    pushEffect({
-      kind: "dmgText",
-      x: ht.x, y: ht.y - 30 * U, vy: -40 * U,
-      text: "¡POW!",
-      life: 0.7, max: 0.7,
-      color: "#ffd24a"
-    });
-  }
-
   function placeTower(x, y, typeId) {
     var def = TOWER_DEFS[typeId];
     state.towers.push({
@@ -12347,8 +12170,28 @@
     var R = 23 * U * pulse;       // bumped 19→23 (~20% más grande)
     var time = state.time;
     var attacking = (expression === "attacking");
+    // Bombardeo de Defensinas: el cuerpo se contrae y se funde durante la
+    // anticipación/lluvia, y rebota al volver en el aterrizaje (resto de
+    // la secuencia se dibuja más abajo, fuera de este bloque local).
+    var bodyAlpha = 1, bodyScale = 1;
+    if (t.def.id === "neutrofilo" && (t.specialAnim || 0) > 0 && t.bombardImpacts) {
+      var bgElapsed = 2.4 - t.specialAnim;
+      if (bgElapsed < 0.3) {
+        var bgWu = bgElapsed / 0.3;
+        bodyAlpha = 1 - bgWu * 0.75;
+        bodyScale = 1 - bgWu * 0.25;
+      } else if (bgElapsed < 1.6) {
+        bodyAlpha = 0.25; bodyScale = 0.75;
+      } else if (bgElapsed < 2.1) {
+        var bgLd = (bgElapsed - 1.6) / 0.5;
+        bodyAlpha = 0.25 + bgLd * 0.75;
+        bodyScale = 0.75 + bgLd * 0.25 + Math.sin(bgLd * Math.PI) * 0.12;
+      }
+    }
     ctx.save();
     ctx.translate(x, y);
+    ctx.globalAlpha = bodyAlpha;
+    ctx.scale(bodyScale, bodyScale);
 
     // ── ESTRUCTURA ESTRELLA AMEBOIDE ──
     // Cuerpo único irregular con 6 PSEUDÓPODOS radiando del centro.
@@ -12526,243 +12369,81 @@
 
     ctx.restore();
 
-    // ── MARTILLAZO CELULAR ──
-    // En FASE 1: swing diagonal hacia el target del path (cabeza pasa
-    // por el lado del neutrofilo, slameo lateral).
-    // En DISEMINACIÓN: martillazo VERTICAL puro (cámara desde atrás del
-    // neutrofilo, brazo sube central, mazo flip en el ápice, cae a plomo).
-    if (t.def.id === "neutrofilo" && (t.specialAnim || 0) > 0 && t.hammerTarget) {
-      var ha = 1 - t.specialAnim / 0.65;
-      var ht = t.hammerTarget;
-      var HAMMER_MANGO = 28 * U;
-      var HAMMER_HEADH = 26 * U;
-      var L = HAMMER_MANGO + HAMMER_HEADH * 0.5;
-      var handX, handY, hammerAng;
-      var isDissem = state.dissemination;
+    // ── BOMBARDEO DE DEFENSINAS ──
+    // Fases por `bElapsed` (segundos desde el trigger, ver
+    // triggerTowerSpecial/updateTowers): anticipación (0-0.3s, aro dorado;
+    // el cuerpo ya se contrae/funde arriba), lluvia (0.3-1.6s, gránulos
+    // cayendo + impactos), aterrizaje (1.6-2.1s, shockwave + rebote del
+    // cuerpo, también ya aplicado arriba).
+    if (t.def.id === "neutrofilo" && (t.specialAnim || 0) > 0 && t.bombardImpacts) {
+      var bElapsed = 2.4 - t.specialAnim;
 
-      var shoulderX, shoulderY, dnxOnly, rotSign;
-      if (isDissem) {
-        // ── DISEMINACIÓN: martillazo VERTICAL puro ──
-        // Brazo emerge del CENTRO de la esfera MEDIA (panza del snowman).
-        shoulderX = t.x;
-        shoulderY = t.y - R * 0.25;
-        dnxOnly = 0;
-        var apexHandY  = ht.y - L - 50 * U;        // ápice alto sobre target
-        var impactHandY = ht.y - L;                 // mano en impacto
-        if (ha < 0.28) {
-          // WINDUP: mano sube del hombro al ápice (ease-out cubic).
-          var u = ha / 0.28;
-          var ue = 1 - Math.pow(1 - u, 3);
-          handX = shoulderX;
-          handY = shoulderY + (apexHandY - shoulderY) * ue;
-          hammerAng = 0;
-        } else if (ha < 0.42) {
-          // FLIP rápido: el mazo rota de head-UP a head-DOWN (smoothstep)
-          // mientras la mano está en el ápice.
-          var uF = (ha - 0.28) / 0.14;
-          var uFe = uF * uF * (3 - 2 * uF);
-          handX = shoulderX + Math.sin(uF * 30) * 0.6 * U;
-          handY = apexHandY + Math.cos(uF * 30) * 0.6 * U;
-          hammerAng = Math.PI * uFe;
-        } else if (ha < 0.62) {
-          // SLAM VERTICAL: mano cae del ápice al impacto, hammerAng = π
-          // (head DOWN). Aceleración cubic (acelera al final).
-          var uS = (ha - 0.42) / 0.20;
-          var uSe = uS * uS * uS;
-          handX = shoulderX;
-          handY = apexHandY + (impactHandY - apexHandY) * uSe;
-          hammerAng = Math.PI;
-          if (!t.hammerImpacted && uS >= 0.95) {
-            t.hammerImpacted = true;
-            resolveNeutrofiloHammer(t);
-          }
-        } else if (ha < 0.82) {
-          // POST-IMPACT: tembleque amortiguado.
-          var uP = (ha - 0.62) / 0.20;
-          var damp = (1 - uP) * 2.0 * U;
-          handX = shoulderX + Math.sin(uP * 30) * damp;
-          handY = impactHandY + Math.cos(uP * 30) * damp * 0.4;
-          hammerAng = Math.PI + Math.sin(uP * 30) * damp * 0.02;
-        } else {
-          // RECOIL: mano vuelve al hombro, rotación vuelve a 0.
-          var uR = (ha - 0.82) / 0.18;
-          var uRe = uR * uR;
-          handX = shoulderX;
-          handY = impactHandY + (shoulderY - impactHandY) * uRe;
-          hammerAng = Math.PI * (1 - uR);
-        }
-      } else {
-        // ── FASE 1: swing lateral (animación existente) ──
-        var ddx = ht.x - t.x;
-        dnxOnly = ddx >= 0 ? 1 : -1;
-        rotSign = (dnxOnly > 0) ? -1 : 1;
-        shoulderX = t.x - dnxOnly * R * 0.55;
-        shoulderY = t.y - R * 0.20;
-        var apexHandY1 = ht.y - L - 26 * U;
-        var impactHandY1 = ht.y - L;
-        if (ha < 0.32) {
-          var u1 = ha / 0.32;
-          var u1e = 1 - Math.pow(1 - u1, 3);
-          var restX = t.x + dnxOnly * R * 0.5;
-          var restY = t.y - R * 0.20;
-          handX = restX + (ht.x - restX) * u1e;
-          handY = restY + (apexHandY1 - restY) * u1e - 18 * U * Math.sin(u1 * Math.PI);
-          hammerAng = 0;
-        } else if (ha < 0.48) {
-          handX = ht.x + (Math.random() - 0.5) * 1.6 * U;
-          handY = apexHandY1 + (Math.random() - 0.5) * 1.6 * U;
-          hammerAng = (Math.random() - 0.5) * 0.06;
-        } else if (ha < 0.66) {
-          var u2 = (ha - 0.48) / 0.18;
-          var u2e = u2 * u2 * u2;
-          hammerAng = rotSign * Math.PI * u2e;
-          handX = ht.x;
-          handY = apexHandY1 + (impactHandY1 - apexHandY1) * u2e;
-          if (!t.hammerImpacted && u2 >= 0.95) {
-            t.hammerImpacted = true;
-            resolveNeutrofiloHammer(t);
-          }
-        } else if (ha < 0.82) {
-          var u3a = (ha - 0.66) / 0.16;
-          var damp2 = (1 - u3a) * 2.0 * U;
-          handX = ht.x + Math.sin(u3a * 30) * damp2;
-          handY = impactHandY1 + Math.cos(u3a * 30) * damp2 * 0.4;
-          hammerAng = rotSign * Math.PI + Math.sin(u3a * 30) * damp2 * 0.02;
-        } else {
-          var u4 = (ha - 0.82) / 0.18;
-          var u4e = u4 * u4;
-          var restX2 = t.x + dnxOnly * R * 0.5;
-          var restY2 = t.y - R * 0.20;
-          handX = ht.x + (restX2 - ht.x) * u4e;
-          handY = impactHandY1 + (restY2 - impactHandY1) * u4e;
-          hammerAng = rotSign * Math.PI * (1 - u4);
-        }
-      }
-
-      // ── DIBUJAR BRAZO (pseudópodo que se extiende del cuerpo) ──
-      var armBaseX = shoulderX, armBaseY = shoulderY;
-      var armDx = handX - armBaseX, armDy = handY - armBaseY;
-      var armLen = Math.hypot(armDx, armDy) || 1;
-      var armPerpX = -armDy / armLen;
-      var armPerpY =  armDx / armLen;
-      // En diseminación: brazo recto vertical (vista desde atrás del
-      // neutrofilo). En fase 1: arqueado lateral.
-      var bendSign = isDissem ? 0 : -dnxOnly;
-      var armMidX = (armBaseX + handX) / 2 + armPerpX * bendSign * 8 * U;
-      var armMidY = (armBaseY + handY) / 2 + armPerpY * bendSign * 8 * U - 4 * U;
-      // Sombra/contorno del brazo
-      ctx.lineCap = "round";
-      ctx.strokeStyle = "rgba(126, 95, 176, 0.85)";
-      ctx.lineWidth = 7 * U;
-      ctx.beginPath();
-      ctx.moveTo(armBaseX, armBaseY);
-      ctx.quadraticCurveTo(armMidX, armMidY, handX, handY);
-      ctx.stroke();
-      // Cuerpo del brazo (más claro)
-      ctx.strokeStyle = "rgba(216, 200, 238, 0.95)";
-      ctx.lineWidth = 5 * U;
-      ctx.beginPath();
-      ctx.moveTo(armBaseX, armBaseY);
-      ctx.quadraticCurveTo(armMidX, armMidY, handX, handY);
-      ctx.stroke();
-      // Mano (puño cerrado agarrando el mango)
-      ctx.fillStyle = "#d8c8ee";
-      ctx.strokeStyle = "#7E5FB0";
-      ctx.lineWidth = 1.5 * U;
-      ctx.beginPath();
-      ctx.arc(handX, handY, 5.5 * U, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
-
-      // ── DIBUJAR MAZO estilo MJÖLNIR CARTOON (desproporcionado) ──
-      ctx.save();
-      ctx.translate(handX, handY);
-      ctx.rotate(hammerAng);
-      // El "0,0" local es la mano. El mango va hacia arriba (negativo Y),
-      // la cabeza del mazo (enorme y achatada) en la punta.
-      var mangoLen = 28 * U;
-      var mangoW   = 7 * U;
-      var headW    = 38 * U;          // CABEZA MÁS GRANDE (cartoon Mjölnir)
-      var headH    = 26 * U;
-      var headY    = -mangoLen - headH / 2;
-
-      // Empuñadura ENVUELTA en cinta (3 segmentos en la base del mango)
-      ctx.fillStyle = "#7E5FB0";
-      ctx.fillRect(-mangoW / 2 - 1, -8 * U, mangoW + 2, 8 * U);
-      ctx.strokeStyle = "#3d2470";
-      ctx.lineWidth = 1.0 * U;
-      for (var gr = 0; gr < 3; gr++) {
+      if (bElapsed < 0.3) {
+        var wuP = bElapsed / 0.3;
+        ctx.save();
+        ctx.globalAlpha = 0.25 + wuP * 0.55;
+        ctx.strokeStyle = "#ffd24a";
+        ctx.lineWidth = 2.5 * U;
         ctx.beginPath();
-        ctx.moveTo(-mangoW / 2 - 1, -2 * U - gr * 2 * U);
-        ctx.lineTo( mangoW / 2 + 1, -2 * U - gr * 2 * U);
+        ctx.arc(x, y, R * (1.1 + wuP * 0.6), 0, Math.PI * 2);
         ctx.stroke();
+        ctx.restore();
       }
-      // Mango (palo proteico grueso) — desde el grip hasta la cabeza
-      ctx.fillStyle = "#5a3a8a";
-      ctx.fillRect(-mangoW / 2, -mangoLen, mangoW, mangoLen - 8 * U);
-      ctx.strokeStyle = "#2e1a4a";
-      ctx.lineWidth = 1.4 * U;
-      ctx.strokeRect(-mangoW / 2, -mangoLen, mangoW, mangoLen);
-      // Highlight central del mango (línea blanca vertical)
-      ctx.fillStyle = "rgba(255, 255, 255, 0.30)";
-      ctx.fillRect(-mangoW / 2 + 1, -mangoLen + 2, 1.5, mangoLen - 4);
 
-      // ── CABEZA del MAZO (forma rectangular tipo Mjölnir) ──
-      // Sombra de la cabeza (capa de profundidad debajo)
-      ctx.fillStyle = "rgba(0, 0, 0, 0.30)";
-      ctx.fillRect(-headW / 2 + 1.5, headY - headH / 2 + 2, headW, headH);
-      // Cuerpo principal (gradient vertical para volumen)
-      var headGrad = ctx.createLinearGradient(0, headY - headH / 2, 0, headY + headH / 2);
-      headGrad.addColorStop(0,    "#A78BD8");
-      headGrad.addColorStop(0.50, "#8366b8");
-      headGrad.addColorStop(1,    "#4a2e7a");
-      ctx.fillStyle = headGrad;
-      ctx.fillRect(-headW / 2, headY - headH / 2, headW, headH);
-      // Outline grueso negro-púrpura (cartoon look)
-      ctx.strokeStyle = "#2a0f55";
-      ctx.lineWidth = 2.4 * U;
-      ctx.strokeRect(-headW / 2, headY - headH / 2, headW, headH);
-      // BANDAS METÁLICAS en los extremos (estilo Mjölnir)
-      var bandW = 4 * U;
-      ctx.fillStyle = "#3d2470";
-      ctx.fillRect(-headW / 2, headY - headH / 2, bandW, headH);
-      ctx.fillRect( headW / 2 - bandW, headY - headH / 2, bandW, headH);
-      // Remaches en cada banda (4 puntos)
-      ctx.fillStyle = "#d4c2eb";
-      for (var rv = 0; rv < 3; rv++) {
-        var ry = headY - headH / 2 + headH * (0.25 + rv * 0.25);
-        ctx.beginPath();
-        ctx.arc(-headW / 2 + bandW / 2, ry, 1.4 * U, 0, Math.PI * 2);
-        ctx.arc( headW / 2 - bandW / 2, ry, 1.4 * U, 0, Math.PI * 2);
-        ctx.fill();
+      for (var bi2 = 0; bi2 < t.bombardImpacts.length; bi2++) {
+        var imp2 = t.bombardImpacts[bi2];
+        var fallStart = imp2.tOffset - 0.35;
+        if (bElapsed >= fallStart && bElapsed < imp2.tOffset) {
+          var fallU = (bElapsed - fallStart) / 0.35;
+          var fallE = fallU * fallU;
+          var fy = imp2.y - 220 * U * (1 - fallE);
+          ctx.save();
+          ctx.globalAlpha = 0.85;
+          var trailGrad = ctx.createLinearGradient(imp2.x, fy - 26 * U, imp2.x, fy);
+          trailGrad.addColorStop(0, "rgba(255,210,74,0)");
+          trailGrad.addColorStop(1, "rgba(255,210,74,0.85)");
+          ctx.strokeStyle = trailGrad;
+          ctx.lineWidth = 3 * U;
+          ctx.beginPath();
+          ctx.moveTo(imp2.x, fy - 26 * U);
+          ctx.lineTo(imp2.x, fy);
+          ctx.stroke();
+          ctx.fillStyle = "#caa8ff";
+          ctx.beginPath();
+          ctx.arc(imp2.x, fy, 4.5 * U, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+        } else if (imp2.hit) {
+          var sinceHit = bElapsed - imp2.tOffset;
+          if (sinceHit >= 0 && sinceHit < 0.25) {
+            var burstP = sinceHit / 0.25;
+            ctx.save();
+            ctx.globalAlpha = 1 - burstP;
+            var burstR = 6 * U + burstP * 22 * U;
+            var burstGrad = ctx.createRadialGradient(imp2.x, imp2.y, 0, imp2.x, imp2.y, burstR);
+            burstGrad.addColorStop(0, "rgba(255,250,210,0.9)");
+            burstGrad.addColorStop(0.5, "rgba(255,210,74,0.6)");
+            burstGrad.addColorStop(1, "rgba(202,168,255,0)");
+            ctx.fillStyle = burstGrad;
+            ctx.beginPath();
+            ctx.arc(imp2.x, imp2.y, burstR, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+          }
+        }
       }
-      // GRABADOS centrales (runas tipo Mjölnir) — 2 líneas + diamante
-      ctx.strokeStyle = "rgba(255, 255, 255, 0.65)";
-      ctx.lineWidth = 1.6 * U;
-      ctx.beginPath();
-      ctx.moveTo(-headW * 0.30, headY - headH * 0.30);
-      ctx.lineTo( headW * 0.30, headY - headH * 0.30);
-      ctx.moveTo(-headW * 0.30, headY + headH * 0.30);
-      ctx.lineTo( headW * 0.30, headY + headH * 0.30);
-      ctx.stroke();
-      // Diamante en el centro
-      ctx.fillStyle = "rgba(255, 230, 130, 0.85)";
-      ctx.beginPath();
-      ctx.moveTo(0, headY - headH * 0.18);
-      ctx.lineTo(headW * 0.10, headY);
-      ctx.lineTo(0, headY + headH * 0.18);
-      ctx.lineTo(-headW * 0.10, headY);
-      ctx.closePath();
-      ctx.fill();
-      ctx.strokeStyle = "#5a3a08";
-      ctx.lineWidth = 1.0 * U;
-      ctx.stroke();
-      // Highlight superior (efecto metal pulido)
-      ctx.fillStyle = "rgba(255, 255, 255, 0.45)";
-      ctx.fillRect(-headW * 0.35, headY - headH / 2 + 2, headW * 0.50, 3 * U);
-      ctx.restore();
-      // Reset flag al terminar la anim
-      if (ha >= 1) { t.hammerImpacted = false; t.hammerTarget = null; }
+
+      if (bElapsed >= 1.6 && bElapsed < 2.1) {
+        var landP = (bElapsed - 1.6) / 0.5;
+        ctx.save();
+        ctx.globalAlpha = 1 - landP;
+        ctx.strokeStyle = "#ffd24a";
+        ctx.lineWidth = 4 * U;
+        ctx.beginPath();
+        ctx.arc(x, y, landP * 55 * U, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+      }
     }
   }
 

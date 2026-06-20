@@ -18414,7 +18414,7 @@
   var TUTORIAL_CARDS = [
     { demo: "pickCell", title: "Elegí una célula", text: "Tocá una tarjeta del panel para elegir qué célula vas a colocar." },
     { demo: "placeCell", title: "Colocala en el campo", text: "Tocá el campo de juego para plantarla ahí." },
-    { demo: "startWave", title: "Iniciá la oleada", text: "Cuando estés listo, tocá \"Iniciar Oleada\" para que avancen los patógenos." },
+    { demo: "startWave", title: "Las oleadas llegan solas", text: "No hace falta que toques nada: cada oleada arranca sola tras una breve cuenta atrás. Aprovechá ese tiempo para ubicar torres." },
     { demo: "upgradeSell", title: "Mejorá o vendé", text: "Tocá una torre puesta para subirla de nivel o venderla." },
     { demo: "chargeSpecial", title: "Cargá el poder especial", text: "Cada torre tiene un ultimate: se carga solo y brilla cuando está listo para tocar." },
     { demo: "openDex", title: "Mirá el Dex", text: "Ahí vas a encontrar a todos los gérmenes y células que descubras." }
@@ -18427,105 +18427,97 @@
     return 0.5 - 0.5 * Math.cos(state.time * 2.4);
   }
 
+  // Anillo de carga del ultimate, MISMA lógica visual que drawTower (ver
+  // "BARRA CIRCULAR del PODER ESPECIAL"), parametrizado en R para que
+  // entre en el viewport chico del tutorial.
+  function drawTutorialChargeRing(cx, cy, R, charge, ready) {
+    ctx.strokeStyle = "rgba(255,255,255,0.18)"; ctx.lineWidth = R * 0.14;
+    ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.stroke();
+    var startA = -Math.PI / 2, endA = startA + charge * Math.PI * 2;
+    ctx.strokeStyle = ready ? "#ffd24a" : "#E84393";
+    ctx.lineWidth = R * 0.18; ctx.lineCap = "round";
+    ctx.beginPath(); ctx.arc(cx, cy, R, startA, endA); ctx.stroke();
+    if (ready) {
+      ctx.strokeStyle = "rgba(255,215,90,0.6)"; ctx.lineWidth = R * 0.10;
+      ctx.beginPath(); ctx.arc(cx, cy, R * 1.18, 0, Math.PI * 2); ctx.stroke();
+    }
+  }
+
   // Dibuja la mini-animación de una tarjeta dentro de su viewport
-  // (dx,dy,dw,dh ya recortado/clippeado por el caller).
+  // (dx,dy,dw,dh ya recortado/clippeado por el caller). Reusa las
+  // funciones REALES de render (drawTowerPreview, drawButton,
+  // drawCompendiumButton) — nada de formas inventadas.
   function drawTutorialDemo(type, dx, dy, dw, dh) {
     var bp = tutorialBoomerang();      // 0..1..0
     var cx = dx + dw / 2, cy = dy + dh / 2;
     ctx.save();
-    ctx.translate(cx, cy);
-    if (type === "pickCell") {
-      var cardW2 = dw * 0.42, cardH2 = dh * 0.5;
-      var lit = bp > 0.82;
-      ctx.fillStyle = lit ? "rgba(183,156,224,0.9)" : "rgba(183,156,224,0.45)";
-      ctx.strokeStyle = "rgba(255,255,255,0.6)"; ctx.lineWidth = 1.5;
-      ctx.beginPath(); ctx.rect(-cardW2 / 2, -cardH2 / 2, cardW2, cardH2); ctx.fill(); ctx.stroke();
-      ctx.fillStyle = "#7E5FB0";
-      ctx.beginPath(); ctx.arc(0, 0, cardH2 * 0.22, 0, Math.PI * 2); ctx.fill();
-      // Dedo bajando y subiendo (bumerang) sobre la tarjeta.
-      var fingerY = -cardH2 * 1.8 + bp * (cardH2 * 1.55);
-      ctx.fillStyle = "rgba(255,224,189,0.95)"; ctx.strokeStyle = "rgba(0,0,0,0.4)"; ctx.lineWidth = 1;
-      ctx.beginPath(); ctx.arc(0, fingerY, dw * 0.05, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-      if (lit) {
-        ctx.strokeStyle = "rgba(255,255,255," + ((bp - 0.82) / 0.18 * 0.8) + ")";
-        ctx.lineWidth = 2;
-        ctx.beginPath(); ctx.arc(0, 0, cardH2 * (0.5 + (bp - 0.82) * 2), 0, Math.PI * 2); ctx.stroke();
+    try {
+      if (type === "pickCell") {
+        var cardW2 = dw * 0.46, cardH2 = dh * 0.62;
+        var ccy = cy + dh * 0.06;
+        var lit = bp > 0.82;
+        ctx.fillStyle = lit ? "rgba(183,156,224,0.35)" : "rgba(255,255,255,0.08)";
+        ctx.fillRect(cx - cardW2 / 2, ccy - cardH2 / 2, cardW2, cardH2);
+        ctx.strokeStyle = "rgba(255,255,255,0.5)"; ctx.lineWidth = 1.5;
+        ctx.strokeRect(cx - cardW2 / 2, ccy - cardH2 / 2, cardW2, cardH2);
+        drawTowerPreview("neutrofilo", cx, ccy, cardH2 * 0.30, true);
+        // Dedo bajando y subiendo (bumerang) sobre la tarjeta.
+        var fingerY = ccy - cardH2 * 1.5 + bp * (cardH2 * 1.35);
+        ctx.fillStyle = "rgba(255,224,189,0.95)"; ctx.strokeStyle = "rgba(0,0,0,0.4)"; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.arc(cx, fingerY, dw * 0.05, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+        if (lit) {
+          ctx.strokeStyle = "rgba(255,255,255," + ((bp - 0.82) / 0.18 * 0.8) + ")";
+          ctx.lineWidth = 2;
+          ctx.beginPath(); ctx.arc(cx, ccy, cardH2 * (0.55 + (bp - 0.82) * 2), 0, Math.PI * 2); ctx.stroke();
+        }
+      } else if (type === "placeCell") {
+        var dockX = cx - dw * 0.30, fieldX = cx + dw * 0.30;
+        ctx.fillStyle = "rgba(255,255,255,0.08)";
+        ctx.fillRect(dockX - dw * 0.12, cy - dh * 0.30, dw * 0.24, dh * 0.60);
+        ctx.fillRect(fieldX - dw * 0.18, cy - dh * 0.30, dw * 0.36, dh * 0.60);
+        ctx.strokeStyle = "rgba(255,255,255,0.30)"; ctx.lineWidth = 1;
+        ctx.strokeRect(dockX - dw * 0.12, cy - dh * 0.30, dw * 0.24, dh * 0.60);
+        ctx.strokeRect(fieldX - dw * 0.18, cy - dh * 0.30, dw * 0.36, dh * 0.60);
+        var travelX = dockX + (fieldX - dockX) * bp;
+        var arcY = cy - Math.sin(bp * Math.PI) * dh * 0.22;
+        drawTowerPreview("neutrofilo", travelX, arcY, dh * 0.15, true);
+        if (bp > 0.85) {
+          ctx.strokeStyle = "rgba(255,255,255," + ((bp - 0.85) / 0.15) + ")"; ctx.lineWidth = 2;
+          ctx.beginPath(); ctx.arc(fieldX, cy, dh * (0.12 + (bp - 0.85) * 1.0), 0, Math.PI * 2); ctx.stroke();
+        }
+      } else if (type === "startWave") {
+        // Caja REAL de cuenta atrás (mismo estilo que el HUD: ver "nb"
+        // en drawHUD), con segundos animados 3→0 en loop.
+        var boxW = dw * 0.7, boxH = dh * 0.30;
+        ctx.fillStyle = "rgba(20, 14, 18, 0.65)";
+        ctx.fillRect(cx - boxW / 2, cy - boxH / 2, boxW, boxH);
+        var secs = Math.max(0, 3 - Math.floor(bp * 3.999));
+        ctx.fillStyle = "#ffd6c4";
+        ctx.font = "bold " + Math.floor(dh * 0.13) + "px Fredoka, sans-serif";
+        ctx.textAlign = "center"; ctx.textBaseline = "middle";
+        ctx.fillText("PRÓXIMA OLEADA EN " + secs + "s", cx, cy);
+      } else if (type === "upgradeSell") {
+        drawTowerPreview("neutrofilo", cx, cy - dh * 0.16, dh * 0.16, true);
+        ctx.globalAlpha = bp;
+        var btnW = dw * 0.30, btnH = dh * 0.20;
+        var byB = cy + dh * 0.08 + (1 - bp) * dh * 0.10;
+        drawButton({ x: cx - btnW - 3, y: byB, w: btnW, h: btnH }, "Mejorar", "#3a5a3a", "#2a4a2a", true);
+        drawButton({ x: cx + 3, y: byB, w: btnW, h: btnH }, "Vender", "#7a3a3a", "#552020", true);
+        ctx.globalAlpha = 1;
+      } else if (type === "chargeSpecial") {
+        drawTowerPreview("nk", cx, cy, dh * 0.16, true);
+        drawTutorialChargeRing(cx, cy, dh * 0.30, bp, bp > 0.97);
+      } else if (type === "openDex") {
+        var savedBtn = UI.compendiumBtn;
+        var bw2 = dw * 0.34, bh2 = dh * 0.55;
+        UI.compendiumBtn = { x: cx - bw2 / 2, y: cy - bh2 / 2, w: bw2, h: bh2 };
+        try { drawCompendiumButton(); } finally { UI.compendiumBtn = savedBtn; }
+        if (bp > 0.7) {
+          ctx.strokeStyle = "rgba(255,255,255," + ((bp - 0.7) / 0.3 * 0.6) + ")"; ctx.lineWidth = 2;
+          ctx.beginPath(); ctx.arc(cx, cy, Math.max(bw2, bh2) * 0.62 + (bp - 0.7) * 22, 0, Math.PI * 2); ctx.stroke();
+        }
       }
-    } else if (type === "placeCell") {
-      var dockX = -dw * 0.32, fieldX = dw * 0.32;
-      ctx.fillStyle = "rgba(255,255,255,0.10)";
-      ctx.beginPath(); ctx.rect(dockX - dw * 0.12, -dh * 0.28, dw * 0.24, dh * 0.56); ctx.fill();
-      ctx.beginPath(); ctx.rect(fieldX - dw * 0.16, -dh * 0.28, dw * 0.32, dh * 0.56); ctx.fill();
-      ctx.strokeStyle = "rgba(255,255,255,0.30)"; ctx.lineWidth = 1;
-      ctx.strokeRect(dockX - dw * 0.12, -dh * 0.28, dw * 0.24, dh * 0.56);
-      ctx.strokeRect(fieldX - dw * 0.16, -dh * 0.28, dw * 0.32, dh * 0.56);
-      var travelX = dockX + (fieldX - dockX) * bp;
-      var arcY = -Math.sin(bp * Math.PI) * dh * 0.22;
-      ctx.fillStyle = "#7E5FB0";
-      ctx.beginPath(); ctx.arc(travelX, arcY, dh * 0.10, 0, Math.PI * 2); ctx.fill();
-      if (bp > 0.85) {
-        ctx.strokeStyle = "rgba(255,255,255," + ((bp - 0.85) / 0.15) + ")"; ctx.lineWidth = 2;
-        ctx.beginPath(); ctx.arc(fieldX, 0, dh * (0.14 + (bp - 0.85) * 1.2), 0, Math.PI * 2); ctx.stroke();
-      }
-    } else if (type === "startWave") {
-      var btnScale = 1 - bp * 0.12;
-      ctx.save(); ctx.scale(btnScale, btnScale);
-      ctx.fillStyle = "#3FC1C9";
-      ctx.beginPath(); ctx.rect(-dw * 0.26, -dh * 0.16, dw * 0.52, dh * 0.32); ctx.fill();
-      ctx.strokeStyle = "rgba(255,255,255,0.6)"; ctx.lineWidth = 1.5;
-      ctx.strokeRect(-dw * 0.26, -dh * 0.16, dw * 0.52, dh * 0.32);
-      ctx.fillStyle = "#fff";
-      ctx.font = "bold " + Math.floor(dh * 0.18) + "px Fredoka, sans-serif";
-      ctx.textAlign = "center"; ctx.textBaseline = "middle";
-      ctx.fillText("▶ Oleada", 0, 1);
-      ctx.restore();
-      if (bp > 0.6) {
-        ctx.strokeStyle = "rgba(255,255,255," + (0.8 * (1 - (bp - 0.6) / 0.4)) + ")"; ctx.lineWidth = 2;
-        ctx.beginPath(); ctx.arc(0, 0, dh * (0.20 + (bp - 0.6) * 0.6), 0, Math.PI * 2); ctx.stroke();
-      }
-    } else if (type === "upgradeSell") {
-      ctx.fillStyle = "#E8923A";
-      ctx.beginPath(); ctx.arc(0, -dh * 0.10, dh * 0.16, 0, Math.PI * 2); ctx.fill();
-      var slide = bp;
-      ctx.globalAlpha = slide;
-      var by = dh * 0.10 + (1 - slide) * dh * 0.12;
-      ctx.fillStyle = "#3FC1C9";
-      ctx.beginPath(); ctx.rect(-dw * 0.26, by, dw * 0.22, dh * 0.16); ctx.fill();
-      ctx.fillStyle = "#fff"; ctx.font = "bold " + Math.floor(dh * 0.12) + "px Fredoka, sans-serif";
-      ctx.textAlign = "center"; ctx.textBaseline = "middle";
-      ctx.fillText("⬆", -dw * 0.15, by + dh * 0.08 + 1);
-      ctx.fillStyle = "#E0524F";
-      ctx.beginPath(); ctx.rect(dw * 0.04, by, dw * 0.22, dh * 0.16); ctx.fill();
-      ctx.fillStyle = "#fff";
-      ctx.fillText("$", dw * 0.15, by + dh * 0.08 + 1);
-      ctx.globalAlpha = 1;
-    } else if (type === "chargeSpecial") {
-      ctx.fillStyle = "#E84393";
-      ctx.beginPath(); ctx.arc(0, 0, dh * 0.16, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = "rgba(255,255,255,0.25)"; ctx.lineWidth = 4;
-      ctx.beginPath(); ctx.arc(0, 0, dh * 0.26, 0, Math.PI * 2); ctx.stroke();
-      var full = bp > 0.95;
-      ctx.strokeStyle = full ? "#fff" : "#E84393"; ctx.lineWidth = 4; ctx.lineCap = "round";
-      ctx.beginPath(); ctx.arc(0, 0, dh * 0.26, -Math.PI / 2, -Math.PI / 2 + bp * Math.PI * 2); ctx.stroke();
-      if (full) {
-        ctx.strokeStyle = "rgba(255,255,255,0.7)"; ctx.lineWidth = 2;
-        ctx.beginPath(); ctx.arc(0, 0, dh * 0.34, 0, Math.PI * 2); ctx.stroke();
-      }
-    } else if (type === "openDex") {
-      var pulse = 1 + bp * 0.18;
-      ctx.save(); ctx.scale(pulse, pulse);
-      ctx.fillStyle = "#3a2a4a";
-      ctx.beginPath(); ctx.rect(-dw * 0.18, -dh * 0.22, dw * 0.36, dh * 0.44); ctx.fill();
-      ctx.strokeStyle = "rgba(255,255,255,0.5)"; ctx.lineWidth = 1.5;
-      ctx.strokeRect(-dw * 0.18, -dh * 0.22, dw * 0.36, dh * 0.44);
-      ctx.strokeStyle = "rgba(255,255,255,0.35)"; ctx.lineWidth = 1;
-      ctx.beginPath(); ctx.moveTo(0, -dh * 0.22); ctx.lineTo(0, dh * 0.22); ctx.stroke();
-      ctx.restore();
-      if (bp > 0.7) {
-        ctx.fillStyle = "rgba(214,31,31," + ((bp - 0.7) / 0.3) + ")";
-        ctx.beginPath(); ctx.arc(dw * 0.20, -dh * 0.22, dh * 0.07, 0, Math.PI * 2); ctx.fill();
-      }
-    }
+    } catch (eTutDemo) { /* nunca tirar la pantalla del tutorial por una demo */ }
     ctx.restore();
   }
 
@@ -18876,12 +18868,12 @@
       var card = TUTORIAL_CARDS[i];
       var cx = marginX + i * (cardW + gap) - scroll;
       if (cx + cardW < marginX - 20 || cx > marginX + stripW + 20) continue;
-      // Cuadro PLANO (radio 4, igual al resto del juego) — nada de bordes
-      // redondeados grandes ni forma de globo de diálogo.
+      // Cuadro 100% plano — esquinas a 90°, sin radio. Nada de forma de
+      // globo de diálogo (esos quedan solo para los diálogos de personajes).
       ctx.fillStyle = "rgba(255,255,255,0.06)";
-      roundRect(cx, stripY, cardW, cardH, 4); ctx.fill();
+      ctx.fillRect(cx, stripY, cardW, cardH);
       ctx.strokeStyle = "rgba(255,255,255,0.30)"; ctx.lineWidth = 1.5;
-      roundRect(cx, stripY, cardW, cardH, 4); ctx.stroke();
+      ctx.strokeRect(cx, stripY, cardW, cardH);
 
       // "Pantallita" con la mini-demo animada del paso (recorte propio).
       var demoX = cx + 8, demoY = stripY + 8;

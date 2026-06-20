@@ -1067,8 +1067,8 @@
       color: "#9CA85A", colorDark: "#5E6A2C", radius: 23,
       speedMult: 0.85, hp: 352, reward: 14, viralAdd: 7, attack: 5, isBoss: false,
       shield: { type: "wall", maxHP: 2, regenRate: 0, regenDelay: 0 },
-      spore: { interval: 3.2, childHpFrac: 0.2, childSpeedMult: 1.9, maxChildren: 5 },
-      tooltip: "Hongo dermatofito de la tiña (pie de atleta y tiña corporal o 'ringworm'). Mientras avanza suelta esporas hijas que corren más rápido."
+      spore: { interval: 3.2, childHpFrac: 0.2, childSpeedMult: 1.9, maxChildren: 5, huntsTowers: true, huntDmg: 18 },
+      tooltip: "Hongo dermatofito de la tiña (pie de atleta y tiña corporal o 'ringworm'). Mientras avanza suelta esporas hijas que corren directo a atacar la torre más cercana."
     },
     // ---- Patógenos cutáneos (Fase 1 = infección de piel) ---------------
     sepidermidis: {
@@ -4105,14 +4105,31 @@
 
   // Esporas hijas del dermatofito: nacen en el camino (en la posición de la
   // madre), más rápidas, con 20% de la vida de la madre y sin replicarse.
+  // Torre más cercana a (x,y), sin filtrar por tipo (a diferencia de
+  // pickShooterTower, que solo busca torres disparadoras para Pseudomonas).
+  function pickNearestTower(x, y) {
+    var best = null, bd = Infinity;
+    for (var i = 0; i < state.towers.length; i++) {
+      var t = state.towers[i];
+      if (t.devouredBy) continue;
+      var d = Math.hypot(t.x - x, t.y - y);
+      if (d < bd) { bd = d; best = t; }
+    }
+    return best;
+  }
   function spawnSpore(m) {
     var sp = m.def.spore || {};
     var chp = Math.max(1, Math.round(m.maxHp * (sp.childHpFrac || 0.2)));
+    // Crías "cazadoras" (ej. Dermatofito): en vez de sumarse al camino,
+    // corren directo a la torre más cercana y la atacan al llegar.
+    var hunts = !!sp.huntsTowers;
+    var huntTarget = hunts ? pickNearestTower(m.x, m.y) : null;
     state.enemies.push({
       def: m.def, hp: chp, maxHp: chp,
       speedMultLevel: m.speedMultLevel, heridaIdx: m.heridaIdx,
-      state: "walking", outsideTimer: 0,
+      state: (hunts && huntTarget) ? "huntingTower" : "walking", outsideTimer: 0,
       progress: Math.max(0, m.progress - 5 * U),
+      huntTarget: huntTarget, huntDmg: sp.huntDmg || 18,
       powerCd: 0, powerCharge: 0, powerTarget: null, devourTarget: null,
       swallowAnim: 0, mawOpen: 0,
       speedBoost: (sp.childSpeedMult || 1.9), radiusScale: 0.6,
@@ -4531,7 +4548,7 @@
           if (Math.hypot(e.x - sk.x, e.y - sk.y) < sk.r) { slickFactor = 1.3; break; }
         }
       }
-      if (e.state !== "blocked" && !e.devourTarget && !e.beingEngulfed && !e.beingDropped) {
+      if (e.state !== "blocked" && e.state !== "huntingTower" && !e.devourTarget && !e.beingEngulfed && !e.beingDropped) {
         e.progress += pxSpeed * medFactor * (e.speedBoost || 1) * burrowFactor * enrageMult * slickFactor * dt;
       }
       // DROP ANIMATION — germ cayendo del macrófago muerto. Gravedad
@@ -4667,7 +4684,7 @@
       var absorbThreshold = PATH.absorbStartForBranch[hi] != null
         ? PATH.absorbStartForBranch[hi]
         : totalForThis * TORRENT_ABSORB_TRIGGER;
-      if (e.progress >= absorbThreshold && !e.absorbing) {
+      if (e.progress >= absorbThreshold && !e.absorbing && e.state !== "huntingTower") {
         // NIVEL PUENTE: cada germen que cruza una puerta llena +10% el
         // medidor del órgano. Al llegar a 10/10 (100%), ese órgano cae y
         // se define el escenario de Fase 2.
@@ -4743,6 +4760,38 @@
           triggerLevelEnd();
         }
         continue;
+      } else if (e.state === "huntingTower") {
+        // Cría cazadora (ej. esporas de Dermatofito): corre directo a la
+        // torre más cercana y la golpea al llegar (kamikaze, se autodestruye
+        // — no cuenta como "derrotada" ni da ATP, porque no la mató el
+        // jugador). No usa el camino en absoluto.
+        if (!e.huntTarget || state.towers.indexOf(e.huntTarget) === -1 || e.huntTarget.hp <= 0) {
+          e.huntTarget = pickNearestTower(e.x, e.y);
+        }
+        if (e.huntTarget) {
+          var hdx = e.huntTarget.x - e.x, hdy = e.huntTarget.y - e.y;
+          var hdd = Math.hypot(hdx, hdy) || 1;
+          var hspd = pxSpeed * (e.speedBoost || 1.9);
+          if (hdd > 14 * U) {
+            e.x += (hdx / hdd) * hspd * dt;
+            e.y += (hdy / hdd) * hspd * dt;
+          } else {
+            e.huntTarget.hp -= e.huntDmg;
+            e.huntTarget.hitFlash = 0.20;
+            e.huntTarget.dmgAccum = (e.huntTarget.dmgAccum || 0) + e.huntDmg;
+            pushEffect({ kind: "shock", x: e.x, y: e.y, r: 12 * U, life: 0.3, max: 0.3, color: e.def.color });
+            for (var hpk = 0; hpk < 6; hpk++) {
+              var hpa = Math.random() * Math.PI * 2, hps = (15 + Math.random() * 25) * U;
+              pushEffect({ kind: "particle", x: e.x, y: e.y, vx: Math.cos(hpa) * hps, vy: Math.sin(hpa) * hps, life: 0.3, max: 0.4, color: e.def.color });
+            }
+            sfx("enemyDie");
+            e.dead = true;
+          }
+        } else {
+          // Sin torres en pie: deriva suave donde está.
+          e.x += Math.sin(state.time * 2 + e.wobble) * 8 * U * dt;
+          e.y += Math.cos(state.time * 1.6 + e.wobble) * 8 * U * dt;
+        }
       } else if (e.beingEngulfed || e.beingDropped) {
         // Posición ya gestionada por updateGuardianEngulf o el drop fall.
         // No overridear con path position.
@@ -6577,6 +6626,26 @@
 
   // Marca de granzima (cruz sobre fondo oscuro) sobre cada enemigo elegido
   // por el ultimate "Apoptosis" del Linfocito T, mientras espera el burst.
+  // Línea fina pulsante de cada cría cazadora hacia su torre objetivo —
+  // para que el jugador entienda al toque por qué ese germen se salió
+  // del camino (ver state "huntingTower" en updateEnemies/spawnSpore).
+  function drawHuntLines() {
+    for (var i = 0; i < state.enemies.length; i++) {
+      var e = state.enemies[i];
+      if (e.state !== "huntingTower" || !e.huntTarget || e.dead) continue;
+      var pulse = 0.4 + 0.3 * Math.sin(state.time * 8);
+      ctx.save();
+      ctx.strokeStyle = colorAlpha(e.def.color, pulse);
+      ctx.lineWidth = 1.5 * U;
+      ctx.setLineDash([4 * U, 4 * U]);
+      ctx.beginPath();
+      ctx.moveTo(e.x, e.y);
+      ctx.lineTo(e.huntTarget.x, e.huntTarget.y);
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+
   function drawApoptosisMarks() {
     for (var ti = 0; ti < state.towers.length; ti++) {
       var t = state.towers[ti];
@@ -19835,6 +19904,7 @@
       safeDraw("Tower:" + (tw.def && tw.def.id), function () { drawTower(tw); });
     }
     safeDraw("ApoptosisMarks", drawApoptosisMarks);
+    safeDraw("HuntLines", drawHuntLines);
     safeDraw("Guardians", drawGuardians);
     safeDraw("Fragments", drawFragments);
     safeDraw("CannonShots", drawCannonShots);

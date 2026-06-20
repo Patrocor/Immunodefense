@@ -4990,6 +4990,60 @@
     return best;
   }
 
+  // Como nearestPointOnPath, pero además devuelve la posición de arco
+  // (heridaIdx + progress, compatible con pathPos()) del punto más
+  // cercano. Permite generar puntos repartidos a lo largo del camino a
+  // partir de un punto de referencia (ver Bombardeo de Defensinas, abajo).
+  function nearestPathProgress(tx, ty) {
+    var best = null, bestD2 = Infinity;
+    function consider(heridaIdx, progress, x, y) {
+      var dx = x - tx, dy = y - ty;
+      var d2 = dx * dx + dy * dy;
+      if (d2 < bestD2) { bestD2 = d2; best = { heridaIdx: heridaIdx, progress: progress }; }
+    }
+    function scanBranch(beziers, heridaIdx, baseProgress) {
+      if (!beziers) return;
+      for (var i = 0; i < beziers.length; i++) {
+        var seg = beziers[i];
+        var samples = seg.samples;
+        if (!samples) continue;
+        for (var j = 0; j < samples.length; j++) {
+          var s = samples[j];
+          consider(heridaIdx, baseProgress + seg.startD + s.d, s.x, s.y);
+        }
+      }
+    }
+    if (PATH.branches) {
+      for (var b = 0; b < PATH.branches.length; b++) {
+        scanBranch(PATH.branches[b].beziers, b, 0);
+      }
+    }
+    if (PATH.main && PATH.main.beziers && PATH.main.beziers.length) {
+      var branch0Len = (PATH.branches && PATH.branches[0]) ? PATH.branches[0].length : 0;
+      scanBranch(PATH.main.beziers, 0, branch0Len);
+    }
+    return best;
+  }
+
+  // Daño de área genérico en un punto: todo enemigo "walking"/"blocked"
+  // dentro de radius recibe dmg vía damageEnemy (respeta escudos,
+  // recompensas y contadores — a diferencia del viejo daño inline del
+  // Martillazo). Usado por el Bombardeo de Defensinas del Neutrófilo
+  // (gránulos + shockwave de aterrizaje, ver updateTowers).
+  function dealAoEDamageAt(x, y, radius, dmg) {
+    var hits = 0;
+    for (var ei = 0; ei < state.enemies.length; ei++) {
+      var en = state.enemies[ei];
+      if (en.dead || en.dying || en.absorbing) continue;
+      if (en.state !== "walking" && en.state !== "blocked") continue;
+      var dx = en.x - x, dy = en.y - y;
+      if (dx * dx + dy * dy > radius * radius) continue;
+      damageEnemy(en, dmg, "neutrofilo");
+      hits++;
+    }
+    return hits;
+  }
+
   // Calcula el target del ultimate de una torre.
   // - En diseminación: VERTICAL ARRIBA muy cerca (lanes corren
   //   verticalmente, el ataque sale "inmediatamente de la torre" y

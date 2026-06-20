@@ -5636,6 +5636,7 @@
             var nbStats = towerStats(t);
             dealAoEDamageAt(imp.x, imp.y, 18 * U, nbStats.damage * 2.2);
             triggerShake(0.08, 2);
+            pushEffect({ kind: "pathCrack", x: imp.x, y: imp.y, r: 16 * U, life: 1.2, max: 1.2, seed: Math.random() * 1000 });
           }
         }
         if (!t.bombardLanded && elapsed >= 1.6) {
@@ -5643,6 +5644,7 @@
           var ndStats = towerStats(t);
           dealAoEDamageAt(t.x, t.y, 32 * U, ndStats.damage * 6);
           triggerShake(0.30, 7);
+          pushEffect({ kind: "pathCrack", x: t.x, y: t.y, r: 26 * U, life: 1.6, max: 1.6, seed: Math.random() * 1000 });
         }
         if ((t.specialAnim || 0) <= 0) {
           t.bombardImpacts = null;
@@ -12397,20 +12399,36 @@
           var fallU = (bElapsed - fallStart) / 0.35;
           var fallE = fallU * fallU;
           var fy = imp2.y - 220 * U * (1 - fallE);
+          // Squash sutil en el último tramo antes de tocar el piso.
+          var squashU = Math.max(0, (fallU - 0.85) / 0.15);
+          var dropRX = 8 * U * (1 + squashU * 0.35);
+          var dropRY = 8 * U * (1 - squashU * 0.30);
           ctx.save();
-          ctx.globalAlpha = 0.85;
-          var trailGrad = ctx.createLinearGradient(imp2.x, fy - 26 * U, imp2.x, fy);
-          trailGrad.addColorStop(0, "rgba(255,210,74,0)");
-          trailGrad.addColorStop(1, "rgba(255,210,74,0.85)");
-          ctx.strokeStyle = trailGrad;
-          ctx.lineWidth = 3 * U;
+          ctx.globalAlpha = 0.9;
+          // Cola tipo cometa: cuña ancha junto a la gota, afinándose hacia arriba.
+          var tailLen = 30 * U;
+          var tailHalfW = dropRX * 0.7;
+          var tailGrad = ctx.createLinearGradient(imp2.x, fy - tailLen, imp2.x, fy);
+          tailGrad.addColorStop(0, "rgba(202,168,255,0)");
+          tailGrad.addColorStop(1, "rgba(202,168,255,0.55)");
+          ctx.fillStyle = tailGrad;
           ctx.beginPath();
-          ctx.moveTo(imp2.x, fy - 26 * U);
-          ctx.lineTo(imp2.x, fy);
-          ctx.stroke();
-          ctx.fillStyle = "#caa8ff";
+          ctx.moveTo(imp2.x, fy - tailLen);
+          ctx.lineTo(imp2.x - tailHalfW, fy);
+          ctx.lineTo(imp2.x + tailHalfW, fy);
+          ctx.closePath();
+          ctx.fill();
+          // Gota: gradiente radial para volumen.
+          var dropGrad = ctx.createRadialGradient(
+            imp2.x - dropRX * 0.3, fy - dropRY * 0.3, dropRX * 0.15,
+            imp2.x, fy, dropRX
+          );
+          dropGrad.addColorStop(0, "#e8d4ff");
+          dropGrad.addColorStop(0.55, "#caa8ff");
+          dropGrad.addColorStop(1, "#8a5fc0");
+          ctx.fillStyle = dropGrad;
           ctx.beginPath();
-          ctx.arc(imp2.x, fy, 4.5 * U, 0, Math.PI * 2);
+          ctx.ellipse(imp2.x, fy, dropRX, dropRY, 0, 0, Math.PI * 2);
           ctx.fill();
           ctx.restore();
         } else if (imp2.hit) {

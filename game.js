@@ -7094,10 +7094,9 @@
   // -------- MEDICAMENTO ---------------------------------------------------
   function layoutMed() {
     // Fila inferior con indicadores HORIZONTALES alineados:
-    //  [ antiséptico ] [ medicamento (4 bloques) ] ([ C3b dots ]) [ Mφ call ]
-    // En diseminación el C3b NO va en esta fila — se reubica arriba de la
-    // cartilla de NETosis (dock lateral) para no quedar pegado/superpuesto
-    // con ella, que vive en la misma esquina inferior de la pantalla.
+    //  [ antiséptico ] [ medicamento (4 bloques) ] [ Mφ call ]
+    // C3b y el ultimate "Arpón" del Macrófago viven en el dock lateral (ver
+    // layoutUI), no en esta fila — igual en ambas fases.
     var rowH = Math.max(34, 38 * U);
     var rowY = FIELD_BOTTOM - rowH - 8 * U;
     var gap = 6 * U;
@@ -7107,50 +7106,43 @@
     var availableW2 = availableW - macW - gap;
     var startX = FIELD_LEFT + 8 * U;
 
-    if (state.dissemination && UI.responsePanel) {
-      var totalRatio2 = 0.55 + 1.00;
-      var unit2 = (availableW2 - gap) / totalRatio2;
-      var topicalW2 = Math.round(unit2 * 0.55);
-      var medW2 = Math.round(unit2 * 1.00);
-      UI.topicalVial = { x: startX, y: rowY, w: topicalW2, h: rowH };
-      UI.medVial = { x: startX + topicalW2 + gap, y: rowY, w: medW2, h: rowH };
-      UI.macrofagoBtn = { x: UI.medVial.x + medW2 + gap, y: rowY, w: macW, h: rowH };
+    var totalRatio2 = 0.55 + 1.00;
+    var unit2 = (availableW2 - gap) / totalRatio2;
+    var topicalW2 = Math.round(unit2 * 0.55);
+    var medW2 = Math.round(unit2 * 1.00);
+    UI.topicalVial = { x: startX, y: rowY, w: topicalW2, h: rowH };
+    UI.medVial = { x: startX + topicalW2 + gap, y: rowY, w: medW2, h: rowH };
+    UI.macrofagoBtn = { x: UI.medVial.x + medW2 + gap, y: rowY, w: macW, h: rowH };
 
+    // C3b + Arpón: ancladas arriba del panel de NETosis en Diseminación, o
+    // arriba del fondo del dock en Fase 1 (no hay NETosis ahí).
+    var anchorX, anchorW, anchorBottomY;
+    if (UI.responsePanel) {
       var rp = UI.responsePanel;
-      var c3bH = Math.round(34 * U);
-      var c3bGap = Math.round(4 * U);
-      UI.c3bMeter = {
-        x: rp.x + rp.pad,
-        y: rp.y + rp.pad - c3bGap - c3bH,
-        w: rp.w - 2 * rp.pad,
-        h: c3bH
-      };
-      var ultH = Math.round(34 * U);
-      var ultGap = Math.round(4 * U);
-      UI.macrofagoUltCard = {
-        x: UI.c3bMeter.x,
-        y: UI.c3bMeter.y - ultGap - ultH,
-        w: UI.c3bMeter.w,
-        h: ultH
-      };
+      anchorX = rp.x + rp.pad;
+      anchorW = rp.w - 2 * rp.pad;
+      anchorBottomY = rp.y + rp.pad;
     } else {
-      var totalRatio = 0.55 + 1.00 + 0.55;
-      var unit = (availableW2 - gap * 2) / totalRatio;
-      var topicalW = Math.round(unit * 0.55);
-      var medW = Math.round(unit * 1.00);
-      var c3bW = Math.round(unit * 0.55);
-      UI.topicalVial = { x: startX, y: rowY, w: topicalW, h: rowH };
-      UI.medVial = { x: startX + topicalW + gap, y: rowY, w: medW, h: rowH };
-      UI.c3bMeter = { x: startX + topicalW + gap + medW + gap, y: rowY, w: c3bW, h: rowH };
-      UI.macrofagoBtn = { x: UI.c3bMeter.x + c3bW + gap, y: rowY, w: macW, h: rowH };
-      var ultH2 = rowH, ultGap2 = 6 * U;
-      UI.macrofagoUltCard = {
-        x: UI.c3bMeter.x,
-        y: UI.c3bMeter.y - ultGap2 - ultH2,
-        w: UI.c3bMeter.w,
-        h: ultH2
-      };
+      anchorX = UI.compendiumBtn.x;
+      anchorW = UI.compendiumBtn.w;
+      anchorBottomY = UI.dockBottom - UI.dockPad;
     }
+    var c3bH = Math.round(34 * U);
+    var c3bGap = Math.round(4 * U);
+    UI.c3bMeter = {
+      x: anchorX,
+      y: anchorBottomY - c3bGap - c3bH,
+      w: anchorW,
+      h: c3bH
+    };
+    var ultH = Math.round(34 * U);
+    var ultGap = Math.round(4 * U);
+    UI.macrofagoUltCard = {
+      x: UI.c3bMeter.x,
+      y: UI.c3bMeter.y - ultGap - ultH,
+      w: UI.c3bMeter.w,
+      h: ultH
+    };
   }
 
   // Bloques llenos (0..MED_BLOCKS) según la carga acumulada.

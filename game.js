@@ -3240,11 +3240,11 @@
       disseminationWaveIdx: 0,         // 0..2 dentro del puente
       disseminationOver: null,         // { germ, organ } cuando un órgano llena
       disseminationIntroTimer: 0,      // banner de entrada al puente
-      disseminationOrganLoad: [0,0,0],       // 0..10 (germenes pasando tras romper barrera) — 3 carriles
-      disseminationFlash: [0,0,0],       // brillo de impacto al recibir germen
+      spreadOrganLoad: [0,0,0],       // 0..10 (germenes pasando tras romper barrera) — 3 carriles
+      spreadFlash: [0,0,0],       // brillo de impacto al recibir germen
       disseminationBarrierHP:     [0, 0, 0],
       disseminationBarrierMax:    [0, 0, 0],
-      disseminationBarrierBroken: [false, false, false],
+      barrierPenetrated: [false, false, false],
       disseminationBarrierBreakAt: 0,
       disseminationBarrierBreakLane: -1,
       tissue: null,
@@ -3816,8 +3816,8 @@
       state.heroLevelPlayed = state.heroLevelPlayed || {};
       state.pendingHeroLevel = { organ: "piel", delay: 4.5 };
     }
-    state.disseminationOrganLoad = [0, 0, 0];
-    state.disseminationFlash = [0, 0, 0];
+    state.spreadOrganLoad = [0, 0, 0];
+    state.spreadFlash = [0, 0, 0];
     // HP biológico por órgano (orden = DISSEMINATION_ORGANS):
     // [corazón=pericardio, hueso=periostio, articulación=cápsula sinovial]
     // Barrera por órgano: 5 germenes uniformes la rompen. Cada choque dropea
@@ -3825,7 +3825,7 @@
     // pasando para llegar al órgano (game over).
     state.disseminationBarrierMax    = [5, 5, 5];
     state.disseminationBarrierHP     = [5, 5, 5];
-    state.disseminationBarrierBroken = [false, false, false];
+    state.barrierPenetrated = [false, false, false];
     state.disseminationBarrierBreakAt = 0;
     state.disseminationBarrierBreakLane = -1;
     state.antigens = { count: 0, drops: [] };
@@ -3962,7 +3962,7 @@
     // Regenerar +1 HP en barreras NO rotas antes de empezar la oleada.
     if (state.disseminationBarrierHP) {
       for (var brI = 0; brI < state.disseminationBarrierHP.length; brI++) {
-        if (!state.disseminationBarrierBroken[brI]) {
+        if (!state.barrierPenetrated[brI]) {
           state.disseminationBarrierHP[brI] = Math.min(
             state.disseminationBarrierMax[brI],
             state.disseminationBarrierHP[brI] + 1
@@ -4689,19 +4689,19 @@
         // medidor del órgano. Al llegar a 10/10 (100%), ese órgano cae y
         // se define el escenario de Fase 2.
         if (state.dissemination) {
-          if (!state.disseminationOrganLoad) state.disseminationOrganLoad = [0, 0, 0];
+          if (!state.spreadOrganLoad) state.spreadOrganLoad = [0, 0, 0];
           if (!state.disseminationBarrierHP) state.disseminationBarrierHP = [0, 0, 0];
-          if (!state.disseminationBarrierBroken) state.disseminationBarrierBroken = [false, false, false];
+          if (!state.barrierPenetrated) state.barrierPenetrated = [false, false, false];
           var lane = hi;
           var organ = (PATH.organDoors && PATH.organDoors[lane])
             ? PATH.organDoors[lane].organ
             : DISSEMINATION_ORGANS[lane] || DISSEMINATION_ORGANS[0];
-          if (!state.disseminationFlash) state.disseminationFlash = [0,0,0];
+          if (!state.spreadFlash) state.spreadFlash = [0,0,0];
 
-          if (!state.disseminationBarrierBroken[lane] && state.disseminationBarrierHP[lane] > 0) {
+          if (!state.barrierPenetrated[lane] && state.disseminationBarrierHP[lane] > 0) {
             // El germen es absorbido por la barrera: muere, barrera -1 HP.
             state.disseminationBarrierHP[lane] -= 1;
-            state.disseminationFlash[lane] = 0.6;
+            state.spreadFlash[lane] = 0.6;
             triggerShake(0.08, 2);
             spawnEffect("escape", e.x, e.y, organ.color);
             if (!e.antigenSpawned) {
@@ -4710,7 +4710,7 @@
             }
             // ¿La barrera acaba de romperse?
             if (state.disseminationBarrierHP[lane] <= 0) {
-              state.disseminationBarrierBroken[lane] = true;
+              state.barrierPenetrated[lane] = true;
               state.disseminationBarrierBreakAt = state.time;
               state.disseminationBarrierBreakLane = lane;
               triggerShake(0.35, 6);
@@ -4723,12 +4723,12 @@
           // Barrera rota: el germen ya no choca, sino que entra al órgano.
           // Aquí NO hay antígeno (ese se daba con el choque a la barrera).
           // Conteo 0..10: al 10 = game over en ese órgano.
-          state.disseminationOrganLoad[lane] = (state.disseminationOrganLoad[lane] || 0) + 1;
+          state.spreadOrganLoad[lane] = (state.spreadOrganLoad[lane] || 0) + 1;
           spawnEffect("escape", e.x, e.y, organ.color);
-          state.disseminationFlash[lane] = 0.6;
+          state.spreadFlash[lane] = 0.6;
           triggerShake(0.12, 3);
           if (audio && audio.ctx) sfx("playerHurt");
-          if (state.disseminationOrganLoad[lane] >= 10 && !state.disseminationOver) {
+          if (state.spreadOrganLoad[lane] >= 10 && !state.disseminationOver) {
             state.disseminationOver = { germ: e.def, organ: organ, t: 0 };
             triggerShake(0.5, 9);
             state.waveActive = false;
@@ -20164,11 +20164,11 @@
         var w = PATH.wounds[k];
         var d = PATH.organDoors[k];
         drawDisseminationCrack(w.x, w.y);
-        var load = (state.disseminationOrganLoad && state.disseminationOrganLoad[k]) || 0;
-        var flash = (state.disseminationFlash && state.disseminationFlash[k]) || 0;
+        var load = (state.spreadOrganLoad && state.spreadOrganLoad[k]) || 0;
+        var flash = (state.spreadFlash && state.spreadFlash[k]) || 0;
         var hp = (state.disseminationBarrierHP && state.disseminationBarrierHP[k]) || 0;
         var hpMax = (state.disseminationBarrierMax && state.disseminationBarrierMax[k]) || 1;
-        var broken = !!(state.disseminationBarrierBroken && state.disseminationBarrierBroken[k]);
+        var broken = !!(state.barrierPenetrated && state.barrierPenetrated[k]);
         drawOrganBarrier(d.x, d.y, d.organ, hp, hpMax, broken, flash);
         drawOrganDoor(d.x, d.y, d.organ, load, flash);
       }
@@ -21901,9 +21901,9 @@
         });
       }
     }
-    if (state.disseminationFlash) {
-      for (var dFi = 0; dFi < state.disseminationFlash.length; dFi++) {
-        if (state.disseminationFlash[dFi] > 0) state.disseminationFlash[dFi] -= dt;
+    if (state.spreadFlash) {
+      for (var dFi = 0; dFi < state.spreadFlash.length; dFi++) {
+        if (state.spreadFlash[dFi] > 0) state.spreadFlash[dFi] -= dt;
       }
     }
     if (!paused) {

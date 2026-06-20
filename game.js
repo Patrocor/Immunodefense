@@ -4689,9 +4689,9 @@
         // medidor del órgano. Al llegar a 10/10 (100%), ese órgano cae y
         // se define el escenario de Fase 2.
         if (state.dissemination) {
-          if (!state.disseminationOrganLoad) state.disseminationOrganLoad = [0, 0, 0, 0, 0];
-          if (!state.disseminationBarrierHP) state.disseminationBarrierHP = [0,0,0,0,0];
-          if (!state.disseminationBarrierBroken) state.disseminationBarrierBroken = [false,false,false,false,false];
+          if (!state.disseminationOrganLoad) state.disseminationOrganLoad = [0, 0, 0];
+          if (!state.disseminationBarrierHP) state.disseminationBarrierHP = [0, 0, 0];
+          if (!state.disseminationBarrierBroken) state.disseminationBarrierBroken = [false, false, false];
           var lane = hi;
           var organ = (PATH.organDoors && PATH.organDoors[lane])
             ? PATH.organDoors[lane].organ

@@ -3269,6 +3269,11 @@
       showTitle: true,                  // pantalla de título del juego
       showIntro: true,                  // cómic introductorio (tras el título)
       introScene: 0,
+      introOutroT: null,   // != null durante la transición final (zoom continuo hacia el juego)
+      tutorialOpen: false,
+      tutorialScroll: 0,
+      tutorialMomentum: 0,
+      tutorialUserScrolled: false,
       introT: 0,
       panelScroll: 0,                   // horizontal scroll offset (Sprint 8B-3B)
       panelDragPending: null,           // tap-vs-drag tracker
@@ -9119,6 +9124,26 @@
     if (Math.abs(state.panelMomentum) < 5) state.panelMomentum = 0;
   }
 
+  // Carrusel de tutorial: mismo patrón de momentum que el dock, en
+  // horizontal. Mientras el jugador no haya arrastrado todavía, se
+  // autodesplaza lento para sugerir que se puede scrollear.
+  function updateTutorial(dt) {
+    if (!state.tutorialOpen) return;
+    var strip = UI.tutorialStrip;
+    if (!strip) return;
+    var maxScroll = Math.max(0, strip.contentW - strip.w);
+    if (!state.tutorialUserScrolled && !state.tutorialDragPending && maxScroll > 0) {
+      state.tutorialScroll = Math.min(maxScroll, (state.tutorialScroll || 0) + dt * 28);
+      return;
+    }
+    if (!state.tutorialMomentum) return;
+    state.tutorialScroll = (state.tutorialScroll || 0) + state.tutorialMomentum * dt;
+    if (state.tutorialScroll <= 0) { state.tutorialScroll = 0; state.tutorialMomentum = 0; return; }
+    if (state.tutorialScroll >= maxScroll) { state.tutorialScroll = maxScroll; state.tutorialMomentum = 0; return; }
+    state.tutorialMomentum *= Math.pow(0.1, dt);
+    if (Math.abs(state.tutorialMomentum) < 5) state.tutorialMomentum = 0;
+  }
+
   // Sprint 8A: tooltips lateral con cola. Si no hay activo y hay pendientes,
   // se promueve el primero de la cola con animación de entrada.
   function updateTooltip(dt) {
@@ -10359,6 +10384,20 @@
   }
 
   function handleClick(x, y) {
+    // Tutorial: "Cerrar" vuelve a la pantalla de título. Cualquier otro
+    // tap dentro (que no fue drag) es un no-op sobre una tarjeta.
+    if (state.tutorialOpen) {
+      if (UI.tutorialClose && inRect(x, y, UI.tutorialClose)) {
+        state.tutorialOpen = false;
+        state.tutorialScroll = 0;
+        state.tutorialMomentum = 0;
+        state.tutorialUserScrolled = false;
+        state.showTitle = true;
+        state.showIntro = false;
+        state.introOutroT = null;
+      }
+      return;
+    }
     // Hero level activo: el tap se rutea a su propio handler.
     if (state.heroLevel && state.heroLevel.active) {
       handleHeroLevelTap(x, y);
@@ -10371,9 +10410,11 @@
       ensureAudio();
       return;
     }
-    // Comic intro: "Saltar" cierra todo; un tap normal avanza de escena.
+    // Comic intro: "Saltar" cierra todo, "Tutorial" abre el carrusel,
+    // un tap normal avanza de escena.
     if (state.showIntro) {
-      if (UI.introSkip && inRect(x, y, UI.introSkip)) { state.showIntro = false; }
+      if (UI.introSkip && inRect(x, y, UI.introSkip)) { state.showIntro = false; state.introOutroT = null; }
+      else if (UI.tutorialBtn && inRect(x, y, UI.tutorialBtn)) { state.tutorialOpen = true; }
       else { introAdvance(); }
       return;
     }
@@ -10912,6 +10953,24 @@
     ensureAudio();
     var p = canvasPosFromEvent(evt);
     state.pointer.x = p.x; state.pointer.y = p.y; state.pointer.isOver = true;
+    // Tutorial: atrapa todo el input. Tap sobre "Cerrar" se procesa en
+    // handleClick (UI.tutorialClose); cualquier otro tap dentro de la tira
+    // de tarjetas arranca un drag de scroll horizontal (mismo patrón que
+    // panelDragPending, pero en X).
+    if (state.tutorialOpen) {
+      if (UI.tutorialStrip && inRect(p.x, p.y, UI.tutorialStrip)) {
+        var nowT = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
+        state.tutorialDragPending = {
+          startX: p.x, startY: p.y,
+          startScroll: state.tutorialScroll || 0,
+          lastX: p.x, lastT: nowT,
+          velocity: 0, dragged: false
+        };
+        return;
+      }
+      handleClick(p.x, p.y);
+      return;
+    }
     // Body-map: si está activo, atrapamos el tap. Si es sobre el viewport,
     // potencialmente arranca un drag (scroll). Si es sobre el botón Continuar,
     // se procesa en onPointerUp.
@@ -10980,6 +11039,27 @@
       }
       return;
     }
+    // Drag scroll horizontal del carrusel de tutorial.
+    if (state.tutorialDragPending) {
+      var tp = state.tutorialDragPending;
+      var tdx = p.x - tp.startX;
+      if (!tp.dragged && Math.abs(tdx) > TAP_DRAG_THRESHOLD) {
+        tp.dragged = true;
+        state.tutorialUserScrolled = true;
+      }
+      if (tp.dragged && UI.tutorialStrip) {
+        var tMaxScroll = Math.max(0, UI.tutorialStrip.contentW - UI.tutorialStrip.w);
+        state.tutorialScroll = Math.max(0, Math.min(tMaxScroll, tp.startScroll - tdx));
+        var nowTm = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
+        var tDeltaT = Math.max(1, nowTm - tp.lastT);
+        var tMoveDx = p.x - tp.lastX;
+        var tInstantV = -tMoveDx / (tDeltaT / 1000);
+        tp.velocity = tp.velocity * 0.7 + tInstantV * 0.3;
+        tp.lastX = p.x;
+        tp.lastT = nowTm;
+      }
+      return;
+    }
     if (state.panelDragPending) {
       var dp = state.panelDragPending;
       var dy = p.y - dp.startY;
@@ -11037,6 +11117,16 @@
       }
       return;
     }
+    if (state.tutorialDragPending) {
+      var tdd = state.tutorialDragPending;
+      state.tutorialDragPending = null;
+      if (!tdd.dragged) {
+        handleClick(tdd.startX, tdd.startY);
+      } else if (Math.abs(tdd.velocity) > 80) {
+        state.tutorialMomentum = tdd.velocity;
+      }
+      return;
+    }
     if (state.panelDragPending) {
       var dp = state.panelDragPending;
       state.panelDragPending = null;
@@ -11057,6 +11147,7 @@
   function onPointerLeave() {
     state.pointer.isOver = false;
     if (state.panelDragPending) state.panelDragPending = null;
+    if (state.tutorialDragPending) state.tutorialDragPending = null;
   }
 
   canvas.addEventListener("pointerdown", onPointerDown);
@@ -11081,6 +11172,7 @@
     if (e.key === " " || e.code === "Space") {
       e.preventDefault();
       ensureAudio();
+      if (state.tutorialOpen) return;
       if (state.showTitle) { state.showTitle = false; state.introScene = 0; state.introT = 0; return; }
       if (state.showIntro) { introAdvance(); return; }
       if (state.confirmRestart) { state.confirmRestart = false; return; }
@@ -18318,6 +18410,16 @@
     ctx.restore();
   }
 
+  // -------- TUTORIAL (carrusel chico, scrolleable horizontal) ------------
+  var TUTORIAL_CARDS = [
+    { icon: "👆", title: "Elegí una célula", text: "Tocá una tarjeta del panel para elegir qué célula vas a colocar." },
+    { icon: "📍", title: "Colocala en el campo", text: "Tocá el campo de juego para plantarla ahí." },
+    { icon: "▶️", title: "Iniciá la oleada", text: "Cuando estés listo, tocá \"Iniciar Oleada\" para que avancen los patógenos." },
+    { icon: "⬆️", title: "Mejorá o vendé", text: "Tocá una torre puesta para subirla de nivel o venderla." },
+    { icon: "⚡", title: "Cargá el poder especial", text: "Cada torre tiene un ultimate: se carga solo y brilla cuando está listo para tocar." },
+    { icon: "📖", title: "Mirá el Dex", text: "Ahí vas a encontrar a todos los gérmenes y células que descubras." }
+  ];
+
   // -------- COMIC INTRO SCREEN ----------------------------------------
   // -------- INTRO CÓMIC ANIMADA (imágenes + Ken Burns) ------------------
   var INTRO_DUR = [4.2, 5.2, 3.8, 3.6, 4.6];   // duración (s) por escena
@@ -18337,13 +18439,33 @@
   ];
   var introImgs = INTRO_SRC.map(function (s) { var im = new Image(); im.src = s; return im; });
 
+  // Transición final: en vez de fundir a un overlay opaco y cortar, el
+  // cómic sigue acercándose (Ken Burns continúa) mientras se desvanece,
+  // revelando el campo real de Fase 1 (que ya se renderiza de fondo todo
+  // este tiempo) — la cámara nunca se detiene, solo cambia qué muestra.
+  var INTRO_OUTRO_DUR = 1.2;
+  var INTRO_OUTRO_ZOOM_END = 1.75;     // el cómic sigue subiendo desde 1.55
+  var FIELD_OUTRO_ZOOM_START = 1.4;    // el campo real arranca acercado y se asienta en 1.0
+
   function introAdvance() {
+    if (state.introOutroT != null) {
+      // Ya estábamos en la transición final (ej. tap/espacio durante el
+      // fundido) — completarla ahora mismo en vez de seguir avanzando escenas.
+      state.showIntro = false;
+      state.introOutroT = null;
+      return;
+    }
     state.introScene = (state.introScene || 0) + 1;
     state.introT = 0;
-    if (state.introScene >= INTRO_DUR.length) { state.showIntro = false; }
+    if (state.introScene >= INTRO_DUR.length) { state.introOutroT = 0; }
   }
   function updateIntroComic(dt) {
     if (!state.showIntro) return;
+    if (state.introOutroT != null) {
+      state.introOutroT += dt;
+      if (state.introOutroT >= INTRO_OUTRO_DUR) { state.showIntro = false; state.introOutroT = null; }
+      return;
+    }
     state.introT = (state.introT || 0) + dt;
     if (state.introT >= INTRO_DUR[state.introScene || 0]) introAdvance();
   }
@@ -18613,8 +18735,94 @@
     ctx.restore();
   }
 
+  // Carrusel de tutorial: tarjetas chicas, una seguida de otra, scrolleable
+  // horizontal (arrastre con momentum, mismo patrón que el dock).
+  function drawTutorialScreen() {
+    if (!state.tutorialOpen) return;
+    ctx.save();
+    ctx.fillStyle = "rgba(12, 6, 9, 0.97)";
+    ctx.fillRect(0, 0, VW, VH);
+
+    ctx.fillStyle = "#fff";
+    ctx.font = "bold 20px Fredoka, sans-serif";
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillText("Cómo jugar", VW / 2, 36);
+
+    var cardW = Math.min(190, VW * 0.58);
+    var cardH = Math.min(250, VH * 0.46);
+    var gap = 14;
+    var marginX = 20;
+    var stripW = VW - marginX * 2;
+    var stripY = VH / 2 - cardH / 2;
+    var contentW = TUTORIAL_CARDS.length * (cardW + gap) - gap;
+    UI.tutorialStrip = { x: marginX, y: stripY, w: stripW, h: cardH, contentW: contentW };
+    var maxScroll = Math.max(0, contentW - stripW);
+    var scroll = Math.min(maxScroll, state.tutorialScroll || 0);
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(marginX, stripY - 10, stripW, cardH + 20);
+    ctx.clip();
+    for (var i = 0; i < TUTORIAL_CARDS.length; i++) {
+      var card = TUTORIAL_CARDS[i];
+      var cx = marginX + i * (cardW + gap) - scroll;
+      if (cx + cardW < marginX - 20 || cx > marginX + stripW + 20) continue;
+      ctx.fillStyle = "rgba(255,255,255,0.07)";
+      roundRect(cx, stripY, cardW, cardH, 14); ctx.fill();
+      ctx.strokeStyle = "rgba(255,255,255,0.25)"; ctx.lineWidth = 1.5;
+      roundRect(cx, stripY, cardW, cardH, 14); ctx.stroke();
+      ctx.font = (cardW * 0.26) + "px Fredoka, sans-serif";
+      ctx.fillStyle = "#fff";
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText(card.icon, cx + cardW / 2, stripY + cardH * 0.28);
+      ctx.font = "bold 14px Fredoka, sans-serif";
+      ctx.fillText(card.title, cx + cardW / 2, stripY + cardH * 0.52, cardW - 20);
+      ctx.font = "12px Fredoka, sans-serif";
+      ctx.fillStyle = "rgba(255,255,255,0.80)";
+      var lines = wrapText(card.text, cardW - 24, 12);
+      for (var li = 0; li < lines.length; li++) {
+        ctx.fillText(lines[li], cx + cardW / 2, stripY + cardH * 0.66 + li * 15);
+      }
+    }
+    ctx.restore();
+
+    // Puntos de progreso, según qué tarjeta está más centrada en el viewport.
+    var activeIdx = Math.round(scroll / (cardW + gap));
+    var nd = TUTORIAL_CARDS.length, dx0 = VW / 2 - (nd - 1) * 6;
+    for (var s2 = 0; s2 < nd; s2++) {
+      ctx.fillStyle = s2 === activeIdx ? "#ffffff" : "rgba(255,255,255,0.40)";
+      ctx.beginPath(); ctx.arc(dx0 + s2 * 12, stripY + cardH + 26, 4, 0, Math.PI * 2); ctx.fill();
+    }
+
+    // Botón "Cerrar".
+    var csw = 110, csh = 36, csx = VW / 2 - csw / 2, csy = VH - 56;
+    UI.tutorialClose = { x: csx, y: csy, w: csw, h: csh };
+    ctx.fillStyle = "#1a1a22"; roundRect(csx, csy, csw, csh, 8); ctx.fill();
+    ctx.strokeStyle = "rgba(255,255,255,0.40)"; ctx.lineWidth = 1.5;
+    roundRect(csx, csy, csw, csh, 8); ctx.stroke();
+    ctx.fillStyle = "#fff"; ctx.font = "bold 14px Fredoka, sans-serif";
+    ctx.fillText("Cerrar", csx + csw / 2, csy + csh / 2);
+
+    ctx.restore();
+  }
+
   function drawIntroScreen() {
     if (!state.showIntro || state.showTitle) return;
+    if (state.introOutroT != null) {
+      // Transición final: NO se redibuja el campo acá (ya está renderizado
+      // debajo, en render()) — solo el cómic siguiendo su zoom mientras
+      // se desvanece para revelarlo.
+      var last0 = INTRO_DUR.length - 1;
+      var outroP = Math.min(1, state.introOutroT / INTRO_OUTRO_DUR);
+      var outroEase = introEase(outroP);
+      var outroZoom = INTRO_Z1[last0] + (INTRO_OUTRO_ZOOM_END - INTRO_Z1[last0]) * outroEase;
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, 1 - outroEase);
+      introCover(introImgs[last0], outroZoom, -outroEase * VH * 0.03);
+      ctx.globalAlpha = 1;
+      ctx.restore();
+      return;
+    }
     var sc = state.introScene || 0;
     var t = state.introT || 0;
     var dur = INTRO_DUR[sc];
@@ -18677,12 +18885,15 @@
     ctx.fillText("Saltar", sx + sw / 2, sy + sh / 2);
     UI.introBtn = null;
 
-    // Cierre del buceo: oscurecer al final de la última escena -> juego.
-    if (sc === last && p > 0.82) {
-      ctx.globalAlpha = (p - 0.82) / 0.18;
-      ctx.fillStyle = "#1a0606"; ctx.fillRect(0, 0, VW, VH);
-      ctx.globalAlpha = 1;
-    }
+    // Botón "Tutorial" — mismo estilo, debajo del de Saltar.
+    var tsy = sy + sh + 8;
+    UI.tutorialBtn = { x: sx, y: tsy, w: sw, h: sh };
+    ctx.fillStyle = "#1a1a22"; roundRect(sx, tsy, sw, sh, 0); ctx.fill();
+    ctx.strokeStyle = "rgba(255,255,255,0.40)"; ctx.lineWidth = 1.5;
+    roundRect(sx, tsy, sw, sh, 0); ctx.stroke();
+    ctx.fillStyle = "#fff"; ctx.font = "bold 13px Fredoka, sans-serif";
+    ctx.fillText("Tutorial", sx + sw / 2, tsy + sh / 2);
+
     ctx.restore();
   }
 
@@ -19263,6 +19474,21 @@
         }
       }
     }
+    // Durante la transición final de la intro (introOutroT activo), el
+    // campo real arranca con un zoom temporal anclado en la herida y se
+    // asienta en 1.0 — para que la cámara se sienta continua con el zoom
+    // del cómic que se está desvaneciendo encima (ver drawIntroScreen).
+    var introOutroActive = state.showIntro && state.introOutroT != null;
+    if (introOutroActive) {
+      var ioP = Math.min(1, state.introOutroT / INTRO_OUTRO_DUR);
+      var ioZoom = FIELD_OUTRO_ZOOM_START + (1 - FIELD_OUTRO_ZOOM_START) * introEase(ioP);
+      var ioAnchorX = FIELD_LEFT + FIELD_W * 0.5;
+      var ioAnchorY = FIELD_TOP + FIELD_H * 0.10;
+      ctx.save();
+      ctx.translate(ioAnchorX, ioAnchorY);
+      ctx.scale(ioZoom, ioZoom);
+      ctx.translate(-ioAnchorX, -ioAnchorY);
+    }
     if (state.dissemination) {
       safeDraw("DisseminationField", drawDisseminationField);
       safeDraw("AntigenDrops", drawAntigenDrops);
@@ -19348,6 +19574,7 @@
     safeDraw("DamageNumbers", drawDamageNumbers);
     safeDraw("GermIntroBanner", drawGermIntroBanner);
     safeDraw("Atmosphere", drawAtmosphere);
+    if (introOutroActive) { ctx.restore(); }
     // HUD y panel SIEMPRE visibles (excepto en title/intro, que tienen su
     // propio overlay). La cinemática vieja ya no se usa (era el placeholder
     // pre-puente); mantenerlo oculto rompía la jugabilidad si quedaba activo.
@@ -19452,6 +19679,7 @@
     // el mini banner invitan al tap, y el compendio abre con sus datos.
     drawIntroScreen();
     drawTitleScreen();
+    drawTutorialScreen();
     drawConfirmModal();
   }
 
@@ -21272,7 +21500,7 @@
       requestAnimationFrame(loop);
       return;
     }
-    var paused = state.confirmRestart || state.showTitle || state.showIntro || state.cinematicEnd || state.compendiumOpen || !!state.phaseTransition || !!state.bodyMap;
+    var paused = state.confirmRestart || state.showTitle || state.showIntro || state.cinematicEnd || state.compendiumOpen || !!state.phaseTransition || !!state.bodyMap || state.tutorialOpen;
     // Nivel puente: pausamos la lógica al caer el primer carril (cinemática + placeholder).
     if (state.disseminationOver) {
       state.disseminationOver.t += dt;
@@ -21347,7 +21575,8 @@
         }
       }
     }
-    if (state.showIntro && !state.showTitle) updateIntroComic(dt);
+    if (state.showIntro && !state.showTitle && !state.tutorialOpen) updateIntroComic(dt);
+    if (state.tutorialOpen) updateTutorial(dt);
     if (state.cinematicEnd) updateCinematic(dt);
     if (state.bodyMap) updateBodyMap(dt);
     // Transición suave entre fases: fundido a negro, después dispara

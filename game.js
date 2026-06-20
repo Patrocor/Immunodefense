@@ -18412,13 +18412,122 @@
 
   // -------- TUTORIAL (carrusel chico, scrolleable horizontal) ------------
   var TUTORIAL_CARDS = [
-    { icon: "👆", title: "Elegí una célula", text: "Tocá una tarjeta del panel para elegir qué célula vas a colocar." },
-    { icon: "📍", title: "Colocala en el campo", text: "Tocá el campo de juego para plantarla ahí." },
-    { icon: "▶️", title: "Iniciá la oleada", text: "Cuando estés listo, tocá \"Iniciar Oleada\" para que avancen los patógenos." },
-    { icon: "⬆️", title: "Mejorá o vendé", text: "Tocá una torre puesta para subirla de nivel o venderla." },
-    { icon: "⚡", title: "Cargá el poder especial", text: "Cada torre tiene un ultimate: se carga solo y brilla cuando está listo para tocar." },
-    { icon: "📖", title: "Mirá el Dex", text: "Ahí vas a encontrar a todos los gérmenes y células que descubras." }
+    { demo: "pickCell", title: "Elegí una célula", text: "Tocá una tarjeta del panel para elegir qué célula vas a colocar." },
+    { demo: "placeCell", title: "Colocala en el campo", text: "Tocá el campo de juego para plantarla ahí." },
+    { demo: "startWave", title: "Iniciá la oleada", text: "Cuando estés listo, tocá \"Iniciar Oleada\" para que avancen los patógenos." },
+    { demo: "upgradeSell", title: "Mejorá o vendé", text: "Tocá una torre puesta para subirla de nivel o venderla." },
+    { demo: "chargeSpecial", title: "Cargá el poder especial", text: "Cada torre tiene un ultimate: se carga solo y brilla cuando está listo para tocar." },
+    { demo: "openDex", title: "Mirá el Dex", text: "Ahí vas a encontrar a todos los gérmenes y células que descubras." }
   ];
+
+  // Valor 0..1..0 continuo (coseno) que maneja la animación de cada mini
+  // demo del tutorial — "bumerang": va y vuelve en loop mientras la
+  // tarjeta esté en pantalla, sin esperar ninguna interacción.
+  function tutorialBoomerang() {
+    return 0.5 - 0.5 * Math.cos(state.time * 2.4);
+  }
+
+  // Dibuja la mini-animación de una tarjeta dentro de su viewport
+  // (dx,dy,dw,dh ya recortado/clippeado por el caller).
+  function drawTutorialDemo(type, dx, dy, dw, dh) {
+    var bp = tutorialBoomerang();      // 0..1..0
+    var cx = dx + dw / 2, cy = dy + dh / 2;
+    ctx.save();
+    ctx.translate(cx, cy);
+    if (type === "pickCell") {
+      var cardW2 = dw * 0.42, cardH2 = dh * 0.5;
+      var lit = bp > 0.82;
+      ctx.fillStyle = lit ? "rgba(183,156,224,0.9)" : "rgba(183,156,224,0.45)";
+      ctx.strokeStyle = "rgba(255,255,255,0.6)"; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.rect(-cardW2 / 2, -cardH2 / 2, cardW2, cardH2); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = "#7E5FB0";
+      ctx.beginPath(); ctx.arc(0, 0, cardH2 * 0.22, 0, Math.PI * 2); ctx.fill();
+      // Dedo bajando y subiendo (bumerang) sobre la tarjeta.
+      var fingerY = -cardH2 * 1.8 + bp * (cardH2 * 1.55);
+      ctx.fillStyle = "rgba(255,224,189,0.95)"; ctx.strokeStyle = "rgba(0,0,0,0.4)"; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.arc(0, fingerY, dw * 0.05, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      if (lit) {
+        ctx.strokeStyle = "rgba(255,255,255," + ((bp - 0.82) / 0.18 * 0.8) + ")";
+        ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(0, 0, cardH2 * (0.5 + (bp - 0.82) * 2), 0, Math.PI * 2); ctx.stroke();
+      }
+    } else if (type === "placeCell") {
+      var dockX = -dw * 0.32, fieldX = dw * 0.32;
+      ctx.fillStyle = "rgba(255,255,255,0.10)";
+      ctx.beginPath(); ctx.rect(dockX - dw * 0.12, -dh * 0.28, dw * 0.24, dh * 0.56); ctx.fill();
+      ctx.beginPath(); ctx.rect(fieldX - dw * 0.16, -dh * 0.28, dw * 0.32, dh * 0.56); ctx.fill();
+      ctx.strokeStyle = "rgba(255,255,255,0.30)"; ctx.lineWidth = 1;
+      ctx.strokeRect(dockX - dw * 0.12, -dh * 0.28, dw * 0.24, dh * 0.56);
+      ctx.strokeRect(fieldX - dw * 0.16, -dh * 0.28, dw * 0.32, dh * 0.56);
+      var travelX = dockX + (fieldX - dockX) * bp;
+      var arcY = -Math.sin(bp * Math.PI) * dh * 0.22;
+      ctx.fillStyle = "#7E5FB0";
+      ctx.beginPath(); ctx.arc(travelX, arcY, dh * 0.10, 0, Math.PI * 2); ctx.fill();
+      if (bp > 0.85) {
+        ctx.strokeStyle = "rgba(255,255,255," + ((bp - 0.85) / 0.15) + ")"; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(fieldX, 0, dh * (0.14 + (bp - 0.85) * 1.2), 0, Math.PI * 2); ctx.stroke();
+      }
+    } else if (type === "startWave") {
+      var btnScale = 1 - bp * 0.12;
+      ctx.save(); ctx.scale(btnScale, btnScale);
+      ctx.fillStyle = "#3FC1C9";
+      ctx.beginPath(); ctx.rect(-dw * 0.26, -dh * 0.16, dw * 0.52, dh * 0.32); ctx.fill();
+      ctx.strokeStyle = "rgba(255,255,255,0.6)"; ctx.lineWidth = 1.5;
+      ctx.strokeRect(-dw * 0.26, -dh * 0.16, dw * 0.52, dh * 0.32);
+      ctx.fillStyle = "#fff";
+      ctx.font = "bold " + Math.floor(dh * 0.18) + "px Fredoka, sans-serif";
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText("▶ Oleada", 0, 1);
+      ctx.restore();
+      if (bp > 0.6) {
+        ctx.strokeStyle = "rgba(255,255,255," + (0.8 * (1 - (bp - 0.6) / 0.4)) + ")"; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(0, 0, dh * (0.20 + (bp - 0.6) * 0.6), 0, Math.PI * 2); ctx.stroke();
+      }
+    } else if (type === "upgradeSell") {
+      ctx.fillStyle = "#E8923A";
+      ctx.beginPath(); ctx.arc(0, -dh * 0.10, dh * 0.16, 0, Math.PI * 2); ctx.fill();
+      var slide = bp;
+      ctx.globalAlpha = slide;
+      var by = dh * 0.10 + (1 - slide) * dh * 0.12;
+      ctx.fillStyle = "#3FC1C9";
+      ctx.beginPath(); ctx.rect(-dw * 0.26, by, dw * 0.22, dh * 0.16); ctx.fill();
+      ctx.fillStyle = "#fff"; ctx.font = "bold " + Math.floor(dh * 0.12) + "px Fredoka, sans-serif";
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText("⬆", -dw * 0.15, by + dh * 0.08 + 1);
+      ctx.fillStyle = "#E0524F";
+      ctx.beginPath(); ctx.rect(dw * 0.04, by, dw * 0.22, dh * 0.16); ctx.fill();
+      ctx.fillStyle = "#fff";
+      ctx.fillText("$", dw * 0.15, by + dh * 0.08 + 1);
+      ctx.globalAlpha = 1;
+    } else if (type === "chargeSpecial") {
+      ctx.fillStyle = "#E84393";
+      ctx.beginPath(); ctx.arc(0, 0, dh * 0.16, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = "rgba(255,255,255,0.25)"; ctx.lineWidth = 4;
+      ctx.beginPath(); ctx.arc(0, 0, dh * 0.26, 0, Math.PI * 2); ctx.stroke();
+      var full = bp > 0.95;
+      ctx.strokeStyle = full ? "#fff" : "#E84393"; ctx.lineWidth = 4; ctx.lineCap = "round";
+      ctx.beginPath(); ctx.arc(0, 0, dh * 0.26, -Math.PI / 2, -Math.PI / 2 + bp * Math.PI * 2); ctx.stroke();
+      if (full) {
+        ctx.strokeStyle = "rgba(255,255,255,0.7)"; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(0, 0, dh * 0.34, 0, Math.PI * 2); ctx.stroke();
+      }
+    } else if (type === "openDex") {
+      var pulse = 1 + bp * 0.18;
+      ctx.save(); ctx.scale(pulse, pulse);
+      ctx.fillStyle = "#3a2a4a";
+      ctx.beginPath(); ctx.rect(-dw * 0.18, -dh * 0.22, dw * 0.36, dh * 0.44); ctx.fill();
+      ctx.strokeStyle = "rgba(255,255,255,0.5)"; ctx.lineWidth = 1.5;
+      ctx.strokeRect(-dw * 0.18, -dh * 0.22, dw * 0.36, dh * 0.44);
+      ctx.strokeStyle = "rgba(255,255,255,0.35)"; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(0, -dh * 0.22); ctx.lineTo(0, dh * 0.22); ctx.stroke();
+      ctx.restore();
+      if (bp > 0.7) {
+        ctx.fillStyle = "rgba(214,31,31," + ((bp - 0.7) / 0.3) + ")";
+        ctx.beginPath(); ctx.arc(dw * 0.20, -dh * 0.22, dh * 0.07, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+    ctx.restore();
+  }
 
   // -------- COMIC INTRO SCREEN ----------------------------------------
   // -------- INTRO CÓMIC ANIMADA (imágenes + Ken Burns) ------------------
@@ -18767,21 +18876,34 @@
       var card = TUTORIAL_CARDS[i];
       var cx = marginX + i * (cardW + gap) - scroll;
       if (cx + cardW < marginX - 20 || cx > marginX + stripW + 20) continue;
-      ctx.fillStyle = "rgba(255,255,255,0.07)";
-      roundRect(cx, stripY, cardW, cardH, 14); ctx.fill();
-      ctx.strokeStyle = "rgba(255,255,255,0.25)"; ctx.lineWidth = 1.5;
-      roundRect(cx, stripY, cardW, cardH, 14); ctx.stroke();
-      ctx.font = (cardW * 0.26) + "px Fredoka, sans-serif";
+      // Cuadro PLANO (radio 4, igual al resto del juego) — nada de bordes
+      // redondeados grandes ni forma de globo de diálogo.
+      ctx.fillStyle = "rgba(255,255,255,0.06)";
+      roundRect(cx, stripY, cardW, cardH, 4); ctx.fill();
+      ctx.strokeStyle = "rgba(255,255,255,0.30)"; ctx.lineWidth = 1.5;
+      roundRect(cx, stripY, cardW, cardH, 4); ctx.stroke();
+
+      // "Pantallita" con la mini-demo animada del paso (recorte propio).
+      var demoX = cx + 8, demoY = stripY + 8;
+      var demoW = cardW - 16, demoH = cardH * 0.48;
+      ctx.fillStyle = "rgba(0,0,0,0.35)";
+      ctx.fillRect(demoX, demoY, demoW, demoH);
+      ctx.strokeStyle = "rgba(255,255,255,0.18)"; ctx.lineWidth = 1;
+      ctx.strokeRect(demoX, demoY, demoW, demoH);
+      ctx.save();
+      ctx.beginPath(); ctx.rect(demoX, demoY, demoW, demoH); ctx.clip();
+      drawTutorialDemo(card.demo, demoX, demoY, demoW, demoH);
+      ctx.restore();
+
       ctx.fillStyle = "#fff";
       ctx.textAlign = "center"; ctx.textBaseline = "middle";
-      ctx.fillText(card.icon, cx + cardW / 2, stripY + cardH * 0.28);
       ctx.font = "bold 14px Fredoka, sans-serif";
-      ctx.fillText(card.title, cx + cardW / 2, stripY + cardH * 0.52, cardW - 20);
+      ctx.fillText(card.title, cx + cardW / 2, demoY + demoH + 20, cardW - 20);
       ctx.font = "12px Fredoka, sans-serif";
       ctx.fillStyle = "rgba(255,255,255,0.80)";
       var lines = wrapText(card.text, cardW - 24, 12);
       for (var li = 0; li < lines.length; li++) {
-        ctx.fillText(lines[li], cx + cardW / 2, stripY + cardH * 0.66 + li * 15);
+        ctx.fillText(lines[li], cx + cardW / 2, demoY + demoH + 40 + li * 15);
       }
     }
     ctx.restore();

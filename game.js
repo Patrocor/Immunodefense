@@ -15996,47 +15996,70 @@
     ctx.beginPath();
     ctx.arc(0, 0, capR * 1.6, 0, Math.PI * 2);
     ctx.fill();
-    // Espículas gp120 (7) tipo champiñón: tallo delgado + cabeza redonda gorda.
-    var spikeN = 7;
-    var spin = t * 0.3;
-    for (var s = 0; s < spikeN; s++) {
-      var a = (s / spikeN) * Math.PI * 2 + spin;
-      var bx = Math.cos(a) * capR * 0.95;
-      var by = Math.sin(a) * capR * 0.95;
-      var len = 8 * U;
-      var midX = Math.cos(a) * (capR + len * 0.6);
-      var midY = Math.sin(a) * (capR + len * 0.6);
-      var headX = Math.cos(a) * (capR + len);
-      var headY = Math.sin(a) * (capR + len);
-      // Tallo
-      ctx.strokeStyle = "#4A90E2";
-      ctx.lineWidth = Math.max(1.1, 1.4 * U);
-      ctx.lineCap = "round";
+    // Espículas gp120/gp41 agrupadas en 3 TRÍMEROS (estructura real de la
+    // envoltura del HIV): cada trímero abre/cierra el abanico de sus 3
+    // cabezas con fase propia, en vez de girar como puntos sueltos.
+    var trimerCount = 3;
+    var trimerSpin = t * 0.25;
+    for (var tri = 0; tri < trimerCount; tri++) {
+      var triBase = (tri / trimerCount) * Math.PI * 2 + trimerSpin;
+      var triBreathe = 0.5 + 0.5 * Math.sin(t * 1.6 + tri * 2.1);
+      var triSpread = 0.16 + triBreathe * 0.16;
+      for (var sp = -1; sp <= 1; sp++) {
+        var a = triBase + sp * triSpread;
+        var bx = Math.cos(a) * capR * 0.95;
+        var by = Math.sin(a) * capR * 0.95;
+        var len = 8 * U;
+        var midX = Math.cos(a) * (capR + len * 0.6);
+        var midY = Math.sin(a) * (capR + len * 0.6);
+        var headX = Math.cos(a) * (capR + len);
+        var headY = Math.sin(a) * (capR + len);
+        // Tallo
+        ctx.strokeStyle = "#4A90E2";
+        ctx.lineWidth = Math.max(1.1, 1.4 * U);
+        ctx.lineCap = "round";
+        ctx.beginPath();
+        ctx.moveTo(bx, by);
+        ctx.lineTo(midX, midY);
+        ctx.stroke();
+        // Cabeza redonda (gp120)
+        ctx.fillStyle = "#4A90E2";
+        ctx.beginPath();
+        ctx.arc(headX, headY, 3.0 * U, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = "#2868B0";
+        ctx.lineWidth = Math.max(0.6, 0.8 * U);
+        ctx.stroke();
+        // Highlight blanco en la cabeza
+        ctx.fillStyle = "rgba(255,255,255,0.65)";
+        ctx.beginPath();
+        ctx.arc(headX - 0.9 * U, headY - 0.9 * U, 1.1 * U, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      // Base común del trímero (tallo gp41 que sostiene las 3 cabezas).
+      ctx.strokeStyle = "rgba(38, 80, 150, 0.55)";
+      ctx.lineWidth = Math.max(1.0, 1.3 * U);
       ctx.beginPath();
-      ctx.moveTo(bx, by);
-      ctx.lineTo(midX, midY);
+      ctx.arc(0, 0, capR * 0.95, triBase - triSpread * 1.3, triBase + triSpread * 1.3);
       ctx.stroke();
-      // Cabeza redonda (gp120)
-      ctx.fillStyle = "#4A90E2";
-      ctx.beginPath();
-      ctx.arc(headX, headY, 3.0 * U, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = "#2868B0";
-      ctx.lineWidth = Math.max(0.6, 0.8 * U);
-      ctx.stroke();
-      // Highlight blanco en la cabeza
-      ctx.fillStyle = "rgba(255,255,255,0.65)";
-      ctx.beginPath();
-      ctx.arc(headX - 0.9 * U, headY - 0.9 * U, 1.1 * U, 0, Math.PI * 2);
-      ctx.fill();
     }
-    // Hexágono exterior (envoltura)
+    // Envoltura lipídica: contorno orgánico ondulante (no un polígono
+    // rígido) — 10 puntos que respiran con fase propia, como una membrana
+    // fluida real en vez de un hexágono geométrico.
+    var envN = 10;
+    var envPts = [];
+    for (var ek = 0; ek < envN; ek++) {
+      var ea = (ek / envN) * Math.PI * 2;
+      var er = capR * (1 + Math.sin(t * 1.3 + ek * 1.7 + e.wobble) * 0.09);
+      envPts.push([Math.cos(ea) * er, Math.sin(ea) * er]);
+    }
     ctx.beginPath();
-    for (var k = 0; k < 6; k++) {
-      var ka = k * Math.PI / 3 - Math.PI / 2;
-      var kx = Math.cos(ka) * capR;
-      var ky = Math.sin(ka) * capR;
-      if (k === 0) ctx.moveTo(kx, ky); else ctx.lineTo(kx, ky);
+    var emx0 = (envPts[0][0] + envPts[envN - 1][0]) / 2, emy0 = (envPts[0][1] + envPts[envN - 1][1]) / 2;
+    ctx.moveTo(emx0, emy0);
+    for (var ek2 = 0; ek2 < envN; ek2++) {
+      var enNext = envPts[(ek2 + 1) % envN];
+      var emx = (envPts[ek2][0] + enNext[0]) / 2, emy = (envPts[ek2][1] + enNext[1]) / 2;
+      ctx.quadraticCurveTo(envPts[ek2][0], envPts[ek2][1], emx, emy);
     }
     ctx.closePath();
     var grad = ctx.createRadialGradient(-capR * 0.35, -capR * 0.35, capR * 0.2, 0, 0, capR);
@@ -16048,16 +16071,52 @@
     ctx.strokeStyle = "#4A1264";
     ctx.lineWidth = Math.max(1.0, 1.3 * U);
     ctx.stroke();
-    // Cápside cónica truncada interior (trapecio invertido) en #4B0082.
+    // Cápside cónica truncada interior (trapecio invertido) en #4B0082,
+    // con núcleo de ARN genómico animado (doble hebra, misma técnica que el
+    // ADN de HSV) + transcriptasa reversa parpadeante.
     if (!hit) {
+      var capPts = [
+        [-capR * 0.50, -capR * 0.45], [capR * 0.50, -capR * 0.45],
+        [capR * 0.30, capR * 0.55], [-capR * 0.30, capR * 0.55]
+      ];
+      var traceCapPath = function () {
+        ctx.beginPath();
+        ctx.moveTo(capPts[0][0], capPts[0][1]);
+        for (var cp = 1; cp < capPts.length; cp++) ctx.lineTo(capPts[cp][0], capPts[cp][1]);
+        ctx.closePath();
+      };
+      traceCapPath();
       ctx.fillStyle = "#4B0082";
-      ctx.beginPath();
-      ctx.moveTo(-capR * 0.50, -capR * 0.45);
-      ctx.lineTo( capR * 0.50, -capR * 0.45);
-      ctx.lineTo( capR * 0.30,  capR * 0.55);
-      ctx.lineTo(-capR * 0.30,  capR * 0.55);
-      ctx.closePath();
       ctx.fill();
+      ctx.save();
+      traceCapPath();
+      ctx.clip();
+      ctx.strokeStyle = "rgba(255, 140, 170, 0.85)";
+      ctx.lineWidth = Math.max(0.9, 1.1 * U);
+      ctx.lineCap = "round";
+      var rnaPhase = t * 0.8;
+      var rnaR = capR * 0.28;
+      for (var rd = 0; rd < 2; rd++) {
+        ctx.beginPath();
+        var rnPts = 10;
+        for (var rp = 0; rp <= rnPts; rp++) {
+          var rFrac = rp / rnPts;
+          var rAng = rFrac * Math.PI * 2 + rd * Math.PI + rnaPhase;
+          var rx = Math.cos(rAng) * rnaR;
+          var ry = (rFrac - 0.5) * capR * 0.85;
+          if (rp === 0) ctx.moveTo(rx, ry); else ctx.lineTo(rx, ry);
+        }
+        ctx.stroke();
+      }
+      for (var rt = 0; rt < 2; rt++) {
+        var rtBlink = 0.5 + 0.5 * Math.sin(t * 4 + rt * 2.5);
+        ctx.fillStyle = "rgba(255, 215, 120, " + (0.4 + rtBlink * 0.5) + ")";
+        ctx.beginPath();
+        ctx.arc((rt === 0 ? -1 : 1) * capR * 0.18, capR * 0.10, 1.3 * U, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+      traceCapPath();
       ctx.strokeStyle = "rgba(255,255,255,0.18)";
       ctx.lineWidth = Math.max(0.8, 1 * U);
       ctx.stroke();

@@ -14498,17 +14498,72 @@
   // HPV — cápside facetada (icosaedro) con bultos de queratina.
   function drawHPV(e, rad, expression, blink) {
     var R = rad, faces = 10;
+    var t = state.time;
     ctx.save(); ctx.translate(e.x, e.y);
     var grad = ctx.createRadialGradient(-R * 0.3, -R * 0.3, R * 0.2, 0, 0, R);
     grad.addColorStop(0, e.def.colorLight || "#c2cf90"); grad.addColorStop(0.6, e.def.color); grad.addColorStop(1, e.def.colorDark);
     ctx.fillStyle = (e.hitFlash > 0) ? "#fff" : grad;
+    // Cápside icosaédrica: cada faceta late con su propia fase (no es un
+    // bump fijo alternado) — un latido capsídico sutil en vez de geometría rígida.
     ctx.beginPath();
-    for (var i = 0; i < faces; i++) { var a = i / faces * Math.PI * 2 - Math.PI / 2, rr = R * (0.92 + 0.1 * ((i % 2) ? 1 : 0)), px = Math.cos(a) * rr, py = Math.sin(a) * rr; if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py); }
+    for (var i = 0; i < faces; i++) {
+      var a = i / faces * Math.PI * 2 - Math.PI / 2;
+      var baseR = 0.92 + 0.1 * ((i % 2) ? 1 : 0);
+      var facePulse = Math.sin(t * 1.6 + i * 1.05 + e.wobble * 0.3) * 0.035;
+      var rr = R * (baseR + facePulse);
+      var px = Math.cos(a) * rr, py = Math.sin(a) * rr;
+      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
     ctx.closePath(); ctx.fill();
     ctx.strokeStyle = e.def.colorDark; ctx.lineWidth = Math.max(1.2, 1.6 * U); ctx.stroke();
     ctx.strokeStyle = "rgba(0,0,0,0.15)"; ctx.lineWidth = 1;
     for (var j = 0; j < faces; j++) { var a2 = j / faces * Math.PI * 2 - Math.PI / 2; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(Math.cos(a2) * R * 0.9, Math.sin(a2) * R * 0.9); ctx.stroke(); }
-    for (var k = 0; k < 5; k++) { var ka = k * 1.3 + 0.4; ctx.fillStyle = "rgba(220,210,160,0.85)"; ctx.beginPath(); ctx.arc(Math.cos(ka) * R * 0.72, Math.sin(ka) * R * 0.72, R * 0.15, 0, Math.PI * 2); ctx.fill(); }
+    // Grietas de queratina: aparecen con el escudo real dañado y sanan a
+    // medida que regenera (e.shieldHP / def.shield.maxHP) — no decorativo,
+    // complementa el anillo genérico de escudo sin duplicarlo.
+    if (e.def.shield && e.shieldHP != null) {
+      var shieldRatio = e.def.shield.maxHP > 0 ? Math.max(0, e.shieldHP) / e.def.shield.maxHP : 1;
+      var damage = 1 - shieldRatio;
+      if (damage > 0.05) {
+        var crackSeeds = [{ a: 0.6, len: 0.55 }, { a: 2.1, len: 0.45 }, { a: 4.0, len: 0.50 }];
+        var crackCount = Math.min(crackSeeds.length, 1 + Math.floor(damage * 3));
+        ctx.strokeStyle = "rgba(40, 35, 15, " + (0.30 + damage * 0.45) + ")";
+        ctx.lineWidth = Math.max(0.7, 0.9 * U);
+        ctx.lineCap = "round";
+        for (var c = 0; c < crackCount; c++) {
+          var cs = crackSeeds[c];
+          var cLen = R * cs.len * Math.min(1, damage * 1.6);
+          var cx0 = Math.cos(cs.a) * R * 0.15, cy0 = Math.sin(cs.a) * R * 0.15;
+          var cx1 = Math.cos(cs.a) * (R * 0.15 + cLen), cy1 = Math.sin(cs.a) * (R * 0.15 + cLen);
+          var jagX = (cx0 + cx1) / 2 + Math.cos(cs.a + Math.PI / 2) * R * 0.06;
+          var jagY = (cy0 + cy1) / 2 + Math.sin(cs.a + Math.PI / 2) * R * 0.06;
+          ctx.beginPath();
+          ctx.moveTo(cx0, cy0);
+          ctx.lineTo(jagX, jagY);
+          ctx.lineTo(cx1, cy1);
+          ctx.stroke();
+        }
+      }
+    }
+    // Capsómeros: brotan progresivamente con el tiempo en pantalla (no
+    // están los 8 desde el spawn) — arrancan en 2 y germinan uno nuevo
+    // cada ~4s hasta el máximo.
+    if (e._hpvSpawnT == null) e._hpvSpawnT = t;
+    var age = t - e._hpvSpawnT;
+    var growInterval = 4.0;
+    var minCaps = 2, maxCaps = 8;
+    var visibleCaps = Math.min(maxCaps, minCaps + Math.floor(age / growInterval));
+    var growProgress = (age / growInterval) % 1;
+    for (var k = 0; k < visibleCaps; k++) {
+      var ka = k * 1.3 + 0.4;
+      var growing = (k === visibleCaps - 1) && visibleCaps < maxCaps;
+      var capScale = growing ? Math.min(1, growProgress + 0.15) : 1;
+      var capPulse = 1 + Math.sin(t * 1.8 + k * 1.9) * 0.06;
+      ctx.fillStyle = "rgba(220,210,160,0.85)";
+      ctx.beginPath();
+      ctx.arc(Math.cos(ka) * R * 0.72, Math.sin(ka) * R * 0.72, R * 0.15 * capScale * capPulse, 0, Math.PI * 2);
+      ctx.fill();
+    }
     germFace(R, expression, blink, R * 0.30);
     ctx.restore();
   }

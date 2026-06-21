@@ -14451,13 +14451,13 @@
       var outFrac = Math.min(1, Math.max(0, e.surfaceTimer) / fadeWindow);
       var depthFrac = Math.min(inFrac, outFrac);
       var tunnelScale = 0.55 + depthFrac * 0.45;
-      ctx.fillStyle = "rgba(90,60,30," + (0.55 * depthFrac) + ")";
+      ctx.fillStyle = "rgba(90,60,30," + (0.70 * depthFrac) + ")";
       ctx.beginPath();
       ctx.ellipse(0, R * 0.55, R * 1.15 * tunnelScale, R * 0.5 * tunnelScale, 0, 0, Math.PI * 2);
       ctx.fill();
       // Línea del túnel serpenteante (visible bajo la piel)
-      ctx.strokeStyle = "rgba(60, 40, 20, " + (0.45 * depthFrac) + ")";
-      ctx.lineWidth = Math.max(1.2, 1.8 * U);
+      ctx.strokeStyle = "rgba(60, 40, 20, " + (0.60 * depthFrac) + ")";
+      ctx.lineWidth = Math.max(1.6, 2.3 * U);
       ctx.setLineDash([3, 3]);
       ctx.beginPath();
       for (var tu = 0; tu < 12; tu++) {
@@ -14474,14 +14474,14 @@
     // alternada real (2 grupos en contrafase), no una onda sincronizada
     // con el reloj: se congela si no se está desplazando de verdad.
     ctx.strokeStyle = e.def.colorDark;
-    ctx.lineWidth = Math.max(1.4, 2 * U);
+    ctx.lineWidth = Math.max(1.8, 2.5 * U);
     ctx.lineCap = "round";
     for (var i = 0; i < 8; i++) {
       var side = (i < 4 ? -1 : 1), idx = i % 4;
       var ly = (-0.45 + idx * 0.32) * R;
       var group = (idx + (side === 1 ? 1 : 0)) % 2;
       var legPhase = gaitPhase + (group === 0 ? 0 : Math.PI) + idx * 0.5;
-      var bend = Math.sin(legPhase) * 0.22;
+      var bend = Math.sin(legPhase) * 0.34;
       // Pata articulada en 2 segmentos (femur + tibia)
       var kneeX = side * R * 1.15;
       var kneeY = ly + R * 0.12 + bend * R * 0.7;
@@ -14502,7 +14502,7 @@
       ctx.moveTo(tipX, tipY);
       ctx.lineTo(tipX + side * 2 * U, tipY + 2 * U);
       ctx.stroke();
-      ctx.lineWidth = Math.max(1.4, 2 * U);
+      ctx.lineWidth = Math.max(1.8, 2.5 * U);
     }
     // CUERPO ovoide
     var grad = ctx.createRadialGradient(-R * 0.3, -R * 0.3, R * 0.2, 0, 0, R * 1.1);
@@ -14527,11 +14527,11 @@
     // QUELÍCEROS (mandíbulas) — mastican al ritmo real de la marcha y se
     // abren + brillan justo antes de emerger del túnel (mordisco sorpresa).
     var chew = 0.5 + 0.5 * Math.sin(gaitPhase * 2);
-    var biteSpread = chew * 0.10 + emergeBite * 0.24;
+    var biteSpread = chew * 0.18 + emergeBite * 0.34;
     if (emergeBite > 0.05) {
-      ctx.fillStyle = "rgba(255, 245, 200, " + (emergeBite * 0.55) + ")";
+      ctx.fillStyle = "rgba(255, 248, 210, " + (emergeBite * 0.80) + ")";
       ctx.beginPath();
-      ctx.arc(0, -R * 0.95, R * (0.35 + emergeBite * 0.25), 0, Math.PI * 2);
+      ctx.arc(0, -R * 0.95, R * (0.40 + emergeBite * 0.40), 0, Math.PI * 2);
       ctx.fill();
     }
     ctx.fillStyle = e.def.colorDark;
@@ -14571,7 +14571,7 @@
     for (var i = 0; i < faces; i++) {
       var a = i / faces * Math.PI * 2 - Math.PI / 2;
       var baseR = 0.92 + 0.1 * ((i % 2) ? 1 : 0);
-      var facePulse = Math.sin(t * 1.6 + i * 1.05 + e.wobble * 0.3) * 0.035;
+      var facePulse = Math.sin(t * 1.6 + i * 1.05 + e.wobble * 0.3) * 0.08;
       var rr = R * (baseR + facePulse);
       var px = Math.cos(a) * rr, py = Math.sin(a) * rr;
       if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
@@ -14589,16 +14589,24 @@
       if (damage > 0.05) {
         var crackSeeds = [{ a: 0.6, len: 0.55 }, { a: 2.1, len: 0.45 }, { a: 4.0, len: 0.50 }];
         var crackCount = Math.min(crackSeeds.length, 1 + Math.floor(damage * 3));
-        ctx.strokeStyle = "rgba(40, 35, 15, " + (0.30 + damage * 0.45) + ")";
-        ctx.lineWidth = Math.max(0.7, 0.9 * U);
         ctx.lineCap = "round";
         for (var c = 0; c < crackCount; c++) {
           var cs = crackSeeds[c];
-          var cLen = R * cs.len * Math.min(1, damage * 1.6);
+          var cLen = R * cs.len * Math.min(1, damage * 1.9);
           var cx0 = Math.cos(cs.a) * R * 0.15, cy0 = Math.sin(cs.a) * R * 0.15;
           var cx1 = Math.cos(cs.a) * (R * 0.15 + cLen), cy1 = Math.sin(cs.a) * (R * 0.15 + cLen);
-          var jagX = (cx0 + cx1) / 2 + Math.cos(cs.a + Math.PI / 2) * R * 0.06;
-          var jagY = (cy0 + cy1) / 2 + Math.sin(cs.a + Math.PI / 2) * R * 0.06;
+          var jagX = (cx0 + cx1) / 2 + Math.cos(cs.a + Math.PI / 2) * R * 0.10;
+          var jagY = (cy0 + cy1) / 2 + Math.sin(cs.a + Math.PI / 2) * R * 0.10;
+          // Halo claro bajo la grieta — se nota mucho más sobre el verde.
+          ctx.strokeStyle = "rgba(255, 235, 180, " + (damage * 0.55) + ")";
+          ctx.lineWidth = Math.max(1.6, 2.2 * U);
+          ctx.beginPath();
+          ctx.moveTo(cx0, cy0);
+          ctx.lineTo(jagX, jagY);
+          ctx.lineTo(cx1, cy1);
+          ctx.stroke();
+          ctx.strokeStyle = "rgba(35, 30, 12, " + (0.45 + damage * 0.50) + ")";
+          ctx.lineWidth = Math.max(1.1, 1.4 * U);
           ctx.beginPath();
           ctx.moveTo(cx0, cy0);
           ctx.lineTo(jagX, jagY);
@@ -14620,11 +14628,22 @@
       var ka = k * 1.3 + 0.4;
       var growing = (k === visibleCaps - 1) && visibleCaps < maxCaps;
       var capScale = growing ? Math.min(1, growProgress + 0.15) : 1;
-      var capPulse = 1 + Math.sin(t * 1.8 + k * 1.9) * 0.06;
-      ctx.fillStyle = "rgba(220,210,160,0.85)";
+      var capPulse = 1 + Math.sin(t * 1.8 + k * 1.9) * 0.12;
+      var capX = Math.cos(ka) * R * 0.72, capY = Math.sin(ka) * R * 0.72;
+      var capR2 = R * 0.18 * capScale * capPulse;
+      ctx.fillStyle = "rgba(235, 225, 175, 0.95)";
       ctx.beginPath();
-      ctx.arc(Math.cos(ka) * R * 0.72, Math.sin(ka) * R * 0.72, R * 0.15 * capScale * capPulse, 0, Math.PI * 2);
+      ctx.arc(capX, capY, capR2, 0, Math.PI * 2);
       ctx.fill();
+      ctx.strokeStyle = "rgba(150, 130, 70, 0.75)";
+      ctx.lineWidth = Math.max(0.8, 1.0 * U);
+      ctx.stroke();
+      if (growing) {
+        ctx.fillStyle = "rgba(255, 250, 210, " + (0.5 * (1 - growProgress)) + ")";
+        ctx.beginPath();
+        ctx.arc(capX, capY, capR2 * 1.6, 0, Math.PI * 2);
+        ctx.fill();
+      }
     }
     germFace(R, expression, blink, R * 0.30);
     ctx.restore();
@@ -14652,7 +14671,7 @@
     var hpFrac = (e.maxHp > 0) ? e.hp / e.maxHp : 1;
     var pinch = hpFrac < 0.30 ? Math.min(1, (0.30 - hpFrac) / 0.30) : 0;
     var pinchPulse = 0.5 + 0.5 * Math.sin(t * 5 + e.wobble);
-    var midSqueeze = pinch * (0.35 + pinchPulse * 0.10);
+    var midSqueeze = pinch * (0.48 + pinchPulse * 0.18);
     var waistW = bw * (1 - midSqueeze);
     var grad = ctx.createRadialGradient(-R * 0.3, -R * 0.4, R * 0.2, 0, 0, R * 1.1);
     grad.addColorStop(0, "#ffffff");
@@ -14697,30 +14716,30 @@
     ctx.lineWidth = 0.9 * U;
     ctx.stroke();
     if (sporeReady > 0.05) {
-      ctx.fillStyle = "rgba(255, 235, 180, " + (sporeReady * 0.65) + ")";
+      ctx.fillStyle = "rgba(255, 240, 160, " + (sporeReady * 0.85) + ")";
       ctx.beginPath();
-      ctx.ellipse(0, -R * 0.55, dimpleRX * 0.55, dimpleRY * 0.55, 0, 0, Math.PI * 2);
+      ctx.ellipse(0, -R * 0.55, dimpleRX * 0.75, dimpleRY * 0.75, 0, 0, Math.PI * 2);
       ctx.fill();
     }
     // HENDERSON-PATERSON BODIES (cuerpos de inclusión virales) — flotan con
     // una leve órbita propia + pulso de opacidad, en vez de manchas fijas.
     var hpPositions = [
-      { x: -R * 0.30, y:  R * 0.25, r: R * 0.10, phase: 0.0, orbitR: R * 0.05 },
-      { x:  R * 0.32, y:  R * 0.15, r: R * 0.09, phase: 2.1, orbitR: R * 0.04 },
-      { x:  R * 0.05, y:  R * 0.42, r: R * 0.08, phase: 4.3, orbitR: R * 0.045 }
+      { x: -R * 0.30, y:  R * 0.25, r: R * 0.12, phase: 0.0, orbitR: R * 0.14 },
+      { x:  R * 0.32, y:  R * 0.15, r: R * 0.11, phase: 2.1, orbitR: R * 0.12 },
+      { x:  R * 0.05, y:  R * 0.42, r: R * 0.10, phase: 4.3, orbitR: R * 0.13 }
     ];
     for (var hpi = 0; hpi < hpPositions.length; hpi++) {
       var hp = hpPositions[hpi];
       var orbAng = t * 0.8 + hp.phase;
       var hx = hp.x + Math.cos(orbAng) * hp.orbitR;
       var hy = hp.y + Math.sin(orbAng) * hp.orbitR * 0.6;
-      var hpPulse = 0.6 + 0.4 * Math.sin(t * 1.4 + hp.phase * 1.3);
-      ctx.fillStyle = "rgba(120, 80, 50, " + (0.70 * hpPulse) + ")";
+      var hpPulse = 0.5 + 0.5 * Math.sin(t * 1.4 + hp.phase * 1.3);
+      ctx.fillStyle = "rgba(150, 95, 55, " + (0.55 + hpPulse * 0.40) + ")";
       ctx.beginPath();
       ctx.arc(hx, hy, hp.r, 0, Math.PI * 2);
       ctx.fill();
-      ctx.strokeStyle = "rgba(80, 50, 30, " + (0.60 * hpPulse) + ")";
-      ctx.lineWidth = 0.8 * U;
+      ctx.strokeStyle = "rgba(80, 50, 30, " + (0.50 + hpPulse * 0.40) + ")";
+      ctx.lineWidth = Math.max(0.9, 1.1 * U);
       ctx.stroke();
     }
     // TEXTURA CEROSA — highlight nacarado superficial
@@ -14977,17 +14996,17 @@
       var len = bh * (cfg.minF + gFrac * (cfg.maxF - cfg.minF));
       var tx = hx0 + Math.cos(ha) * len, ty = -bh * 0.65 + Math.sin(ha) * len;
       var mx = hx0 + Math.cos(ha) * len * 0.5, my = -bh * 0.65 + Math.sin(ha) * len * 0.5 - 3 * U;
-      ctx.strokeStyle = cold; ctx.lineWidth = Math.max(1, 1.5 * U); ctx.lineCap = "round";
+      ctx.strokeStyle = cold; ctx.lineWidth = Math.max(1.4, 2.1 * U); ctx.lineCap = "round";
       ctx.beginPath(); ctx.moveTo(hx0, -bh * 0.65); ctx.quadraticCurveTo(mx, my, tx, ty); ctx.stroke();
       var isNext = (h === nextHyphaIdx) && spawnReady > 0.02;
-      var tipR = 2.8 * U * (1 + (isNext ? spawnReady * 0.9 : 0));
+      var tipR = 2.8 * U * (1 + (isNext ? spawnReady * 1.4 : 0));
       if (isNext) {
-        ctx.fillStyle = "rgba(220, 255, 120, " + (spawnReady * 0.70) + ")";
-        ctx.beginPath(); ctx.arc(tx, ty, tipR * 1.9, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = "rgba(230, 255, 130, " + (spawnReady * 0.90) + ")";
+        ctx.beginPath(); ctx.arc(tx, ty, tipR * 2.4, 0, Math.PI * 2); ctx.fill();
       }
       ctx.fillStyle = col;
       ctx.beginPath(); ctx.arc(tx, ty, tipR, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = cold; ctx.lineWidth = 1; ctx.stroke();
+      ctx.strokeStyle = cold; ctx.lineWidth = Math.max(0.8, 1.1 * U); ctx.stroke();
     }
     // Cuerpo (óvalo alto).
     var grad = ctx.createRadialGradient(-bw * 0.3, -bh * 0.3, bh * 0.2, 0, 0, bh);
@@ -15008,8 +15027,8 @@
       var rawD = ((cascadePhase - sIdx) % 3 + 3) % 3;
       var dist = Math.min(rawD, 3 - rawD);
       var glow = moving ? Math.max(0, 1 - dist) : 0;
-      ctx.strokeStyle = "rgba(" + Math.round(94 + glow * 120) + ", " + Math.round(106 + glow * 130) + ", " + Math.round(44 + glow * 40) + ", " + (0.40 + glow * 0.55) + ")";
-      ctx.lineWidth = 1 + glow * 1.8;
+      ctx.strokeStyle = "rgba(" + Math.round(94 + glow * 150) + ", " + Math.round(106 + glow * 160) + ", " + Math.round(44 + glow * 60) + ", " + (0.45 + glow * 0.55) + ")";
+      ctx.lineWidth = Math.max(1.2, 1.5 * U) + glow * 3.2;
       ctx.beginPath();
       ctx.moveTo(-bw * 0.7, sct * bh * 0.34); ctx.lineTo(bw * 0.7, sct * bh * 0.34); ctx.stroke();
     }
@@ -16077,12 +16096,12 @@
     if (moving) {
       ctx.save();
       ctx.rotate(e._heading || 0);
-      ctx.strokeStyle = "rgba(168, 154, 200, 0.60)";
-      ctx.lineWidth = 1.6 * U;
+      ctx.strokeStyle = "rgba(195, 180, 230, 0.85)";
+      ctx.lineWidth = 2.6 * U;
       ctx.lineCap = "round";
-      for (var sl = -1; sl <= 1; sl++) {
-        var slOff = sl * capR * 0.45;
-        var slLen = capR * (0.75 + Math.sin(t * 8 + sl) * 0.10);
+      for (var sl = -1.5; sl <= 1.5; sl++) {
+        var slOff = sl * capR * 0.42;
+        var slLen = capR * (1.05 + Math.sin(t * 8 + sl) * 0.20);
         ctx.beginPath();
         ctx.moveTo(-capR * 0.95, slOff);
         ctx.lineTo(-capR * 0.95 - slLen, slOff);
@@ -16099,25 +16118,25 @@
     ctx.lineCap = "round";
     for (var s = 0; s < spikeN; s++) {
       var a = (s / spikeN) * Math.PI * 2 + spin;
-      var pulse = 1 + Math.sin(t * 2 + s) * 0.05;
+      var pulse = 1 + Math.sin(t * 2 + s) * 0.09;
       var bx = Math.cos(a) * capR * 0.92;
       var by = Math.sin(a) * capR * 0.92;
-      var len = 7 * U * pulse;
+      var len = 9 * U * pulse;
       var ex = Math.cos(a) * (capR + len);
       var ey = Math.sin(a) * (capR + len);
-      ctx.strokeStyle = "#8A78B0";
-      ctx.lineWidth = Math.max(1.0, 1.4 * U);
+      ctx.strokeStyle = "#9D89CC";
+      ctx.lineWidth = Math.max(1.4, 1.9 * U);
       ctx.beginPath();
       ctx.moveTo(bx, by);
       ctx.lineTo(ex, ey);
       ctx.stroke();
       // Cabeza (champiñón / T)
-      ctx.fillStyle = "#A89AC8";
+      ctx.fillStyle = "#C2B2E8";
       ctx.beginPath();
-      ctx.arc(ex, ey, 2.2 * U, 0, Math.PI * 2);
+      ctx.arc(ex, ey, 2.8 * U, 0, Math.PI * 2);
       ctx.fill();
       ctx.strokeStyle = "#483B66";
-      ctx.lineWidth = Math.max(0.6, 0.8 * U);
+      ctx.lineWidth = Math.max(0.8, 1.0 * U);
       ctx.stroke();
     }
     // Hexágono regular (cápside icosaédrica)
@@ -16148,8 +16167,11 @@
       ctx.moveTo(hexPts[0][0], hexPts[0][1]);
       for (var hp = 1; hp < hexPts.length; hp++) ctx.lineTo(hexPts[hp][0], hexPts[hp][1]);
       ctx.closePath();
-      ctx.fillStyle = "rgba(224, 110, 175, " + (0.10 + shimmer * 0.18) + ")";
+      ctx.fillStyle = "rgba(235, 95, 175, " + (0.22 + shimmer * 0.40) + ")";
       ctx.fill();
+      ctx.strokeStyle = "rgba(255, 170, 220, " + (0.35 + shimmer * 0.45) + ")";
+      ctx.lineWidth = Math.max(1.0, 1.4 * U);
+      ctx.stroke();
     }
     // Highlight
     ctx.fillStyle = "rgba(255,255,255,0.28)";
@@ -16197,41 +16219,41 @@
     for (var tri = 0; tri < trimerCount; tri++) {
       var triBase = (tri / trimerCount) * Math.PI * 2 + trimerSpin;
       var triBreathe = 0.5 + 0.5 * Math.sin(t * 1.6 + tri * 2.1);
-      var triSpread = 0.16 + triBreathe * 0.16;
+      var triSpread = 0.22 + triBreathe * 0.28;
       for (var sp = -1; sp <= 1; sp++) {
         var a = triBase + sp * triSpread;
         var bx = Math.cos(a) * capR * 0.95;
         var by = Math.sin(a) * capR * 0.95;
-        var len = 8 * U;
+        var len = 10 * U;
         var midX = Math.cos(a) * (capR + len * 0.6);
         var midY = Math.sin(a) * (capR + len * 0.6);
         var headX = Math.cos(a) * (capR + len);
         var headY = Math.sin(a) * (capR + len);
         // Tallo
-        ctx.strokeStyle = "#4A90E2";
-        ctx.lineWidth = Math.max(1.1, 1.4 * U);
+        ctx.strokeStyle = "#5BA3F5";
+        ctx.lineWidth = Math.max(1.5, 1.9 * U);
         ctx.lineCap = "round";
         ctx.beginPath();
         ctx.moveTo(bx, by);
         ctx.lineTo(midX, midY);
         ctx.stroke();
         // Cabeza redonda (gp120)
-        ctx.fillStyle = "#4A90E2";
+        ctx.fillStyle = "#5BA3F5";
         ctx.beginPath();
-        ctx.arc(headX, headY, 3.0 * U, 0, Math.PI * 2);
+        ctx.arc(headX, headY, 3.8 * U, 0, Math.PI * 2);
         ctx.fill();
         ctx.strokeStyle = "#2868B0";
-        ctx.lineWidth = Math.max(0.6, 0.8 * U);
+        ctx.lineWidth = Math.max(0.8, 1.0 * U);
         ctx.stroke();
         // Highlight blanco en la cabeza
-        ctx.fillStyle = "rgba(255,255,255,0.65)";
+        ctx.fillStyle = "rgba(255,255,255,0.80)";
         ctx.beginPath();
-        ctx.arc(headX - 0.9 * U, headY - 0.9 * U, 1.1 * U, 0, Math.PI * 2);
+        ctx.arc(headX - 1.1 * U, headY - 1.1 * U, 1.5 * U, 0, Math.PI * 2);
         ctx.fill();
       }
       // Base común del trímero (tallo gp41 que sostiene las 3 cabezas).
-      ctx.strokeStyle = "rgba(38, 80, 150, 0.55)";
-      ctx.lineWidth = Math.max(1.0, 1.3 * U);
+      ctx.strokeStyle = "rgba(60, 120, 210, 0.80)";
+      ctx.lineWidth = Math.max(1.6, 2.0 * U);
       ctx.beginPath();
       ctx.arc(0, 0, capR * 0.95, triBase - triSpread * 1.3, triBase + triSpread * 1.3);
       ctx.stroke();
@@ -16243,7 +16265,7 @@
     var envPts = [];
     for (var ek = 0; ek < envN; ek++) {
       var ea = (ek / envN) * Math.PI * 2;
-      var er = capR * (1 + Math.sin(t * 1.3 + ek * 1.7 + e.wobble) * 0.09);
+      var er = capR * (1 + Math.sin(t * 1.3 + ek * 1.7 + e.wobble) * 0.17);
       envPts.push([Math.cos(ea) * er, Math.sin(ea) * er]);
     }
     ctx.beginPath();
@@ -16284,11 +16306,11 @@
       ctx.save();
       traceCapPath();
       ctx.clip();
-      ctx.strokeStyle = "rgba(255, 140, 170, 0.85)";
-      ctx.lineWidth = Math.max(0.9, 1.1 * U);
+      ctx.strokeStyle = "rgba(255, 110, 155, 0.95)";
+      ctx.lineWidth = Math.max(1.2, 1.5 * U);
       ctx.lineCap = "round";
       var rnaPhase = t * 0.8;
-      var rnaR = capR * 0.28;
+      var rnaR = capR * 0.34;
       for (var rd = 0; rd < 2; rd++) {
         ctx.beginPath();
         var rnPts = 10;
@@ -16303,9 +16325,9 @@
       }
       for (var rt = 0; rt < 2; rt++) {
         var rtBlink = 0.5 + 0.5 * Math.sin(t * 4 + rt * 2.5);
-        ctx.fillStyle = "rgba(255, 215, 120, " + (0.4 + rtBlink * 0.5) + ")";
+        ctx.fillStyle = "rgba(255, 225, 130, " + (0.55 + rtBlink * 0.45) + ")";
         ctx.beginPath();
-        ctx.arc((rt === 0 ? -1 : 1) * capR * 0.18, capR * 0.10, 1.3 * U, 0, Math.PI * 2);
+        ctx.arc((rt === 0 ? -1 : 1) * capR * 0.18, capR * 0.10, 1.9 * U, 0, Math.PI * 2);
         ctx.fill();
       }
       ctx.restore();
@@ -16363,7 +16385,7 @@
       var partialFrac = visibleLen - segCount;
       var px = ox, py = oy;
       for (var sg = 0; sg < segCount; sg++) {
-        var wave = Math.sin(t * 2.5 + hi * 1.7 + sg * 0.9 + e.wobble) * 2.5 * U;
+        var wave = Math.sin(t * 2.5 + hi * 1.7 + sg * 0.9 + e.wobble) * 3.8 * U;
         var nx = ox + dirX * segLen * (sg + 1) + perpX * wave;
         var ny = oy + dirY * segLen * (sg + 1) + perpY * wave;
         var midX = (px + nx) / 2;
@@ -16437,15 +16459,15 @@
       }
       for (var pl = 0; pl < e._chitinPlates.length; pl++) {
         var plate = e._chitinPlates[pl];
-        var bulge = 1 + Math.sin(t * 1.1 + plate.phase) * 0.05;
+        var bulge = 1 + Math.sin(t * 1.1 + plate.phase) * 0.11;
         var pcx = Math.cos(plate.angle) * bw * plate.rScale * bulge;
         var pcy = Math.sin(plate.angle) * bh * plate.rScale * bulge;
-        ctx.fillStyle = "rgba(255,255,255,0.10)";
+        ctx.fillStyle = "rgba(245, 235, 180, 0.30)";
         ctx.beginPath();
         ctx.ellipse(pcx, pcy, bw * plate.w, bh * plate.h, plate.angle, 0, Math.PI * 2);
         ctx.fill();
-        ctx.strokeStyle = "rgba(90, 120, 50, 0.35)";
-        ctx.lineWidth = Math.max(0.6, 0.8 * U);
+        ctx.strokeStyle = "rgba(70, 95, 35, 0.65)";
+        ctx.lineWidth = Math.max(1.0, 1.3 * U);
         ctx.stroke();
       }
     }
@@ -16521,10 +16543,13 @@
       } else if (scarAlpha > 0.02 && !hit) {
         // Cicatriz de gemación: marca oscura donde se separó la última yema.
         var scarX = Math.cos(bdAng) * bw * 0.90, scarY = Math.sin(bdAng) * bh * 0.90;
-        ctx.fillStyle = "rgba(70, 90, 40, " + (0.55 * scarAlpha) + ")";
+        ctx.fillStyle = "rgba(50, 70, 25, " + (0.80 * scarAlpha) + ")";
         ctx.beginPath();
-        ctx.arc(scarX, scarY, bw * 0.10, 0, Math.PI * 2);
+        ctx.arc(scarX, scarY, bw * 0.15, 0, Math.PI * 2);
         ctx.fill();
+        ctx.strokeStyle = "rgba(30, 45, 15, " + (0.70 * scarAlpha) + ")";
+        ctx.lineWidth = Math.max(0.8, 1.0 * U);
+        ctx.stroke();
       }
     }
     // Cara

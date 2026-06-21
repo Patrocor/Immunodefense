@@ -15855,11 +15855,52 @@
     // Cápside hexagonal regular con espículas HA/NA (cabeza tipo champiñón).
     var hit = e.hitFlash > 0;
     var t = state.time;
+
+    // Heading tracking (igual de reactivo que HSV — también es un virus ágil).
+    if (e._lastPosX == null) { e._lastPosX = e.x; e._lastPosY = e.y; e._heading = 0; }
+    var dxM = e.x - e._lastPosX, dyM = e.y - e._lastPosY;
+    var dMag = Math.hypot(dxM, dyM);
+    if (dMag > 0.5) {
+      var targetAng = Math.atan2(dyM, dxM);
+      var diffAng = targetAng - e._heading;
+      while (diffAng >  Math.PI) diffAng -= Math.PI * 2;
+      while (diffAng < -Math.PI) diffAng += Math.PI * 2;
+      e._heading += diffAng * 0.20;
+    }
+    e._lastPosX = e.x; e._lastPosY = e.y;
+    var moving = dMag > 1;
+
+    // Giro de las espículas HA/NA atado al desplazamiento real (no al reloj):
+    // gira rápido corriendo, casi se congela si está stunned/lento.
+    e._fluSpin = (e._fluSpin || 0) + dMag * 0.0045;
+    var spin = e._fluSpin;
+
     ctx.save();
     ctx.translate(e.x, e.y);
-    var spin = t * 0.4;
     var breathe = 1 + Math.sin(t * 1.8 + e.wobble) * 0.04;
     var capR = rad * 1.05 * breathe;
+
+    // Speed lines — solo si se mueve de verdad, detrás en sentido opuesto al rumbo.
+    if (moving) {
+      ctx.save();
+      ctx.rotate(e._heading || 0);
+      ctx.strokeStyle = "rgba(168, 154, 200, 0.60)";
+      ctx.lineWidth = 1.6 * U;
+      ctx.lineCap = "round";
+      for (var sl = -1; sl <= 1; sl++) {
+        var slOff = sl * capR * 0.45;
+        var slLen = capR * (0.75 + Math.sin(t * 8 + sl) * 0.10);
+        ctx.beginPath();
+        ctx.moveTo(-capR * 0.95, slOff);
+        ctx.lineTo(-capR * 0.95 - slLen, slOff);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    // === CUERPO ROTADO hacia el rumbo de avance ===
+    ctx.save();
+    ctx.rotate(e._heading || 0);
     // Espículas HA/NA (9) - tallo + cabecita Y/T.
     var spikeN = 9;
     ctx.lineCap = "round";
@@ -15887,11 +15928,13 @@
       ctx.stroke();
     }
     // Hexágono regular (cápside icosaédrica)
+    var hexPts = [];
     ctx.beginPath();
     for (var k = 0; k < 6; k++) {
       var ka = k * Math.PI / 3 - Math.PI / 2;
       var kx = Math.cos(ka) * capR;
       var ky = Math.sin(ka) * capR;
+      hexPts.push([kx, ky]);
       if (k === 0) ctx.moveTo(kx, ky); else ctx.lineTo(kx, ky);
     }
     ctx.closePath();
@@ -15904,12 +15947,25 @@
     ctx.strokeStyle = "#483B66";
     ctx.lineWidth = Math.max(1.0, 1.3 * U);
     ctx.stroke();
+    // Shimmer de mutación: tinte rosado que solo aparece caminando — guiño
+    // a la alta mutabilidad del RNA viral, visible justo cuando se mueve.
+    if (moving && !hit) {
+      var shimmer = 0.5 + 0.5 * Math.sin(t * 5 + e.wobble);
+      ctx.beginPath();
+      ctx.moveTo(hexPts[0][0], hexPts[0][1]);
+      for (var hp = 1; hp < hexPts.length; hp++) ctx.lineTo(hexPts[hp][0], hexPts[hp][1]);
+      ctx.closePath();
+      ctx.fillStyle = "rgba(224, 110, 175, " + (0.10 + shimmer * 0.18) + ")";
+      ctx.fill();
+    }
     // Highlight
     ctx.fillStyle = "rgba(255,255,255,0.28)";
     ctx.beginPath();
     ctx.ellipse(-capR * 0.35, -capR * 0.35, capR * 0.32, capR * 0.18, -0.3, 0, Math.PI * 2);
     ctx.fill();
-    // Cara
+    ctx.restore(); // fin cuerpo rotado
+
+    // === CARA UPRIGHT (no rota con el cuerpo) ===
     var eyeR = capR * 0.30;
     var faceY = -capR * 0.12;
     var gap = capR * 0.30;

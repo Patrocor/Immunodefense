@@ -17056,7 +17056,23 @@
     var t = state.time;
     ctx.save();
     ctx.translate(e.x, e.y);
-    var lumber = Math.sin(t * 1.1 + e.wobble) * 0.05;   // bamboleo lento y pesado
+    // Movimiento real: bamboleo de rodillo pesado ligado al desplazamiento
+    // de verdad — marcado al avanzar, casi rígido si está detenido,
+    // bloqueado o devorando una torre.
+    if (e._lastPosX == null) { e._lastPosX = e.x; e._lastPosY = e.y; }
+    var dMag = Math.hypot(e.x - e._lastPosX, e.y - e._lastPosY);
+    e._lastPosX = e.x; e._lastPosY = e.y;
+    var moving = dMag > 1;
+    e._lumberPhase = (e._lumberPhase || 0) + dMag * 0.12;
+    var lumberAmp = moving ? 0.13 : 0.015;
+    var lumber = Math.sin(e._lumberPhase * 1.4) * lumberAmp;
+    // Fase enraged real (la comparten los 4 jefes a 50% HP) — agrieta las
+    // esporas terminales más abajo.
+    var enragedFlag = !!e.enraged;
+    // Agarre real de una torre (devour) — intensifica la crepitación de
+    // gas más abajo, sincronizada con el tirón real (e.mawOpen).
+    var devouring = !!e.devourTarget;
+    var devourK = e.mawOpen || 0;
 
     // Halo necrótico verde-negro (tejido muerto por gangrena, no rojo).
     if (!hit) {
@@ -17094,29 +17110,65 @@
     ctx.stroke();
 
     // Esporas terminales (signature: bacteria esporulada) — esferas claras
-    // en cada extremo del bastón.
+    // en cada extremo del bastón. En fase enraged real (50% HP) se agrietan
+    // y dejan escapar un brillo tóxico pulsante — telegraph de 2da fase.
     if (!hit) {
-      ctx.fillStyle = "rgba(190, 210, 180, 0.85)";
-      ctx.strokeStyle = "#3a4a3a";
-      ctx.lineWidth = Math.max(0.9, 1 * U);
-      ctx.beginPath(); ctx.arc(-halfL + halfW * 0.45, 0, halfW * 0.46, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-      ctx.beginPath(); ctx.arc(halfL - halfW * 0.45, 0, halfW * 0.46, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      var sporeR = halfW * 0.46;
+      var crackPulse = enragedFlag ? (0.55 + 0.45 * Math.sin(t * 4.5)) : 0;
+      var sporeXs = [-halfL + halfW * 0.45, halfL - halfW * 0.45];
+      for (var sx2 = 0; sx2 < sporeXs.length; sx2++) {
+        var sx = sporeXs[sx2];
+        ctx.fillStyle = "rgba(190, 210, 180, 0.85)";
+        ctx.beginPath(); ctx.arc(sx, 0, sporeR, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = "#3a4a3a";
+        ctx.lineWidth = Math.max(0.9, 1 * U);
+        ctx.stroke();
+        if (enragedFlag) {
+          ctx.fillStyle = "rgba(140, 230, 120, " + (crackPulse * 0.65) + ")";
+          ctx.beginPath(); ctx.arc(sx, 0, sporeR * (0.5 + crackPulse * 0.30), 0, Math.PI * 2); ctx.fill();
+          ctx.strokeStyle = "rgba(20, 30, 20, 0.75)";
+          ctx.lineWidth = Math.max(0.7, 0.9 * U);
+          ctx.beginPath();
+          ctx.moveTo(sx - sporeR * 0.5, -sporeR * 0.4);
+          ctx.lineTo(sx + sporeR * 0.10, sporeR * 0.10);
+          ctx.lineTo(sx - sporeR * 0.20, sporeR * 0.55);
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.moveTo(sx + sporeR * 0.45, -sporeR * 0.30);
+          ctx.lineTo(sx - sporeR * 0.05, sporeR * 0.05);
+          ctx.stroke();
+        }
+      }
     }
 
     // Burbujas de gas ascendiendo — crepitación, el signo clínico real de
     // la gangrena gaseosa. Cada una sube y se desvanece en loop propio.
+    // Cuando agarra una torre de verdad (devour), la crepitación se
+    // dispara — más burbujas, más grandes y rápidas, con el tirón real.
     if (!hit) {
-      for (var b = 0; b < 6; b++) {
+      var bubbleCount = devouring ? Math.round(6 + devourK * 10) : 6;
+      var bubbleSpeed = devouring ? (1 + devourK * 2.5) : 1;
+      var bubbleSize = devouring ? (1 + devourK * 0.8) : 1;
+      for (var b = 0; b < bubbleCount; b++) {
         var bSeed = b * 1.91 + (e.shape || 0);
-        var bCycle = (t * 0.45 + bSeed) % 2.2;
+        var bCycle = (t * 0.45 * bubbleSpeed + bSeed) % 2.2;
         var bx = Math.sin(bSeed * 3.1) * bodyLen * 0.32;
         var by = halfW * 0.7 - bCycle * rad * 0.85;
         var bAlpha = Math.max(0, 1 - bCycle / 2.2);
-        var bR = (1.6 + (b % 3) * 0.7) * U;
+        var bR = (1.6 + (b % 3) * 0.7) * U * bubbleSize;
         ctx.fillStyle = "rgba(205, 225, 195, " + (0.55 * bAlpha) + ")";
         ctx.strokeStyle = "rgba(120, 150, 120, " + (0.6 * bAlpha) + ")";
         ctx.lineWidth = 1;
         ctx.beginPath(); ctx.arc(bx, by, bR, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      }
+      if (devouring && devourK > 0.15) {
+        var gasGlow = ctx.createRadialGradient(0, 0, halfW * 0.5, 0, 0, halfL * 1.1);
+        gasGlow.addColorStop(0, "rgba(140, 230, 120, " + (devourK * 0.35) + ")");
+        gasGlow.addColorStop(1, "rgba(140, 230, 120, 0)");
+        ctx.fillStyle = gasGlow;
+        ctx.beginPath();
+        ctx.ellipse(0, 0, halfL * 1.1, halfW * 1.6, 0, 0, Math.PI * 2);
+        ctx.fill();
       }
     }
     ctx.rotate(-lumber);

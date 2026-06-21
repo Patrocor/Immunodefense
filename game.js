@@ -14529,49 +14529,80 @@
     var bw = R * 1.05;
     var bh = R * 0.90;
     var cornerR = R * 0.30;
+    // Telegraph de fisión: con HP bajo, el cuerpo se angosta por el medio
+    // (cintura) anticipando el deathSplit real (se divide en 2 al morir).
+    // A pinch=0 la cintura no existe y el trazo queda idéntico al original.
+    var hpFrac = (e.maxHp > 0) ? e.hp / e.maxHp : 1;
+    var pinch = hpFrac < 0.30 ? Math.min(1, (0.30 - hpFrac) / 0.30) : 0;
+    var pinchPulse = 0.5 + 0.5 * Math.sin(t * 5 + e.wobble);
+    var midSqueeze = pinch * (0.35 + pinchPulse * 0.10);
+    var waistW = bw * (1 - midSqueeze);
     var grad = ctx.createRadialGradient(-R * 0.3, -R * 0.4, R * 0.2, 0, 0, R * 1.1);
     grad.addColorStop(0, "#ffffff");
     grad.addColorStop(0.5, e.def.colorLight || "#fbf2e6");
     grad.addColorStop(1, e.def.color);
     ctx.fillStyle = (e.hitFlash > 0) ? "#fff" : grad;
-    // Path brick redondeado
+    // Path brick redondeado con cintura ajustable.
     ctx.beginPath();
     ctx.moveTo(-bw + cornerR, -bh);
     ctx.lineTo(bw - cornerR, -bh);
     ctx.quadraticCurveTo(bw, -bh, bw, -bh + cornerR);
-    ctx.lineTo(bw, bh - cornerR);
+    ctx.quadraticCurveTo(bw, -bh * 0.12, waistW, 0);
+    ctx.quadraticCurveTo(bw, bh * 0.12, bw, bh - cornerR);
     ctx.quadraticCurveTo(bw, bh, bw - cornerR, bh);
     ctx.lineTo(-bw + cornerR, bh);
     ctx.quadraticCurveTo(-bw, bh, -bw, bh - cornerR);
-    ctx.lineTo(-bw, -bh + cornerR);
+    ctx.quadraticCurveTo(-bw, bh * 0.12, -waistW, 0);
+    ctx.quadraticCurveTo(-bw, -bh * 0.12, -bw, -bh + cornerR);
     ctx.quadraticCurveTo(-bw, -bh, -bw + cornerR, -bh);
     ctx.closePath();
     ctx.fill();
     ctx.strokeStyle = e.def.colorDark;
     ctx.lineWidth = Math.max(1.2, 1.5 * U);
     ctx.stroke();
-    // UMBILICACIÓN CENTRAL — hoyuelo característico arriba
-    ctx.fillStyle = "rgba(150,120,90,0.55)";
+    // UMBILICACIÓN CENTRAL — respira siempre, y se abre + brilla justo antes
+    // de soltar una perla real (sincronizado con e.childTimer, el contador
+    // que de verdad dispara spawnSpore en updateEnemies — no decorativo).
+    var basePulse = 0.5 + 0.5 * Math.sin(t * 1.6 + e.wobble);
+    var sporeReady = 0;
+    if (e.def.spore && (e.childCount || 0) < (e.def.spore.maxChildren || 5) && e.childTimer != null) {
+      var warnWindow = 0.4;
+      if (e.childTimer < warnWindow) sporeReady = 1 - Math.max(0, e.childTimer) / warnWindow;
+    }
+    var dimpleOpen = basePulse * 0.30 + sporeReady * 0.70;
+    var dimpleRX = R * (0.22 + dimpleOpen * 0.10);
+    var dimpleRY = R * (0.16 + dimpleOpen * 0.09);
+    ctx.fillStyle = "rgba(150, 120, 90, " + (0.55 + sporeReady * 0.15) + ")";
     ctx.beginPath();
-    ctx.ellipse(0, -R * 0.55, R * 0.22, R * 0.16, 0, 0, Math.PI * 2);
+    ctx.ellipse(0, -R * 0.55, dimpleRX, dimpleRY, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.strokeStyle = "rgba(120, 90, 60, 0.65)";
     ctx.lineWidth = 0.9 * U;
     ctx.stroke();
-    // HENDERSON-PATERSON BODIES (cuerpos de inclusión virales) — 3 puntitos
-    // marrones dentro del cuerpo. Signature histológica de molluscum.
+    if (sporeReady > 0.05) {
+      ctx.fillStyle = "rgba(255, 235, 180, " + (sporeReady * 0.65) + ")";
+      ctx.beginPath();
+      ctx.ellipse(0, -R * 0.55, dimpleRX * 0.55, dimpleRY * 0.55, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // HENDERSON-PATERSON BODIES (cuerpos de inclusión virales) — flotan con
+    // una leve órbita propia + pulso de opacidad, en vez de manchas fijas.
     var hpPositions = [
-      { x: -R * 0.30, y:  R * 0.25, r: R * 0.10 },
-      { x:  R * 0.32, y:  R * 0.15, r: R * 0.09 },
-      { x:  R * 0.05, y:  R * 0.42, r: R * 0.08 }
+      { x: -R * 0.30, y:  R * 0.25, r: R * 0.10, phase: 0.0, orbitR: R * 0.05 },
+      { x:  R * 0.32, y:  R * 0.15, r: R * 0.09, phase: 2.1, orbitR: R * 0.04 },
+      { x:  R * 0.05, y:  R * 0.42, r: R * 0.08, phase: 4.3, orbitR: R * 0.045 }
     ];
     for (var hpi = 0; hpi < hpPositions.length; hpi++) {
       var hp = hpPositions[hpi];
-      ctx.fillStyle = "rgba(120, 80, 50, 0.70)";
+      var orbAng = t * 0.8 + hp.phase;
+      var hx = hp.x + Math.cos(orbAng) * hp.orbitR;
+      var hy = hp.y + Math.sin(orbAng) * hp.orbitR * 0.6;
+      var hpPulse = 0.6 + 0.4 * Math.sin(t * 1.4 + hp.phase * 1.3);
+      ctx.fillStyle = "rgba(120, 80, 50, " + (0.70 * hpPulse) + ")";
       ctx.beginPath();
-      ctx.arc(hp.x, hp.y, hp.r, 0, Math.PI * 2);
+      ctx.arc(hx, hy, hp.r, 0, Math.PI * 2);
       ctx.fill();
-      ctx.strokeStyle = "rgba(80, 50, 30, 0.60)";
+      ctx.strokeStyle = "rgba(80, 50, 30, " + (0.60 * hpPulse) + ")";
       ctx.lineWidth = 0.8 * U;
       ctx.stroke();
     }

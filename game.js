@@ -16875,6 +16875,23 @@
     var sd = e.def.shield;
     var shieldFrac = (sd && sd.maxHP) ? Math.max(0, e.shieldHP) / sd.maxHP : 1;
 
+    // Movimiento real: alimenta el temblor de masa del racimo más abajo —
+    // choque pesado de cocos al avanzar, casi sólido si está quieto/stunned.
+    if (e._lastPosX == null) { e._lastPosX = e.x; e._lastPosY = e.y; }
+    var dMag = Math.hypot(e.x - e._lastPosX, e.y - e._lastPosY);
+    e._lastPosX = e.x; e._lastPosY = e.y;
+    e._jigglePhase = (e._jigglePhase || 0) + dMag * 0.22;
+    var jiggleAmp = Math.min(1, dMag * 0.35);
+    function wrig(idx, axisOff) {
+      return Math.sin(e._jigglePhase * 1.8 + idx * 1.3 + axisOff) * jiggleAmp * bigR * 0.16;
+    }
+    // Carga real del spray tóxico (PVL) — agrieta el domo de biofilm más
+    // abajo (e.powerCharge cuenta 0.55→0 hasta disparar).
+    var chargeFrac = 0;
+    if ((e.powerCharge || 0) > 0 && e.powerTarget) chargeFrac = Math.max(0, Math.min(1, 1 - e.powerCharge / 0.55));
+    // Escudo real rompiéndose — la fibrina estalla hacia afuera más abajo.
+    var shatterFrac = e.shieldShatterTimer > 0 ? Math.min(1, e.shieldShatterTimer / 0.45) : 0;
+
     // 1. Halo rojo palpitante (eritema/infección).
     var redPulse = 0.5 + 0.5 * Math.sin(t * 5.5);
     var redAlpha = (0.24 + redPulse * 0.20) * (0.4 + shieldFrac * 0.6);
@@ -16887,25 +16904,34 @@
     ctx.arc(0, 0, haloR, 0, Math.PI * 2);
     ctx.fill();
 
-    // 2. CÁPSULA DE FIBRINA (coagulasa) — hilos enmarañados rodeando el racimo.
-    if (!hit && shieldFrac > 0.05) {
-      ctx.strokeStyle = "rgba(245, 220, 160, " + (0.55 * shieldFrac) + ")";
-      ctx.lineWidth = Math.max(0.9, 1.1 * U);
+    // 2. CÁPSULA DE FIBRINA (coagulasa) — hilos enmarañados rodeando el
+    // racimo. Cuando el escudo real se rompe (e.shieldShatterTimer), los
+    // hilos se disparan hacia afuera como látigos y dejan fragmentos dorados.
+    if (!hit && (shieldFrac > 0.05 || shatterFrac > 0.02)) {
+      var snapOut = shatterFrac * 0.9;
+      ctx.strokeStyle = "rgba(255, 245, 210, " + Math.max(0.55 * shieldFrac, shatterFrac * 0.9) + ")";
+      ctx.lineWidth = Math.max(0.9, 1.1 * U) * (1 + shatterFrac * 1.2);
       var fibrinStrands = 22;
       for (var fs = 0; fs < fibrinStrands; fs++) {
         var a0 = (fs / fibrinStrands) * Math.PI * 2 + t * 0.1;
         var a1 = a0 + 0.7 + 0.3 * Math.sin(t * 0.4 + fs);
         var r0 = rad * 1.10;
-        var r1 = rad * 1.42;
+        var r1 = rad * (1.42 + snapOut * 1.3);
         ctx.beginPath();
         ctx.moveTo(Math.cos(a0) * r0, Math.sin(a0) * r0);
         ctx.quadraticCurveTo(
-          Math.cos((a0 + a1) / 2) * rad * 1.55,
-          Math.sin((a0 + a1) / 2) * rad * 1.55,
+          Math.cos((a0 + a1) / 2) * rad * (1.55 + snapOut * 1.1),
+          Math.sin((a0 + a1) / 2) * rad * (1.55 + snapOut * 1.1),
           Math.cos(a1) * r1,
           Math.sin(a1) * r1
         );
         ctx.stroke();
+        if (shatterFrac > 0.1) {
+          ctx.fillStyle = "rgba(255, 230, 140, " + (shatterFrac * 0.8) + ")";
+          ctx.beginPath();
+          ctx.arc(Math.cos(a1) * r1, Math.sin(a1) * r1, (1.2 + shatterFrac * 1.8) * U, 0, Math.PI * 2);
+          ctx.fill();
+        }
       }
     }
 
@@ -16934,6 +16960,35 @@
         var br = rad * (1.10 + 0.10 * Math.sin(t * 1.3 + bd));
         ctx.beginPath();
         ctx.arc(Math.cos(ba) * br, Math.sin(ba) * br, 2.0 * U, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      // Grietas con brillo tóxico (PVL) — el domo se agrieta de verdad a
+      // medida que el spray real está por dispararse, dejando escapar el
+      // brillo verdoso de la toxina por las grietas.
+      if (chargeFrac > 0.08) {
+        var crackSeeds = [0.3, 1.6, 2.7, 4.1, 5.2];
+        ctx.strokeStyle = "rgba(40, 20, 10, " + (chargeFrac * 0.6) + ")";
+        ctx.lineWidth = Math.max(1.0, 1.4 * U);
+        for (var cr = 0; cr < crackSeeds.length; cr++) {
+          var crAng = crackSeeds[cr];
+          var crLen = rad * (0.5 + chargeFrac * 0.75);
+          var crMidA = crAng + 0.15;
+          ctx.beginPath();
+          ctx.moveTo(Math.cos(crAng) * rad * 0.25, Math.sin(crAng) * rad * 0.25);
+          ctx.lineTo(Math.cos(crMidA) * rad * 0.55, Math.sin(crMidA) * rad * 0.55);
+          ctx.lineTo(Math.cos(crAng) * crLen, Math.sin(crAng) * crLen);
+          ctx.stroke();
+          ctx.fillStyle = "rgba(140, 230, 90, " + (chargeFrac * 0.75) + ")";
+          ctx.beginPath();
+          ctx.arc(Math.cos(crAng) * crLen, Math.sin(crAng) * crLen, (1.5 + chargeFrac * 2.5) * U, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        var pvlGlow = ctx.createRadialGradient(0, 0, rad * 0.3, 0, 0, rad * 1.1);
+        pvlGlow.addColorStop(0, "rgba(140, 230, 90, " + (chargeFrac * 0.30) + ")");
+        pvlGlow.addColorStop(1, "rgba(140, 230, 90, 0)");
+        ctx.fillStyle = pvlGlow;
+        ctx.beginPath();
+        ctx.arc(0, 0, rad * 1.1, 0, Math.PI * 2);
         ctx.fill();
       }
     }
@@ -16966,7 +17021,14 @@
       ctx.arc(cx - r * 0.36, cy - r * 0.36, r * 0.30, 0, Math.PI * 2);
       ctx.fill();
     }
-    for (var i = 0; i < cluster.length; i++) drawCoco(cluster[i].x, cluster[i].y, cluster[i].r);
+    // Temblor de masa pesada: cada coco tiembla con fase propia, ligado al
+    // desplazamiento real — choque violento de la masa al avanzar, casi
+    // sólida si está quieta/stunned.
+    for (var i = 0; i < cluster.length; i++) {
+      var jx = cluster[i].x + wrig(i, 0);
+      var jy = cluster[i].y + wrig(i, 1.7);
+      drawCoco(jx, jy, cluster[i].r);
+    }
     drawCoco(0, 0, bigR);
 
     // 6. Cara hostil en el coco central.

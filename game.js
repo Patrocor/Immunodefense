@@ -16144,11 +16144,13 @@
     var breathe = 1 + Math.sin(t * 1.5 + e.wobble) * 0.04;
     var bw = rad * 0.85 * breathe;
     var bh = rad * 1.20 * (2 - breathe);
-    // Pseudohifas (3) saliendo desde la base — segmentadas como salchichas.
+    // Pseudohifas (3) saliendo desde la base — ciclo real de
+    // crecimiento-retracción (se alargan segmento a segmento y luego se
+    // reabsorben), en vez de tener un largo fijo.
     var hyphae = [
-      { angle:  Math.PI * 0.55, segs: 4 },
-      { angle:  Math.PI * 0.40, segs: 3 },
-      { angle:  Math.PI * 0.65, segs: 4 }
+      { angle:  Math.PI * 0.55, maxSegs: 6, growSpeed: 0.45, phase: 0 },
+      { angle:  Math.PI * 0.40, maxSegs: 5, growSpeed: 0.40, phase: 2.4 },
+      { angle:  Math.PI * 0.65, maxSegs: 6, growSpeed: 0.50, phase: 4.6 }
     ];
     for (var hi = 0; hi < hyphae.length; hi++) {
       var h = hyphae[hi];
@@ -16160,8 +16162,14 @@
       var perpY = dirX;
       var segLen = 6 * U;
       var segR = 3.2 * U;
+      var cyclePeriod = 6.0;
+      var cyclePos = ((t * h.growSpeed + h.phase) % cyclePeriod) / cyclePeriod;
+      var growFrac = cyclePos < 0.5 ? cyclePos * 2 : (1 - cyclePos) * 2;
+      var visibleLen = 1 + growFrac * (h.maxSegs - 1);
+      var segCount = Math.floor(visibleLen);
+      var partialFrac = visibleLen - segCount;
       var px = ox, py = oy;
-      for (var sg = 0; sg < h.segs; sg++) {
+      for (var sg = 0; sg < segCount; sg++) {
         var wave = Math.sin(t * 2.5 + hi * 1.7 + sg * 0.9 + e.wobble) * 2.5 * U;
         var nx = ox + dirX * segLen * (sg + 1) + perpX * wave;
         var ny = oy + dirY * segLen * (sg + 1) + perpY * wave;
@@ -16183,6 +16191,27 @@
         ctx.stroke();
         px = nx; py = ny;
       }
+      // Punta brotando a medio crecer — escala con la fracción del ciclo.
+      if (partialFrac > 0.08) {
+        var tipWave = Math.sin(t * 2.5 + hi * 1.7 + segCount * 0.9 + e.wobble) * 2.5 * U * partialFrac;
+        var tipX = ox + dirX * segLen * (segCount + partialFrac) + perpX * tipWave;
+        var tipY = oy + dirY * segLen * (segCount + partialFrac) + perpY * tipWave;
+        var tipMidX = (px + tipX) / 2, tipMidY = (py + tipY) / 2;
+        var tipAng = Math.atan2(tipY - py, tipX - px);
+        var tipR = segR * (0.45 + partialFrac * 0.55);
+        var tipGrad = ctx.createRadialGradient(tipMidX - tipR * 0.3, tipMidY - tipR * 0.3, tipR * 0.2,
+                                                tipMidX, tipMidY, tipR);
+        tipGrad.addColorStop(0, "#D8EFA8");
+        tipGrad.addColorStop(0.6, "#C0E090");
+        tipGrad.addColorStop(1, "#6B8E47");
+        ctx.fillStyle = hit ? "#ffffff" : tipGrad;
+        ctx.beginPath();
+        ctx.ellipse(tipMidX, tipMidY, segLen * 0.55 * partialFrac, tipR, tipAng, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = "#6B8E47";
+        ctx.lineWidth = Math.max(0.7, 0.9 * U);
+        ctx.stroke();
+      }
     }
     // Cuerpo (levadura ovalada vertical)
     var grad = ctx.createRadialGradient(-bw * 0.35, -bh * 0.40, bh * 0.2, 0, 0, bh);
@@ -16196,38 +16225,114 @@
     ctx.strokeStyle = "#6B8E47";
     ctx.lineWidth = Math.max(1.0, 1.3 * U);
     ctx.stroke();
+    // Pared celular: mosaico de placas de quitina/β-glucano, levemente
+    // abultadas. Se generan UNA sola vez por instancia (cacheadas en el
+    // germen) para que el mosaico no titile ni se reordene cada frame.
+    if (!hit) {
+      if (!e._chitinPlates) {
+        var plateCount = 7;
+        e._chitinPlates = [];
+        for (var pc = 0; pc < plateCount; pc++) {
+          e._chitinPlates.push({
+            angle: (pc / plateCount) * Math.PI * 2 + (Math.random() - 0.5) * 0.30,
+            rScale: 0.88 + Math.random() * 0.16,
+            w: 0.28 + Math.random() * 0.14,
+            h: 0.20 + Math.random() * 0.10,
+            phase: Math.random() * Math.PI * 2
+          });
+        }
+      }
+      for (var pl = 0; pl < e._chitinPlates.length; pl++) {
+        var plate = e._chitinPlates[pl];
+        var bulge = 1 + Math.sin(t * 1.1 + plate.phase) * 0.05;
+        var pcx = Math.cos(plate.angle) * bw * plate.rScale * bulge;
+        var pcy = Math.sin(plate.angle) * bh * plate.rScale * bulge;
+        ctx.fillStyle = "rgba(255,255,255,0.10)";
+        ctx.beginPath();
+        ctx.ellipse(pcx, pcy, bw * plate.w, bh * plate.h, plate.angle, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = "rgba(90, 120, 50, 0.35)";
+        ctx.lineWidth = Math.max(0.6, 0.8 * U);
+        ctx.stroke();
+      }
+    }
     // Highlight arriba-izquierda
     ctx.fillStyle = "rgba(255,255,255,0.32)";
     ctx.beginPath();
     ctx.ellipse(-bw * 0.35, -bh * 0.40, bw * 0.32, bh * 0.20, -0.3, 0, Math.PI * 2);
     ctx.fill();
 
-    // YEAST BUDDING (gemación asexual) — signature de Candida. 2 yeasts
-    // hijas asomando por costados, pinching off de la madre.
-    var budPulse = 0.5 + 0.5 * Math.sin(t * 1.3 + e.wobble);
-    for (var bd = 0; bd < 2; bd++) {
-      var bdAng = bd === 0 ? (Math.PI * 0.18) : (-Math.PI * 0.20);
-      var bdDist = bw * 1.05 + budPulse * bw * 0.10;
-      var bdX = Math.cos(bdAng) * bdDist;
-      var bdY = Math.sin(bdAng) * bdDist * (bh / bw);
-      var bdR = bw * 0.34 * (0.6 + budPulse * 0.20);
-      // Cuerpo de la yeast hija
-      var bdGrad = ctx.createRadialGradient(bdX - bdR * 0.3, bdY - bdR * 0.3, bdR * 0.15, bdX, bdY, bdR);
-      bdGrad.addColorStop(0, "#D8EFA8");
-      bdGrad.addColorStop(0.6, "#A8D070");
-      bdGrad.addColorStop(1, "#6B8E47");
-      ctx.fillStyle = bdGrad;
-      ctx.beginPath();
-      ctx.arc(bdX, bdY, bdR, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = "#6B8E47";
-      ctx.lineWidth = Math.max(0.9, 1.2 * U);
-      ctx.stroke();
-      // Mini-highlight
-      ctx.fillStyle = "rgba(255,255,255,0.32)";
-      ctx.beginPath();
-      ctx.arc(bdX - bdR * 0.30, bdY - bdR * 0.32, bdR * 0.30, 0, Math.PI * 2);
-      ctx.fill();
+    // YEAST BUDDING (gemación asexual) — signature de Candida. Ciclo real:
+    // la yema crece, el cuello se estrecha hasta separarse (pinch-off),
+    // queda una cicatriz en la madre, y brota una yema nueva en otro punto
+    // del perímetro. Todo derivado de `t`, sin estado mutable que inicializar.
+    var budPeriod = 5.0;
+    var budSlots = [{ speed: 1.0, offset: 0 }, { speed: 0.85, offset: 2.7 }];
+    for (var bd = 0; bd < budSlots.length; bd++) {
+      var slot = budSlots[bd];
+      var rawT = t * slot.speed + slot.offset;
+      var cycIndex = Math.floor(rawT / budPeriod);
+      var cyc = (rawT - cycIndex * budPeriod) / budPeriod;
+      // Ángulo pseudo-random estable durante todo el ciclo (cambia solo al
+      // arrancar un ciclo nuevo — sin necesitar estado persistente).
+      var angleSeed = Math.sin(cycIndex * 12.9898 + bd * 78.233) * 43758.5453;
+      var angleFrac = angleSeed - Math.floor(angleSeed);
+      var bdAng = (bd === 0 ? 1 : -1) * (Math.PI * 0.12 + angleFrac * Math.PI * 0.32);
+      var sizeFrac, neckFrac, scarAlpha;
+      if (cyc < 0.62) {
+        sizeFrac = Math.min(1, cyc / 0.62);
+        neckFrac = 1;
+        scarAlpha = 0;
+      } else if (cyc < 0.78) {
+        sizeFrac = 1;
+        neckFrac = Math.max(0, 1 - (cyc - 0.62) / 0.16);
+        scarAlpha = 0;
+      } else {
+        sizeFrac = 0;
+        neckFrac = 0;
+        scarAlpha = Math.max(0, 1 - (cyc - 0.78) / 0.22);
+      }
+      if (sizeFrac > 0.02) {
+        var bdDist = bw * (0.85 + sizeFrac * 0.20);
+        var bdX = Math.cos(bdAng) * bdDist;
+        var bdY = Math.sin(bdAng) * bdDist * (bh / bw);
+        var bdR = bw * 0.34 * sizeFrac;
+        // Cuello que conecta con la madre — se estrecha hasta separarse.
+        if (neckFrac > 0.02) {
+          var baseX = Math.cos(bdAng) * bw, baseY = Math.sin(bdAng) * bh;
+          ctx.strokeStyle = "#A8D070";
+          ctx.lineCap = "round";
+          ctx.lineWidth = Math.max(0.8, bdR * 1.1 * neckFrac);
+          ctx.beginPath();
+          ctx.moveTo(baseX, baseY);
+          ctx.lineTo(bdX, bdY);
+          ctx.stroke();
+        }
+        // Cuerpo de la yeast hija
+        var bdGrad = ctx.createRadialGradient(bdX - bdR * 0.3, bdY - bdR * 0.3, bdR * 0.15, bdX, bdY, bdR);
+        bdGrad.addColorStop(0, "#D8EFA8");
+        bdGrad.addColorStop(0.6, "#A8D070");
+        bdGrad.addColorStop(1, "#6B8E47");
+        ctx.fillStyle = hit ? "#ffffff" : bdGrad;
+        ctx.beginPath();
+        ctx.arc(bdX, bdY, bdR, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = "#6B8E47";
+        ctx.lineWidth = Math.max(0.9, 1.2 * U);
+        ctx.stroke();
+        // Mini-highlight
+        ctx.fillStyle = "rgba(255,255,255,0.32)";
+        ctx.beginPath();
+        ctx.arc(bdX - bdR * 0.30, bdY - bdR * 0.32, bdR * 0.30, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (scarAlpha > 0.02 && !hit) {
+        // Cicatriz de gemación: marca oscura donde se separó la última yema.
+        var scarX = Math.cos(bdAng) * bw * 0.90, scarY = Math.sin(bdAng) * bh * 0.90;
+        ctx.fillStyle = "rgba(70, 90, 40, " + (0.55 * scarAlpha) + ")";
+        ctx.beginPath();
+        ctx.arc(scarX, scarY, bw * 0.10, 0, Math.PI * 2);
+        ctx.fill();
+      }
     }
     // Cara
     var eyeR = bw * 0.28;

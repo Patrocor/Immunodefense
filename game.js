@@ -14879,18 +14879,52 @@
     var breathe = 1 + Math.sin(t * 1.6 + (e.wobble || 0)) * 0.04;
     var bw = rad * 0.82 * breathe;
     var bh = rad * 1.30 * (2 - breathe);   // notablemente más alto que ancho
-    // Hifas con esporas saliendo de la parte superior (tipo moho).
+    // Movimiento real (alimenta la cascada de septos más abajo) — no rota
+    // el cuerpo, solo mide cuánto se desplazó este frame.
+    if (e._lastPosX == null) { e._lastPosX = e.x; e._lastPosY = e.y; }
+    var dMag = Math.hypot(e.x - e._lastPosX, e.y - e._lastPosY);
+    e._lastPosX = e.x; e._lastPosY = e.y;
+    var moving = dMag > 1;
+    // Próxima espora cazadora real (huntsTowers: sale a correr a atacar una
+    // torre): qué hifa la va a soltar y qué tan cerca está, derivado de
+    // e.childTimer/e.childCount — los contadores reales de updateEnemies.
     var nH = 5;
+    var nextHyphaIdx = (e.childCount || 0) % nH;
+    var spawnReady = 0;
+    if (e.def.spore && e.childTimer != null && (e.childCount || 0) < (e.def.spore.maxChildren || 5)) {
+      var warnWindow = 0.5;
+      if (e.childTimer < warnWindow) spawnReady = 1 - Math.max(0, e.childTimer) / warnWindow;
+    }
+    // Hifas con esporas saliendo de la parte superior (tipo moho) — cada
+    // una con su propio ciclo de elongación-retracción real (crece y se
+    // reabsorbe), en vez de tener un largo fijo por índice.
+    var hyphaCfg = [
+      { minF: 0.35, maxF: 0.95, speed: 0.28, phase: 0.0 },
+      { minF: 0.40, maxF: 0.85, speed: 0.24, phase: 1.3 },
+      { minF: 0.30, maxF: 1.00, speed: 0.32, phase: 2.6 },
+      { minF: 0.45, maxF: 0.80, speed: 0.26, phase: 3.9 },
+      { minF: 0.35, maxF: 0.90, speed: 0.30, phase: 5.2 }
+    ];
+    var growCyclePeriod = 7.0;
     for (var h = 0; h < nH; h++) {
+      var cfg = hyphaCfg[h];
       var hx0 = ((h / (nH - 1)) - 0.5) * bw * 1.3;
       var ha = -Math.PI / 2 + (h - (nH - 1) / 2) * 0.30 + Math.sin(t * 2 + h) * 0.16;
-      var len = bh * (0.55 + ((h * 7) % 4) / 4 * 0.45);
+      var gPos = ((t * cfg.speed + cfg.phase) % growCyclePeriod) / growCyclePeriod;
+      var gFrac = gPos < 0.5 ? gPos * 2 : (1 - gPos) * 2;
+      var len = bh * (cfg.minF + gFrac * (cfg.maxF - cfg.minF));
       var tx = hx0 + Math.cos(ha) * len, ty = -bh * 0.65 + Math.sin(ha) * len;
       var mx = hx0 + Math.cos(ha) * len * 0.5, my = -bh * 0.65 + Math.sin(ha) * len * 0.5 - 3 * U;
       ctx.strokeStyle = cold; ctx.lineWidth = Math.max(1, 1.5 * U); ctx.lineCap = "round";
       ctx.beginPath(); ctx.moveTo(hx0, -bh * 0.65); ctx.quadraticCurveTo(mx, my, tx, ty); ctx.stroke();
+      var isNext = (h === nextHyphaIdx) && spawnReady > 0.02;
+      var tipR = 2.8 * U * (1 + (isNext ? spawnReady * 0.9 : 0));
+      if (isNext) {
+        ctx.fillStyle = "rgba(220, 255, 120, " + (spawnReady * 0.70) + ")";
+        ctx.beginPath(); ctx.arc(tx, ty, tipR * 1.9, 0, Math.PI * 2); ctx.fill();
+      }
       ctx.fillStyle = col;
-      ctx.beginPath(); ctx.arc(tx, ty, 2.8 * U, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(tx, ty, tipR, 0, Math.PI * 2); ctx.fill();
       ctx.strokeStyle = cold; ctx.lineWidth = 1; ctx.stroke();
     }
     // Cuerpo (óvalo alto).
@@ -14901,10 +14935,21 @@
     ctx.fillStyle = hit ? "#ffffff" : grad;
     ctx.beginPath(); ctx.ellipse(0, 0, bw, bh, 0, 0, Math.PI * 2); ctx.fill();
     ctx.strokeStyle = cold; ctx.lineWidth = Math.max(1, 1.3 * U); ctx.stroke();
-    // Septos (tabiques del hongo): líneas horizontales tenues.
-    ctx.strokeStyle = "rgba(94, 106, 44, 0.40)"; ctx.lineWidth = 1;
-    for (var sct = -1; sct <= 1; sct++) {
-      ctx.beginPath(); ctx.moveTo(-bw * 0.7, sct * bh * 0.34); ctx.lineTo(bw * 0.7, sct * bh * 0.34); ctx.stroke();
+    // Septos (tabiques del hongo): pulso de luz que viaja de la base hacia
+    // la punta SOLO mientras camina de verdad (ligado a dMag — se congela
+    // si está stunned/bloqueado), como el transporte citoplasmático real.
+    e._septoCascade = (e._septoCascade || 0) + dMag * 0.05;
+    var cascadePhase = e._septoCascade % 3;
+    var septaOrder = [1, 0, -1]; // de la base hacia la punta
+    for (var sIdx = 0; sIdx < septaOrder.length; sIdx++) {
+      var sct = septaOrder[sIdx];
+      var rawD = ((cascadePhase - sIdx) % 3 + 3) % 3;
+      var dist = Math.min(rawD, 3 - rawD);
+      var glow = moving ? Math.max(0, 1 - dist) : 0;
+      ctx.strokeStyle = "rgba(" + Math.round(94 + glow * 120) + ", " + Math.round(106 + glow * 130) + ", " + Math.round(44 + glow * 40) + ", " + (0.40 + glow * 0.55) + ")";
+      ctx.lineWidth = 1 + glow * 1.8;
+      ctx.beginPath();
+      ctx.moveTo(-bw * 0.7, sct * bh * 0.34); ctx.lineTo(bw * 0.7, sct * bh * 0.34); ctx.stroke();
     }
     // Cara malvada.
     var eyeR = bw * 0.34, faceY = -bh * 0.04, gap = bw * 0.33;

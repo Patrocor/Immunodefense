@@ -4662,6 +4662,32 @@
               colors: { hi: "255, 240, 180", mid: "220, 180, 70", lo: "150, 110, 40" }
             });
           }
+        } else if (e.def.id === "bossPyogenes") {
+          // Rastro necrótico — la "bacteria carnívora" pudre el tejido a
+          // su paso. Charcos grandes oscuros + humo que sube, bien notorio.
+          e._necroTrailT = (e._necroTrailT || 0) - dt;
+          if (e._necroTrailT <= 0) {
+            e._necroTrailT = 0.22 + Math.random() * 0.10;
+            pushEffect({
+              kind: "biofilmDrop",
+              x: e.x + (Math.random() - 0.5) * 14 * U,
+              y: e.y + (6 + Math.random() * 8) * U,
+              r: (5.5 + Math.random() * 3.5) * U,
+              life: 2.6, max: 2.6,
+              colors: { hi: "120, 30, 40", mid: "60, 10, 18", lo: "20, 30, 15" }
+            });
+            if (Math.random() < 0.45) {
+              pushEffect({
+                kind: "particle",
+                x: e.x + (Math.random() - 0.5) * 10 * U,
+                y: e.y,
+                vx: (Math.random() - 0.5) * 4 * U,
+                vy: -(8 + Math.random() * 10) * U,
+                life: 0.9, max: 1.1,
+                color: "rgba(40, 50, 35, 0.55)"
+              });
+            }
+          }
         }
       }
       if (e.sporeTimer !== undefined) {
@@ -16529,6 +16555,20 @@
     var spacing = rad * 0.42;
     var chainHalfW = (n - 1) * spacing / 2;
 
+    // Movimiento real: ata la ondulación serpenteante al desplazamiento de
+    // verdad — bien dramática slitherando, casi una vara rígida si está
+    // detenida/bloqueada/stunned.
+    if (e._lastPosX == null) { e._lastPosX = e.x; e._lastPosY = e.y; }
+    var dMag = Math.hypot(e.x - e._lastPosX, e.y - e._lastPosY);
+    e._lastPosX = e.x; e._lastPosY = e.y;
+    var moving = dMag > 1;
+    e._slitherPhase = (e._slitherPhase || 0) + dMag * 0.16;
+    var waveAmp = rad * (moving ? 0.46 : 0.06);
+    // Carga real del burst (e.powerCharge cuenta 0.55→0 hasta disparar) —
+    // alimenta el erizado dramático de la proteína M más abajo.
+    var chargeFrac = 0;
+    if ((e.powerCharge || 0) > 0 && e.powerTarget) chargeFrac = Math.max(0, Math.min(1, 1 - e.powerCharge / 0.55));
+
     // Halo necrótico (rojo oscuro pulsante) — denota tejido muerto.
     if (!hit) {
       var necroPulse = 0.55 + 0.45 * Math.sin(t * 2.0);
@@ -16540,6 +16580,19 @@
       ctx.fillStyle = auraG;
       ctx.beginPath();
       ctx.ellipse(0, 0, auraR, auraR * 0.55, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // Nimbo dorado de carga: estalla alrededor de TODA la cadena cuando el
+    // burst real está cerca de dispararse — telegraph grande, no sutil.
+    if (!hit && chargeFrac > 0.12) {
+      var burstR = rad * (1.5 + chargeFrac * 1.4);
+      var burstG = ctx.createRadialGradient(0, 0, rad * 0.5, 0, 0, burstR);
+      burstG.addColorStop(0, "rgba(255, 225, 120, " + (chargeFrac * 0.50) + ")");
+      burstG.addColorStop(0.6, "rgba(255, 180, 60, " + (chargeFrac * 0.30) + ")");
+      burstG.addColorStop(1, "rgba(255, 160, 40, 0)");
+      ctx.fillStyle = burstG;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, burstR, burstR * 0.62, 0, 0, Math.PI * 2);
       ctx.fill();
     }
 
@@ -16561,22 +16614,30 @@
       ctx.beginPath();
       ctx.arc(cx - r * 0.38, cy - r * 0.38, r * 0.28, 0, Math.PI * 2);
       ctx.fill();
-      // Proteína M: 5 espigas amarillas radiando del coco.
+      // Proteína M: espigas que se erizan (más largas, más brillantes y
+      // giran más rápido) a medida que el burst real está por dispararse.
       if (!hit) {
         var spikes = isCenter ? 7 : 5;
-        ctx.strokeStyle = "rgba(255, 210, 74, 0.85)";
-        ctx.lineWidth = Math.max(0.8, 1.0 * U);
+        var spikeBoost = 1 + chargeFrac * 1.8;
+        ctx.strokeStyle = "rgba(255, " + Math.round(210 + chargeFrac * 45) + ", " + Math.round(74 - chargeFrac * 60) + ", " + (0.85 + chargeFrac * 0.15) + ")";
+        ctx.lineWidth = Math.max(0.8, 1.0 * U) * (1 + chargeFrac * 0.8);
         for (var sp = 0; sp < spikes; sp++) {
-          var sa = (sp / spikes) * Math.PI * 2 + t * 0.4;
+          var sa = (sp / spikes) * Math.PI * 2 + t * (0.4 + chargeFrac * 2.6);
           var x0 = cx + Math.cos(sa) * r * 0.95;
           var y0 = cy + Math.sin(sa) * r * 0.95;
-          var spikeLen = r * (0.30 + 0.05 * Math.sin(t * 3 + sp));
+          var spikeLen = r * (0.30 + 0.05 * Math.sin(t * 3 + sp)) * spikeBoost;
           var x1 = cx + Math.cos(sa) * (r + spikeLen);
           var y1 = cy + Math.sin(sa) * (r + spikeLen);
           ctx.beginPath();
           ctx.moveTo(x0, y0);
           ctx.lineTo(x1, y1);
           ctx.stroke();
+          if (chargeFrac > 0.1) {
+            ctx.fillStyle = "rgba(255, 240, 160, " + (chargeFrac * 0.85) + ")";
+            ctx.beginPath();
+            ctx.arc(x1, y1, 1.6 * U * (1 + chargeFrac), 0, Math.PI * 2);
+            ctx.fill();
+          }
         }
       }
     }
@@ -16584,9 +16645,25 @@
     var positions = [];
     for (var i = 0; i < n; i++) {
       var px = -chainHalfW + i * spacing;
-      // Más sinuoso, como serpiente — mayor amplitud
-      var py = Math.sin((i / (n - 1)) * Math.PI * 1.5 + t * 0.6) * rad * 0.14 - rad * 0.04;
+      // Serpenteo dramático: amplitud ligada al movimiento real (no al reloj).
+      var py = Math.sin((i / (n - 1)) * Math.PI * 1.5 + e._slitherPhase) * waveAmp - rad * 0.04;
       positions.push({ x: px, y: py });
+    }
+    // Estelas fantasma del cuerpo slitherando — refuerzan la sensación de
+    // serpiente en movimiento (motion blur), solo si avanza de verdad.
+    if (!hit && moving) {
+      for (var ghost = 1; ghost <= 2; ghost++) {
+        var ghostPhase = e._slitherPhase - ghost * 0.35;
+        ctx.strokeStyle = "rgba(200, 20, 40, " + (0.18 / ghost) + ")";
+        ctx.lineWidth = Math.max(2.0, 3.0 * U) * 1.4;
+        ctx.beginPath();
+        for (var gi = 0; gi < n; gi++) {
+          var gpx = -chainHalfW + gi * spacing;
+          var gpy = Math.sin((gi / (n - 1)) * Math.PI * 1.5 + ghostPhase) * waveAmp - rad * 0.04;
+          if (gi === 0) ctx.moveTo(gpx, gpy); else ctx.lineTo(gpx, gpy);
+        }
+        ctx.stroke();
+      }
     }
     // Línea uniendo cocos (cápsula compartida)
     if (!hit) {

@@ -14399,16 +14399,38 @@
     //  · CUERPO OVOIDE marrón
     //  · TRAIL DE HUEVOS si está poniendo (spore mechanic)
     //  · TÚNEL/BURROW visible bajo la piel cuando burrowed
-    var R = rad, w = e.wobble || 0, t = state.time;
+    var R = rad, t = state.time;
     ctx.save(); ctx.translate(e.x, e.y);
-    // Túnel/burrow más prominente con líneas serpenteantes
+    // Movimiento real: alimenta la marcha de las patas y el masticar de los
+    // quelíceros — se congelan si está quieto/stunned, en vez de animar
+    // siempre con el reloj.
+    if (e._lastPosX == null) { e._lastPosX = e.x; e._lastPosY = e.y; }
+    var dMag = Math.hypot(e.x - e._lastPosX, e.y - e._lastPosY);
+    e._lastPosX = e.x; e._lastPosY = e.y;
+    e._gaitPhase = (e._gaitPhase || 0) + dMag * 0.10;
+    var gaitPhase = e._gaitPhase;
+    // Telegraph de mordisco al emerger: últimos 0.3s del ciclo enterrado.
+    var emergeBite = 0;
+    if (e.burrowed && e.def.burrow) {
+      var biteWindow = 0.3;
+      if (e.surfaceTimer < biteWindow) emergeBite = 1 - Math.max(0, e.surfaceTimer) / biteWindow;
+    }
+    // Túnel/burrow: transición real de entierro/emergencia (no aparece ni
+    // desaparece de golpe), ligada a e.surfaceTimer — el contador real.
     if (e.burrowed) {
-      ctx.fillStyle = "rgba(90,60,30,0.55)";
+      var dur = (e.def.burrow && e.def.burrow.duration) || 1.5;
+      var fadeWindow = Math.min(0.3, dur * 0.3);
+      var sinceEnter = dur - e.surfaceTimer;
+      var inFrac = Math.min(1, Math.max(0, sinceEnter) / fadeWindow);
+      var outFrac = Math.min(1, Math.max(0, e.surfaceTimer) / fadeWindow);
+      var depthFrac = Math.min(inFrac, outFrac);
+      var tunnelScale = 0.55 + depthFrac * 0.45;
+      ctx.fillStyle = "rgba(90,60,30," + (0.55 * depthFrac) + ")";
       ctx.beginPath();
-      ctx.ellipse(0, R * 0.55, R * 1.15, R * 0.5, 0, 0, Math.PI * 2);
+      ctx.ellipse(0, R * 0.55, R * 1.15 * tunnelScale, R * 0.5 * tunnelScale, 0, 0, Math.PI * 2);
       ctx.fill();
       // Línea del túnel serpenteante (visible bajo la piel)
-      ctx.strokeStyle = "rgba(60, 40, 20, 0.45)";
+      ctx.strokeStyle = "rgba(60, 40, 20, " + (0.45 * depthFrac) + ")";
       ctx.lineWidth = Math.max(1.2, 1.8 * U);
       ctx.setLineDash([3, 3]);
       ctx.beginPath();
@@ -14419,16 +14441,21 @@
       }
       ctx.stroke();
       ctx.setLineDash([]);
-      ctx.globalAlpha = e.revealed ? 0.6 : 0.22;
+      var hiddenAlpha = e.revealed ? 0.6 : 0.22;
+      ctx.globalAlpha = 1 - depthFrac * (1 - hiddenAlpha);
     }
-    // 8 PATAS articuladas con knee bend (signature arácnido)
+    // 8 PATAS articuladas con knee bend (signature arácnido) — marcha
+    // alternada real (2 grupos en contrafase), no una onda sincronizada
+    // con el reloj: se congela si no se está desplazando de verdad.
     ctx.strokeStyle = e.def.colorDark;
     ctx.lineWidth = Math.max(1.4, 2 * U);
     ctx.lineCap = "round";
     for (var i = 0; i < 8; i++) {
       var side = (i < 4 ? -1 : 1), idx = i % 4;
       var ly = (-0.45 + idx * 0.32) * R;
-      var bend = Math.sin(w * 2 + i + t * 1.2) * 0.18;
+      var group = (idx + (side === 1 ? 1 : 0)) % 2;
+      var legPhase = gaitPhase + (group === 0 ? 0 : Math.PI) + idx * 0.5;
+      var bend = Math.sin(legPhase) * 0.22;
       // Pata articulada en 2 segmentos (femur + tibia)
       var kneeX = side * R * 1.15;
       var kneeY = ly + R * 0.12 + bend * R * 0.7;
@@ -14471,12 +14498,21 @@
       ctx.ellipse(0, R * 0.20 * s, R * 0.8, R * 0.26, 0, 0, Math.PI);
       ctx.stroke();
     }
-    // QUELÍCEROS (mandíbulas) — 2 puntas saliendo al frente (arriba en el ácaro)
+    // QUELÍCEROS (mandíbulas) — mastican al ritmo real de la marcha y se
+    // abren + brillan justo antes de emerger del túnel (mordisco sorpresa).
+    var chew = 0.5 + 0.5 * Math.sin(gaitPhase * 2);
+    var biteSpread = chew * 0.10 + emergeBite * 0.24;
+    if (emergeBite > 0.05) {
+      ctx.fillStyle = "rgba(255, 245, 200, " + (emergeBite * 0.55) + ")";
+      ctx.beginPath();
+      ctx.arc(0, -R * 0.95, R * (0.35 + emergeBite * 0.25), 0, Math.PI * 2);
+      ctx.fill();
+    }
     ctx.fillStyle = e.def.colorDark;
     for (var ch = -1; ch <= 1; ch += 2) {
       ctx.beginPath();
       ctx.moveTo(ch * R * 0.18, -R * 0.85);
-      ctx.lineTo(ch * R * 0.30, -R * 1.12);
+      ctx.lineTo(ch * R * (0.30 + biteSpread), -R * (1.12 + emergeBite * 0.12));
       ctx.lineTo(ch * R * 0.42, -R * 0.85);
       ctx.closePath();
       ctx.fill();

@@ -8913,14 +8913,138 @@
   // del body-map) — usa los sfx "victory"/"defeat" que ya existían sin uso.
   function triggerPhaseVictory() {
     if (state.phaseTransition || state.dissemination) return;
+    // Tercer desenlace: si la carga viral quedó muy baja (contención real,
+    // no solo "sobreviví raspando"), el final se dramatiza con un quiebre —
+    // parecía contenida, pero algo se escapó por las heridas activas.
+    var contained = state.viralLoad < 20;
+    var breachWounds = [];
+    if (contained && PATH.wounds) {
+      for (var wi = 0; wi < PATH.wounds.length; wi++) {
+        if (PATH.wounds[wi].active) breachWounds.push({ x: PATH.wounds[wi].x, y: PATH.wounds[wi].y });
+      }
+      breachWounds.sort(function (a, b) { return a.x - b.x; });
+    }
     state.phaseTransition = {
       t: 0,
-      duration: 1.4,
+      duration: contained ? 4.4 : 1.4,
       target: "dissemination",
-      outcome: "victory"
+      outcome: contained ? "contained" : "victory",
+      breachWounds: breachWounds
     };
     sfx("victory");
     triggerShake(0.25, 3);
+  }
+
+  // Cinemática de quiebre del desenlace "contained": pantalla a negro,
+  // luego 1-2 mini-pantallas (una por herida activa, izquierda/derecha)
+  // muestran gérmenes residuales agrietando el camino y cruzando hacia el
+  // costado — la contención parecía real pero algo se escapó.
+  function drawContainedBreachTransition(ph, k) {
+    ctx.save();
+    // Fade a negro (0→0.10), hold con mini-pantallas (0.10→0.88), fade out (0.88→1.0).
+    var veilAlpha;
+    if (k < 0.10) veilAlpha = (k / 0.10) * 0.97;
+    else if (k < 0.88) veilAlpha = 0.97;
+    else veilAlpha = 0.97 * (1 - (k - 0.88) / 0.12);
+    ctx.fillStyle = "rgba(6, 4, 6, " + veilAlpha + ")";
+    ctx.fillRect(0, 0, VW, VH);
+
+    // Texto de apertura ("¿contenida?") — se desvanece antes de las mini-pantallas.
+    if (k > 0.10 && k < 0.28) {
+      var taOpen = Math.min(1, (k - 0.10) / 0.06);
+      if (k > 0.20) taOpen *= Math.max(0, 1 - (k - 0.20) / 0.08);
+      ctx.globalAlpha = taOpen;
+      ctx.fillStyle = "#bfe8c8";
+      ctx.font = "bold " + Math.floor(26 * U) + "px Fredoka, sans-serif";
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.strokeStyle = "rgba(0,0,0,0.85)"; ctx.lineWidth = 3;
+      ctx.strokeText("¿INFECCIÓN CONTENIDA?", VW / 2, VH * 0.40);
+      ctx.fillText("¿INFECCIÓN CONTENIDA?", VW / 2, VH * 0.40);
+      ctx.globalAlpha = 1;
+    }
+
+    // Mini-pantallas: 1-2 cuadros tipo cámara de seguridad, una por herida
+    // real activa al cerrar la fase. Cada gérmen residual agrieta el
+    // camino y se escapa hacia el costado correspondiente.
+    var miniK = Math.max(0, Math.min(1, (k - 0.28) / (0.80 - 0.28)));
+    if (miniK > 0 && ph.breachWounds && ph.breachWounds.length) {
+      var miniAlpha = miniK < 0.10 ? miniK / 0.10 : (miniK > 0.90 ? (1 - miniK) / 0.10 : 1);
+      var panels = ph.breachWounds;
+      var panelW = 128 * U, panelH = panelW * 0.62, gap = 16 * U;
+      var totalW = panels.length * panelW + (panels.length - 1) * gap;
+      var startX = VW / 2 - totalW / 2;
+      var panelY = VH * 0.5 - panelH / 2;
+      for (var pIdx = 0; pIdx < panels.length; pIdx++) {
+        var px = startX + pIdx * (panelW + gap);
+        var py = panelY;
+        var crossDir = panels.length > 1 ? (pIdx === 0 ? -1 : 1) : (panels[0].x < VW / 2 ? -1 : 1);
+        ctx.save();
+        ctx.globalAlpha = miniAlpha;
+        // Marco tipo monitor.
+        ctx.fillStyle = "#0a0c0a";
+        ctx.fillRect(px - 4 * U, py - 4 * U, panelW + 8 * U, panelH + 8 * U);
+        ctx.fillStyle = "#142016";
+        ctx.fillRect(px, py, panelW, panelH);
+        ctx.save();
+        ctx.beginPath(); ctx.rect(px, py, panelW, panelH); ctx.clip();
+        // Camino horizontal.
+        var pathY = py + panelH * 0.64;
+        ctx.strokeStyle = "rgba(150, 190, 150, 0.55)";
+        ctx.lineWidth = 2.5 * U;
+        ctx.beginPath(); ctx.moveTo(px, pathY); ctx.lineTo(px + panelW, pathY); ctx.stroke();
+        // Grieta creciendo en el centro del camino.
+        var crackLen = Math.min(panelW * 0.30, miniK * panelW * 0.45);
+        ctx.strokeStyle = "rgba(255, 90, 70, 0.85)";
+        ctx.lineWidth = 1.8 * U;
+        ctx.beginPath();
+        ctx.moveTo(px + panelW * 0.5 - crossDir * crackLen * 0.4, pathY - 5 * U);
+        ctx.lineTo(px + panelW * 0.5 + crossDir * crackLen * 0.6, pathY + 4 * U);
+        ctx.lineTo(px + panelW * 0.5 - crossDir * crackLen * 0.2, pathY + 9 * U);
+        ctx.stroke();
+        // 3 gérmenes residuales cruzando hacia el costado.
+        var germColors = ["#caa8ff", "#F9A825", "#66BB6A"];
+        for (var gI = 0; gI < 3; gI++) {
+          var gProgress = Math.min(1, Math.max(0, (miniK - gI * 0.14) * 1.7));
+          if (gProgress <= 0) continue;
+          var gx = px + panelW * 0.5 + crossDir * gProgress * panelW * 0.62;
+          var gy = pathY - (6 + gI * 3) * U;
+          ctx.fillStyle = germColors[gI];
+          ctx.beginPath(); ctx.arc(gx, gy, 5 * U, 0, Math.PI * 2); ctx.fill();
+          ctx.strokeStyle = "rgba(0,0,0,0.55)"; ctx.lineWidth = 1 * U; ctx.stroke();
+        }
+        ctx.restore(); // fin clip
+        ctx.strokeStyle = "rgba(130, 210, 150, 0.65)";
+        ctx.lineWidth = 1.6 * U;
+        ctx.strokeRect(px, py, panelW, panelH);
+        ctx.restore();
+        // Etiqueta.
+        ctx.save();
+        ctx.globalAlpha = miniAlpha;
+        ctx.fillStyle = "#cdeed4";
+        ctx.font = "bold " + Math.floor(10 * U) + "px Fredoka, sans-serif";
+        ctx.textAlign = "center"; ctx.textBaseline = "middle";
+        ctx.fillText(crossDir < 0 ? "CAMINO IZQUIERDO" : "CAMINO DERECHO", px + panelW / 2, py - 12 * U);
+        ctx.restore();
+      }
+    }
+
+    // Texto de cierre ("algo escapó") — tras las mini-pantallas, antes del fade-out final.
+    if (k > 0.80 && k < 0.97) {
+      var taClose = Math.min(1, (k - 0.80) / 0.05);
+      if (k > 0.90) taClose *= Math.max(0, 1 - (k - 0.90) / 0.07);
+      ctx.globalAlpha = taClose;
+      ctx.fillStyle = "#ff9a78";
+      ctx.font = "bold " + Math.floor(24 * U) + "px Fredoka, sans-serif";
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.strokeStyle = "rgba(0,0,0,0.85)"; ctx.lineWidth = 3;
+      ctx.strokeText("ALGO LOGRÓ ESCAPAR", VW / 2, VH * 0.40);
+      ctx.fillText("ALGO LOGRÓ ESCAPAR", VW / 2, VH * 0.40);
+      ctx.fillStyle = "#d4a888";
+      ctx.font = "italic " + Math.floor(14 * U) + "px Fredoka, sans-serif";
+      ctx.fillText("avanza al torrente sanguíneo por su cuenta…", VW / 2, VH * 0.48);
+      ctx.globalAlpha = 1;
+    }
+    ctx.restore();
   }
 
   function restartFromLevel1() {
@@ -20637,6 +20761,9 @@
     if (state.phaseTransition) {
       var ph = state.phaseTransition;
       var k = ph.t / ph.duration;             // 0 → 1
+      if (ph.outcome === "contained") {
+        drawContainedBreachTransition(ph, k);
+      } else {
       // Curva: fade-in rápido a oscuro, hold, fade-out parcial (luego la
       // cinemática de Diseminación toma el control).
       var veilAlpha;
@@ -20669,6 +20796,7 @@
         ctx.globalAlpha = 1;
       }
       ctx.restore();
+      }
     }
     drawMessage();
     drawWaveBanner();
@@ -22591,22 +22719,31 @@
     // enterDissemination al cumplir la mitad de la duración.
     if (state.phaseTransition) {
       state.phaseTransition.t += dt;
-      if (!state.phaseTransition.fired && state.phaseTransition.t >= state.phaseTransition.duration * 0.55) {
+      // "contained" tiene su propia cinemática extendida (mini-pantallas de
+      // quiebre) — el mapa-mundo espera a que termine, no a la mitad fija
+      // de 0.55 que usan los otros dos desenlaces.
+      var ptFireFrac = state.phaseTransition.outcome === "contained" ? 0.90 : 0.55;
+      if (!state.phaseTransition.fired && state.phaseTransition.t >= state.phaseTransition.duration * ptFireFrac) {
         state.phaseTransition.fired = true;
         if (state.phaseTransition.target === "dissemination") {
           // Antes: enterDissemination() directo.
           // Ahora: abrir el mapa-mundo primero. Player tap CONTINUAR
           // dispara enterDissemination en el callback. Título/subtítulo
-          // distintos según cómo se llegó (derrota del jefe vs. sobrecarga).
-          var ptVictory = state.phaseTransition.outcome === "victory";
+          // distintos según cómo se llegó (derrota del jefe / contención
+          // real con quiebre / sobrecarga).
+          var ptOutcome = state.phaseTransition.outcome;
+          var ptVictory = ptOutcome === "victory" || ptOutcome === "contained";
+          var ptContained = ptOutcome === "contained";
           enterBodyMap({
             currentNode: "fase1",
             availableNodes: ["dissem"],
             forkOpen: false,
-            title: ptVictory ? "¡MRSA DERROTADO!" : "FASE 1 SUPERADA",
-            subtitle: ptVictory
-              ? "Contuviste la infección en la piel — pero ya alcanzó el torrente sanguíneo"
-              : "La infección rompe la barrera de la piel · diseminación inminente",
+            title: ptContained ? "CONTENCIÓN ROTA" : (ptVictory ? "¡MRSA DERROTADO!" : "FASE 1 SUPERADA"),
+            subtitle: ptContained
+              ? "La controlaste casi por completo — pero algo logró escapar hacia el torrente sanguíneo"
+              : (ptVictory
+                ? "Contuviste la infección en la piel — pero ya alcanzó el torrente sanguíneo"
+                : "La infección rompe la barrera de la piel · diseminación inminente"),
             onContinue: function () { enterDissemination(); }
           });
         }

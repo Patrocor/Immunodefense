@@ -5216,7 +5216,9 @@
       return;
     }
     if (def.id === "eosinofilo") {
-      // DESCARGA DE GRÁNULOS: daño instantáneo a todos en rango; DoT
+      // DESCARGA DE GRÁNULOS: daño instantáneo a todos en rango (con el
+      // bonus de especialista vs parásitos, igual que fireTower aplica en
+      // el disparo normal — antes el ultimate se lo saltaba); DoT
       // corrosivo extra a los parásitos.
       var eoStats = towerStats(t);
       var eoR = eoStats.range * U;
@@ -5225,7 +5227,9 @@
         if (ee.dead || ee.dying || ee.absorbing) continue;
         if (ee.burrowed && !ee.revealed) continue;
         if (Math.hypot(ee.x - t.x, ee.y - t.y) > eoR) continue;
-        damageEnemy(ee, eoStats.damage * 1.5, "eosinofilo");
+        var eoDmg = eoStats.damage * 1.5;
+        if (t.def.bonusVs && ee.def.baseKind === t.def.bonusVs.kind) eoDmg *= t.def.bonusVs.mult;
+        damageEnemy(ee, eoDmg, "eosinofilo");
         if (ee.def.baseKind === "parasito") {
           ee.dotTimer = Math.max(ee.dotTimer || 0, 4.0);
           ee.dotDps = eoStats.damage * 0.8;
@@ -5346,6 +5350,9 @@
     var bdirY = nx * sinS + ny * cosS;
     var stats = towerStats(t);
     var dmg = stats.damage * 2.0;
+    // Bonus de especialista vs virus (mismo que fireTower aplica en el
+    // disparo normal) — se evalúa por enemigo golpeado en el update del
+    // efecto, ya que una sola perforina perfora varios gérmenes distintos.
     pushEffect({
       kind: "perforinBolt",
       x: startX, y: startY,
@@ -5354,6 +5361,8 @@
       angle: Math.atan2(bdirY, bdirX),
       size: 6 * U,
       dmg: dmg,
+      bonusVsKind: t.def.bonusVs ? t.def.bonusVs.kind : null,
+      bonusVsMult: t.def.bonusVs ? t.def.bonusVs.mult : 1,
       hitIds: {},
       life: 1.2, max: 1.2
     });
@@ -8974,9 +8983,13 @@
             ef.hitIds[phid] = true;
             // IGNORA ESCUDOS — daño directo al cuerpo.
             if (phn.shieldHP) phn.shieldHP = 0;
-            phn.hp -= ef.dmg;
+            // Bonus de especialista vs virus, evaluado por enemigo (una
+            // perforina puede perforar varios gérmenes de distinto tipo).
+            var pDmg = ef.dmg;
+            if (ef.bonusVsKind && phn.def.baseKind === ef.bonusVsKind) pDmg *= ef.bonusVsMult;
+            phn.hp -= pDmg;
             phn.hitFlash = 0.30;
-            pushDamageNumber(phn.x + (Math.random() - 0.5) * 6 * U, phn.y - phn.def.radius * U, ef.dmg, "#ff80c0");
+            pushDamageNumber(phn.x + (Math.random() - 0.5) * 6 * U, phn.y - phn.def.radius * U, pDmg, "#ff80c0");
             if (phn.hp <= 0 && !phn.dying) {
               phn.hp = 0; phn.dying = true; phn.dyingTimer = 0.30;
               state.atp += phn.def.reward;

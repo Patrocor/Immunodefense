@@ -970,20 +970,37 @@
         { range: 110, damage: 3, fireRate: 1.4, projectileSpeed: 380, splash: 0, hp: 420 }
       ],
       upgradeCost: [40, 65]
+    },
+    trombo: {
+      id: "trombo", name: "Trombo de Respuesta", shortName: "Trombo",
+      color: "#C0392B", colorDark: "#6B1410", cost: 45,
+      desc: "Coágulo: atropella y empuja; al romperse deja una bomba",
+      persistAcrossPhases: true,  // tanque: una vez desbloqueado, queda
+      // Sin ultimate propio — su payoff es el death-bomb (factores de
+      // coagulación liberados) al llegar a 0 HP, no una carga de ultimate.
+      // Cada golpe además empuja al germen hacia atrás en el camino
+      // (resta progreso — ver knockback en fireTower).
+      deathBomb: { dmgMult: 4, radius: 45, delay: 2.0 },
+      levels: [
+        { range: 95, damage: 10, fireRate: 1.0, projectileSpeed: 0, splash: 0, hp: 180, knockback: 26 },
+        { range: 95, damage: 16, fireRate: 1.1, projectileSpeed: 0, splash: 0, hp: 260, knockback: 32 },
+        { range: 95, damage: 24, fireRate: 1.2, projectileSpeed: 0, splash: 0, hp: 360, knockback: 40 }
+      ],
+      upgradeCost: [55, 90]
     }
   };
   var MAC_COST = 5;   // fragmentos de complemento para ensamblar el cañón
-  var TOWER_LIST = ["neutrofilo", "linfocitoB", "linfocitoT", "langerhans", "nk", "eosinofilo", "mastocito", "complemento", "plaqueta"];
+  var TOWER_LIST = ["neutrofilo", "linfocitoB", "linfocitoT", "langerhans", "nk", "eosinofilo", "mastocito", "complemento", "plaqueta", "trombo"];
   // Cartilla por grupos desplegables (categorías de defensa).
   // 3 grupos principales + 1 "otras estructuras":
   //  · Defensas: torres que atacan directamente
   //  · Potenciadores: soportes que escalan a otras torres
-  //  · Tanques: estructuras pesadas/persistentes (MAC)
+  //  · Tanques: estructuras pesadas/persistentes (MAC, Trombo)
   //  · Otras estructuras: el resto (Fibrina solo en diseminación)
   var TOWER_GROUPS = [
     { id: "defensas",      label: "Defensas",      towers: ["neutrofilo", "linfocitoB", "linfocitoT", "nk", "eosinofilo"] },
     { id: "potenciadores", label: "Potenciadores", towers: ["langerhans", "mastocito"] },
-    { id: "tanques",       label: "Tanques",       towers: ["complemento"] },
+    { id: "tanques",       label: "Tanques",       towers: ["complemento", "trombo"] },
     { id: "otras",         label: "Otras estructuras", towers: ["plaqueta"] }
   ];
 
@@ -1345,10 +1362,11 @@
     3: "complemento",   // permanente (MAC)
     4: "nk",            // per-fase — misma ola que el boss Pseudomonas
     5: "eosinofilo",    // per-fase
-    6: "mastocito"      // permanente (en dissem/F2)
+    6: "mastocito",     // permanente (en dissem/F2)
+    7: "trombo"         // permanente — tanque agregado el 2026-06-22
   };
   var PER_PHASE_TOWERS = ["langerhans", "nk", "eosinofilo"]; // re-emiten al cambiar fase
-  var PERSISTENT_UNLOCKABLES = ["mastocito", "complemento"]; // si no llegó a unlocked, también re-aparece
+  var PERSISTENT_UNLOCKABLES = ["mastocito", "complemento", "trombo"]; // si no llegó a unlocked, también re-aparece
 
   // === MEGACARIOCITO: produce plaquetas maduras periódicamente ===
   function updateMegakaryocyte(dt) {
@@ -3177,6 +3195,7 @@
       acidSplats: [],                   // charcos de ácido del cañón MAC
       seekers: [],                      // esporas buscadoras (Pseudomonas)
       necroticPatches: [],              // parches necróticos de bossPyogenes
+      pendingBombs: [],                 // {x,y,dmg,radius,timer,max} — death-bomb del Trombo
       medCharge: 0,
       medApplying: false,
       topicalCharge: 0,
@@ -5766,6 +5785,18 @@
             life: 0.5, max: 0.6, color: t.def.color });
         }
         pushEffect({ kind: "placeFlash", x: t.x, y: t.y, life: 0.3, max: 0.3 });
+        // Trombo de Respuesta: al romperse libera sus factores de
+        // coagulación como una bomba retardada en el mismo lugar.
+        if (t.def.deathBomb) {
+          var dbStats = towerStats(t);
+          var db = t.def.deathBomb;
+          state.pendingBombs.push({
+            x: t.x, y: t.y,
+            dmg: dbStats.damage * db.dmgMult,
+            radius: db.radius * U,
+            timer: db.delay, max: db.delay
+          });
+        }
         // La célula caída refuerza el medicamento sanguíneo (+1 bloque).
         state.medCharge = Math.min(MED_MAX, state.medCharge + MED_PER_TOWER_DEATH);
         showMsg(t.def.name + " cayó — el medicamento sanguíneo se refuerza");
@@ -5863,6 +5894,9 @@
     if (t.def.bonusVs && target.def.baseKind === t.def.bonusVs.kind) dmg *= t.def.bonusVs.mult;
     if (stats.projectileSpeed === 0) {
       damageEnemy(target, dmg, t.def.id);
+      // Empuje (Trombo de Respuesta): resta progreso real en el camino —
+      // un atropellón de verdad, no solo daño.
+      if (stats.knockback) target.progress = Math.max(0, target.progress - stats.knockback * U);
       pushEffect({ kind: "melee", x1: t.x, y1: t.y, x2: target.x, y2: target.y, life: 0.18, max: 0.18, color: t.def.color });
     } else {
       state.projectiles.push({
@@ -5907,6 +5941,24 @@
     }
   }
 
+  // Bombas retardadas (Trombo de Respuesta): factores de coagulación
+  // liberados al romperse, explotan unos segundos después en el mismo
+  // lugar — daño real en radio, no decorativo.
+  function updatePendingBombs(dt) {
+    if (!state.pendingBombs) return;
+    var arr = state.pendingBombs;
+    for (var i = arr.length - 1; i >= 0; i--) {
+      var b = arr[i];
+      b.timer -= dt;
+      if (b.timer <= 0) {
+        dealAoEDamageAt(b.x, b.y, b.radius, b.dmg);
+        pushEffect({ kind: "placeFlash", x: b.x, y: b.y, life: 0.35, max: 0.35 });
+        triggerShake(0.18, 5);
+        arr.splice(i, 1);
+      }
+    }
+  }
+
   function drawNecroticPatches() {
     if (!state.necroticPatches) return;
     var arr = state.necroticPatches;
@@ -5937,6 +5989,40 @@
         ctx.arc(bx, by, p.r * 0.15, 0, Math.PI * 2);
         ctx.fill();
       }
+      ctx.restore();
+    }
+  }
+
+  // Residuo de coágulo del Trombo de Respuesta esperando para estallar —
+  // pulsa cada vez más rápido a medida que se acerca el momento real
+  // (b.timer real, no decorativo) y muestra el radio de la bomba real.
+  function drawPendingBombs() {
+    if (!state.pendingBombs) return;
+    var arr = state.pendingBombs;
+    for (var i = 0; i < arr.length; i++) {
+      var b = arr[i];
+      var frac = 1 - b.timer / b.max;          // 0→1 acercándose al estallido
+      var pulseSpeed = 4 + frac * 14;
+      var pulse = 0.5 + 0.5 * Math.sin(state.time * pulseSpeed);
+      ctx.save();
+      ctx.globalAlpha = 0.55 + frac * 0.35;
+      var grd = ctx.createRadialGradient(b.x, b.y, 0, b.x, b.y, 10 * U * (1 + pulse * 0.2));
+      grd.addColorStop(0, "rgba(220, 50, 40, 0.9)");
+      grd.addColorStop(0.6, "rgba(140, 20, 20, 0.65)");
+      grd.addColorStop(1, "rgba(80, 8, 10, 0)");
+      ctx.fillStyle = grd;
+      ctx.beginPath();
+      ctx.arc(b.x, b.y, 10 * U * (1 + pulse * 0.2), 0, Math.PI * 2);
+      ctx.fill();
+      // Anillo tenue del radio real de la bomba — telegraph claro.
+      ctx.globalAlpha = 0.18 + frac * 0.30;
+      ctx.strokeStyle = "rgba(220, 60, 50, 0.8)";
+      ctx.lineWidth = Math.max(1.0, 1.4 * U);
+      ctx.setLineDash([5 * U, 4 * U]);
+      ctx.beginPath();
+      ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
       ctx.restore();
     }
   }
@@ -12307,6 +12393,7 @@
     else if (t.def.id === "mastocito") drawMastocito(t, pulse, expression, blink);
     else if (t.def.id === "complemento") drawComplementCannon(t, pulse, expression, blink);
     else if (t.def.id === "plaqueta") drawPlaqueta(t, pulse, expression, blink);
+    else if (t.def.id === "trombo") drawTrombo(t, pulse, expression, blink);
     else drawLinfocitoT(t, pulse, expression, blink);
     // Level-up sparkles
     if (levelup) {
@@ -13718,6 +13805,103 @@
     towerFace(hexR * 0.75, expression, blink, "neutral", "neutral");
     ctx.restore();
 
+    ctx.restore();
+  }
+
+  function drawTrombo(t, pulse, expression, blink) {
+    // Trombo de Respuesta — coágulo de plaquetas + fibrina (hemostasia
+    // real). Masa irregular rojo oscuro, malla de fibrina en la
+    // superficie, se agrieta con el daño real acumulado (hpFrac) y
+    // "embiste" hacia el objetivo al atacar — el empuje real es el
+    // knockback que ya aplica fireTower; esto es el gesto que lo acompaña.
+    var R = 17 * U * pulse;
+    var time = state.time;
+    var attacking = (t.attackAnim || 0) > 0;
+    var hpFrac = (t.maxHp && t.hp > 0) ? Math.max(0, t.hp / t.maxHp) : 1;
+
+    var lurchX = 0, lurchY = 0;
+    if (attacking && t.lastTargetX != null) {
+      var ak = Math.min(1, 1 - Math.max(0, t.attackAnim) / 0.20);
+      var lurchAmt = Math.sin(ak * Math.PI) * R * 0.30;
+      var ldx = t.lastTargetX - t.x, ldy = t.lastTargetY - t.y;
+      var ldd = Math.hypot(ldx, ldy) || 1;
+      lurchX = (ldx / ldd) * lurchAmt;
+      lurchY = (ldy / ldd) * lurchAmt;
+    }
+
+    ctx.save();
+    ctx.translate(t.x + lurchX, t.y + lurchY);
+
+    // Cuerpo: masa irregular (no un círculo perfecto) — irregularidad fija
+    // por índice, no aleatoria cada frame, + breathing sutil.
+    var breathe = 1 + Math.sin(time * 1.3 + (t.idlePhase || 0)) * 0.03;
+    var pts = 11;
+    var bodyPts = [];
+    for (var p = 0; p < pts; p++) {
+      var pa = (p / pts) * Math.PI * 2;
+      var irregular = 1 + Math.sin(p * 2.7 + 1.3) * 0.14 + Math.sin(p * 5.1) * 0.06;
+      var rr = R * irregular * breathe;
+      bodyPts.push([Math.cos(pa) * rr, Math.sin(pa) * rr]);
+    }
+    var grad = ctx.createRadialGradient(-R * 0.3, -R * 0.35, R * 0.15, 0, 0, R * 1.1);
+    grad.addColorStop(0, "#9B3A2E");
+    grad.addColorStop(0.55, t.def.color);
+    grad.addColorStop(1, t.def.colorDark);
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.moveTo(bodyPts[0][0], bodyPts[0][1]);
+    for (var p2 = 1; p2 < pts; p2++) ctx.lineTo(bodyPts[p2][0], bodyPts[p2][1]);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = t.def.colorDark;
+    ctx.lineWidth = Math.max(1.4, 1.7 * U);
+    ctx.stroke();
+
+    // Malla de fibrina sobre la superficie — hebras finas cruzadas.
+    ctx.strokeStyle = "rgba(255, 220, 220, 0.35)";
+    ctx.lineWidth = Math.max(0.7, 0.9 * U);
+    for (var f = 0; f < 5; f++) {
+      var fa1 = f * 1.3, fa2 = fa1 + 2.2 + Math.sin(f) * 0.5;
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(fa1) * R * 0.75, Math.sin(fa1) * R * 0.75);
+      ctx.quadraticCurveTo(0, 0, Math.cos(fa2) * R * 0.75, Math.sin(fa2) * R * 0.75);
+      ctx.stroke();
+    }
+
+    // Grietas reales con el daño acumulado — telegraph de que está cerca
+    // de romperse y soltar la bomba (deathBomb real, no decorativo).
+    var dmgFrac = 1 - hpFrac;
+    if (dmgFrac > 0.05) {
+      var crackSeeds = [0.4, 2.0, 3.6, 5.1];
+      var crackCount = Math.min(crackSeeds.length, 1 + Math.floor(dmgFrac * 4));
+      ctx.strokeStyle = "rgba(30, 5, 5, " + (0.45 + dmgFrac * 0.45) + ")";
+      ctx.lineWidth = Math.max(0.8, 1.1 * U);
+      for (var c = 0; c < crackCount; c++) {
+        var cAng = crackSeeds[c];
+        var cLen = R * (0.35 + dmgFrac * 0.55);
+        var cx1 = Math.cos(cAng) * cLen * 0.5, cy1 = Math.sin(cAng) * cLen * 0.5;
+        var cx2 = Math.cos(cAng) * cLen, cy2 = Math.sin(cAng) * cLen;
+        var jagA = cAng + 0.4;
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.lineTo(cx1 + Math.cos(jagA) * R * 0.08, cy1 + Math.sin(jagA) * R * 0.08);
+        ctx.lineTo(cx2, cy2);
+        ctx.stroke();
+      }
+      // Brillo apagado de presión interna creciente — anticipa la bomba.
+      ctx.fillStyle = "rgba(220, 60, 40, " + (dmgFrac * 0.20) + ")";
+      ctx.beginPath();
+      ctx.arc(0, 0, R * 0.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Highlight superior.
+    ctx.fillStyle = "rgba(255, 255, 255, 0.18)";
+    ctx.beginPath();
+    ctx.ellipse(-R * 0.32, -R * 0.38, R * 0.30, R * 0.18, -0.4, 0, Math.PI * 2);
+    ctx.fill();
+
+    towerFace(R, expression, blink, "angry", "serious");
     ctx.restore();
   }
 
@@ -18346,6 +18530,7 @@
     else if (typeId === "mastocito")      drawMastocito(fakeTower, pulse, "idle", false);
     else if (typeId === "complemento")    drawComplementCannon(fakeTower, pulse, "idle", false);
     else if (typeId === "plaqueta")       drawPlaqueta(fakeTower, pulse, "idle", false);
+    else if (typeId === "trombo")         drawTrombo(fakeTower, pulse, "idle", false);
     else {
       // Fallback al ícono simple si no hay función dedicada.
       ctx.translate(-cx, -cy);
@@ -20736,6 +20921,7 @@
     safeDraw("Barricada", drawBarricada);
     safeDraw("Slicks", drawSlicks);
     safeDraw("NecroticPatches", drawNecroticPatches);
+    safeDraw("PendingBombs", drawPendingBombs);
     safeDraw("AcidSplats", drawAcidSplats);
     safeDraw("Megakaryocyte", drawMegakaryocyte);
     safeDraw("PlaquetaPickups", drawPlaquetaPickups);
@@ -22780,6 +22966,7 @@
       updateAcidSplats(dt);
       updateSeekers(dt);
       updateNecroticPatches(dt);
+      updatePendingBombs(dt);
       updateMegakaryocyte(dt);
       updateAntigenDrops(dt);
       updateEnergyDrops(dt);

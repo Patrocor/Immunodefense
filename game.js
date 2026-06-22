@@ -13453,6 +13453,10 @@
     var R = 18 * U * pulse;
     var time = state.time;
     var attacking = (t.attackAnim || 0) > 0;
+    // Carga real del ultimate (t.specialCharge: 0→1) — alimenta la
+    // hinchazón anticipada del cuerpo, el brillo/vibración de gránulos y
+    // los receptores IgE separándose de la membrana, todos más abajo.
+    var chargeFrac = Math.max(0, Math.min(1, t.specialCharge || 0));
     ctx.save();
     ctx.translate(t.x, t.y);
 
@@ -13490,12 +13494,13 @@
     bodyGrad.addColorStop(1, t.def.colorDark);
     ctx.fillStyle = bodyGrad;
     var nBumps = 14;
+    var bodySwell = 1 + chargeFrac * 0.10;
     ctx.beginPath();
     for (var i = 0; i <= nBumps; i++) {
       var bAng = (i / nBumps) * Math.PI * 2;
-      var bump = 1 + Math.sin(bAng * 5 + time * 0.4) * 0.05;
-      var px = Math.cos(bAng) * R * bump;
-      var py = Math.sin(bAng) * R * bump;
+      var bump = 1 + Math.sin(bAng * 5 + time * 0.4) * (0.05 + chargeFrac * 0.09);
+      var px = Math.cos(bAng) * R * bump * bodySwell;
+      var py = Math.sin(bAng) * R * bump * bodySwell;
       if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
     }
     ctx.closePath();
@@ -13520,17 +13525,19 @@
     // GRÁNULOS BASOFÍLICOS DENSOS — histamina + heparina + triptasa
     // SIGNATURE: muchos gránulos violeta intenso uniformemente distribuidos
     var nGran = 24;
+    var granJitter = chargeFrac * 1.1 * U;
     for (var g = 0; g < nGran; g++) {
       var ga = (g * 137.5 * Math.PI / 180) % (Math.PI * 2);
       var gdMin = nucR * 1.6, gdMax = R * 0.78;
       var gd = gdMin + (((g * 13) % 100) / 100) * (gdMax - gdMin);
-      var gx = Math.cos(ga) * gd;
-      var gy = Math.sin(ga) * gd;
+      var gx = Math.cos(ga) * gd + (Math.random() - 0.5) * granJitter;
+      var gy = Math.sin(ga) * gd + (Math.random() - 0.5) * granJitter;
       var gSize = R * 0.07 + ((g * 17) % 10) / 10 * R * 0.025;
       var gPulse = 0.5 + 0.5 * Math.sin(time * 2.2 + g * 0.7);
-      // Gránulo con gradiente para volumen
+      // Gránulo con gradiente para volumen — brilla más fuerte a medida
+      // que la histamina/heparina real se acumula lista para salir.
       var gGrad = ctx.createRadialGradient(gx - gSize * 0.3, gy - gSize * 0.3, 0, gx, gy, gSize);
-      gGrad.addColorStop(0, "rgba(180, 130, 220, " + (0.85 + gPulse * 0.10) + ")");
+      gGrad.addColorStop(0, "rgba(" + Math.round(180 + chargeFrac * 60) + ", " + Math.round(130 + chargeFrac * 75) + ", 230, " + Math.min(1, 0.85 + gPulse * 0.10 + chargeFrac * 0.15) + ")");
       gGrad.addColorStop(1, "rgba(90, 40, 130, 0.85)");
       ctx.fillStyle = gGrad;
       ctx.beginPath();
@@ -13544,9 +13551,16 @@
     var nIgE = 6;
     for (var ig = 0; ig < nIgE; ig++) {
       var igA = (ig * Math.PI * 2 / nIgE) + time * 0.20;
-      var igX = Math.cos(igA) * (R + 3 * U);
-      var igY = Math.sin(igA) * (R + 3 * U);
-      drawYShape(igX, igY, 3.2 * U, igA + Math.PI / 2, "#e0c8f0", t.def.colorDark);
+      var igDist = R + (3 + chargeFrac * 7) * U;
+      var igX = Math.cos(igA) * igDist;
+      var igY = Math.sin(igA) * igDist;
+      if (chargeFrac > 0.15) {
+        ctx.fillStyle = "rgba(224, 200, 240, " + (chargeFrac * 0.55) + ")";
+        ctx.beginPath();
+        ctx.arc(igX, igY, 4 * U * (1 + chargeFrac * 0.6), 0, Math.PI * 2);
+        ctx.fill();
+      }
+      drawYShape(igX, igY, 3.2 * U * (1 + chargeFrac * 0.35), igA + Math.PI / 2, "#e0c8f0", t.def.colorDark);
     }
 
     // Cara — alerta, lista para desgranular

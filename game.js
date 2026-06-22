@@ -12910,8 +12910,24 @@
     var doingUltimate = (t.def.id === "langerhans" && (t.specialAnim || 0) > 0);
     // Durante ultimate: las dendritas se EXTIENDEN 2.5× su largo
     var ultExt = doingUltimate ? (1 + Math.sin((1 - t.specialAnim / 1.5) * Math.PI) * 1.5) : 1;
+    // Carga real del ultimate (t.specialCharge: 0→1 hasta quedar listo) —
+    // alimenta la pre-extensión de dendritas, el brillo de las banderitas
+    // MHC-II y el aura tenue de anticipación, todos más abajo.
+    var chargeFrac = Math.max(0, Math.min(1, t.specialCharge || 0));
+    var preExt = 1 + chargeFrac * 0.22;
     ctx.save();
     ctx.translate(t.x, t.y);
+    // Aura tenue de anticipación: crece gradualmente con la carga real
+    // ANTES del estallido (que es el aura grande de más abajo).
+    if (!doingUltimate && chargeFrac > 0.15) {
+      var preAuraR = R * (1.3 + chargeFrac * 1.1);
+      var preAuraA = chargeFrac * 0.32;
+      var preAuraGrad = ctx.createRadialGradient(0, 0, R * 0.5, 0, 0, preAuraR);
+      preAuraGrad.addColorStop(0, "rgba(80, 240, 230, " + preAuraA + ")");
+      preAuraGrad.addColorStop(1, "rgba(80, 240, 230, 0)");
+      ctx.fillStyle = preAuraGrad;
+      ctx.beginPath(); ctx.arc(0, 0, preAuraR, 0, Math.PI * 2); ctx.fill();
+    }
     // Aura cyan/turquesa durante el ultimate (citoquinas hacia aliados)
     if (doingUltimate) {
       var auraR = R * (3.0 + Math.sin(time * 6) * 0.20);
@@ -12936,7 +12952,7 @@
     var dn = 9;
     for (var i = 0; i < dn; i++) {
       var a = i * Math.PI * 2 / dn + time * 0.3;
-      var len = R * (1.35 + 0.16 * Math.sin(time * 2 + i)) * ultExt;
+      var len = R * (1.35 + 0.16 * Math.sin(time * 2 + i)) * ultExt * preExt;
       var startX = Math.cos(a) * R * 0.6, startY = Math.sin(a) * R * 0.6;
       var tipX = Math.cos(a) * len, tipY = Math.sin(a) * len;
       // Línea principal de la dendrita
@@ -12950,9 +12966,16 @@
       ctx.lineTo(Math.cos(a + 0.24) * (len - R * 0.24), Math.sin(a + 0.24) * (len - R * 0.24));
       ctx.stroke();
       // MHC-II flag al final (signature del APC) — pequeño cuadrado amarillo
-      // con punto rojo en el centro (antígeno cargado)
-      var flagR = R * 0.13;
-      ctx.fillStyle = "#ffd24a";
+      // con punto rojo en el centro (antígeno cargado). Brilla y crece con
+      // la carga real del ultimate (va "acumulando" antígenos presentados).
+      var flagR = R * 0.13 * (1 + chargeFrac * 0.55);
+      if (chargeFrac > 0.1) {
+        ctx.fillStyle = "rgba(255, 230, 120, " + (chargeFrac * 0.55) + ")";
+        ctx.beginPath();
+        ctx.arc(tipX, tipY, flagR * 2.0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.fillStyle = chargeFrac > 0.1 ? "#ffe27a" : "#ffd24a";
       ctx.fillRect(tipX - flagR, tipY - flagR, flagR * 2, flagR * 2);
       ctx.strokeStyle = "rgba(120, 80, 30, 0.85)";
       ctx.lineWidth = 0.9 * U;

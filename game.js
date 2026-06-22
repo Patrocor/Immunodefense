@@ -1351,22 +1351,30 @@
   // Cada cierto número de oleadas, la médula ósea emite un pickup flotante.
   // El jugador lo tappea y la torre correspondiente se desbloquea en el dock.
   // Reescalado junto con la compresión de olas 18→10 (2026-06-22): mismas
-  // proporciones que el roster original (3,5,7,9,11 de 18 → 2,3,4,6 de 10),
+  // proporciones que el roster original (3,5,7,9 de 18 → 2,4,5,6 de 10),
   // así que Langerhans/NK siguen cayendo en la misma ola que sus bosses
-  // asociados (Pyogenes ola 2, Pseudomonas ola 4). MAC sigue temprano a
-  // propósito. Las per-fase se pierden al cambiar de fase y se re-emiten;
-  // las permanentes (Mastocito, MAC) si se desbloquean, quedan para siempre.
+  // asociados (Pyogenes ola 2, Pseudomonas ola 4). Las per-fase se pierden
+  // al cambiar de fase y se re-emiten; Mastocito (permanente) si se
+  // desbloquea queda para siempre. Los TANQUES (MAC, Trombo) ya NO usan
+  // este schedule — ver BOSS_TANK_DROPS abajo.
   var BASIC_TOWERS = ["neutrofilo", "linfocitoB", "linfocitoT"];
+  // Las torres regulares se ganan por OLA (médula ósea, schedule fijo).
+  // Los TANQUES (Complemento, Trombo) NO están acá — se ganan derrotando
+  // a un boss específico (ver BOSS_TANK_DROPS más abajo), un método
+  // deliberadamente distinto: a las torres regulares no hay que "matar
+  // nada en particular", a los tanques sí.
   var UNLOCK_SCHEDULE = {
     2: "langerhans",    // per-fase — misma ola que el boss Pyogenes
-    3: "complemento",   // permanente (MAC)
     4: "nk",            // per-fase — misma ola que el boss Pseudomonas
     5: "eosinofilo",    // per-fase
-    6: "mastocito",     // permanente (en dissem/F2)
-    7: "trombo"         // permanente — tanque agregado el 2026-06-22
+    6: "mastocito"      // permanente (en dissem/F2)
   };
   var PER_PHASE_TOWERS = ["langerhans", "nk", "eosinofilo"]; // re-emiten al cambiar fase
-  var PERSISTENT_UNLOCKABLES = ["mastocito", "complemento", "trombo"]; // si no llegó a unlocked, también re-aparece
+  var PERSISTENT_UNLOCKABLES = ["mastocito", "complemento", "trombo"]; // si no llegó a unlocked, también re-aparece (re-offer de Diseminación)
+  // TANQUES: se ganan matando a un boss específico, no por ola. El drop
+  // real ocurre en updateEnemies cuando el boss termina su animación de
+  // muerte (dyingTimer<=0) — ver BOSS_TANK_DROPS ahí.
+  var BOSS_TANK_DROPS = { bossPyogenes: "complemento", bossClostridium: "trombo" };
 
   // === MEGACARIOCITO: produce plaquetas maduras periódicamente ===
   function updateMegakaryocyte(dt) {
@@ -1540,8 +1548,11 @@
     }
   }
 
-  function spawnUnlockPickup(typeId) {
-    if (!state.medulaOsea) return;
+  function spawnUnlockPickup(typeId, originX, originY) {
+    // originX/originY opcionales: si no se pasan, sale de la médula ósea
+    // (torres regulares). Los tanques pasan la posición real donde cayó
+    // el boss (BOSS_TANK_DROPS) — el drop se ve donde se ganó de verdad.
+    if (originX == null && !state.medulaOsea) return;
     if (!state.unlockPickups) state.unlockPickups = [];
     // No spawn si ya está desbloqueada o ya hay un pickup pendiente.
     if (state.unlockedTowers && state.unlockedTowers.indexOf(typeId) !== -1) return;
@@ -1550,8 +1561,8 @@
     }
     state.unlockPickups.push({
       typeId: typeId,
-      x: state.medulaOsea.x,
-      y: state.medulaOsea.y,
+      x: originX != null ? originX : state.medulaOsea.x,
+      y: originY != null ? originY : state.medulaOsea.y,
       vx: (Math.random() - 0.5) * 8 * U,
       vy: -22 * U,
       age: 0,
@@ -1559,7 +1570,7 @@
       collecting: false,
       collectT: 0
     });
-    showMsg("¡Nueva defensa disponible!");
+    showMsg(originX != null ? "¡El boss cayó — tanque disponible!" : "¡Nueva defensa disponible!");
     sfx("upgrade");
   }
 
@@ -4351,6 +4362,12 @@
           sfx("enemyDie");
           state.kills += 1;
           dropResto(e.x, e.y);
+          // Tanques: se ganan derrotando a un boss específico, no por ola
+          // (a diferencia del resto de las torres) — el drop sale del
+          // lugar real donde cayó el boss.
+          if (!state.dissemination && e.def.isBoss && BOSS_TANK_DROPS[e.def.id]) {
+            spawnUnlockPickup(BOSS_TANK_DROPS[e.def.id], e.x, e.y);
+          }
         }
         continue;
       }

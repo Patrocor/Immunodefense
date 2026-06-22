@@ -9024,7 +9024,8 @@
         ctx.fillStyle = "#cdeed4";
         ctx.font = "bold " + Math.floor(10 * U) + "px Fredoka, sans-serif";
         ctx.textAlign = "center"; ctx.textBaseline = "middle";
-        ctx.fillText(crossDir < 0 ? "CAMINO IZQUIERDO" : "CAMINO DERECHO", px + panelW / 2, py - 12 * U);
+        var panelLabel = panels.length > 1 ? (crossDir < 0 ? "CAMINO IZQUIERDO" : "CAMINO DERECHO") : "BRECHA EN LA PIEL";
+        ctx.fillText(panelLabel, px + panelW / 2, py - 12 * U);
         ctx.restore();
       }
     }

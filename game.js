@@ -12198,6 +12198,10 @@
     var R = 23 * U * pulse;       // bumped 19→23 (~20% más grande)
     var time = state.time;
     var attacking = (expression === "attacking");
+    // Carga real del ultimate (t.specialCharge: 0→1) — alimenta la tensión
+    // de los pseudópodos, el brillo de los gránulos y el aro de
+    // anticipación, todos más abajo.
+    var chargeFrac = Math.max(0, Math.min(1, t.specialCharge || 0));
     // Bombardeo de Defensinas: el cuerpo se contrae y se funde durante la
     // anticipación/lluvia, y rebota al volver en el aterrizaje (resto de
     // la secuencia se dibuja más abajo, fuera de este bloque local).
@@ -12229,7 +12233,7 @@
     var phase = t.idlePhase || 0;
     var nPseudo = 6;
     var rotation = phase * 0.15 + time * 0.04;
-    var armExt = attacking ? 1.20 : 1.0;
+    var armExt = attacking ? 1.20 : (1.0 + chargeFrac * 0.15);
     var rTop = R * 0.55;          // tamaño "head" virtual para sizing de cara
     var cyTop = -R * 0.18;        // posición de la cara (zona superior del cuerpo)
 
@@ -12307,17 +12311,20 @@
     }
 
     // GRÁNULOS azurófilos dispersos en el citoplasma (evitando núcleo y cara).
-    ctx.fillStyle = "rgba(126, 65, 180, 0.62)";
+    // Brillan más fuerte y vibran a medida que la carga real del Bombardeo
+    // avanza — las defensinas concentrándose antes de salir disparadas.
     var grans = 9;
+    var granJitterN = chargeFrac * 1.0 * U;
     for (var gn = 0; gn < grans; gn++) {
       var ga = (gn * 2.39 + phase) % (Math.PI * 2);    // distribución pseudo-random
       var gd = R * (0.38 + (gn % 3) * 0.08);
-      var ggx = Math.cos(ga) * gd;
-      var ggy = Math.sin(ga) * gd;
+      var ggx = Math.cos(ga) * gd + (Math.random() - 0.5) * granJitterN;
+      var ggy = Math.sin(ga) * gd + (Math.random() - 0.5) * granJitterN;
       // Evitar superposición con el área de la cara (zona superior).
       if (ggy < cyTop + R * 0.20 && Math.abs(ggx) < R * 0.30) continue;
+      ctx.fillStyle = "rgba(" + Math.round(126 + chargeFrac * 90) + ", " + Math.round(65 + chargeFrac * 100) + ", 220, " + Math.min(1, 0.62 + chargeFrac * 0.30) + ")";
       ctx.beginPath();
-      ctx.arc(ggx, ggy, (0.9 + Math.sin(time * 1.5 + gn) * 0.20) * U, 0, Math.PI * 2);
+      ctx.arc(ggx, ggy, (0.9 + Math.sin(time * 1.5 + gn) * (0.20 + chargeFrac * 0.18)) * U, 0, Math.PI * 2);
       ctx.fill();
     }
 
@@ -12394,6 +12401,20 @@
     else if (expression === "levelup") drawAnimeMouth(0, nfy + rTop * 0.60, rTop * 0.78, rTop * 0.50, "smile");
     else if (attacking) drawAnimeMouth(0, nfy + rTop * 0.60, rTop * 0.80, rTop * 0.80, "fanged");
     else drawAnimeMouth(0, nfy + rTop * 0.60, rTop * 0.65, rTop * 0.32, "serious");
+
+    // Aro dorado de anticipación: asoma gradualmente con la carga real
+    // ANTES del disparo — anticipa el aro de windup post-trigger de abajo.
+    if (!doingUltimate && chargeFrac > 0.15) {
+      var preBombPulse = 0.6 + 0.4 * Math.sin(time * 4);
+      ctx.save();
+      ctx.globalAlpha = chargeFrac * 0.45 * preBombPulse;
+      ctx.strokeStyle = "#ffd24a";
+      ctx.lineWidth = 2 * U;
+      ctx.beginPath();
+      ctx.arc(0, 0, R * 1.15, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
 
     ctx.restore();
 

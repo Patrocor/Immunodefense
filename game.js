@@ -987,10 +987,27 @@
         { range: 95, damage: 24, fireRate: 1.2, projectileSpeed: 0, splash: 0, hp: 360, knockback: 40 }
       ],
       upgradeCost: [55, 90]
+    },
+    centinela: {
+      id: "centinela", name: "Centinela de Alarma", shortName: "Centinela",
+      color: "#E8A33D", colorDark: "#8A5A12", cost: 50,
+      desc: "Faro: atrae los poderes especiales de los germenes hacia si",
+      persistAcrossPhases: true,  // tanque: una vez desbloqueado, queda
+      // Señuelo: decoyAttraction divide la distancia real en la
+      // comparación de "más cercano" que hacen los gérmenes con poder
+      // especial (devorar/catapulta/dardo/spray) — ver updateEnemies.
+      // Ataque propio débil, su rol real es absorber esos poderes.
+      decoyAttraction: 2.5,
+      levels: [
+        { range: 130, damage: 4, fireRate: 0.6, projectileSpeed: 0, splash: 0, hp: 140 },
+        { range: 130, damage: 6, fireRate: 0.7, projectileSpeed: 0, splash: 0, hp: 200 },
+        { range: 130, damage: 9, fireRate: 0.8, projectileSpeed: 0, splash: 0, hp: 280 }
+      ],
+      upgradeCost: [60, 100]
     }
   };
   var MAC_COST = 5;   // fragmentos de complemento para ensamblar el cañón
-  var TOWER_LIST = ["neutrofilo", "linfocitoB", "linfocitoT", "langerhans", "nk", "eosinofilo", "mastocito", "complemento", "plaqueta", "trombo"];
+  var TOWER_LIST = ["neutrofilo", "linfocitoB", "linfocitoT", "langerhans", "nk", "eosinofilo", "mastocito", "complemento", "plaqueta", "trombo", "centinela"];
   // Cartilla por grupos desplegables (categorías de defensa).
   // 3 grupos principales + 1 "otras estructuras":
   //  · Defensas: torres que atacan directamente
@@ -1000,7 +1017,7 @@
   var TOWER_GROUPS = [
     { id: "defensas",      label: "Defensas",      towers: ["neutrofilo", "linfocitoB", "linfocitoT", "nk", "eosinofilo"] },
     { id: "potenciadores", label: "Potenciadores", towers: ["langerhans", "mastocito"] },
-    { id: "tanques",       label: "Tanques",       towers: ["complemento", "trombo"] },
+    { id: "tanques",       label: "Tanques",       towers: ["complemento", "trombo", "centinela"] },
     { id: "otras",         label: "Otras estructuras", towers: ["plaqueta"] }
   ];
 
@@ -1370,11 +1387,11 @@
     6: "mastocito"      // permanente (en dissem/F2)
   };
   var PER_PHASE_TOWERS = ["langerhans", "nk", "eosinofilo"]; // re-emiten al cambiar fase
-  var PERSISTENT_UNLOCKABLES = ["mastocito", "complemento", "trombo"]; // si no llegó a unlocked, también re-aparece (re-offer de Diseminación)
+  var PERSISTENT_UNLOCKABLES = ["mastocito", "complemento", "trombo", "centinela"]; // si no llegó a unlocked, también re-aparece (re-offer de Diseminación)
   // TANQUES: se ganan matando a un boss específico, no por ola. El drop
   // real ocurre en updateEnemies cuando el boss termina su animación de
   // muerte (dyingTimer<=0) — ver BOSS_TANK_DROPS ahí.
-  var BOSS_TANK_DROPS = { bossPyogenes: "complemento", bossClostridium: "trombo" };
+  var BOSS_TANK_DROPS = { bossPyogenes: "complemento", bossClostridium: "trombo", bossMRSA: "centinela" };
 
   // === MEGACARIOCITO: produce plaquetas maduras periódicamente ===
   function updateMegakaryocyte(dt) {
@@ -4303,6 +4320,10 @@
 
   // -------- ENEMIES -------------------------------------------------------
   function updateEnemies(dt) {
+    // Centinela de Alarma: el glow de "blanco preferido" se recalcula
+    // cada frame (no es un timer que decae) — reset antes del loop de
+    // poderes, que es quien lo vuelve a marcar true si corresponde.
+    for (var twi = 0; twi < state.towers.length; twi++) state.towers[twi].beingLured = false;
     // Charcos aceitosos (Malassezia): se desvanecen con el tiempo.
     if (state.slicks && state.slicks.length) {
       for (var si = state.slicks.length - 1; si >= 0; si--) {
@@ -4975,6 +4996,7 @@
           updateDevour(e, dt);
         } else if (e.powerCharge > 0) {
           // Telégrafo: el germen "carga" antes de soltar el poder.
+          if (e.powerTarget) e.powerTarget.beingLured = true;   // Centinela: glow real mientras lo cargan
           e.powerCharge -= dt;
           if (e.powerCharge <= 0) {
             var pt = e.powerTarget;
@@ -4989,12 +5011,17 @@
         } else {
           if (e.powerCd > 0) e.powerCd -= dt;
           if (e.powerCd <= 0 && state.towers.length) {
+            // Centinela de Alarma: def.decoyAttraction divide la distancia
+            // real para la comparación de "más cercano" — se vuelve blanco
+            // preferido sin cambiar el rango real del poder del germen.
             var pr = e.def.power.range * U, tgt = null, bd = Infinity;
             for (var pi = 0; pi < state.towers.length; pi++) {
               var tw2 = state.towers[pi];
               if (tw2.devouredBy) continue;
               var dd2 = Math.hypot(tw2.x - e.x, tw2.y - e.y);
-              if (dd2 < pr && dd2 < bd) { bd = dd2; tgt = tw2; }
+              if (dd2 >= pr) continue;
+              var weighted = tw2.def.decoyAttraction ? dd2 / tw2.def.decoyAttraction : dd2;
+              if (weighted < bd) { bd = weighted; tgt = tw2; }
             }
             if (tgt) { e.powerCharge = 0.55; e.powerTarget = tgt; }  // inicia carga
           }
@@ -12411,6 +12438,7 @@
     else if (t.def.id === "complemento") drawComplementCannon(t, pulse, expression, blink);
     else if (t.def.id === "plaqueta") drawPlaqueta(t, pulse, expression, blink);
     else if (t.def.id === "trombo") drawTrombo(t, pulse, expression, blink);
+    else if (t.def.id === "centinela") drawCentinela(t, pulse, expression, blink);
     else drawLinfocitoT(t, pulse, expression, blink);
     // Level-up sparkles
     if (levelup) {
@@ -13919,6 +13947,108 @@
     ctx.fill();
 
     towerFace(R, expression, blink, "angry", "serious");
+    ctx.restore();
+  }
+
+  function drawCentinela(t, pulse, expression, blink) {
+    // Centinela de Alarma — célula centinela con baliza de alarma sobre
+    // un mástil. Atrae los poderes especiales de los gérmenes hacia sí
+    // (decoyAttraction, ver updateEnemies) — el glow/parpadeo de la
+    // baliza reacciona a t.beingLured REAL (un germen está cargando su
+    // poder contra esta torre en este instante), no a un timer decorativo.
+    var R = 16 * U * pulse;
+    var time = state.time;
+    var lured = !!t.beingLured;
+    var beamPulse = lured
+      ? (0.6 + 0.4 * Math.sin(time * 16))
+      : (0.4 + 0.3 * Math.sin(time * 1.6));
+
+    ctx.save();
+    ctx.translate(t.x, t.y);
+
+    // Cuerpo celular redondo.
+    var grad = ctx.createRadialGradient(-R * 0.3, -R * 0.3, R * 0.2, 0, 0, R * 1.05);
+    grad.addColorStop(0, "#F2C879");
+    grad.addColorStop(0.6, t.def.color);
+    grad.addColorStop(1, t.def.colorDark);
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(0, 0, R, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = t.def.colorDark;
+    ctx.lineWidth = Math.max(1.3, 1.6 * U);
+    ctx.stroke();
+
+    // Cilios sensoriales — bob sutil en reposo, vibran cuando atrae de verdad.
+    var nCilia = 8;
+    for (var c = 0; c < nCilia; c++) {
+      var ca = (c / nCilia) * Math.PI * 2;
+      var bob = Math.sin(time * 2 + c * 0.7) * 0.08;
+      var jitter = lured ? (Math.random() - 0.5) * 0.15 : 0;
+      var cLen = R * (0.45 + bob + jitter);
+      var baseX = Math.cos(ca) * R * 0.92, baseY = Math.sin(ca) * R * 0.92;
+      var tipX = Math.cos(ca) * (R + cLen), tipY = Math.sin(ca) * (R + cLen);
+      ctx.strokeStyle = lured ? "rgba(232,163,61,0.85)" : "rgba(138,90,18,0.55)";
+      ctx.lineWidth = Math.max(0.8, 1.0 * U);
+      ctx.beginPath();
+      ctx.moveTo(baseX, baseY);
+      ctx.lineTo(tipX, tipY);
+      ctx.stroke();
+    }
+
+    // Mástil del faro.
+    var mastH = R * 0.85;
+    ctx.fillStyle = t.def.colorDark;
+    ctx.beginPath();
+    ctx.moveTo(-R * 0.16, 0);
+    ctx.lineTo(-R * 0.10, -mastH);
+    ctx.lineTo(R * 0.10, -mastH);
+    ctx.lineTo(R * 0.16, 0);
+    ctx.closePath();
+    ctx.fill();
+
+    // Baliza — el corazón visual de la mecánica de señuelo.
+    var beaconY = -mastH - R * 0.12;
+    var beaconR = R * (0.30 + beamPulse * 0.18);
+    var bg = ctx.createRadialGradient(0, beaconY, 0, 0, beaconY, beaconR * 2.2);
+    bg.addColorStop(0, "rgba(255, 224, 140, " + (0.55 + beamPulse * 0.4) + ")");
+    bg.addColorStop(0.5, "rgba(232, 163, 61, " + (0.30 + beamPulse * 0.2) + ")");
+    bg.addColorStop(1, "rgba(232, 163, 61, 0)");
+    ctx.fillStyle = bg;
+    ctx.beginPath();
+    ctx.arc(0, beaconY, beaconR * 2.2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#FFE9B0";
+    ctx.beginPath();
+    ctx.arc(0, beaconY, beaconR, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Haz rotatorio + anillo de alarma — SOLO mientras está atrayendo de
+    // verdad (lured real, no decorativo).
+    if (lured) {
+      ctx.save();
+      ctx.translate(0, beaconY);
+      ctx.rotate(time * 5);
+      var sweepGrad = ctx.createLinearGradient(0, 0, R * 2.4, 0);
+      sweepGrad.addColorStop(0, "rgba(255, 220, 140, 0.45)");
+      sweepGrad.addColorStop(1, "rgba(255, 220, 140, 0)");
+      ctx.fillStyle = sweepGrad;
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.arc(0, 0, R * 2.4, -0.18, 0.18);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+
+      var ringPhase = (time % 0.6) / 0.6;
+      ctx.strokeStyle = "rgba(255, 200, 100, " + ((1 - ringPhase) * 0.5) + ")";
+      ctx.lineWidth = Math.max(1.0, 1.3 * U);
+      ctx.beginPath();
+      ctx.arc(0, 0, R * (1.2 + ringPhase * 1.0), 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    towerFace(R, expression, blink, "neutral", "serious");
     ctx.restore();
   }
 
@@ -18548,6 +18678,7 @@
     else if (typeId === "complemento")    drawComplementCannon(fakeTower, pulse, "idle", false);
     else if (typeId === "plaqueta")       drawPlaqueta(fakeTower, pulse, "idle", false);
     else if (typeId === "trombo")         drawTrombo(fakeTower, pulse, "idle", false);
+    else if (typeId === "centinela")      drawCentinela(fakeTower, pulse, "idle", false);
     else {
       // Fallback al ícono simple si no hay función dedicada.
       ctx.translate(-cx, -cy);

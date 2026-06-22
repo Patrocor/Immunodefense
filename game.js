@@ -13372,11 +13372,21 @@
     ctx.ellipse(0, totalH * 0.40, totalW * 0.55, totalH * 0.30, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    // Halo de obstrucción elíptico (área que bloquea)
+    // Contacto real: un germen está empujando la malla DE VERDAD en este
+    // instante (t.hitFlash lo activa en updateEnemies cuando un germen
+    // entra en la elipse de obstrucción) — alimenta el halo y las hebras
+    // de fibrina más abajo, no decorativo.
+    var contactPulse = (t.hitFlash || 0) > 0 ? Math.min(1, t.hitFlash / 0.10) : 0;
+
+    // Halo de obstrucción elíptico (área que bloquea) — vira de dorado a
+    // naranja-rojizo urgente y se intensifica con el contacto real.
     if (t.def.obstructs) {
       var bpulse = 0.5 + 0.5 * Math.sin(state.time * 2.5 + (t.idlePhase || 0));
-      ctx.strokeStyle = "rgba(232, 160, 32, " + (0.22 + bpulse * 0.10) + ")";
-      ctx.lineWidth = Math.max(1.0, 1.4 * U);
+      var haloAlpha = 0.22 + bpulse * 0.10 + contactPulse * 0.45;
+      var haloR2 = Math.round(232 + contactPulse * 23);
+      var haloG2 = Math.round(160 - contactPulse * 90);
+      ctx.strokeStyle = "rgba(" + haloR2 + ", " + haloG2 + ", 32, " + haloAlpha + ")";
+      ctx.lineWidth = Math.max(1.0, 1.4 * U) * (1 + contactPulse * 1.3);
       ctx.beginPath();
       ctx.ellipse(0, 0, (t.def.obstructRX || 50) * U, (t.def.obstructRY || 18) * U, 0, 0, Math.PI * 2);
       ctx.stroke();
@@ -13388,18 +13398,21 @@
       shootGlow = (t.attackAnim / 0.2);
     }
 
-    // Helper hexágono flat-top (lado plano arriba)
-    function drawHex(cx, cy, r, fillGrad, strokeColor, broken) {
+    // Helper hexágono flat-top (lado plano arriba). breakFrac: 0 = intacta,
+    // 1 = totalmente rota, intermedio = transición real de quiebre (grietas
+    // creciendo + el relleno dorado apagándose hacia el negro roto), en vez
+    // de un salto binario de un frame a otro.
+    function drawHex(cx, cy, r, fillGrad, strokeColor, breakFrac) {
       ctx.beginPath();
       for (var i = 0; i < 6; i++) {
         var ang = (Math.PI / 3) * i + Math.PI / 6;
-        var x = cx + Math.cos(ang) * r;
-        var y = cy + Math.sin(ang) * r;
-        if (i === 0) ctx.moveTo(x, y);
-        else ctx.lineTo(x, y);
+        var hx = cx + Math.cos(ang) * r;
+        var hy = cy + Math.sin(ang) * r;
+        if (i === 0) ctx.moveTo(hx, hy);
+        else ctx.lineTo(hx, hy);
       }
       ctx.closePath();
-      if (broken) {
+      if (breakFrac >= 1) {
         ctx.fillStyle = "rgba(20, 8, 4, 0.85)";
         ctx.fill();
         ctx.strokeStyle = "rgba(70, 30, 10, 0.55)";
@@ -13409,6 +13422,24 @@
       }
       ctx.fillStyle = fillGrad;
       ctx.fill();
+      if (breakFrac > 0) {
+        // Se apaga hacia el negro roto a medida que avanza la transición.
+        ctx.globalAlpha = breakFrac;
+        ctx.fillStyle = "rgba(20, 8, 4, 0.85)";
+        ctx.fill();
+        ctx.globalAlpha = 1;
+        // Grietas radiales creciendo desde el centro.
+        ctx.strokeStyle = "rgba(40, 20, 10, " + (0.5 + breakFrac * 0.5) + ")";
+        ctx.lineWidth = Math.max(0.6, 0.9 * U);
+        for (var cr = 0; cr < 3; cr++) {
+          var crA = cr * 2.1 + cx * 0.07;
+          ctx.beginPath();
+          ctx.moveTo(cx, cy);
+          ctx.lineTo(cx + Math.cos(crA) * r * breakFrac, cy + Math.sin(crA) * r * breakFrac);
+          ctx.stroke();
+        }
+        return;
+      }
       ctx.strokeStyle = strokeColor;
       ctx.lineWidth = Math.max(1.0, 1.3 * U);
       ctx.stroke();
@@ -13445,34 +13476,49 @@
     var totalCells = cells.length;
     var intactCount = Math.max(t.hp > 0 ? 1 : 0, Math.round(totalCells * hpFrac));
 
+    // Registrar el momento real en que cada celda pasó de intacta a rota
+    // (el orden de `cells` es estable frame a frame — mismo índice k =
+    // misma celda — así que esto detecta la transición real, no decorativa).
+    if (t._lastIntactCount == null) t._lastIntactCount = totalCells;
+    if (intactCount < t._lastIntactCount) {
+      if (!t._cellBreakStart) t._cellBreakStart = [];
+      for (var nb = intactCount; nb < t._lastIntactCount; nb++) t._cellBreakStart[nb] = state.time;
+    }
+    t._lastIntactCount = intactCount;
+
     // Gradiente compartido para celdas vivas (estilo cera)
     var cellFillBase = "#E8B040";
     var cellStroke = t.def.colorDark;
+    var breakWindow = 0.35;
     for (var k = 0; k < totalCells; k++) {
       var cell = cells[k];
-      var isIntact = k < intactCount;
-      if (isIntact) {
-        var fg = ctx.createRadialGradient(cell.x - hexR * 0.3, cell.y - hexR * 0.3, hexR * 0.15, cell.x, cell.y, hexR);
-        var glow = 0.85 + shootGlow * 0.40;
-        fg.addColorStop(0, "rgba(255, 235, 160, " + Math.min(1, glow) + ")");
-        fg.addColorStop(0.55, t.def.color);
-        fg.addColorStop(1, "#A06820");
-        drawHex(cell.x, cell.y, hexR, fg, cellStroke, false);
+      var fg = ctx.createRadialGradient(cell.x - hexR * 0.3, cell.y - hexR * 0.3, hexR * 0.15, cell.x, cell.y, hexR);
+      var glow = 0.85 + shootGlow * 0.40;
+      fg.addColorStop(0, "rgba(255, 235, 160, " + Math.min(1, glow) + ")");
+      fg.addColorStop(0.55, t.def.color);
+      fg.addColorStop(1, "#A06820");
+      if (k < intactCount) {
+        drawHex(cell.x, cell.y, hexR, fg, cellStroke, 0);
       } else {
-        drawHex(cell.x, cell.y, hexR, null, null, true);
+        var breakAge = (t._cellBreakStart && t._cellBreakStart[k] != null) ? (state.time - t._cellBreakStart[k]) : 999;
+        var breakFrac = Math.min(1, breakAge / breakWindow);
+        drawHex(cell.x, cell.y, hexR, fg, cellStroke, breakFrac);
       }
     }
 
-    // Hebras de fibrina conectando vértices (líneas finas radiales)
+    // Hebras de fibrina conectando vértices (líneas finas radiales) —
+    // tiemblan y se engrosan con el contacto real (la malla "aguantando"
+    // el empuje de un germen), no solo escalan con hpFrac.
     if (hpFrac > 0.2) {
-      ctx.strokeStyle = "rgba(232, 160, 32, " + (0.35 * hpFrac) + ")";
-      ctx.lineWidth = Math.max(0.6, 0.8 * U);
+      var fibrinJitter = contactPulse * 1.6 * U;
+      ctx.strokeStyle = "rgba(232, 160, 32, " + Math.min(1, 0.35 * hpFrac + contactPulse * 0.45) + ")";
+      ctx.lineWidth = Math.max(0.6, 0.8 * U) * (1 + contactPulse * 1.4);
       for (var s = 0; s < 6; s++) {
         var ang = (Math.PI / 3) * s;
-        var x0 = Math.cos(ang) * totalW * 0.50;
-        var y0 = Math.sin(ang) * totalH * 0.55;
-        var x1 = Math.cos(ang) * totalW * 0.58;
-        var y1 = Math.sin(ang) * totalH * 0.65;
+        var x0 = Math.cos(ang) * totalW * 0.50 + (Math.random() - 0.5) * fibrinJitter;
+        var y0 = Math.sin(ang) * totalH * 0.55 + (Math.random() - 0.5) * fibrinJitter;
+        var x1 = Math.cos(ang) * totalW * 0.58 + (Math.random() - 0.5) * fibrinJitter;
+        var y1 = Math.sin(ang) * totalH * 0.65 + (Math.random() - 0.5) * fibrinJitter;
         ctx.beginPath();
         ctx.moveTo(x0, y0);
         ctx.lineTo(x1, y1);

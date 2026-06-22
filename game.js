@@ -19338,6 +19338,12 @@
     else if (def.id === "malassezia") drawMalassezia(fakeEnemy, R, "idle", false);
     else if (def.id === "pseudomonas") drawPseudomonas(fakeEnemy, R, "idle", false);
     else if (def.id === "bossPseudomonas") drawPseudomonas(fakeEnemy, R, "idle", false);
+    else if (def.id === "influenza") drawInfluenza(fakeEnemy, R, "idle", false);
+    else if (def.id === "vih") drawVih(fakeEnemy, R, "idle", false);
+    else if (def.id === "candida") drawCandida(fakeEnemy, R, "idle", false);
+    else if (def.id === "bossPyogenes") drawBossPyogenes(fakeEnemy, R, "idle", false);
+    else if (def.id === "bossMRSA") drawBossMRSA(fakeEnemy, R, "idle", false);
+    else if (def.id === "bossClostridium") drawBossClostridium(fakeEnemy, R, "idle", false);
     else if (kind === "bacteria") drawBacteria(fakeEnemy, R, "idle", false);
     else if (kind === "virus") drawVirus(fakeEnemy, R, "idle", false);
     else if (kind === "hongo") drawHongo(fakeEnemy, R, "idle", false);

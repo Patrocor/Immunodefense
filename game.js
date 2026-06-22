@@ -5227,7 +5227,7 @@
         if (ee.dead || ee.dying || ee.absorbing) continue;
         if (ee.burrowed && !ee.revealed) continue;
         if (Math.hypot(ee.x - t.x, ee.y - t.y) > eoR) continue;
-        var eoDmg = eoStats.damage * 1.5;
+        var eoDmg = eoStats.damage * 2.2;   // subido de 1.5x — estaba muy por debajo del resto del roster
         if (t.def.bonusVs && ee.def.baseKind === t.def.bonusVs.kind) eoDmg *= t.def.bonusVs.mult;
         damageEnemy(ee, eoDmg, "eosinofilo");
         if (ee.def.baseKind === "parasito") {

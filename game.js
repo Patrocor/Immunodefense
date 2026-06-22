@@ -13636,52 +13636,133 @@
     // Sombra bajo el arma.
     ctx.fillStyle = "rgba(0,0,0,0.30)";
     ctx.beginPath(); ctx.ellipse(0, R * 0.55, R * 1.3, R * 0.45, 0, 0, Math.PI * 2); ctx.fill();
-    // Orientación hacia el último objetivo (si no hay, hacia arriba).
-    var ang = -Math.PI / 2;
-    if (t.lastTargetX != null) ang = Math.atan2(t.lastTargetY - y, t.lastTargetX - x);
-    ctx.rotate(ang);   // +x = "adelante" (hacia el objetivo)
+
+    // Orientación hacia el último objetivo real, SUAVIZADA — gira como
+    // una torreta de verdad, no un teletransporte al cambiar de blanco.
+    var targetAng = -Math.PI / 2;
+    if (t.lastTargetX != null) targetAng = Math.atan2(t.lastTargetY - y, t.lastTargetX - x);
+    if (t._aimAngle == null) t._aimAngle = targetAng;
+    var diffA = targetAng - t._aimAngle;
+    while (diffA > Math.PI) diffA -= Math.PI * 2;
+    while (diffA < -Math.PI) diffA += Math.PI * 2;
+    t._aimAngle += diffA * 0.18;
+    ctx.rotate(t._aimAngle);   // +x = "adelante" (hacia el objetivo)
+
     var L = R * 2.4, W = R * 0.9;
-    // Tubo de la bazuca (rectángulo redondeado horizontal).
-    var grad = ctx.createLinearGradient(0, -W * 0.6, 0, W * 0.6);
-    grad.addColorStop(0, "#7e8a4a"); grad.addColorStop(0.45, "#5e6a2c"); grad.addColorStop(1, "#3d4520");
+
+    // ── CUREÑA DE MADERA con 2 ruedas — base fija que NO retrocede ──
+    var cw = W * 1.30;
+    ctx.fillStyle = "#5a3a1e";
+    roundRect(-L * 0.34, -cw * 0.42, L * 0.58, cw * 0.84, cw * 0.16); ctx.fill();
+    ctx.strokeStyle = "#2e1d0f"; ctx.lineWidth = 1.4;
+    roundRect(-L * 0.34, -cw * 0.42, L * 0.58, cw * 0.84, cw * 0.16); ctx.stroke();
+    ctx.strokeStyle = "rgba(0,0,0,0.18)"; ctx.lineWidth = 1;
+    for (var wv = -1; wv <= 1; wv += 2) {
+      ctx.beginPath();
+      ctx.moveTo(-L * 0.30, wv * cw * 0.22);
+      ctx.lineTo(L * 0.20, wv * cw * 0.22);
+      ctx.stroke();
+    }
+    function drawWheel() {
+      ctx.fillStyle = "#3d2814";
+      ctx.beginPath(); ctx.arc(0, 0, W * 0.46, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = "#1f1408"; ctx.lineWidth = 1.6; ctx.stroke();
+      ctx.lineWidth = 1.1;
+      for (var sp = 0; sp < 6; sp++) {
+        var spa = sp * Math.PI * 2 / 6;
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.lineTo(Math.cos(spa) * W * 0.40, Math.sin(spa) * W * 0.40);
+        ctx.stroke();
+      }
+      ctx.fillStyle = "#8a6a3a";
+      ctx.beginPath(); ctx.arc(0, 0, W * 0.12, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.save(); ctx.translate(-L * 0.10, cw * 0.55); drawWheel(); ctx.restore();
+    ctx.save(); ctx.translate(-L * 0.10, -cw * 0.55); drawWheel(); ctx.restore();
+
+    // Recarga real (t.cooldown, no decorativa) — alimenta el brillo del
+    // núcleo del MAC y la brasa de la mecha más abajo.
+    var fireRate = towerStats(t).fireRate || 1;
+    var maxCd = (1 / fireRate) * ((t.slowFireTimer || 0) > 0 ? 2 : 1);
+    var reloadFrac = maxCd > 0 ? Math.max(0, Math.min(1, 1 - (t.cooldown || 0) / maxCd)) : 1;
+
+    // ── TUBO — retrocede de verdad al disparar (derivado de t.muzzleFlash,
+    // sin estado nuevo) ──
+    var recoil = (t.muzzleFlash || 0) > 0 ? (t.muzzleFlash / 0.18) : 0;
+    ctx.save();
+    ctx.translate(-recoil * 5 * U, 0);
+
+    // Tubo ABOCINADO tipo cañón medieval: angosto en la recámara, se abre
+    // en campana hacia la boca — no un rectángulo uniforme de bazuca.
+    var breechHW = W * 0.40, muzzleHW = W * 0.66, bellStart = L * 0.30;
+    var grad = ctx.createLinearGradient(0, -muzzleHW, 0, muzzleHW);
+    grad.addColorStop(0, "#8a7048"); grad.addColorStop(0.45, "#5c4a2e"); grad.addColorStop(1, "#2b2318");
     ctx.fillStyle = grad;
-    roundRect(-L * 0.50, -W * 0.6, L, W * 1.2, W * 0.42); ctx.fill();
-    ctx.strokeStyle = "#3d4520"; ctx.lineWidth = 1.5; roundRect(-L * 0.50, -W * 0.6, L, W * 1.2, W * 0.42); ctx.stroke();
-    // Anillos/segmentos a lo largo del tubo.
-    ctx.strokeStyle = "rgba(0,0,0,0.35)"; ctx.lineWidth = 1.3;
-    for (var i = -1; i <= 1; i++) { ctx.beginPath(); ctx.moveTo(L * 0.20 * i, -W * 0.6); ctx.lineTo(L * 0.20 * i, W * 0.6); ctx.stroke(); }
-    // Cap trasero con orificios de ventilación (back-blast).
-    ctx.fillStyle = "#2c3015";
-    roundRect(-L * 0.55, -W * 0.7, L * 0.10, W * 1.4, 0); ctx.fill();
-    ctx.fillStyle = "#0e1207";
-    for (var v = 0; v < 3; v++) { ctx.beginPath(); ctx.arc(-L * 0.50, -W * 0.42 + v * W * 0.42, W * 0.12, 0, Math.PI * 2); ctx.fill(); }
-    // Mira encima del tubo.
-    ctx.fillStyle = "#1a1a22";
-    roundRect(-W * 0.15, -W * 0.95, W * 0.30, W * 0.30, 0); ctx.fill();
-    ctx.fillStyle = "#FFD24A"; ctx.fillRect(-W * 0.04, -W * 0.92, W * 0.08, W * 0.22);
-    // Empuñadura bajo el tubo.
-    ctx.fillStyle = "#3d4520";
-    roundRect(-W * 0.22, W * 0.55, W * 0.44, W * 0.85, W * 0.16); ctx.fill();
-    ctx.strokeStyle = "#1f2410"; ctx.lineWidth = 1.2; roundRect(-W * 0.22, W * 0.55, W * 0.44, W * 0.85, W * 0.16); ctx.stroke();
-    // Anillo dorado del MAC en la boca (muzzle) y núcleo brillante latiendo.
-    var glow = 0.55 + 0.45 * Math.sin(state.time * 4 + (t.idlePhase || 0));
+    ctx.beginPath();
+    ctx.moveTo(-L * 0.50, -breechHW);
+    ctx.lineTo(bellStart, -breechHW);
+    ctx.quadraticCurveTo(L * 0.46, -breechHW * 1.05, L * 0.50, -muzzleHW);
+    ctx.lineTo(L * 0.50, muzzleHW);
+    ctx.quadraticCurveTo(L * 0.46, breechHW * 1.05, bellStart, breechHW);
+    ctx.lineTo(-L * 0.50, breechHW);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = "#1c160c"; ctx.lineWidth = 1.5; ctx.stroke();
+
+    // Aros de refuerzo en bronce, sobresalientes (no líneas planas).
+    var ringXs = [-L * 0.30, -L * 0.06, L * 0.16];
+    var ringGrad = ctx.createLinearGradient(0, -muzzleHW, 0, muzzleHW);
+    ringGrad.addColorStop(0, "#d8b35a"); ringGrad.addColorStop(0.5, "#8a6a2e"); ringGrad.addColorStop(1, "#4a3814");
+    for (var rgI = 0; rgI < ringXs.length; rgI++) {
+      var rx = ringXs[rgI];
+      var localHW = rx < bellStart ? breechHW : breechHW + (muzzleHW - breechHW) * ((rx - bellStart) / (L * 0.5 - bellStart));
+      var ringHW = localHW * 1.18;
+      ctx.fillStyle = ringGrad;
+      roundRect(rx - L * 0.025, -ringHW, L * 0.05, ringHW * 2, L * 0.02); ctx.fill();
+      ctx.strokeStyle = "#3a2c10"; ctx.lineWidth = 1;
+      roundRect(rx - L * 0.025, -ringHW, L * 0.05, ringHW * 2, L * 0.02); ctx.stroke();
+    }
+
+    // Agujero de mecha trasero (reemplaza el respiradero militar) + mecha
+    // con brasa que brilla con la recarga real.
+    ctx.fillStyle = "#1c160c";
+    ctx.beginPath(); ctx.arc(-L * 0.46, -breechHW * 0.55, W * 0.10, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = "#4a3a1a"; ctx.lineWidth = 1.6; ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(-L * 0.46, -breechHW * 0.55);
+    ctx.quadraticCurveTo(-L * 0.50, -breechHW * 1.0, -L * 0.44, -breechHW * 1.25);
+    ctx.stroke();
+    ctx.fillStyle = "rgba(255, 160, 60, " + (0.4 + reloadFrac * 0.6) + ")";
+    ctx.beginPath(); ctx.arc(-L * 0.44, -breechHW * 1.25, (1.2 + reloadFrac * 0.8) * U, 0, Math.PI * 2); ctx.fill();
+
+    // Perno decorativo arriba del tubo (reemplaza la mira militar).
+    ctx.fillStyle = "#d8b35a";
+    ctx.beginPath(); ctx.arc(L * 0.05, -breechHW * 1.15, W * 0.10, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = "#4a3814"; ctx.lineWidth = 1; ctx.stroke();
+
+    // Anillo dorado del MAC en la boca y núcleo brillante — el glow real
+    // sigue la recarga real (t.cooldown), no un reloj decorativo.
+    var glow = 0.35 + reloadFrac * 0.65;
     ctx.fillStyle = "#FFD24A"; ctx.strokeStyle = "#b8860b"; ctx.lineWidth = 2.2;
-    ctx.beginPath(); ctx.arc(L * 0.52, 0, W * 0.55, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-    var gg = ctx.createRadialGradient(L * 0.52, 0, 1, L * 0.52, 0, W * 0.5);
-    gg.addColorStop(0, "rgba(255,255,255," + (0.7 + 0.3 * glow) + ")"); gg.addColorStop(0.6, "#FFE27A"); gg.addColorStop(1, "rgba(184,134,11,0.3)");
-    ctx.fillStyle = gg; ctx.beginPath(); ctx.arc(L * 0.52, 0, W * 0.40, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(L * 0.52, 0, muzzleHW * 0.85, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    var gg = ctx.createRadialGradient(L * 0.52, 0, 1, L * 0.52, 0, muzzleHW * 0.62);
+    gg.addColorStop(0, "rgba(255,255,255," + (0.5 + 0.5 * glow) + ")"); gg.addColorStop(0.6, "#FFE27A"); gg.addColorStop(1, "rgba(184,134,11,0.3)");
+    ctx.fillStyle = gg; ctx.beginPath(); ctx.arc(L * 0.52, 0, muzzleHW * 0.62, 0, Math.PI * 2); ctx.fill();
+
     // Muzzle flash al disparar.
     if ((t.muzzleFlash || 0) > 0) {
       var mf = t.muzzleFlash / 0.18;
       ctx.fillStyle = "rgba(255, 248, 200, " + (0.85 * mf) + ")";
-      ctx.beginPath(); ctx.arc(L * 0.55 + W * 0.5 * (1 - mf), 0, W * (0.55 + 0.5 * mf), 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(L * 0.55 + muzzleHW * 0.8 * (1 - mf), 0, muzzleHW * (0.85 + 0.7 * mf), 0, Math.PI * 2); ctx.fill();
       for (var fr = 0; fr < 6; fr++) {
         var fa = (fr / 6) * Math.PI - Math.PI / 2;
         ctx.fillStyle = "rgba(255, 215, 90, " + (0.55 * mf) + ")";
-        ctx.beginPath(); ctx.arc(L * 0.62 + Math.cos(fa) * W * 1.1, Math.sin(fa) * W * 0.55, W * 0.16, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(L * 0.65 + Math.cos(fa) * muzzleHW * 1.6, Math.sin(fa) * muzzleHW * 0.8, muzzleHW * 0.22, 0, Math.PI * 2); ctx.fill();
       }
     }
-    ctx.restore();
+    ctx.restore(); // fin tubo con retroceso
+    ctx.restore(); // fin transform principal
   }
 
   // LATIGAZO DE BIOFILM: filamento gelatinoso translúcido sale del lomo

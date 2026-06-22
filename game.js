@@ -12782,8 +12782,23 @@
     var R = 19 * U * pulse;
     var time = state.time;
     var attacking = (expression === "attacking");
+    // Carga real del ultimate (t.specialCharge: 0→1) — alimenta el giro
+    // de los TCR, el brillo de los gránulos líticos y el aura de
+    // anticipación, todos más abajo.
+    var chargeFrac = Math.max(0, Math.min(1, t.specialCharge || 0));
     ctx.save();
     ctx.translate(x, y);
+
+    // Aura de anticipación: asoma gradualmente con la carga real ANTES
+    // del disparo — anticipa el aura grande de Apoptosis de más abajo.
+    if (!((t.specialAnim || 0) > 0) && chargeFrac > 0.15) {
+      var preApR = R * (1.2 + chargeFrac * 0.8 + Math.sin(time * 6) * 0.08);
+      var preApGrad = ctx.createRadialGradient(0, 0, R * 0.5, 0, 0, preApR);
+      preApGrad.addColorStop(0, "rgba(147, 112, 219, " + (chargeFrac * 0.35) + ")");
+      preApGrad.addColorStop(1, "rgba(147, 112, 219, 0)");
+      ctx.fillStyle = preApGrad;
+      ctx.beginPath(); ctx.arc(0, 0, preApR, 0, Math.PI * 2); ctx.fill();
+    }
 
     // Ultimate Apoptosis: aura púrpura pulsante mientras espera el burst
     // (specialAnim arranca en 2.1 y el burst ocurre cerca de 0.3 restante).
@@ -12829,14 +12844,15 @@
     ctx.lineWidth = Math.max(1.4, 1.7 * U);
     ctx.lineCap = "round";
     var nTCR = attacking ? 6 : 5;
-    var spinT = attacking ? 1.2 : 0.4;
+    var spinT = attacking ? 1.2 : (0.4 + chargeFrac * 0.8);
     for (var i = 0; i < nTCR; i++) {
       var ai = i * Math.PI * 2 / nTCR + time * spinT;
       var ax = Math.cos(ai) * (R + 4 * U);
       var ay = Math.sin(ai) * (R + 4 * U);
-      // V angular apuntando hacia afuera (radial)
-      var spread = 0.20;
-      var vLen = 5 * U;
+      // V angular apuntando hacia afuera (radial) — se abre más con la
+      // carga real, listo para la Apoptosis.
+      var spread = 0.20 + chargeFrac * 0.09;
+      var vLen = (5 + chargeFrac * 2.2) * U;
       var perp1A = ai + Math.PI / 2 + spread;
       var perp2A = ai + Math.PI / 2 - spread;
       ctx.beginPath();
@@ -12848,20 +12864,23 @@
 
     // GRÁNULOS LÍTICOS púrpura intenso (perforina + granzima) — signature
     // citotóxica. Distribuidos en el citoplasma (entre núcleo y membrana).
-    ctx.fillStyle = "rgba(70, 30, 110, 0.85)";
+    // Brillan más fuerte y vibran con la carga real — perforina/granzima
+    // concentrándose antes del burst de Apoptosis.
+    ctx.fillStyle = "rgba(" + Math.round(70 + chargeFrac * 110) + ", " + Math.round(30 + chargeFrac * 50) + ", " + Math.round(110 + chargeFrac * 100) + ", 0.85)";
     var nLytic = 7;
+    var granJitterT = chargeFrac * 1.1 * U;
     for (var g = 0; g < nLytic; g++) {
       var ga = (g * 137.5 * Math.PI / 180 + time * 0.15) % (Math.PI * 2);
       var gd = R * (0.72 + (g % 3) * 0.05);
-      var gx = Math.cos(ga) * gd;
-      var gy = Math.sin(ga) * gd;
+      var gx = Math.cos(ga) * gd + (Math.random() - 0.5) * granJitterT;
+      var gy = Math.sin(ga) * gd + (Math.random() - 0.5) * granJitterT;
       // skip si choca con el núcleo
       var dToNuc = Math.hypot(gx, gy - R * 0.10);
       if (dToNuc < nucR + R * 0.06) continue;
       var gPulse = 0.5 + 0.5 * Math.sin(time * 3 + g);
-      ctx.globalAlpha = 0.65 + gPulse * 0.25;
+      ctx.globalAlpha = Math.min(1, 0.65 + gPulse * 0.25 + chargeFrac * 0.15);
       ctx.beginPath();
-      ctx.arc(gx, gy, R * 0.08, 0, Math.PI * 2);
+      ctx.arc(gx, gy, R * (0.08 + chargeFrac * 0.025), 0, Math.PI * 2);
       ctx.fill();
     }
     ctx.globalAlpha = 1;

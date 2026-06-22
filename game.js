@@ -12580,12 +12580,17 @@
     }
     var R = 18 * U * pulse * ultBoost;
     var t0 = state.time;
+    // Carga real del ultimate (t.specialCharge: 0→1) — intensifica el aura,
+    // las cintas RER y el giro de anticuerpos ANTES de la diferenciación
+    // real a Plasmocito, en vez de saltar de golpe solo al disparar.
+    var chargeFrac = doingUltimate ? 0 : Math.max(0, Math.min(1, t.specialCharge || 0));
     ctx.save();
     ctx.translate(x, y);
 
-    // Aura verde sutil siempre; INTENSA durante ultimate.
-    var auraStrength = doingUltimate ? 0.55 : 0.25;
-    var auraR = R * (doingUltimate ? 2.2 : 1.6);
+    // Aura verde sutil siempre; crece gradualmente con la carga real;
+    // INTENSA durante ultimate.
+    var auraStrength = doingUltimate ? 0.55 : (0.25 + chargeFrac * 0.25);
+    var auraR = R * (doingUltimate ? 2.2 : (1.6 + chargeFrac * 0.5));
     var auraGrad = ctx.createRadialGradient(0, 0, R * 0.5, 0, 0, auraR);
     auraGrad.addColorStop(0, "rgba(124, 252, 158, " + (auraStrength * 0.55) + ")");
     auraGrad.addColorStop(1, "rgba(124, 252, 158, 0)");
@@ -12625,7 +12630,7 @@
     // RER (Rough Endoplasmic Reticulum) — signature de célula plasmática.
     // 3 cintas curvadas adentro del citoplasma (entre núcleo y membrana)
     // indicando la fábrica activa de anticuerpos. Más visibles en ultimate.
-    var rerAlpha = doingUltimate ? 0.85 : 0.55;
+    var rerAlpha = doingUltimate ? 0.85 : (0.55 + chargeFrac * 0.25);
     ctx.strokeStyle = "rgba(40, 90, 55, " + rerAlpha + ")";
     ctx.lineWidth = Math.max(1.4, 1.8 * U);
     ctx.lineCap = "round";
@@ -12643,12 +12648,13 @@
     // ANTICUERPOS Y pegados a la membrana (BCR de superficie).
     // 5 en la membrana orbitando lento. Durante ultimate: 8 + más rápido.
     var ab = doingUltimate ? 8 : 5;
-    var spinSpd = doingUltimate ? 3.5 : 0.8;
+    var spinSpd = doingUltimate ? 3.5 : (0.8 + chargeFrac * 2.2);
     for (var i = 0; i < ab; i++) {
       var a = i * Math.PI * 2 / ab + t0 * spinSpd;
       var ax = Math.cos(a) * (R + 6 * U);
       var ay = Math.sin(a) * (R + 6 * U);
-      drawYShape(ax, ay, doingUltimate ? 6 * U : 5.5 * U, a + Math.PI / 2, "#fff7c4", t.def.colorDark);
+      var abSize = doingUltimate ? 6 * U : (5.5 + chargeFrac * 1.2) * U;
+      drawYShape(ax, ay, abSize, a + Math.PI / 2, "#fff7c4", t.def.colorDark);
     }
 
     // CARA. Durante ultimate: extática maniática (ojos con estrellas

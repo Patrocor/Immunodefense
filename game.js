@@ -1282,7 +1282,7 @@
     bossHongo: 22,
     bossPrimordial: 35
   };
-  var BOSS_WAVES = { 3: "bossPyogenes", 7: "bossPseudomonas", 12: "bossClostridium", 18: "bossMRSA" };
+  var BOSS_WAVES = { 2: "bossPyogenes", 4: "bossPseudomonas", 7: "bossClostridium", 10: "bossMRSA" };
   // Snowball multipliers as a function of infestation 0-100.
   function infestSpawnMult(inf) {
     // 0%->1.0  30%->1.3  60%->1.6  85%->1.85  100%->2.0
@@ -1309,45 +1309,43 @@
   }
   function getInitialAtp() { return 80; }
   function getInitialDripDelay() { return 6; }
-  // ---- Wave roster (Sprint 6 explicit table per spec) -------------------
-  // Each entry is an array of { type, count, interval }. After wave 18 we
+  // ---- Wave roster -------------------------------------------------------
+  // Each entry is an array of { type, count, interval }. After wave 10 we
   // fall back to a procedural mix so the game keeps escalating.
-  // Fase 1 = infección de piel: solo gérmenes cutáneos. Jefes en 3/7/12/18.
+  // Fase 1 = infección de piel: solo gérmenes cutáneos. Jefes en 2/4/7/10.
+  // Comprimida de 18→10 olas (2026-06-22): se tomó cada ~1.89 ola del
+  // roster original de 18, conservando los 4 bosses en su posición
+  // proporcional casi exacta (ver getWaveDef para el ajuste de la curva
+  // de dificultad que compensa el menor número de olas).
   var WAVE_TABLE = {
     1:  [["sepidermidis",5,1.1]],
-    2:  [["sepidermidis",5,1.0],["hsv",3,0.6]],
-    3:  [["sepidermidis",5,1.0],["hsv",4,0.6],["bossPyogenes",1,0]],
-    4:  [["sepidermidis",4,1.0],["hsv",4,0.6],["cacnes",2,1.0]],
-    5:  [["sepidermidis",5,1.0],["hsv",5,0.55],["cacnes",3,1.0],["dermatofito",1,1.0]],
-    6:  [["sepidermidis",4,1.0],["hsv",5,0.55],["cacnes",3,1.0],["candida",2,0.9],["hpv",2,1.0]],
-    7:  [["sepidermidis",4,0.9],["hsv",5,0.55],["cacnes",3,1.0],["pseudomonas",2,0.9],["molluscum",2,0.9],["bossPseudomonas",1,0]],
-    8:  [["sepidermidis",4,0.9],["hsv",6,0.5],["cacnes",3,1.0],["pseudomonas",3,0.9],["malassezia",2,0.9],["sarna",2,1.0]],
-    9:  [["hsv",6,0.5],["cacnes",3,1.0],["pseudomonas",3,0.9],["candida",3,0.9],["saureus",2,1.0],["hpv",2,1.0]],
-    10: [["hsv",6,0.5],["cacnes",3,1.0],["pseudomonas",4,0.9],["candida",3,0.9],["saureus",3,1.0],["molluscum",2,0.9]],
-    11: [["sepidermidis",5,0.85],["hsv",6,0.5],["pseudomonas",4,0.9],["candida",3,0.9],["saureus",3,1.0],["malassezia",2,0.9]],
-    12: [["hsv",6,0.5],["pseudomonas",4,0.9],["candida",4,0.9],["saureus",3,1.0],["sarna",2,1.0],["hpv",2,1.0],["bossClostridium",1,0]],
-    13: [["hsv",7,0.5],["cacnes",4,0.95],["pseudomonas",5,0.9],["candida",4,0.9],["saureus",4,1.0],["dermatofito",2,1.0],["molluscum",2,0.9]],
-    14: [["hsv",7,0.5],["cacnes",4,0.95],["pseudomonas",5,0.9],["candida",5,0.9],["saureus",4,1.0],["malassezia",2,0.9],["sarna",2,1.0]],
-    15: [["sepidermidis",6,0.8],["hsv",7,0.5],["pseudomonas",5,0.9],["candida",5,0.9],["saureus",5,1.0],["hpv",2,1.0],["sarna",2,1.0]],
-    16: [["hsv",8,0.45],["cacnes",5,0.9],["pseudomonas",6,0.85],["candida",5,0.9],["saureus",5,1.0],["dermatofito",2,1.0],["molluscum",2,0.9],["malassezia",2,0.9]],
-    17: [["hsv",8,0.45],["cacnes",5,0.9],["pseudomonas",6,0.85],["candida",6,0.9],["saureus",6,1.0],["sarna",2,1.0],["molluscum",2,0.9],["hpv",2,1.0]],
-    18: [["hsv",6,0.45],["pseudomonas",5,0.85],["candida",4,0.9],["saureus",8,1.0],["hpv",3,1.0],["bossMRSA",1,0]]
+    2:  [["sepidermidis",5,1.0],["hsv",4,0.6],["bossPyogenes",1,0]],
+    3:  [["sepidermidis",5,1.0],["hsv",5,0.55],["cacnes",3,1.0],["dermatofito",1,1.0]],
+    4:  [["sepidermidis",4,0.9],["hsv",5,0.55],["cacnes",3,1.0],["pseudomonas",2,0.9],["molluscum",2,0.9],["bossPseudomonas",1,0]],
+    5:  [["hsv",6,0.5],["cacnes",3,1.0],["pseudomonas",3,0.9],["candida",3,0.9],["saureus",2,1.0],["hpv",2,1.0]],
+    6:  [["hsv",6,0.5],["cacnes",3,1.0],["pseudomonas",4,0.9],["candida",3,0.9],["saureus",3,1.0],["molluscum",2,0.9]],
+    7:  [["hsv",6,0.5],["pseudomonas",4,0.9],["candida",4,0.9],["saureus",3,1.0],["sarna",2,1.0],["hpv",2,1.0],["bossClostridium",1,0]],
+    8:  [["hsv",7,0.5],["cacnes",4,0.95],["pseudomonas",5,0.9],["candida",5,0.9],["saureus",4,1.0],["malassezia",2,0.9],["sarna",2,1.0]],
+    9:  [["hsv",8,0.45],["cacnes",5,0.9],["pseudomonas",6,0.85],["candida",5,0.9],["saureus",5,1.0],["dermatofito",2,1.0],["molluscum",2,0.9],["malassezia",2,0.9]],
+    10: [["hsv",6,0.45],["pseudomonas",5,0.85],["candida",4,0.9],["saureus",8,1.0],["hpv",3,1.0],["bossMRSA",1,0]]
   };
 
   // ============ MÉDULA ÓSEA Y PICKUPS DE DESBLOQUEO ============
   // Cada cierto número de oleadas, la médula ósea emite un pickup flotante.
   // El jugador lo tappea y la torre correspondiente se desbloquea en el dock.
-  // Schedule cada 2 olas en Fase 1. MAC sale 2do — el jugador ya cuenta con
-  // él temprano. Las per-fase se pierden al cambiar de fase y se re-emiten;
+  // Reescalado junto con la compresión de olas 18→10 (2026-06-22): mismas
+  // proporciones que el roster original (3,5,7,9,11 de 18 → 2,3,4,6 de 10),
+  // así que Langerhans/NK siguen cayendo en la misma ola que sus bosses
+  // asociados (Pyogenes ola 2, Pseudomonas ola 4). MAC sigue temprano a
+  // propósito. Las per-fase se pierden al cambiar de fase y se re-emiten;
   // las permanentes (Mastocito, MAC) si se desbloquean, quedan para siempre.
   var BASIC_TOWERS = ["neutrofilo", "linfocitoB", "linfocitoT"];
-  // Cards de médula menos frecuentes: cada 3 olas en lugar de cada 2.
   var UNLOCK_SCHEDULE = {
-    3:  "langerhans",   // per-fase
-    5:  "complemento",  // permanente (MAC)
-    7:  "nk",           // per-fase
-    9:  "eosinofilo",   // per-fase (raramente alcanza esto en F1)
-    11: "mastocito"     // permanente (en dissem/F2)
+    2: "langerhans",    // per-fase — misma ola que el boss Pyogenes
+    3: "complemento",   // permanente (MAC)
+    4: "nk",            // per-fase — misma ola que el boss Pseudomonas
+    5: "eosinofilo",    // per-fase
+    6: "mastocito"      // permanente (en dissem/F2)
   };
   var PER_PHASE_TOWERS = ["langerhans", "nk", "eosinofilo"]; // re-emiten al cambiar fase
   var PERSISTENT_UNLOCKABLES = ["mastocito", "complemento"]; // si no llegó a unlocked, también re-aparece
@@ -3101,13 +3099,16 @@
   // ============ FIN NIVEL PUENTE ============
 
   function getWaveDef(waveNum) {
-    var diffHp = 1 + (waveNum - 1) * 0.05;
-    var diffSpeed = 1 + (waveNum - 1) * 0.04;
+    // Curva comprimida (10 olas en vez de 18): el incremento por ola sube
+    // para que la ola 10 llegue al mismo techo de dificultad que antes
+    // llegaba la ola 18 (hp ~1.85x, velocidad ~1.68x).
+    var diffHp = 1 + (waveNum - 1) * 0.094;
+    var diffSpeed = 1 + (waveNum - 1) * 0.076;
     var entry = WAVE_TABLE[waveNum];
     if (!entry) {
-      // Post-table: scale up the tier 17 mix and rotate boss types every 6 waves.
-      var base17 = WAVE_TABLE[17];
-      entry = base17.map(function (g) { return [g[0], g[1] + Math.floor((waveNum - 17) / 2), g[2]]; });
+      // Post-table: scale up the tier 9 mix and rotate boss types every 6 waves.
+      var base9 = WAVE_TABLE[9];
+      entry = base9.map(function (g) { return [g[0], g[1] + Math.floor((waveNum - 9) / 2), g[2]]; });
       var bossPool = ["bossPyogenes", "bossPseudomonas", "bossClostridium", "bossMRSA"];
       if (waveNum % 6 === 0) {
         entry = entry.concat([[bossPool[(waveNum / 6) % bossPool.length], 1, 0]]);
@@ -3806,7 +3807,7 @@
   }
 
   // ============ NIVEL PUENTE: TRANSICIÓN Y SCHEDULER ============
-  // Al cerrar la ola 18 (boss MRSA), saltamos al campo de 5 carriles.
+  // Al cerrar la ola 10 (boss MRSA), saltamos al campo de 5 carriles.
   // Reset con ATP base: no se heredan torres ni ATP de Fase 1.
   function enterDissemination() {
     state.dissemination = true;
@@ -4190,10 +4191,10 @@
       state.waveActive = false;
       var bonus = 12 + state.waveIdx * 2;
       state.atp += bonus;
-      // Transición a NIVEL PUENTE: al cerrar la ola 18 (boss MRSA) en Fase 1.
+      // Transición a NIVEL PUENTE: al cerrar la ola 10 (boss MRSA) en Fase 1.
       // Mismo fade + mapa-mundo que la sobrecarga viral (ya no es un corte
       // abrupto), pero con tono de victoria — ver triggerPhaseVictory.
-      if (!state.dissemination && state.waveIdx === 18) {
+      if (!state.dissemination && state.waveIdx === 10) {
         triggerPhaseVictory();
         return;
       }
@@ -8906,7 +8907,7 @@
   // Backward-compat shim: old code may still call triggerLevelEnd().
   function triggerLevelEnd() { triggerCinematicEnd(); }
 
-  // Segundo camino hacia Diseminación: derrotaste al jefe de la oleada 18
+  // Segundo camino hacia Diseminación: derrotaste al jefe de la oleada 10
   // por tu cuenta, antes de que la carga viral te desbordara. Mismo fade +
   // mapa-mundo que triggerCinematicEnd, pero con tono/texto/sonido propios
   // (ver outcome "victory" en el render de phaseTransition y en el título
@@ -11359,7 +11360,7 @@
     } else if ((e.key === "B" || e.key === "b") && e.shiftKey) {
       // DEV cheat: salto directo al nivel puente "Diseminación" (test).
       if (!state.dissemination && !state.showTitle && !state.showIntro) {
-        state.waveIdx = 18;
+        state.waveIdx = 10;
         enterDissemination();
       }
     }

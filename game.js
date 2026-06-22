@@ -5236,9 +5236,12 @@
           ee.dotDps = eoStats.damage * 0.8;
           ee.dotSource = "eosinofilo";
         }
-        pushEffect({ kind: "particle", x: t.x, y: t.y,
-          vx: (ee.x - t.x) * 1.5, vy: (ee.y - t.y) * 1.5 - 10 * U,
-          life: 0.4, max: 0.45, color: t.def.color });
+        // Gránulo coral real (no una partícula genérica) viajando de la
+        // torre al enemigo — se ve claramente que escupió sus gránulos.
+        var gsDur = 0.22 + Math.random() * 0.05;
+        pushEffect({ kind: "granuleShot", x: t.x, y: t.y,
+          vx: (ee.x - t.x) / gsDur, vy: (ee.y - t.y) / gsDur,
+          life: gsDur, max: gsDur });
       }
       t.specialAnim = 1.0;
       t.specialReady = false;
@@ -5648,6 +5651,7 @@
       if (t.levelupAnim > 0) t.levelupAnim -= dt;
       if (t.cooldown > 0) t.cooldown -= dt;
       if (t.muzzleFlash > 0) t.muzzleFlash -= dt;
+      if ((t.apoptosisFlash || 0) > 0) t.apoptosisFlash -= dt;
       if ((t.langerBuffT || 0) > 0) {
         t.langerBuffT -= dt;
         if (t.langerBuffT <= 0) { t.langerBuffT = 0; t.langerBuff = 1; }
@@ -5713,6 +5717,7 @@
       if (t.def.id === "linfocitoT" && (t.specialAnim || 0) > 0 && t.apoptosisTargets && !t.apoptosisBurst) {
         if (t.specialAnim <= 0.3) {
           t.apoptosisBurst = true;
+          t.apoptosisFlash = 0.30;
           var ltBurstStats = towerStats(t);
           for (var lb = 0; lb < t.apoptosisTargets.length; lb++) {
             var lbE = t.apoptosisTargets[lb];
@@ -6605,22 +6610,50 @@
     for (var ti = 0; ti < state.towers.length; ti++) {
       var t = state.towers[ti];
       if (t.def.id !== "linfocitoT" || !t.apoptosisTargets) continue;
+      // Flash del estallido real: se enciende en updateTowers cuando
+      // ejecuta a los marcados (t.apoptosisFlash = 0.30) — deja ver un
+      // último latigazo de granzima aunque el marcado ya se haya limpiado.
+      var flashFrac = Math.max(0, Math.min(1, (t.apoptosisFlash || 0) / 0.30));
       for (var i = 0; i < t.apoptosisTargets.length; i++) {
         var e = t.apoptosisTargets[i];
-        if (!e || e.dead || !e.apoptosisMarked) continue;
+        if (!e || e.dead) continue;
+        var stillMarked = !!e.apoptosisMarked;
+        if (!stillMarked && flashFrac <= 0) continue;
+        // Hilo de granzima conectando la torre con el objetivo — para que
+        // se vea claramente que está "atado" a esos enemigos en vez de
+        // que el estallido aparezca de la nada.
+        ctx.save();
+        if (stillMarked) {
+          var beamPulse = 0.45 + 0.35 * Math.sin(state.time * 8 + i);
+          ctx.globalAlpha = beamPulse;
+          ctx.strokeStyle = "#9a6fd0";
+          ctx.lineWidth = 1.3 * U;
+          ctx.setLineDash([4 * U, 3 * U]);
+        } else {
+          ctx.globalAlpha = flashFrac;
+          ctx.strokeStyle = "#e6d6ff";
+          ctx.lineWidth = (1.3 + flashFrac * 2.8) * U;
+        }
+        ctx.beginPath();
+        ctx.moveTo(t.x, t.y);
+        ctx.lineTo(e.x, e.y);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.restore();
+        if (!stillMarked) continue;
         var pulse = 0.7 + 0.3 * Math.sin(state.time * 10);
-        var mr = 7 * U;
+        var mr = 10 * U;
         ctx.save();
         ctx.translate(e.x, e.y - (e.def.radius || 16) * U - 10 * U);
         ctx.globalAlpha = pulse;
         ctx.fillStyle = "#2a1040";
         ctx.strokeStyle = "#c9a0ff";
-        ctx.lineWidth = 1.4 * U;
+        ctx.lineWidth = 1.6 * U;
         ctx.beginPath();
         ctx.arc(0, 0, mr, 0, Math.PI * 2);
         ctx.fill(); ctx.stroke();
         ctx.strokeStyle = "#e6d6ff";
-        ctx.lineWidth = 1.6 * U;
+        ctx.lineWidth = 1.9 * U;
         ctx.lineCap = "round";
         ctx.beginPath();
         ctx.moveTo(-mr * 0.5, -mr * 0.5); ctx.lineTo(mr * 0.5, mr * 0.5);
@@ -9066,6 +9099,11 @@
         ef.y += ef.vy * dt;
         ef.vx *= 0.92;
         ef.vy *= 0.92;
+      } else if (ef.kind === "granuleShot") {
+        // Gránulo coral del Eosinófilo viajando hacia el objetivo — sin
+        // fricción, para que llegue exacto al punto calculado al disparar.
+        ef.x += ef.vx * dt;
+        ef.y += ef.vy * dt;
       } else if (ef.kind === "shard") {
         // Fragmentos de cápsula tras la muerte: caen con gravedad,
         // giran, se frenan en horizontal.
@@ -17849,6 +17887,44 @@
       ctx.arc(ef.x, ef.y, 3 * U, 0, Math.PI * 2);
       ctx.fill();
       ctx.globalAlpha = 1;
+    } else if (ef.kind === "granuleShot") {
+      // Gránulo coral real del Eosinófilo (mismo gradiente que los del
+      // cuerpo) viajando hacia el enemigo, con estela + brillo de
+      // impacto creciente al final — para que se vea que escupió algo.
+      var gsAge = 1 - ef.life / ef.max;
+      var gsImpact = Math.max(0, (gsAge - 0.65) / 0.35);
+      var gsR = (3.0 + gsImpact * 2.5) * U;
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      var gsSpd = Math.hypot(ef.vx, ef.vy) || 1;
+      var gsTailLen = 10 * U;
+      var gsTx = -ef.vx / gsSpd * gsTailLen, gsTy = -ef.vy / gsSpd * gsTailLen;
+      var gsTailGrad = ctx.createLinearGradient(ef.x, ef.y, ef.x + gsTx, ef.y + gsTy);
+      gsTailGrad.addColorStop(0, "rgba(240, 110, 80, 0.55)");
+      gsTailGrad.addColorStop(1, "rgba(240, 110, 80, 0)");
+      ctx.strokeStyle = gsTailGrad;
+      ctx.lineWidth = gsR * 1.1;
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.moveTo(ef.x, ef.y);
+      ctx.lineTo(ef.x + gsTx, ef.y + gsTy);
+      ctx.stroke();
+      var gsGrad = ctx.createRadialGradient(ef.x - gsR * 0.3, ef.y - gsR * 0.3, 0, ef.x, ef.y, gsR);
+      gsGrad.addColorStop(0, "rgba(255, 180, 150, 0.95)");
+      gsGrad.addColorStop(0.6, "rgba(240, 110, 80, 0.92)");
+      gsGrad.addColorStop(1, "rgba(180, 60, 40, 0.88)");
+      ctx.fillStyle = gsGrad;
+      ctx.beginPath();
+      ctx.arc(ef.x, ef.y, gsR, 0, Math.PI * 2);
+      ctx.fill();
+      if (gsImpact > 0.05) {
+        ctx.fillStyle = "rgba(255, 200, 170, " + (gsImpact * 0.6) + ")";
+        ctx.beginPath();
+        ctx.arc(ef.x, ef.y, gsR * (1.5 + gsImpact * 1.5), 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+      ctx.restore();
     } else if (ef.kind === "shard") {
       // Fragmento elíptico translúcido que gira (pedazo de cápsula).
       ctx.save();

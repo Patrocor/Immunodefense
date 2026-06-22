@@ -13162,6 +13162,10 @@
     var off = R * 0.55;          // separación de los 2 lóbulos
     var time = state.time;
     var attacking = (expression === "attacking");
+    // Carga real del ultimate (t.specialCharge: 0→1) — alimenta la
+    // migración/vibración de gránulos, el erizado de antenas y el anillo
+    // de anticipación, todos más abajo.
+    var chargeFrac = Math.max(0, Math.min(1, t.specialCharge || 0));
     ctx.save();
     ctx.translate(t.x, t.y);
 
@@ -13174,6 +13178,18 @@
       ctx.lineWidth = 3 * U;
       ctx.beginPath();
       ctx.arc(0, 0, R * (1.5 + goFrac * 5), 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    } else if (chargeFrac > 0.15) {
+      // Anillo de anticipación: asoma gradualmente con la carga real, en
+      // el lugar (no se expande) — anticipa el estallido real de arriba.
+      var preRingPulse = 0.6 + 0.4 * Math.sin(time * 4);
+      ctx.save();
+      ctx.strokeStyle = t.def.color;
+      ctx.globalAlpha = chargeFrac * 0.40 * preRingPulse;
+      ctx.lineWidth = 2 * U;
+      ctx.beginPath();
+      ctx.arc(0, 0, R * 1.55, 0, Math.PI * 2);
       ctx.stroke();
       ctx.restore();
     }
@@ -13205,15 +13221,18 @@
     ctx.fillStyle = bridgeGrad;
     ctx.fillRect(-off, -bridgeH / 2, off * 2, bridgeH);
 
-    // GRÁNULOS EOSINOFÍLICOS GIGANTES en CADA lóbulo (signature)
+    // GRÁNULOS EOSINOFÍLICOS GIGANTES en CADA lóbulo (signature) — migran
+    // hacia el borde y vibran con fuerza creciente a medida que la
+    // Descarga real se acerca a disparar (t.specialCharge → 1).
+    var granJitter = chargeFrac * 1.6 * U;
     for (var lobeS = -1; lobeS <= 1; lobeS += 2) {
       var lobeCx = lobeS * off;
       var nGran = 5;
       for (var g = 0; g < nGran; g++) {
         var ga = (g * 137.5 * Math.PI / 180 + time * 0.06 + lobeS) % (Math.PI * 2);
-        var gd = R * (0.42 + (g % 2) * 0.18);
-        var gx = lobeCx + Math.cos(ga) * gd;
-        var gy = Math.sin(ga) * gd;
+        var gd = R * (0.42 + (g % 2) * 0.18 + chargeFrac * 0.24);
+        var gx = lobeCx + Math.cos(ga) * gd + (Math.random() - 0.5) * granJitter;
+        var gy = Math.sin(ga) * gd + (Math.random() - 0.5) * granJitter;
         var gSize = R * 0.14;
         // Gránulo coral con gradiente para volumen
         var granGrad = ctx.createRadialGradient(gx - gSize * 0.3, gy - gSize * 0.3, 0, gx, gy, gSize);
@@ -13230,9 +13249,12 @@
       }
     }
 
-    // 2 ANTENAS/CUERNOS arriba — sensores anti-parásitos en cada lóbulo
-    var antPulse = Math.sin(time * 2) * 0.05;
-    var antTip = R * 0.85 * (1 + antPulse);
+    // 2 ANTENAS/CUERNOS arriba — sensores anti-parásitos en cada lóbulo.
+    // Se erizan (mayor amplitud + más largas) y brillan con un halo coral
+    // a medida que la carga real del ultimate avanza ("detectando" que
+    // ya casi está lista la Descarga de gránulos).
+    var antPulse = Math.sin(time * 2) * (0.05 + chargeFrac * 0.16);
+    var antTip = R * 0.85 * (1 + antPulse) * (1 + chargeFrac * 0.30);
     ctx.strokeStyle = t.def.colorDark;
     ctx.lineWidth = Math.max(1.4, 1.8 * U);
     ctx.lineCap = "round";
@@ -13245,6 +13267,12 @@
       ctx.moveTo(antBaseX, antBaseY);
       ctx.lineTo(antTipX, antTipY);
       ctx.stroke();
+      if (chargeFrac > 0.15) {
+        ctx.fillStyle = "rgba(255, 140, 100, " + (chargeFrac * 0.55) + ")";
+        ctx.beginPath();
+        ctx.arc(antTipX, antTipY, R * 0.22 * (1 + chargeFrac * 0.6), 0, Math.PI * 2);
+        ctx.fill();
+      }
       ctx.fillStyle = "rgba(240, 110, 80, 0.95)";
       ctx.beginPath();
       ctx.arc(antTipX, antTipY, R * 0.10, 0, Math.PI * 2);

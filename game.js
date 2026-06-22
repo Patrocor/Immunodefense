@@ -13060,11 +13060,15 @@
     var R = 18 * U * pulse * ultBoost;
     var time = state.time;
     var phase = t.idlePhase || 0;
+    // Carga real del ultimate (t.specialCharge: 0→1) — intensifica el
+    // aura, los gránulos y el cierre de la mira ANTES del Frenesí real.
+    var chargeFrac = doingUlt ? 0 : Math.max(0, Math.min(1, t.specialCharge || 0));
     ctx.save(); ctx.translate(t.x, t.y);
 
-    // ── AURA FUCSIA PERMANENTE (sutil, intensifica en ultimate) ──
-    var auraStrength = doingUlt ? 0.55 : 0.25;
-    var auraR = R * (doingUlt ? 2.6 : 1.85);
+    // ── AURA FUCSIA PERMANENTE (sutil, crece con la carga real, intensa
+    // en ultimate) ──
+    var auraStrength = doingUlt ? 0.55 : (0.25 + chargeFrac * 0.25);
+    var auraR = R * (doingUlt ? 2.6 : (1.85 + chargeFrac * 0.5));
     var auraG = ctx.createRadialGradient(0, 0, R * 0.6, 0, 0, auraR);
     auraG.addColorStop(0, "rgba(232, 67, 147, " + auraStrength + ")");
     auraG.addColorStop(1, "rgba(232, 67, 147, 0)");
@@ -13085,16 +13089,19 @@
       }
     }
 
-    // ── Anillo crosshair rotando (mira de cazadora, sutil) ──
-    ctx.strokeStyle = colorAlpha(t.def.color, 0.45);
-    ctx.lineWidth = Math.max(1, 1.3 * U);
-    ctx.save(); ctx.rotate(time * 0.8);
-    ctx.beginPath(); ctx.arc(0, 0, R * 1.30, 0, Math.PI * 2); ctx.stroke();
+    // ── Anillo crosshair rotando (mira de cazadora) — gira más rápido y
+    // se cierra sobre el objetivo a medida que la carga real avanza,
+    // telegrafiando el Frenesí antes de que dispare. ──
+    var crosshairR = R * (1.30 - chargeFrac * 0.18);
+    ctx.strokeStyle = colorAlpha(t.def.color, 0.45 + chargeFrac * 0.35);
+    ctx.lineWidth = Math.max(1, 1.3 * U) * (1 + chargeFrac * 0.5);
+    ctx.save(); ctx.rotate(time * (0.8 + chargeFrac * 2.4));
+    ctx.beginPath(); ctx.arc(0, 0, crosshairR, 0, Math.PI * 2); ctx.stroke();
     for (var k = 0; k < 4; k++) {
       var ka = k * Math.PI / 2;
       ctx.beginPath();
-      ctx.moveTo(Math.cos(ka) * R * 1.08, Math.sin(ka) * R * 1.08);
-      ctx.lineTo(Math.cos(ka) * R * 1.50, Math.sin(ka) * R * 1.50);
+      ctx.moveTo(Math.cos(ka) * R * (1.08 - chargeFrac * 0.10), Math.sin(ka) * R * (1.08 - chargeFrac * 0.10));
+      ctx.lineTo(Math.cos(ka) * crosshairR * 1.15, Math.sin(ka) * crosshairR * 1.15);
       ctx.stroke();
     }
     ctx.restore();
@@ -13153,12 +13160,13 @@
     // 12 puntos rosa-blanco esparcidos en el citoplasma — característica
     // LGL real. Posiciones estables por phase (no random cada frame).
     var grans = 12;
+    var granJitterNK = chargeFrac * 1.0 * U;
     for (var gi = 0; gi < grans; gi++) {
       // Usar trig estable basado en phase como "seed".
       var ga = gi * 1.83 + phase;
       var gr = R * (0.50 + ((gi * 7) % 11) / 30);     // 0.50..0.87
-      var gx = Math.cos(ga) * gr;
-      var gy = Math.sin(ga) * gr * 0.95;
+      var gx = Math.cos(ga) * gr + (Math.random() - 0.5) * granJitterNK;
+      var gy = Math.sin(ga) * gr * 0.95 + (Math.random() - 0.5) * granJitterNK;
       // Excluir gránulos que caigan dentro del núcleo (zona top-left).
       if (Math.hypot(gx - nucX, gy - nucY) < nucRx * 0.85) continue;
       // Granulo: núcleo blanco-rosa con outline fucsia.
@@ -13169,10 +13177,11 @@
       ctx.strokeStyle = "rgba(180, 50, 120, 0.55)";
       ctx.lineWidth = 0.7 * U;
       ctx.stroke();
-      // Mini halo del gránulo (sutil)
-      ctx.fillStyle = "rgba(255, 130, 200, 0.30)";
+      // Mini halo del gránulo — brilla más fuerte con la carga real,
+      // anticipando la liberación de perforinas del Frenesí.
+      ctx.fillStyle = "rgba(255, 130, 200, " + (0.30 + chargeFrac * 0.35) + ")";
       ctx.beginPath();
-      ctx.arc(gx, gy, 2.6 * U, 0, Math.PI * 2);
+      ctx.arc(gx, gy, (2.6 + chargeFrac * 1.4) * U, 0, Math.PI * 2);
       ctx.fill();
     }
 

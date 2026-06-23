@@ -2090,12 +2090,19 @@
     arr.push("macrofagoLibre");
     return arr;
   }
+  // Alias/placeholders genéricos de una versión anterior (antes de que
+  // cada patógeno tuviera nombre y sprite propios) — siguen en ENEMY_DEFS
+  // por compatibilidad de código viejo, pero NUNCA se spawnean (no están
+  // en WAVE_TABLE ni DISSEMINATION_WAVE_TABLE) y no tienen sprite dedicado.
+  // El Dex no debe listarlos: son ruido, no contenido real del juego.
+  var COMPENDIUM_LEGACY_IDS = ["bacteria", "virus", "hongo", "boss", "bossBacteria", "bossVirus", "bossHongo", "bossPrimordial"];
   function compendiumGerms() {
-    // TODOS los gérmenes del juego (ENEMY_DEFS orden de declaración).
-    // Los no vistos se muestran en GRIS via isCompendiumLocked.
+    // TODOS los gérmenes REALES del juego (ENEMY_DEFS orden de declaración,
+    // sin los alias legacy de arriba). Los no vistos se muestran en GRIS
+    // via isCompendiumLocked.
     var out = [];
     for (var k in ENEMY_DEFS) {
-      if (ENEMY_DEFS.hasOwnProperty(k)) out.push(k);
+      if (ENEMY_DEFS.hasOwnProperty(k) && COMPENDIUM_LEGACY_IDS.indexOf(k) === -1) out.push(k);
     }
     return out;
   }
@@ -10940,19 +10947,22 @@
           }
         }
       }
-      // Cards (tarjetas con nombre):
-      //  · Modo NORMAL: seleccionar para detalle/lore
-      //  · Modo LOADOUT (loadoutEditing): toggle inclusión en loadout 5+2+1
+      // Cards (tarjetas con nombre): el tap SIEMPRE selecciona para
+      // detalle/lore abajo (torres y gérmenes por igual). En modo LOADOUT
+      // (loadoutEditing), además togglea inclusión 5+2+1 — pero solo para
+      // torres/tanques/barreras reales: los gérmenes nunca son loadout-ables
+      // (loadoutCategory no los reconoce y los metería en "tower" por error).
       if (UI.compendiumCards) {
         for (var ci = 0; ci < UI.compendiumCards.length; ci++) {
           var card = UI.compendiumCards[ci];
           if (inRect(x, y, card)) {
-            // Limpiar el badge "nuevo" SIEMPRE que se toque la card
-            // (sea en modo loadout o en modo detalle).
+            // Limpiar el badge "nuevo" SIEMPRE que se toque la card.
             if (state.dexNew && state.dexNew[card.typeId]) {
               delete state.dexNew[card.typeId];
             }
-            if (state.loadoutEditing && !card.locked && card.typeId !== "macrofagoLibre") {
+            state.compendiumSelected = card.typeId;
+            var isGermCard = !!ENEMY_DEFS[card.typeId];
+            if (state.loadoutEditing && !isGermCard && !card.locked && card.typeId !== "macrofagoLibre") {
               var result = toggleLoadout(card.typeId);
               if (result === "full") {
                 flashFail();
@@ -10962,9 +10972,7 @@
                 // Re-calcular layout del dock para reflejar el cambio inmediatamente
                 layoutUI();
               }
-              return;
             }
-            state.compendiumSelected = card.typeId;
             return;
           }
         }

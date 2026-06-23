@@ -929,7 +929,6 @@
       // mayor (1.6x del rango normal).
       specialChargeSec: 30,
       specialName: "Desgranulación",
-      persistAcrossPhases: true,  // tank/soporte tisular: una vez desbloqueado, queda
       levels: [
         { range: 110, damage: 0, fireRate: 1.0, projectileSpeed: 0, splash: 0, hp: 95,  slowDur: 1.2, dotPerSec: 4 },
         { range: 130, damage: 0, fireRate: 1.0, projectileSpeed: 0, splash: 0, hp: 120, slowDur: 1.2, dotPerSec: 6 },
@@ -941,7 +940,6 @@
       id: "complemento", name: "Cañón del Complemento", shortName: "Cañón MAC",
       color: "#FFD24A", colorDark: "#b8860b", cost: 5, currency: "complement",
       desc: "MAC manual: ácido que ignora escudos",
-      persistAcrossPhases: true,  // soporte tanque: persiste entre fases
       ignoreShield: true,
       manualFire: true,             // el jugador apunta y dispara
       immuneToAura: true,           // el aura de contacto no le hace daño
@@ -975,7 +973,6 @@
       id: "trombo", name: "Trombo de Respuesta", shortName: "Trombo",
       color: "#C0392B", colorDark: "#6B1410", cost: 45,
       desc: "Coágulo: atropella y empuja; al romperse deja una bomba",
-      persistAcrossPhases: true,  // tanque: una vez desbloqueado, queda
       // Sin ultimate propio — su payoff es el death-bomb (factores de
       // coagulación liberados) al llegar a 0 HP, no una carga de ultimate.
       // Cada golpe además empuja al germen hacia atrás en el camino
@@ -992,7 +989,6 @@
       id: "centinela", name: "Centinela de Alarma", shortName: "Centinela",
       color: "#E8A33D", colorDark: "#8A5A12", cost: 50,
       desc: "Faro: atrae los poderes especiales de los germenes hacia si",
-      persistAcrossPhases: true,  // tanque: una vez desbloqueado, queda
       // Señuelo: decoyAttraction divide la distancia real en la
       // comparación de "más cercano" que hacen los gérmenes con poder
       // especial (devorar/catapulta/dardo/spray) — ver updateEnemies.
@@ -1366,32 +1362,37 @@
 
   // ============ MÉDULA ÓSEA Y PICKUPS DE DESBLOQUEO ============
   // Cada cierto número de oleadas, la médula ósea emite un pickup flotante.
-  // El jugador lo tappea y la torre correspondiente se desbloquea en el dock.
-  // Reescalado junto con la compresión de olas 18→10 (2026-06-22): mismas
-  // proporciones que el roster original (3,5,7,9 de 18 → 2,4,5,6 de 10),
-  // así que Langerhans/NK siguen cayendo en la misma ola que sus bosses
-  // asociados (Pyogenes ola 2, Pseudomonas ola 4). Las per-fase se pierden
-  // al cambiar de fase y se re-emiten; Mastocito (permanente) si se
-  // desbloquea queda para siempre. Los TANQUES (MAC, Trombo) ya NO usan
-  // este schedule — ver BOSS_TANK_DROPS abajo.
+  // El jugador lo tappea y la torre correspondiente se desbloquea en el dock,
+  // PARA SIEMPRE (2026-06-22: ya no existen torres "per-fase" que se pierden
+  // al cambiar de fase — toda torre conseguida queda en el repertorio).
+  // El roster de 7 torres desbloqueables se repartió entre las 2 fases reales
+  // para que ninguna fase agote todo el contenido de golpe:
+  //  · Fase 1 (médula, por ola): Langerhans@2, NK@4 — misma ola que sus
+  //    bosses asociados (Pyogenes, Pseudomonas).
+  //  · Fase 1 (boss-kill, ver BOSS_TANK_DROPS): Complemento/Trombo/Centinela.
+  //  · Diseminación (médula, por ola de dissem): Eosinófilo@0, Mastocito@1
+  //    — ver DISSEM_UNLOCK_SCHEDULE más abajo.
   var BASIC_TOWERS = ["neutrofilo", "linfocitoB", "linfocitoT"];
-  // Las torres regulares se ganan por OLA (médula ósea, schedule fijo).
-  // Los TANQUES (Complemento, Trombo) NO están acá — se ganan derrotando
-  // a un boss específico (ver BOSS_TANK_DROPS más abajo), un método
-  // deliberadamente distinto: a las torres regulares no hay que "matar
-  // nada en particular", a los tanques sí.
   var UNLOCK_SCHEDULE = {
-    2: "langerhans",    // per-fase — misma ola que el boss Pyogenes
-    4: "nk",            // per-fase — misma ola que el boss Pseudomonas
-    5: "eosinofilo",    // per-fase
-    6: "mastocito"      // permanente (en dissem/F2)
+    2: "langerhans",
+    4: "nk"
   };
-  var PER_PHASE_TOWERS = ["langerhans", "nk", "eosinofilo"]; // re-emiten al cambiar fase
-  var PERSISTENT_UNLOCKABLES = ["mastocito", "complemento", "trombo", "centinela"]; // si no llegó a unlocked, también re-aparece (re-offer de Diseminación)
+  // Catch-up: si el jugador llega a Diseminación sin haber conseguido
+  // alguna de estas (perdió el pickup por ola, o no llegó a matar al boss
+  // correspondiente), se le vuelve a ofrecer ahí — ninguna torre queda
+  // inalcanzable. Eosinófilo/Mastocito NO están acá porque su unlock
+  // primario YA es en Diseminación (no necesitan catch-up dentro de ella).
+  var PHASE1_CATCHUP_TOWERS = ["langerhans", "nk", "complemento", "trombo", "centinela"];
   // TANQUES: se ganan matando a un boss específico, no por ola. El drop
   // real ocurre en updateEnemies cuando el boss termina su animación de
   // muerte (dyingTimer<=0) — ver BOSS_TANK_DROPS ahí.
   var BOSS_TANK_DROPS = { bossPyogenes: "complemento", bossClostridium: "trombo", bossMRSA: "centinela" };
+  // Diseminación: su propio schedule por ola (disseminationWaveIdx 0/1/2),
+  // ver startNextDisseminationWave().
+  var DISSEM_UNLOCK_SCHEDULE = {
+    0: "eosinofilo",
+    1: "mastocito"
+  };
 
   // === MEGACARIOCITO: produce plaquetas maduras periódicamente ===
   function updateMegakaryocyte(dt) {
@@ -1600,6 +1601,11 @@
       if (p.collecting) {
         p.collectT += dt;
         if (p.collectT >= 0.5) {
+          if (p.kind === "buff") {
+            openMedReinforcePicker();
+            arr.splice(i, 1);
+            continue;
+          }
           // Desbloquea
           if (state.unlockedTowers.indexOf(p.typeId) === -1) {
             state.unlockedTowers.push(p.typeId);
@@ -1716,8 +1722,9 @@
     var arr = state.unlockPickups;
     for (var i = 0; i < arr.length; i++) {
       var p = arr[i];
-      var def = TOWER_DEFS[p.typeId];
-      if (!def) continue;
+      var isBuff = p.kind === "buff";
+      var def = isBuff ? null : TOWER_DEFS[p.typeId];
+      if (!isBuff && !def) continue;
       var scale = 1;
       var alpha = 1;
       if (p.collecting) {
@@ -1726,18 +1733,21 @@
         alpha = 1 - t;
       }
       var pulse = 0.5 + 0.5 * Math.sin(state.time * 4 + i);
+      var haloColor = isBuff ? "rgba(110, 220, 220, " : "rgba(255, 210, 100, ";
+      var capFill = isBuff ? "#5BC8E8" : "#f5d76e";
+      var capStroke = isBuff ? "#1a6b80" : "#8a6020";
       ctx.save();
       ctx.translate(p.x, p.y);
       ctx.globalAlpha = alpha;
       ctx.scale(scale, scale);
       // Halo pulsante
-      ctx.fillStyle = "rgba(255, 210, 100, " + (0.20 + pulse * 0.30) + ")";
+      ctx.fillStyle = haloColor + (0.20 + pulse * 0.30) + ")";
       ctx.beginPath();
       ctx.arc(0, 0, 26 * U, 0, Math.PI * 2);
       ctx.fill();
-      // Cápsula amarilla (cuadrada con vértices romos)
-      ctx.fillStyle = "#f5d76e";
-      ctx.strokeStyle = "#8a6020";
+      // Cápsula (cuadrada con vértices romos)
+      ctx.fillStyle = capFill;
+      ctx.strokeStyle = capStroke;
       ctx.lineWidth = 2;
       var capR = 8 * U;
       ctx.beginPath();
@@ -1753,23 +1763,30 @@
       ctx.closePath();
       ctx.fill();
       ctx.stroke();
-      // Sprite de la torre dentro
-      drawCardIcon(p.typeId, 0, 0, 11 * U, true);
+      if (isBuff) {
+        // Cruz médica (refuerzo) en vez del ícono de torre.
+        ctx.fillStyle = "#ffffff";
+        var armW = 5 * U, armL = 13 * U;
+        ctx.fillRect(-armW / 2, -armL / 2, armW, armL);
+        ctx.fillRect(-armL / 2, -armW / 2, armL, armW);
+      } else {
+        drawCardIcon(p.typeId, 0, 0, 11 * U, true);
+      }
       // "+" arriba
-      ctx.fillStyle = "#ffd24a";
+      ctx.fillStyle = isBuff ? "#5BC8E8" : "#ffd24a";
       ctx.font = "bold " + Math.floor(11 * U) + "px Fredoka, sans-serif";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.fillText("+", 0, -26 * U);
       ctx.restore();
-      // Texto debajo: nombre de la torre
+      // Texto debajo: nombre de la torre (o "Refuerzo Médico")
       if (!p.collecting) {
         ctx.save();
         ctx.fillStyle = "rgba(0,0,0,0.55)";
         ctx.font = "bold " + Math.floor(10 * U) + "px Fredoka, sans-serif";
         ctx.textAlign = "center";
         ctx.textBaseline = "top";
-        var nameTxt = def.shortName || def.name;
+        var nameTxt = isBuff ? "Refuerzo Médico" : (def.shortName || def.name);
         var pad = 4 * U;
         var tw = ctx.measureText(nameTxt).width;
         ctx.fillRect(p.x - tw / 2 - pad, p.y + 24 * U, tw + pad * 2, 16 * U);
@@ -1778,6 +1795,126 @@
         ctx.restore();
       }
     }
+  }
+
+  // ============ REFUERZO MÉDICO (buff temporal de nivel) ============
+  // La médula ósea, cuando no tiene una torre nueva para dar, emite este
+  // pickup en vez de uno de torre (ola%3===0 en startNextWave, idx===2
+  // en startNextDisseminationWave) — así siempre tiene algo que ofrecer.
+  // Al recogerlo, el jugador elige UNA torre ya desbloqueada
+  // y CON COPIAS EN PANTALLA: todas esas copias suben +1 nivel temporal
+  // (tope nivel máximo real) durante MED_REINFORCE_DUR segundos.
+  var MED_REINFORCE_DUR = 45;
+
+  function spawnReinforcePickup(originX, originY) {
+    if (!state.unlockPickups) state.unlockPickups = [];
+    if (originX == null && !state.medulaOsea) return;
+    state.unlockPickups.push({
+      kind: "buff",
+      x: originX != null ? originX : state.medulaOsea.x,
+      y: originY != null ? originY : state.medulaOsea.y,
+      vx: (Math.random() - 0.5) * 8 * U,
+      vy: -22 * U,
+      age: 0,
+      bornAt: state.time,
+      collecting: false,
+      collectT: 0
+    });
+    showMsg("¡Refuerzo médico disponible!");
+    sfx("upgrade");
+  }
+
+  function openMedReinforcePicker() {
+    // Un tipo es elegible si AL MENOS UNA copia en pantalla no está al
+    // máximo — no basta con mirar la primera copia encontrada, puede
+    // haber varias del mismo tipo en niveles distintos.
+    var eligible = {};
+    for (var i = 0; i < state.towers.length; i++) {
+      var tw = state.towers[i];
+      var id = tw.def.id;
+      if (eligible[id]) continue;
+      if (tw.level < tw.def.levels.length - 1) eligible[id] = true;
+    }
+    var opts = Object.keys(eligible);
+    if (opts.length === 0) {
+      showMsg("No hay torres para reforzar ahora");
+      return;
+    }
+    state.medReinforcePicker = { options: opts };
+  }
+
+  function applyMedReinforce(typeId) {
+    var count = 0;
+    for (var i = 0; i < state.towers.length; i++) {
+      var tw = state.towers[i];
+      if (tw.def.id === typeId) { tw.tempBoostTimer = MED_REINFORCE_DUR; count++; }
+    }
+    state.medReinforcePicker = null;
+    if (count > 0) {
+      var defB = TOWER_DEFS[typeId];
+      showMsg("¡" + (defB.shortName || defB.name) + " reforzado! +1 nivel por " + MED_REINFORCE_DUR + "s");
+      sfx("upgrade");
+    }
+  }
+
+  function handleMedReinforcePickerTap(x, y) {
+    var opts = UI.medReinforceOptions || [];
+    for (var i = 0; i < opts.length; i++) {
+      if (inRect(x, y, opts[i])) { applyMedReinforce(opts[i].typeId); return; }
+    }
+  }
+
+  function drawMedReinforcePicker() {
+    var picker = state.medReinforcePicker;
+    if (!picker) { UI.medReinforceOptions = null; return; }
+    ctx.save();
+    ctx.fillStyle = "rgba(10, 14, 24, 0.72)";
+    ctx.fillRect(0, 0, VW, VH);
+    ctx.fillStyle = "#fff";
+    ctx.font = "bold " + Math.floor(15 * U) + "px Fredoka, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("Elegí una torre para reforzar", VW / 2, VH / 2 - 70 * U);
+    ctx.font = Math.floor(11 * U) + "px Fredoka, sans-serif";
+    ctx.fillStyle = "rgba(255,255,255,0.75)";
+    ctx.fillText("+1 nivel temporal durante " + MED_REINFORCE_DUR + "s", VW / 2, VH / 2 - 48 * U);
+
+    var n = picker.options.length;
+    var iconR = 26 * U;
+    var gap = 18 * U;
+    var totalW = n * iconR * 2 + (n - 1) * gap;
+    var startX = VW / 2 - totalW / 2 + iconR;
+    var y = VH / 2;
+    var opts = [];
+    for (var i = 0; i < n; i++) {
+      var typeId = picker.options[i];
+      var def = TOWER_DEFS[typeId];
+      var cx = startX + i * (iconR * 2 + gap);
+      var pulse = 0.5 + 0.5 * Math.sin(state.time * 3 + i);
+      ctx.save();
+      ctx.translate(cx, y);
+      ctx.fillStyle = "rgba(110, 220, 220, " + (0.20 + pulse * 0.25) + ")";
+      ctx.beginPath();
+      ctx.arc(0, 0, iconR * 1.25, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#5BC8E8";
+      ctx.strokeStyle = "#1a6b80";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(0, 0, iconR, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      drawCardIcon(typeId, 0, 0, iconR * 0.62, true);
+      ctx.restore();
+      ctx.fillStyle = "#fff";
+      ctx.font = "bold " + Math.floor(9 * U) + "px Fredoka, sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "top";
+      ctx.fillText(def.shortName || def.name, cx, y + iconR + 6 * U);
+      opts.push({ x: cx - iconR, y: y - iconR, w: iconR * 2, h: iconR * 2, typeId: typeId });
+    }
+    UI.medReinforceOptions = opts;
+    ctx.restore();
   }
   // ============ FIN MÉDULA ÓSEA ============
 
@@ -3823,6 +3960,11 @@
     if (unlockType && !state.unlockScheduleNotified[state.waveIdx]) {
       state.unlockScheduleNotified[state.waveIdx] = true;
       spawnUnlockPickup(unlockType);
+    } else if (!unlockType && state.waveIdx % 3 === 0 && !state.unlockScheduleNotified[state.waveIdx]) {
+      // Sin torre nueva programada esta ola: la médula igual emite algo
+      // (Refuerzo Médico) — nunca se queda sin nada que ofrecer.
+      state.unlockScheduleNotified[state.waveIdx] = true;
+      spawnReinforcePickup();
     }
     var wave = getWaveDef(state.waveIdx);
     state.currentWaveDef = wave;
@@ -3895,17 +4037,9 @@
     state.topicalCharge = 0;
     // Primer macrófago autónomo aparece pronto (no esperamos los 28s estándar).
     state.guardianTimer = 8;
-    // Filtrar desbloqueos: conservamos básicas + las que tengan
-    // persistAcrossPhases. Las per-fase se pierden y se re-emiten via médula.
-    if (state.unlockedTowers) {
-      state.unlockedTowers = state.unlockedTowers.filter(function (t) {
-        if (BASIC_TOWERS.indexOf(t) !== -1) return true;
-        var defT = TOWER_DEFS[t];
-        return !!(defT && defT.persistAcrossPhases);
-      });
-    } else {
-      state.unlockedTowers = BASIC_TOWERS.slice();
-    }
+    // Todas las torres conseguidas son permanentes — ya no se filtra/pierde
+    // nada al cambiar de fase (2026-06-22). state.unlockedTowers sigue igual.
+    if (!state.unlockedTowers) state.unlockedTowers = BASIC_TOWERS.slice();
     // Auto-unlock de torres disseminationOnly (Plaqueta) — no requieren
     // pickup, son específicas del torrente.
     if (state.unlockedTowers.indexOf("plaqueta") === -1) {
@@ -3918,23 +4052,18 @@
     state.openGroups = { defensas: true, potenciadores: true, tanques: true, otras: true };
     state.unlockScheduleNotified = {};
     state.unlockPickups = [];
-    // Cola de pickups que la médula va a emitir en la nueva fase:
-    //  1) Per-fase: SIEMPRE se re-emiten (Langerhans, NK, Eosinófilo).
-    //  2) Permanentes: solo si NO se desbloquearon en Fase 1 (Mastocito, MAC).
+    state.medReinforcePicker = null;
+    // Catch-up: lo que se haya perdido en Fase 1 (pickup de ola no
+    // recogido, boss no derrotado) se ofrece acá, en cadena. Eosinófilo/
+    // Mastocito NO entran porque su unlock primario ya es de Diseminación
+    // (DISSEM_UNLOCK_SCHEDULE, disparado por ola desde startNextDisseminationWave).
     state.pendingPhaseUnlocks = [];
     var firstUnlockAt = state.time + 6;
     var nUnlocked = 0;
-    for (var ppi = 0; ppi < PER_PHASE_TOWERS.length; ppi++) {
-      var ppType = PER_PHASE_TOWERS[ppi];
-      if (state.unlockedTowers.indexOf(ppType) === -1) {
-        state.pendingPhaseUnlocks.push({ typeId: ppType, spawnAt: firstUnlockAt + nUnlocked * 10 });
-        nUnlocked++;
-      }
-    }
-    for (var psi = 0; psi < PERSISTENT_UNLOCKABLES.length; psi++) {
-      var psType = PERSISTENT_UNLOCKABLES[psi];
-      if (state.unlockedTowers.indexOf(psType) === -1) {
-        state.pendingPhaseUnlocks.push({ typeId: psType, spawnAt: firstUnlockAt + nUnlocked * 10 });
+    for (var ci = 0; ci < PHASE1_CATCHUP_TOWERS.length; ci++) {
+      var cType = PHASE1_CATCHUP_TOWERS[ci];
+      if (state.unlockedTowers.indexOf(cType) === -1) {
+        state.pendingPhaseUnlocks.push({ typeId: cType, spawnAt: firstUnlockAt + nUnlocked * 10 });
         nUnlocked++;
       }
     }
@@ -4011,6 +4140,19 @@
       return;
     }
     var idx = state.disseminationWaveIdx++;
+    // Schedule de desbloqueos propio de Diseminación (Eosinófilo/Mastocito,
+    // ver DISSEM_UNLOCK_SCHEDULE) — mismo patrón que UNLOCK_SCHEDULE en
+    // startNextWave(), con clave separada en unlockScheduleNotified para
+    // no chocar con las claves numéricas de Fase 1.
+    var dissemUnlockType = DISSEM_UNLOCK_SCHEDULE[idx];
+    if (dissemUnlockType && !state.unlockScheduleNotified["d" + idx]) {
+      state.unlockScheduleNotified["d" + idx] = true;
+      spawnUnlockPickup(dissemUnlockType);
+    } else if (!dissemUnlockType && !state.unlockScheduleNotified["d" + idx]) {
+      // Última ola de dissem (idx 2) sin torre nueva: Refuerzo Médico.
+      state.unlockScheduleNotified["d" + idx] = true;
+      spawnReinforcePickup();
+    }
     // Regenerar +1 HP en barreras NO rotas antes de empezar la oleada.
     if (state.disseminationBarrierHP) {
       for (var brI = 0; brI < state.disseminationBarrierHP.length; brI++) {
@@ -5565,7 +5707,12 @@
   }
 
   function towerStats(t) {
-    var base = t.def.levels[t.level];
+    // Refuerzo Médico: nivel efectivo +1 (tope real) mientras dure el
+    // buff temporal — NO toca t.level (eso afectaría costo de mejora,
+    // pips de nivel en la UI, etc.), solo las stats de combate que salen de acá.
+    var effLevel = t.level;
+    if ((t.tempBoostTimer || 0) > 0) effLevel = Math.min(t.def.levels.length - 1, t.level + 1);
+    var base = t.def.levels[effLevel];
     var hasLangerBuff = ((t.langerBuffT || 0) > 0) && (t.langerBuff || 0) > 1;
     if (!t.synBuff && !hasLangerBuff) return base;
     // Devuelve una copia con multiplicadores aplicados.
@@ -5713,6 +5860,7 @@
       if (t.attackAnim > 0) t.attackAnim -= dt;
       if (t.levelupAnim > 0) t.levelupAnim -= dt;
       if (t.cooldown > 0) t.cooldown -= dt;
+      if ((t.tempBoostTimer || 0) > 0) t.tempBoostTimer -= dt;
       if (t.muzzleFlash > 0) t.muzzleFlash -= dt;
       if ((t.apoptosisFlash || 0) > 0) t.apoptosisFlash -= dt;
       if ((t.langerBuffT || 0) > 0) {
@@ -11304,6 +11452,12 @@
       handleClick(p.x, p.y);
       return;
     }
+    // Refuerzo Médico: selector simple, atrapa el tap completo (sin
+    // drag/scroll — solo tocar un ícono; tocar el fondo no hace nada).
+    if (state.medReinforcePicker) {
+      handleMedReinforcePickerTap(p.x, p.y);
+      return;
+    }
     // Body-map: si está activo, atrapamos el tap. Si es sobre el viewport,
     // potencialmente arranca un drag (scroll). Si es sobre el botón Continuar,
     // se procesa en onPointerUp.
@@ -12417,6 +12571,28 @@
       ctx.beginPath();
       ctx.arc(t.x, t.y, 28 * U, 0, Math.PI * 2);
       ctx.fill();
+    }
+    // Refuerzo Médico activo: badge "+1 NIVEL" con anillo de cuenta
+    // regresiva REAL (t.tempBoostTimer/MED_REINFORCE_DUR), no decorativo.
+    if ((t.tempBoostTimer || 0) > 0) {
+      var boostFrac = Math.max(0, Math.min(1, t.tempBoostTimer / MED_REINFORCE_DUR));
+      var boostPulse = 0.5 + 0.5 * Math.sin(state.time * 5);
+      var badgeY = t.y - 32 * U;
+      ctx.save();
+      ctx.fillStyle = "rgba(91, 200, 232, " + (0.75 + boostPulse * 0.2) + ")";
+      ctx.beginPath();
+      ctx.arc(t.x, badgeY, 9 * U, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "rgba(255,255,255,0.7)";
+      ctx.lineWidth = Math.max(1.0, 1.2 * U);
+      ctx.beginPath();
+      ctx.arc(t.x, badgeY, 9 * U, -Math.PI / 2, -Math.PI / 2 + boostFrac * Math.PI * 2);
+      ctx.stroke();
+      ctx.fillStyle = "#fff";
+      ctx.font = "bold " + Math.floor(8 * U) + "px Fredoka, sans-serif";
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText("+1", t.x, badgeY);
+      ctx.restore();
     }
     // Sacudida al golpe; al ser devorada forcejea más fuerte y se encoge.
     var hf = (t.hitFlash || 0);
@@ -21175,6 +21351,8 @@
     drawCompendium();
     // Body-map (transición narrativa entre fases) — por encima de todo.
     safeDraw("BodyMap", drawBodyMap);
+    // Selector de Refuerzo Médico — modal simple, por encima de todo.
+    safeDraw("MedReinforcePicker", drawMedReinforcePicker);
     // Transición de fase: fundido a negro suave con texto narrativo.
     if (state.phaseTransition) {
       var ph = state.phaseTransition;

@@ -3415,6 +3415,9 @@
       heroLevelMedals: {},              // organId → true cuando se ganó el nivel
       heroLevelPlayed: {},              // organId → true después del primer juego (no se repite)
       pendingHeroLevel: null,           // { organ, delay } encolado, se dispara cuando delay≤0
+      // Poderes/herramientas que DenK y Mac consiguen DURANTE el recorrido
+      // (hero levels) — persisten para el resto de la run, no por nivel.
+      heroUpgrades: { pierce: false, netSpecial: false, macSplash: false, macSpecialBoost: false },
       selectedToBuild: null,
       openGroups: { defensas: true, potenciadores: true, tanques: true, otras: true }, // todos abiertos por defecto
       unlockedTowers: ["neutrofilo", "linfocitoB", "linfocitoT"], // resto se desbloquea con pickups
@@ -22065,7 +22068,8 @@
         { kind: "aureus", xFrac: 0.90, hp: 4, capsule: 2 }
       ],
       obstacles: [{ kind: "telarana", xFrac: 0.40 }],
-      terrain: [{ type: "pit", x0: 0.22, x1: 0.30 }, { type: "pit", x0: 0.68, x1: 0.76 }] },
+      terrain: [{ type: "pit", x0: 0.22, x1: 0.30 }, { type: "pit", x0: 0.68, x1: 0.76 }],
+      powerup: { kind: "pierce", xFrac: 0.34 } },
     { name: "Folículo piloso", bgA: "#301810", bgB: "#502820", widthMult: 2.0,
       bgImgRange: { x0: 0.30, x1: 0.50 },
       enemies: [
@@ -22073,7 +22077,8 @@
         { kind: "sarna", xFrac: 0.50, hp: 3, burrowed: true },
         { kind: "sarna", xFrac: 0.85, hp: 3, burrowed: true }
       ],
-      terrain: [{ type: "pit", x0: 0.30, x1: 0.38 }, { type: "pit", x0: 0.65, x1: 0.73 }] },
+      terrain: [{ type: "pit", x0: 0.30, x1: 0.38 }, { type: "pit", x0: 0.65, x1: 0.73 }],
+      powerup: { kind: "netSpecial", xFrac: 0.42 } },
     { name: "Tejido conectivo", bgA: "#403018", bgB: "#5a4828", widthMult: 2.0,
       bgImgRange: { x0: 0.46, x1: 0.74 },
       enemies: [
@@ -22083,11 +22088,13 @@
         { kind: "hsv",    xFrac: 0.64, hp: 2 },
         { kind: "cacnes", xFrac: 0.92, hp: 2 }
       ],
+      powerup: { kind: "macSplash", xFrac: 0.45 },
       terrain: [{ type: "pit", x0: 0.32, x1: 0.40 }, { type: "pit", x0: 0.74, x1: 0.82 }] },
     { name: "Pared del vaso", bgA: "#5a1828", bgB: "#8a3050", widthMult: 2.0,
       bgImgRange: { x0: 0.70, x1: 0.92 },
       obstacles: [{ kind: "vesselgate", xFrac: 0.38 }, { kind: "vesselgate", xFrac: 0.80 }],
-      terrain: [{ type: "pit", x0: 0.15, x1: 0.23 }, { type: "pit", x0: 0.55, x1: 0.63 }] },
+      terrain: [{ type: "pit", x0: 0.15, x1: 0.23 }, { type: "pit", x0: 0.55, x1: 0.63 }],
+      powerup: { kind: "macSpecialBoost", xFrac: 0.30 } },
     { name: "Guardián del vaso", bgA: "#3a0810", bgB: "#7a1020", widthMult: 2.8,
       bgImgRange: { x0: 0.84, x1: 1.00 },
       boss: { kind: "aureus_guard", xFrac: 0.55, hp: 20 } }
@@ -22135,6 +22142,9 @@
     hl.obstacles = [];
     hl.boss = null;
     hl.projectiles = [];
+    // Poderes/herramientas (ver state.heroUpgrades) — si ya se consiguió
+    // antes (persiste entre niveles), no vuelve a aparecer.
+    hl.powerups = [];
     // Terreno real (huecos con pinches) — coords absolutas de mundo,
     // resueltas desde las fracciones de PIELVASO_ZONES igual que enemigos.
     hl.terrain = [];
@@ -22153,6 +22163,14 @@
           var od = z.obstacles[oi];
           hl.obstacles.push(makePielVasoObstacle(od, zx0 + od.xFrac * zw, hl.groundY));
         }
+      }
+      if (z.powerup && !state.heroUpgrades[z.powerup.kind]) {
+        hl.powerups.push({
+          kind: z.powerup.kind,
+          x: zx0 + z.powerup.xFrac * zw,
+          y: hl.groundY,
+          collected: false
+        });
       }
       if (z.terrain) {
         for (var ti = 0; ti < z.terrain.length; ti++) {
@@ -22201,7 +22219,9 @@
     e.hitFlash = 0.15;
     if (e.hp <= 0) { e.hp = 0; e.dead = true; }
   }
-  function pielVasoMeleeHit(hl, hero, range, dmg) {
+  // splash: Vial de TNF-α (heroUpgrades.macSplash) — además del golpe
+  // directo, daña a otros enemigos cerca del que recibió el golpe.
+  function pielVasoMeleeHit(hl, hero, range, dmg, splash) {
     var targets = hl.enemies.concat(hl.boss ? [hl.boss] : []);
     for (var i = 0; i < targets.length; i++) {
       var e = targets[i];
@@ -22210,20 +22230,41 @@
       if (Math.abs(dx) > range) continue;
       if ((dx > 1 && hero.facing < 0) || (dx < -1 && hero.facing > 0)) continue;
       pielVasoDamageEnemy(e, dmg, true);
+      if (splash) {
+        for (var j = 0; j < targets.length; j++) {
+          var e2 = targets[j];
+          if (e2 === e || e2.dead || (e2.burrowed && !e2.revealed)) continue;
+          if (Math.abs(e2.x - e.x) <= 50) pielVasoDamageEnemy(e2, Math.ceil(dmg * 0.6), false);
+        }
+      }
     }
   }
-  function pielVasoDenkReveal(hl, hero, radius, duration) {
+  // immobilize: Membrana NET (heroUpgrades.netSpecial) — además de
+  // revelar a los enterrados, deja ATURDIDOS (no se mueven, no dañan) a
+  // TODOS los enemigos en el radio, revelados o no.
+  function pielVasoDenkReveal(hl, hero, radius, duration, immobilize) {
     for (var i = 0; i < hl.enemies.length; i++) {
       var e = hl.enemies[i];
-      if (e.dead || !e.burrowed) continue;
-      if (Math.abs(e.x - hero.x) <= radius) { e.revealed = true; e.revealT = duration; }
+      if (e.dead) continue;
+      if (Math.abs(e.x - hero.x) > radius) continue;
+      if (e.burrowed) { e.revealed = true; e.revealT = duration; }
+      if (immobilize) e.stunT = duration;
     }
   }
-  function pielVasoMacBreak(hl, hero, range) {
+  // stunNearby: Enzima lítica (heroUpgrades.macSpecialBoost) — además de
+  // romper la telaraña, aturde a los enemigos cerca de Mac.
+  function pielVasoMacBreak(hl, hero, range, stunNearby) {
     for (var i = 0; i < hl.obstacles.length; i++) {
       var o = hl.obstacles[i];
       if (o.broken || o.kind !== "telarana") continue;
       if (Math.abs(o.x - hero.x) <= range) o.broken = true;
+    }
+    if (stunNearby) {
+      for (var ei = 0; ei < hl.enemies.length; ei++) {
+        var e = hl.enemies[ei];
+        if (e.dead) continue;
+        if (Math.abs(e.x - hero.x) <= range) e.stunT = 2.5;
+      }
     }
   }
   function pielVasoCheckHeroDeath(hl) {
@@ -22251,11 +22292,14 @@
         e.revealT -= dt;
         if (e.revealT <= 0) e.revealed = false;
       }
-      if (e.patrolRange > 0 && !e.isBoss) {
+      // Aturdido (Membrana NET / Enzima lítica): no patrulla, no daña.
+      if ((e.stunT || 0) > 0) e.stunT -= dt;
+      var stunned = (e.stunT || 0) > 0;
+      if (e.patrolRange > 0 && !e.isBoss && !stunned) {
         e.patrolPhase += dt * 1.5;
         e.x = e.homeX + Math.sin(e.patrolPhase) * e.patrolRange;
       }
-      var canHurt = !(e.burrowed && !e.revealed);
+      var canHurt = !(e.burrowed && !e.revealed) && !stunned;
       if (canHurt && hero.hurtCooldown <= 0) {
         var ddx = e.x - hero.x;
         var hitR = e.isBoss ? 42 : 24;
@@ -22265,6 +22309,23 @@
           sfx("playerHurt");
           pielVasoCheckHeroDeath(hl);
         }
+      }
+    }
+  }
+  // Recolección de poderes — al contacto, persiste en state.heroUpgrades
+  // (global, para el resto de la run) y se va de la lista del nivel.
+  function updatePielVasoPowerups(hl) {
+    if (!hl.powerups || !hl.powerups.length) return;
+    var hero = hl[hl.activeHero];
+    for (var i = hl.powerups.length - 1; i >= 0; i--) {
+      var pu = hl.powerups[i];
+      if (Math.abs(pu.x - hero.x) < 30) {
+        state.heroUpgrades[pu.kind] = true;
+        var meta = PIELVASO_POWERUPS[pu.kind];
+        showMsg("¡" + meta.label + "! " + meta.desc);
+        sfx("upgrade");
+        triggerShake(0.15, 3);
+        hl.powerups.splice(i, 1);
       }
     }
   }
@@ -22308,20 +22369,25 @@
         }
         continue;
       }
+      // Fragmento C3b (heroUpgrades.pierce): el proyectil sigue de largo
+      // tras dañar — p.hit guarda a quién ya golpeó para no repetir daño
+      // mientras el hitbox sigue solapado un par de frames.
       var hitSomething = false;
       for (var j = 0; j < hl.enemies.length; j++) {
         var e = hl.enemies[j];
         if (e.dead || (e.burrowed && !e.revealed)) continue;
+        if (p.hit && p.hit.indexOf(e) !== -1) continue;
         if (Math.abs(e.x - p.x) < 24) {
           pielVasoDamageEnemy(e, p.dmg, false);
-          hitSomething = true;
-          break;
+          if (p.pierce) { if (!p.hit) p.hit = []; p.hit.push(e); }
+          else { hitSomething = true; break; }
         }
       }
-      if (!hitSomething && hl.boss && !hl.boss.dead) {
+      if (!hitSomething && hl.boss && !hl.boss.dead && !(p.hit && p.hit.indexOf(hl.boss) !== -1)) {
         if (Math.abs(hl.boss.x - p.x) < 42) {
           pielVasoDamageEnemy(hl.boss, p.dmg, false);
-          hitSomething = true;
+          if (p.pierce) { if (!p.hit) p.hit = []; p.hit.push(hl.boss); }
+          else hitSomething = true;
         }
       }
       if (hitSomething) hl.projectiles.splice(i, 1);
@@ -22337,6 +22403,20 @@
     sarna:        { c: "#8a5a2b", d: "#4d3014" },
     cacnes:       { c: "#C9A66B", d: "#7a5c33" },
     hsv:          { c: "#9575CD", d: "#4527A0" }
+  };
+  // Poderes/herramientas que se consiguen durante el recorrido (persisten
+  // en state.heroUpgrades para el resto de la run — ver heroUpgrades en
+  // newState). Cada uno mejora algo que YA existe (disparo, golpe,
+  // especial) en vez de introducir un sistema nuevo de botones/proyectiles.
+  var PIELVASO_POWERUPS = {
+    pierce:         { label: "Fragmento C3b",     hero: "denk", color: "#ffe680",
+                      desc: "El antígeno de DenK atraviesa enemigos" },
+    netSpecial:     { label: "Membrana NET",       hero: "denk", color: "#cdeed4",
+                      desc: "El especial de DenK ahora también inmoviliza" },
+    macSplash:      { label: "Vial de TNF-α",      hero: "mac",  color: "#ff8a5c",
+                      desc: "El golpe de Mac daña en área" },
+    macSpecialBoost:{ label: "Enzima lítica",      hero: "mac",  color: "#b8e0c8",
+                      desc: "El especial de Mac alcanza más lejos y aturde" }
   };
   function drawPielVasoEnemySprite(e, sx, groundY) {
     if (e.burrowed && !e.revealed) {
@@ -22449,6 +22529,58 @@
     ctx.restore();
   }
   function drawPielVasoActors(hl, cx) {
+    // Cápsulas de poder — flotan y pulsan para invitar al tap/paso.
+    if (hl.powerups) {
+      for (var pu2 = 0; pu2 < hl.powerups.length; pu2++) {
+        var pu = hl.powerups[pu2];
+        var pux = pu.x - cx;
+        if (pux < -30 || pux > VW + 30) continue;
+        var meta = PIELVASO_POWERUPS[pu.kind];
+        var puFloat = Math.sin(state.time * 2.5 + pu2) * 5;
+        var puY = hl.groundY - 40 + puFloat;
+        var puPulse = 0.5 + 0.5 * Math.sin(state.time * 4 + pu2);
+        ctx.save();
+        ctx.fillStyle = colorAlpha(meta.color, 0.25 + puPulse * 0.25);
+        ctx.beginPath();
+        ctx.arc(pux, puY, 22, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = meta.color;
+        ctx.strokeStyle = "#fff";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(pux - 9 + 4, puY - 9);
+        ctx.lineTo(pux + 9 - 4, puY - 9);
+        ctx.quadraticCurveTo(pux + 9, puY - 9, pux + 9, puY - 9 + 4);
+        ctx.lineTo(pux + 9, puY + 9 - 4);
+        ctx.quadraticCurveTo(pux + 9, puY + 9, pux + 9 - 4, puY + 9);
+        ctx.lineTo(pux - 9 + 4, puY + 9);
+        ctx.quadraticCurveTo(pux - 9, puY + 9, pux - 9, puY + 9 - 4);
+        ctx.lineTo(pux - 9, puY - 9 + 4);
+        ctx.quadraticCurveTo(pux - 9, puY - 9, pux - 9 + 4, puY - 9);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        // Ícono simple: cruz para DenK (antígeno/inmune), puño para Mac.
+        ctx.strokeStyle = "#2a1408";
+        ctx.lineWidth = 2;
+        ctx.lineCap = "round";
+        if (meta.hero === "denk") {
+          ctx.beginPath();
+          ctx.moveTo(pux - 5, puY); ctx.lineTo(pux + 5, puY);
+          ctx.moveTo(pux, puY - 5); ctx.lineTo(pux, puY + 5);
+          ctx.stroke();
+        } else {
+          ctx.beginPath();
+          ctx.arc(pux, puY, 4, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+        ctx.restore();
+        ctx.fillStyle = "#fff";
+        ctx.font = "bold 9px Fredoka, sans-serif";
+        ctx.textAlign = "center"; ctx.textBaseline = "top";
+        ctx.fillText(meta.label, pux, puY - 36);
+      }
+    }
     // Huecos con pinches — "agujero" real recortado sobre el piso (imagen
     // o canvas, lo que esté dibujado debajo) + pinches en el fondo real
     // del hueco (hl.groundY + depth, la altura real que usa la física).
@@ -22936,11 +23068,12 @@
             hero.attackCooldown = 0.45;
             hl.projectiles.push({
               x: hero.x + hero.facing * 16, y: hero.y - 24,
-              vx: hero.facing * 480, life: 0.7, dmg: 1, enemy: false
+              vx: hero.facing * 480, life: 0.7, dmg: 1, enemy: false,
+              pierce: !!state.heroUpgrades.pierce
             });
           } else {
             hero.attackCooldown = 0.55;
-            pielVasoMeleeHit(hl, hero, 46, 2);
+            pielVasoMeleeHit(hl, hero, 46, 2, state.heroUpgrades.macSplash);
           }
           sfx("tick");
         }
@@ -22950,9 +23083,10 @@
         if (hero.specialCooldown <= 0) {
           hero.specialCooldown = 3.0;
           if (hl.activeHero === "denk") {
-            pielVasoDenkReveal(hl, hero, 90, 4.0);
+            pielVasoDenkReveal(hl, hero, 90, 4.0, state.heroUpgrades.netSpecial);
           } else {
-            pielVasoMacBreak(hl, hero, 42);
+            var macBreakRange = state.heroUpgrades.macSpecialBoost ? 64 : 42;
+            pielVasoMacBreak(hl, hero, macBreakRange, state.heroUpgrades.macSpecialBoost);
           }
           sfx("upgrade");
         }
@@ -22961,6 +23095,7 @@
       updatePielVasoEnemies(hl, dt);
       updatePielVasoBoss(hl, dt);
       updatePielVasoProjectiles(hl, dt);
+      updatePielVasoPowerups(hl);
 
       if (hl.boss && hl.boss.dead && !hl.bossDefeatedAt) {
         hl.bossDefeatedAt = hl.time;

@@ -22293,25 +22293,82 @@
     }
     var col = PIELVASO_ENEMY_COLORS[e.kind] || { c: "#aaa", d: "#555" };
     var r = e.isBoss ? 26 : 14;
+    var cy = groundY - r * 0.7;
     ctx.save();
     if (e.revealed) {
       ctx.shadowColor = "rgba(255, 230, 150, 0.9)";
       ctx.shadowBlur = 12;
     }
-    ctx.fillStyle = (e.hitFlash > 0) ? "#fff" : col.c;
+    // Cuerpo con leve gradiente (no un disco plano).
+    var bodyGrad = ctx.createRadialGradient(sx - r * 0.3, cy - r * 0.3, r * 0.2, sx, cy, r * 1.1);
+    bodyGrad.addColorStop(0, "#fff");
+    bodyGrad.addColorStop(0.35, (e.hitFlash > 0) ? "#fff" : col.c);
+    bodyGrad.addColorStop(1, col.d);
+    ctx.fillStyle = bodyGrad;
     ctx.beginPath();
-    ctx.arc(sx, groundY - r * 0.7, r, 0, Math.PI * 2);
+    ctx.arc(sx, cy, r, 0, Math.PI * 2);
     ctx.fill();
     ctx.strokeStyle = col.d;
     ctx.lineWidth = 2;
     ctx.stroke();
+    // Detalle por especie — para que no sean discos idénticos.
+    if (e.kind === "aureus" || e.kind === "aureus_guard") {
+      // Racimo de cocos (S. aureus se agrupa en racimos reales).
+      ctx.fillStyle = col.d;
+      for (var cb = 0; cb < 4; cb++) {
+        var ca = cb * Math.PI / 2 + 0.4;
+        ctx.beginPath();
+        ctx.arc(sx + Math.cos(ca) * r * 0.45, cy + Math.sin(ca) * r * 0.45, r * 0.22, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    } else if (e.kind === "hsv") {
+      // Espículas de la envoltura viral.
+      ctx.strokeStyle = col.d;
+      ctx.lineWidth = 1.5;
+      for (var sp = 0; sp < 8; sp++) {
+        var spA = sp * Math.PI / 4;
+        ctx.beginPath();
+        ctx.moveTo(sx + Math.cos(spA) * r, cy + Math.sin(spA) * r);
+        ctx.lineTo(sx + Math.cos(spA) * (r + 5), cy + Math.sin(spA) * (r + 5));
+        ctx.stroke();
+      }
+    } else if (e.kind === "sarna" && e.revealed) {
+      // Patitas cuando está revelada (ácaro).
+      ctx.strokeStyle = col.d;
+      ctx.lineWidth = 1.5;
+      for (var lg = 0; lg < 4; lg++) {
+        var lx = sx - r * 0.6 + lg * r * 0.4;
+        ctx.beginPath();
+        ctx.moveTo(lx, cy + r * 0.7);
+        ctx.lineTo(lx + (lg < 2 ? -3 : 3), cy + r * 1.1);
+        ctx.stroke();
+      }
+    } else if (e.kind === "cacnes") {
+      // Textura grumosa simple (biofilm).
+      ctx.fillStyle = "rgba(255,255,255,0.25)";
+      ctx.beginPath();
+      ctx.arc(sx - r * 0.3, cy - r * 0.25, r * 0.3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // Ojitos — para que se lea como criatura, no como disco.
+    var eyeR = r * 0.16, eyeGap = r * 0.34, eyeY = cy - r * 0.10;
+    ctx.fillStyle = "#fff";
+    ctx.beginPath();
+    ctx.arc(sx - eyeGap, eyeY, eyeR, 0, Math.PI * 2);
+    ctx.arc(sx + eyeGap, eyeY, eyeR, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#1a1a1a";
+    ctx.beginPath();
+    ctx.arc(sx - eyeGap, eyeY, eyeR * 0.55, 0, Math.PI * 2);
+    ctx.arc(sx + eyeGap, eyeY, eyeR * 0.55, 0, Math.PI * 2);
+    ctx.fill();
     // Cápsula (anillo blanco) mientras tenga ese pool sin gastar — solo
     // el ataque a distancia de DenK la reduce (ver pielVasoDamageEnemy).
     if (e.capsule > 0) {
       ctx.strokeStyle = "rgba(255, 255, 255, 0.8)";
       ctx.lineWidth = 2.5;
       ctx.beginPath();
-      ctx.arc(sx, groundY - r * 0.7, r + 4, 0, Math.PI * 2);
+      ctx.arc(sx, cy, r + 4, 0, Math.PI * 2);
       ctx.stroke();
     }
     ctx.restore();
@@ -23308,17 +23365,41 @@
         if (camCenterX >= hl.pvZoneBounds[zb]) zIdx = zb;
       }
       var zoneNow = PIELVASO_ZONES[zIdx];
-      var pvGrad = ctx.createLinearGradient(0, 0, 0, bgBottomScreen);
+      // Tejido (arriba del piso): gradiente de la zona.
+      var pvGrad = ctx.createLinearGradient(0, 0, 0, hl.groundY);
       pvGrad.addColorStop(0, zoneNow.bgA);
       pvGrad.addColorStop(1, zoneNow.bgB);
       ctx.fillStyle = pvGrad;
-      ctx.fillRect(0, 0, VW, bgBottomScreen);
-      // Línea de piso sutil.
-      ctx.strokeStyle = "rgba(0,0,0,0.30)";
+      ctx.fillRect(0, 0, VW, hl.groundY);
+      // Textura orgánica de fondo: manchas difusas con seed FIJO por
+      // posición de mundo (no por frame) para que no titilen al scrollear.
+      ctx.save();
+      ctx.globalAlpha = 0.10;
+      ctx.fillStyle = zoneNow.bgB;
+      for (var tb = -1; tb < Math.ceil(VW / 230) + 1; tb++) {
+        var tbSeed = Math.floor(cx / 230) + tb;
+        var trx = ((tbSeed * 9301 + 49297) % 233280) / 233280;
+        var try_ = ((tbSeed * 4111 + 17) % 9973) / 9973;
+        var tbx = tbSeed * 230 - cx + trx * 160;
+        var tby = 20 + try_ * Math.max(20, hl.groundY - 60);
+        ctx.beginPath();
+        ctx.arc(tbx, tby, 18 + try_ * 22, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+      // Banda de PISO: color sólido bien distinto del tejido de arriba,
+      // para que se note claramente dónde se puede caminar (queja real:
+      // "no se ve bien el nivel" — el piso se perdía en un gradiente liso).
+      var floorGrad = ctx.createLinearGradient(0, hl.groundY, 0, bgBottomScreen);
+      floorGrad.addColorStop(0, "#1c0e08");
+      floorGrad.addColorStop(1, "#0a0504");
+      ctx.fillStyle = floorGrad;
+      ctx.fillRect(0, hl.groundY, VW, bgBottomScreen - hl.groundY);
+      ctx.strokeStyle = "rgba(255, 210, 180, 0.35)";
       ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.moveTo(0, hl.groundY + 2);
-      ctx.lineTo(VW, hl.groundY + 2);
+      ctx.moveTo(0, hl.groundY);
+      ctx.lineTo(VW, hl.groundY);
       ctx.stroke();
     } else {
       var skyGrad = ctx.createLinearGradient(0, 0, 0, bgBottomScreen);

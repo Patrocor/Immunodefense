@@ -22044,28 +22044,51 @@
   // imagen real. Se panea suavemente DENTRO de ese rango mientras el
   // jugador atraviesa la zona (ver drawPielVasoBackground). bgA/bgB
   // quedan como fallback de gradiente si la imagen no carga.
+  // widthMult duplicado (2.0 / 2.8 en el guardián) — "el nivel debe ser
+  // el doble de longitud" — y terrain: huecos con pinches reales (pared
+  // invisible que solo bloquea si está en el piso; salta y cruza libre)
+  // en vez del piso plano de una sola línea.
   var PIELVASO_ZONES = [
-    { name: "Epidermis rota", bgA: "#5a2018", bgB: "#8a4030",
+    { name: "Epidermis rota", bgA: "#5a2018", bgB: "#8a4030", widthMult: 2.0,
       bgImgRange: { x0: 0.00, x1: 0.16 },
-      enemies: [{ kind: "epidermidis", xFrac: 0.55, hp: 2 }] },
-    { name: "Dermis superficial", bgA: "#4a1810", bgB: "#6a2818",
+      enemies: [
+        { kind: "epidermidis", xFrac: 0.12, hp: 2 },
+        { kind: "epidermidis", xFrac: 0.45, hp: 2 },
+        { kind: "epidermidis", xFrac: 0.85, hp: 2 }
+      ],
+      terrain: [{ type: "pit", x0: 0.25, x1: 0.33 }, { type: "pit", x0: 0.60, x1: 0.68 }] },
+    { name: "Dermis superficial", bgA: "#4a1810", bgB: "#6a2818", widthMult: 2.0,
       bgImgRange: { x0: 0.10, x1: 0.32 },
-      enemies: [{ kind: "aureus", xFrac: 0.38, hp: 4, capsule: 2 }],
-      obstacles: [{ kind: "telarana", xFrac: 0.75 }] },
-    { name: "Folículo piloso", bgA: "#301810", bgB: "#502820",
+      enemies: [
+        { kind: "aureus", xFrac: 0.10, hp: 4, capsule: 2 },
+        { kind: "aureus", xFrac: 0.55, hp: 3, capsule: 0 },
+        { kind: "aureus", xFrac: 0.90, hp: 4, capsule: 2 }
+      ],
+      obstacles: [{ kind: "telarana", xFrac: 0.40 }],
+      terrain: [{ type: "pit", x0: 0.22, x1: 0.30 }, { type: "pit", x0: 0.68, x1: 0.76 }] },
+    { name: "Folículo piloso", bgA: "#301810", bgB: "#502820", widthMult: 2.0,
       bgImgRange: { x0: 0.30, x1: 0.50 },
-      enemies: [{ kind: "sarna", xFrac: 0.50, hp: 3, burrowed: true }] },
-    { name: "Tejido conectivo", bgA: "#403018", bgB: "#5a4828",
+      enemies: [
+        { kind: "sarna", xFrac: 0.15, hp: 3, burrowed: true },
+        { kind: "sarna", xFrac: 0.50, hp: 3, burrowed: true },
+        { kind: "sarna", xFrac: 0.85, hp: 3, burrowed: true }
+      ],
+      terrain: [{ type: "pit", x0: 0.30, x1: 0.38 }, { type: "pit", x0: 0.65, x1: 0.73 }] },
+    { name: "Tejido conectivo", bgA: "#403018", bgB: "#5a4828", widthMult: 2.0,
       bgImgRange: { x0: 0.46, x1: 0.74 },
       enemies: [
-        { kind: "cacnes", xFrac: 0.28, hp: 2 },
-        { kind: "hsv",    xFrac: 0.54, hp: 2 },
-        { kind: "cacnes", xFrac: 0.80, hp: 2 }
-      ] },
-    { name: "Pared del vaso", bgA: "#5a1828", bgB: "#8a3050",
+        { kind: "cacnes", xFrac: 0.08, hp: 2 },
+        { kind: "hsv",    xFrac: 0.22, hp: 2 },
+        { kind: "cacnes", xFrac: 0.50, hp: 2 },
+        { kind: "hsv",    xFrac: 0.64, hp: 2 },
+        { kind: "cacnes", xFrac: 0.92, hp: 2 }
+      ],
+      terrain: [{ type: "pit", x0: 0.32, x1: 0.40 }, { type: "pit", x0: 0.74, x1: 0.82 }] },
+    { name: "Pared del vaso", bgA: "#5a1828", bgB: "#8a3050", widthMult: 2.0,
       bgImgRange: { x0: 0.70, x1: 0.92 },
-      obstacles: [{ kind: "vesselgate", xFrac: 0.60 }] },
-    { name: "Guardián del vaso", bgA: "#3a0810", bgB: "#7a1020", widthMult: 1.4,
+      obstacles: [{ kind: "vesselgate", xFrac: 0.38 }, { kind: "vesselgate", xFrac: 0.80 }],
+      terrain: [{ type: "pit", x0: 0.15, x1: 0.23 }, { type: "pit", x0: 0.55, x1: 0.63 }] },
+    { name: "Guardián del vaso", bgA: "#3a0810", bgB: "#7a1020", widthMult: 2.8,
       bgImgRange: { x0: 0.84, x1: 1.00 },
       boss: { kind: "aureus_guard", xFrac: 0.55, hp: 20 } }
   ];
@@ -22112,6 +22135,10 @@
     hl.obstacles = [];
     hl.boss = null;
     hl.projectiles = [];
+    // Terreno real (huecos con pinches) — coords absolutas de mundo,
+    // resueltas desde las fracciones de PIELVASO_ZONES igual que enemigos.
+    hl.terrain = [];
+    var PIT_DEPTH = 46;
     for (var zj = 0; zj < zones.length; zj++) {
       var z = zones[zj];
       var zx0 = bounds[zj], zw = bounds[zj + 1] - bounds[zj];
@@ -22127,6 +22154,17 @@
           hl.obstacles.push(makePielVasoObstacle(od, zx0 + od.xFrac * zw, hl.groundY));
         }
       }
+      if (z.terrain) {
+        for (var ti = 0; ti < z.terrain.length; ti++) {
+          var td = z.terrain[ti];
+          hl.terrain.push({
+            type: td.type,
+            x0: zx0 + td.x0 * zw,
+            x1: zx0 + td.x1 * zw,
+            depth: PIT_DEPTH
+          });
+        }
+      }
       if (z.boss) {
         hl.boss = makePielVasoEnemy(z.boss, zx0 + z.boss.xFrac * zw, hl.groundY);
         hl.boss.isBoss = true;
@@ -22135,6 +22173,17 @@
         hl.boss.chargeT = 0;
       }
     }
+  }
+  // Altura real del piso en X (Piel→Vaso): hl.groundY normal, o más abajo
+  // (+ PIT_DEPTH) si X cae dentro de un hueco — usado por la física del
+  // héroe Y por el render del piso/pinches.
+  function pielVasoGroundAt(hl, worldX) {
+    if (!hl.terrain) return hl.groundY;
+    for (var i = 0; i < hl.terrain.length; i++) {
+      var t = hl.terrain[i];
+      if (t.type === "pit" && worldX > t.x0 && worldX < t.x1) return hl.groundY + t.depth;
+    }
+    return hl.groundY;
   }
 
   // Daño real a un enemigo de Piel→Vaso. isMelee distingue el golpe de
@@ -22317,6 +22366,14 @@
       ctx.shadowColor = "rgba(255, 230, 150, 0.9)";
       ctx.shadowBlur = 12;
     }
+    // Contorno tipo "sticker" — el fondo real ahora es una ilustración
+    // rica, no un gradiente liso; sin este borde los gérmenes se perdían
+    // en la textura de fondo.
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.85)";
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.arc(sx, cy, r + 1.5, 0, Math.PI * 2);
+    ctx.stroke();
     // Cuerpo con leve gradiente (no un disco plano).
     var bodyGrad = ctx.createRadialGradient(sx - r * 0.3, cy - r * 0.3, r * 0.2, sx, cy, r * 1.1);
     bodyGrad.addColorStop(0, "#fff");
@@ -22392,6 +22449,46 @@
     ctx.restore();
   }
   function drawPielVasoActors(hl, cx) {
+    // Huecos con pinches — "agujero" real recortado sobre el piso (imagen
+    // o canvas, lo que esté dibujado debajo) + pinches en el fondo real
+    // del hueco (hl.groundY + depth, la altura real que usa la física).
+    if (hl.terrain) {
+      for (var pi2 = 0; pi2 < hl.terrain.length; pi2++) {
+        var pit = hl.terrain[pi2];
+        if (pit.type !== "pit") continue;
+        var px0 = pit.x0 - cx, px1 = pit.x1 - cx;
+        if (px1 < -20 || px0 > VW + 20) continue;
+        var pitBotY = hl.groundY + pit.depth;
+        ctx.save();
+        ctx.fillStyle = "#0a0604";
+        ctx.fillRect(px0, hl.groundY - 6, px1 - px0, pit.depth + 26);
+        // Pinches: triángulos apuntando hacia arriba desde el fondo real.
+        var spikeW = 11, nSpikes = Math.max(2, Math.round((px1 - px0) / spikeW));
+        ctx.fillStyle = "#c8c8d0";
+        ctx.strokeStyle = "#5a5a64";
+        ctx.lineWidth = 1;
+        for (var sk = 0; sk < nSpikes; sk++) {
+          var skx = px0 + (sk + 0.5) * ((px1 - px0) / nSpikes);
+          ctx.beginPath();
+          ctx.moveTo(skx - spikeW * 0.42, pitBotY);
+          ctx.lineTo(skx, pitBotY - 14);
+          ctx.lineTo(skx + spikeW * 0.42, pitBotY);
+          ctx.closePath();
+          ctx.fill();
+          ctx.stroke();
+        }
+        // Borde superior del hueco (marca clara dónde termina el piso real).
+        ctx.strokeStyle = "rgba(255, 210, 180, 0.45)";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(px0, hl.groundY);
+        ctx.lineTo(px0, pitBotY);
+        ctx.moveTo(px1, hl.groundY);
+        ctx.lineTo(px1, pitBotY);
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
     for (var oi = 0; oi < hl.obstacles.length; oi++) {
       var o = hl.obstacles[oi];
       if (o.broken) continue;
@@ -22469,7 +22566,7 @@
     // Plataformero (corazón y los que sigan): nivel ancho con scroll real,
     // input libre — ver spec hero-level-corazon-design.md. Piel→Vaso tiene
     // 6 zonas (PIELVASO_ZONES) — más ancho que el placeholder de corazón.
-    var levelWidth = !platformer ? VW : (organId === "pielvaso" ? VW * 6.4 : VW * 2.5);
+    var levelWidth = !platformer ? VW : (organId === "pielvaso" ? VW * 12.8 : VW * 2.5);
     var startX = VW * 0.10;
     // groundY = línea de piso. Piel la alinea con la "plateau" del bg
     // pintado (~52% VH). Piel→Vaso usa el fondo real (assets/pielvaso/
@@ -22702,16 +22799,46 @@
     hero.x += hero.vx * dt;
     hero.y += hero.vy * dt;
 
-    // Colisión con piso plano (por ahora).
-    if (hero.y >= hl.groundY) {
-      hero.y = hl.groundY;
+    // Colisión con el piso — terreno real en Piel→Vaso (huecos más abajo
+    // con pinches), plano en los demás niveles hasta tener su propio terreno.
+    var localGroundY = (hl.organ === "pielvaso") ? pielVasoGroundAt(hl, hero.x) : hl.groundY;
+    if (hero.y >= localGroundY) {
+      var fellInPit = localGroundY > hl.groundY + 1;
+      hero.y = localGroundY;
       hero.vy = 0;
       hero.grounded = true;
       hero.usedDoubleJump = false;
+      // Pinches del fondo del hueco: daño real mientras se queda parado.
+      if (fellInPit && hero.hurtCooldown <= 0) {
+        hero.hp -= 1;
+        hero.hurtCooldown = 0.8;
+        sfx("playerHurt");
+        pielVasoCheckHeroDeath(hl);
+      }
+    } else {
+      hero.grounded = false;
     }
     // Bordes del NIVEL.
     if (hero.x < 14) hero.x = 14;
     if (hero.x > hl.levelWidth - 14) hero.x = hl.levelWidth - 14;
+
+    // HUECOS (Piel→Vaso): pared invisible en los bordes que SOLO bloquea
+    // si está parado en el piso — en el aire (saltando) cruza libre. Esto
+    // fuerza un salto real tanto para entrar como para salir del hueco.
+    if (hl.terrain && hero.grounded) {
+      for (var pti = 0; pti < hl.terrain.length; pti++) {
+        var pit = hl.terrain[pti];
+        if (pit.type !== "pit") continue;
+        var insidePit = hero.x > pit.x0 && hero.x < pit.x1;
+        if (!insidePit) {
+          if (hero.x + 14 > pit.x0 && hero.x < pit.x0) { hero.x = pit.x0 - 14; hero.vx = 0; }
+          if (hero.x - 14 < pit.x1 && hero.x > pit.x1) { hero.x = pit.x1 + 14; hero.vx = 0; }
+        } else {
+          if (hero.x - 14 < pit.x0) { hero.x = pit.x0 + 14; hero.vx = 0; }
+          if (hero.x + 14 > pit.x1) { hero.x = pit.x1 - 14; hero.vx = 0; }
+        }
+      }
+    }
 
     // OBSTÁCULOS (Piel→Vaso): telaraña bloquea siempre hasta que Mac la
     // rompe con su especial; la pared del vaso solo se abre en la ventana

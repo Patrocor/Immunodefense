@@ -1387,8 +1387,8 @@
   // real ocurre en updateEnemies cuando el boss termina su animación de
   // muerte (dyingTimer<=0) — ver BOSS_TANK_DROPS ahí.
   var BOSS_TANK_DROPS = { bossPyogenes: "complemento", bossClostridium: "trombo", bossMRSA: "centinela" };
-  // Diseminación: su propio schedule por ola (disseminationWaveIdx 0/1/2),
-  // ver startNextDisseminationWave().
+  // Diseminación: su propio schedule por ola (disseminationWaveIdx 0..5,
+  // 6 olas), ver startNextDisseminationWave().
   var DISSEM_UNLOCK_SCHEDULE = {
     0: "eosinofilo",
     1: "mastocito"
@@ -3267,17 +3267,25 @@
     artritis:      "Las articulaciones tomadas — artritis séptica"
   };
 
-  // 3 oleadas in crescendo. La curva es gradual: la primera deja margen
-  // para construir defensa; la última es avalancha. Velocidad ya está al
-  // 50% (ver pxSpeed en updateEnemies).
+  // 6 oleadas in crescendo (expandido de 3 a 6 el 2026-06-23 para que
+  // defender limpio sea un logro real, no algo que "no debería pasar").
+  // Mismo pool de gérmenes que antes, repartido en una curva más gradual;
+  // la oleada 6 es EXACTA a la vieja oleada 3 (la avalancha final no cambia).
+  // Velocidad ya está al 50% (ver pxSpeed en updateEnemies).
   var DISSEMINATION_WAVE_TABLE = [
     // Wave 1: presentación tranquila — pocos gérmenes, mucha separación,
     // para que el jugador construya su defensa y entienda los carriles.
     [["saureus",2,2.20],["pseudomonas",1,2.40],["candida",1,2.20]],
-    // Wave 2: presión media — más volumen, primer boss MRSA al final.
-    [["saureus",4,1.50],["pseudomonas",2,1.70],["candida",2,1.60],["bossMRSA",1,0]],
-    // Wave 3: avalancha — bosses dobles, intervalos cortos, aglomeración
-    // sostenida para defender los 5 carriles a la vez.
+    // Wave 2: un poco más de volumen, todavía sin boss.
+    [["saureus",3,1.85],["pseudomonas",2,2.00],["candida",1,2.00]],
+    // Wave 3: presión media — primer boss MRSA al final.
+    [["saureus",4,1.55],["pseudomonas",2,1.70],["candida",2,1.65],["bossMRSA",1,0]],
+    // Wave 4: volumen alto, sin boss — pura resistencia.
+    [["saureus",6,1.30],["pseudomonas",3,1.40],["candida",3,1.40]],
+    // Wave 5: segundo boss (Pyogenes) antes de la avalancha final.
+    [["saureus",7,1.05],["pseudomonas",4,1.20],["candida",3,1.30],["bossPyogenes",1,4.0]],
+    // Wave 6: avalancha — bosses dobles, intervalos cortos, aglomeración
+    // sostenida para defender los 3 carriles a la vez.
     [["saureus",10,0.90],["pseudomonas",5,1.10],["candida",4,1.20],["bossMRSA",2,3.0],["bossPyogenes",1,4.0]]
   ];
 
@@ -4049,6 +4057,11 @@
     state.barrierPenetrated = [false, false, false];
     state.disseminationBarrierBreakAt = 0;
     state.disseminationBarrierBreakLane = -1;
+    // Total acumulado de toda la fase (choques + pases), a diferencia de
+    // disseminationBarrierHP que se REGENERA cada ola — este nunca baja.
+    // Define qué carril "más daño recibió" al ganar las 6 olas (ver
+    // startNextDisseminationWave, victoria con quiebre).
+    state.disseminationDamageTaken = [0, 0, 0];
     state.antigens = { count: 0, drops: [] };
     state.nets = [];
     state.necroticPatches = [];
@@ -4147,23 +4160,22 @@
   function startNextDisseminationWave() {
     if (state.disseminationOver) return;
     if (state.disseminationWaveIdx >= DISSEMINATION_WAVE_TABLE.length) {
-      // Edge case: el jugador defendió las 3 olas sin perder ninguno (balance debería evitarlo).
-      // Repetimos la última ola en bucle con más HP hasta que algo caiga.
-      var lastIdx = DISSEMINATION_WAVE_TABLE.length - 1;
-      var lastDef = DISSEMINATION_WAVE_TABLE[lastIdx];
-      state.waveActive = true;
+      // Defendiste las 6 olas sin que ningún órgano se llenara: victoria
+      // real, pero con el mismo giro que Fase 1 (ver triggerPhaseVictory /
+      // "contained") — el carril que más daño acumuló en TODA la fase
+      // (disseminationDamageTaken, no la barrera actual que se regenera
+      // cada ola) deja pasar algunos gérmenes escurridizos igual.
+      var dmg = state.disseminationDamageTaken || [0, 0, 0];
+      var worstLane = 0;
+      for (var dl = 1; dl < dmg.length; dl++) { if (dmg[dl] > dmg[worstLane]) worstLane = dl; }
+      var worstOrgan = (PATH.organDoors && PATH.organDoors[worstLane])
+        ? PATH.organDoors[worstLane].organ
+        : DISSEMINATION_ORGANS[worstLane] || DISSEMINATION_ORGANS[0];
+      state.disseminationOver = { organ: worstOrgan, t: 0, mode: "win" };
+      state.waveActive = false;
       state.pendingSpawns = [];
-      state.spawnElapsed = 0;
-      var tEx = 0;
-      for (var ge = 0; ge < lastDef.length; ge++) {
-        var grpE = lastDef[ge];
-        for (var ke = 0; ke < grpE[1]; ke++) {
-          state.pendingSpawns.push({ type: grpE[0], time: tEx, hpMult: 1.5 });
-          tEx += grpE[2];
-        }
-      }
-      state.waveBannerText = "DISEMINACIÓN — PRESIÓN MÁXIMA";
-      state.waveBannerTimer = 2.2;
+      triggerShake(0.3, 5);
+      sfx("victory");
       return;
     }
     var idx = state.disseminationWaveIdx++;
@@ -4175,8 +4187,9 @@
     if (dissemUnlockType && !state.unlockScheduleNotified["d" + idx]) {
       state.unlockScheduleNotified["d" + idx] = true;
       spawnUnlockPickup(dissemUnlockType);
-    } else if (!dissemUnlockType && !state.unlockScheduleNotified["d" + idx]) {
-      // Última ola de dissem (idx 2) sin torre nueva: Refuerzo Médico.
+    } else if (!dissemUnlockType && (idx === 3 || idx === 5) && !state.unlockScheduleNotified["d" + idx]) {
+      // Olas sin torre nueva (6 olas, 2 con torre en idx 0/1): Refuerzo
+      // Médico en idx 3 y 5 — pacing similar al de Fase 1 (cada ~3 olas).
       state.unlockScheduleNotified["d" + idx] = true;
       spawnReinforcePickup();
     }
@@ -4955,9 +4968,11 @@
             : DISSEMINATION_ORGANS[lane] || DISSEMINATION_ORGANS[0];
           if (!state.spreadFlash) state.spreadFlash = [0,0,0];
 
+          if (!state.disseminationDamageTaken) state.disseminationDamageTaken = [0, 0, 0];
           if (!state.barrierPenetrated[lane] && state.disseminationBarrierHP[lane] > 0) {
             // El germen es absorbido por la barrera: muere, barrera -1 HP.
             state.disseminationBarrierHP[lane] -= 1;
+            state.disseminationDamageTaken[lane] += 1;
             state.spreadFlash[lane] = 0.6;
             triggerShake(0.08, 2);
             spawnEffect("escape", e.x, e.y, organ.color);
@@ -4981,12 +4996,13 @@
           // Aquí NO hay antígeno (ese se daba con el choque a la barrera).
           // Conteo 0..10: al 10 = game over en ese órgano.
           state.spreadOrganLoad[lane] = (state.spreadOrganLoad[lane] || 0) + 1;
+          state.disseminationDamageTaken[lane] += 1;
           spawnEffect("escape", e.x, e.y, organ.color);
           state.spreadFlash[lane] = 0.6;
           triggerShake(0.12, 3);
           if (audio && audio.ctx) sfx("playerHurt");
           if (state.spreadOrganLoad[lane] >= 10 && !state.disseminationOver) {
-            state.disseminationOver = { germ: e.def, organ: organ, t: 0 };
+            state.disseminationOver = { germ: e.def, organ: organ, t: 0, mode: "loss" };
             triggerShake(0.5, 9);
             state.waveActive = false;
             state.pendingSpawns = [];
@@ -21850,44 +21866,135 @@
     var dOver = state.disseminationOver;
     if (!dOver) return;
     var t = dOver.t;
+    var isWin = dOver.mode === "win";
     // Fade in del fondo oscuro.
-    var bgAlpha = Math.min(0.85, t / 0.6 * 0.85);
+    var bgAlpha = Math.min(0.88, t / 0.6 * 0.88);
     ctx.save();
-    ctx.fillStyle = "rgba(0, 0, 0, " + bgAlpha + ")";
+    ctx.fillStyle = "rgba(6, 4, 6, " + bgAlpha + ")";
     ctx.fillRect(0, 0, VW, VH);
-    // Banner: "[Germen] alcanzó [Órgano]" — aparece a los 0.4s.
-    if (t > 0.4) {
-      var b1Alpha = Math.min(1, (t - 0.4) / 0.4);
-      ctx.globalAlpha = b1Alpha;
-      ctx.fillStyle = dOver.organ.color;
-      ctx.font = "bold " + Math.floor(34 * U) + "px Fredoka, sans-serif";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      var germLabel = (dOver.germ && (dOver.germ.label || dOver.germ.shortName || dOver.germ.id)) || "El patógeno";
-      ctx.fillText(germLabel + " alcanzó", VW / 2, VH * 0.34);
-      ctx.font = "bold " + Math.floor(52 * U) + "px Fredoka, sans-serif";
-      ctx.fillStyle = "#fff";
-      ctx.fillText(dOver.organ.label, VW / 2, VH * 0.44);
+
+    if (!isWin) {
+      // ---- MODO DERROTA: un órgano se llenó a 10/10. ----
+      // Banner: "[Germen] alcanzó [Órgano]" — aparece a los 0.4s.
+      if (t > 0.4) {
+        var b1Alpha = Math.min(1, (t - 0.4) / 0.4);
+        ctx.globalAlpha = b1Alpha;
+        ctx.fillStyle = dOver.organ.color;
+        ctx.font = "bold " + Math.floor(34 * U) + "px Fredoka, sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        var germLabel = (dOver.germ && (dOver.germ.label || dOver.germ.shortName || dOver.germ.id)) || "El patógeno";
+        ctx.fillText(germLabel + " alcanzó", VW / 2, VH * 0.34);
+        ctx.font = "bold " + Math.floor(52 * U) + "px Fredoka, sans-serif";
+        ctx.fillStyle = "#fff";
+        ctx.fillText(dOver.organ.label, VW / 2, VH * 0.44);
+        ctx.globalAlpha = 1;
+      }
+      // "Los héroes responden" + escenario — lleva a un hero level real
+      // (ver pendingHeroLevel en el loop principal), ya no es un dead-end.
+      if (t > 1.6) {
+        var b2Alpha = Math.min(1, (t - 1.6) / 0.5);
+        ctx.globalAlpha = b2Alpha;
+        ctx.fillStyle = "#c0a080";
+        ctx.font = "bold " + Math.floor(18 * U) + "px Fredoka, sans-serif";
+        ctx.fillText("LOS HÉROES RESPONDEN", VW / 2, VH * 0.58);
+        ctx.fillStyle = "#f0d2a0";
+        ctx.font = "bold " + Math.floor(40 * U) + "px Fredoka, sans-serif";
+        ctx.fillText(dOver.organ.scenario, VW / 2, VH * 0.66);
+        if (t > 2.6) {
+          var b3Alpha = Math.min(0.7, (t - 2.6) / 0.5 * 0.7);
+          ctx.globalAlpha = b3Alpha;
+          ctx.fillStyle = "#a08060";
+          ctx.font = "bold " + Math.floor(13 * U) + "px Fredoka, sans-serif";
+          ctx.fillText("preparando la respuesta…", VW / 2, VH * 0.76);
+        }
+        ctx.globalAlpha = 1;
+      }
+      ctx.restore();
+      return;
+    }
+
+    // ---- MODO VICTORIA CON QUIEBRE: las 6 olas se defendieron, pero el
+    // carril con más daño acumulado de toda la fase (disseminationDamageTaken)
+    // deja pasar algunos gérmenes escurridizos — mismo giro narrativo que
+    // la "contención rota" de Fase 1 (drawContainedBreachTransition). ----
+    if (t > 0.3 && t < 1.4) {
+      var taOpen = Math.min(1, (t - 0.3) / 0.4);
+      if (t > 0.9) taOpen *= Math.max(0, 1 - (t - 0.9) / 0.5);
+      ctx.globalAlpha = taOpen;
+      ctx.fillStyle = "#bfe8c8";
+      ctx.font = "bold " + Math.floor(26 * U) + "px Fredoka, sans-serif";
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.strokeStyle = "rgba(0,0,0,0.85)"; ctx.lineWidth = 3;
+      ctx.strokeText("¿DEFENSA EXITOSA?", VW / 2, VH * 0.30);
+      ctx.fillText("¿DEFENSA EXITOSA?", VW / 2, VH * 0.30);
       ctx.globalAlpha = 1;
     }
-    // Cinemática: "Próximamente — Fase 2: [Escenario]" a los 1.6s.
-    if (t > 1.6) {
-      var b2Alpha = Math.min(1, (t - 1.6) / 0.5);
-      ctx.globalAlpha = b2Alpha;
-      ctx.fillStyle = "#c0a080";
-      ctx.font = "bold " + Math.floor(18 * U) + "px Fredoka, sans-serif";
-      ctx.fillText("PRÓXIMAMENTE — FASE 2", VW / 2, VH * 0.58);
-      ctx.fillStyle = "#f0d2a0";
-      ctx.font = "bold " + Math.floor(40 * U) + "px Fredoka, sans-serif";
-      ctx.fillText(dOver.organ.scenario, VW / 2, VH * 0.66);
-      // Hint pequeño abajo.
-      if (t > 2.6) {
-        var b3Alpha = Math.min(0.7, (t - 2.6) / 0.5 * 0.7);
-        ctx.globalAlpha = b3Alpha;
-        ctx.fillStyle = "#a08060";
-        ctx.font = "bold " + Math.floor(13 * U) + "px Fredoka, sans-serif";
-        ctx.fillText("(escenario en desarrollo)", VW / 2, VH * 0.76);
+
+    // Mini-pantalla única: el carril elegido, con gérmenes bajando hacia
+    // el órgano y cruzando la línea (ya rota) de la barrera.
+    var miniK = Math.max(0, Math.min(1, (t - 1.3) / (3.6 - 1.3)));
+    if (miniK > 0) {
+      var miniAlpha = miniK < 0.10 ? miniK / 0.10 : (miniK > 0.88 ? (1 - miniK) / 0.12 : 1);
+      var panelW = 150 * U, panelH = panelW * 0.95;
+      var panelX = VW / 2 - panelW / 2, panelY = VH * 0.5 - panelH / 2;
+      ctx.save();
+      ctx.globalAlpha = miniAlpha;
+      ctx.fillStyle = "#0a0c0a";
+      ctx.fillRect(panelX - 4 * U, panelY - 4 * U, panelW + 8 * U, panelH + 8 * U);
+      ctx.fillStyle = "#16121a";
+      ctx.fillRect(panelX, panelY, panelW, panelH);
+      ctx.save();
+      ctx.beginPath(); ctx.rect(panelX, panelY, panelW, panelH); ctx.clip();
+      var barrierY = panelY + panelH * 0.30;
+      ctx.strokeStyle = "rgba(255, 90, 70, 0.55)";
+      ctx.setLineDash([4 * U, 3 * U]);
+      ctx.lineWidth = 1.6 * U;
+      ctx.beginPath(); ctx.moveTo(panelX, barrierY); ctx.lineTo(panelX + panelW, barrierY); ctx.stroke();
+      ctx.setLineDash([]);
+      var organCx = panelX + panelW / 2, organCy = panelY + panelH * 0.78;
+      ctx.fillStyle = colorAlpha(dOver.organ.color, 0.30);
+      ctx.beginPath(); ctx.arc(organCx, organCy, panelW * 0.22, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = dOver.organ.color; ctx.lineWidth = 1.6 * U;
+      ctx.beginPath(); ctx.arc(organCx, organCy, panelW * 0.22, 0, Math.PI * 2); ctx.stroke();
+      var germColors = ["#caa8ff", "#F9A825", "#66BB6A"];
+      for (var gI = 0; gI < 3; gI++) {
+        var gProgress = Math.min(1, Math.max(0, (miniK - gI * 0.16) * 1.6));
+        if (gProgress <= 0) continue;
+        var gy = panelY + panelH * 0.12 + gProgress * (organCy - (panelY + panelH * 0.12));
+        var gx = organCx + Math.sin(gI * 2.1 + gProgress * 3) * panelW * 0.12;
+        ctx.fillStyle = germColors[gI];
+        ctx.beginPath(); ctx.arc(gx, gy, 5 * U, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = "rgba(0,0,0,0.55)"; ctx.lineWidth = 1 * U; ctx.stroke();
       }
+      ctx.restore(); // fin clip
+      ctx.strokeStyle = "rgba(130, 210, 150, 0.55)";
+      ctx.lineWidth = 1.6 * U;
+      ctx.strokeRect(panelX, panelY, panelW, panelH);
+      ctx.restore();
+      ctx.save();
+      ctx.globalAlpha = miniAlpha;
+      ctx.fillStyle = "#cdeed4";
+      ctx.font = "bold " + Math.floor(10 * U) + "px Fredoka, sans-serif";
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText(dOver.organ.label, panelX + panelW / 2, panelY - 12 * U);
+      ctx.restore();
+    }
+
+    // Texto de cierre.
+    if (t > 3.6 && t < 4.6) {
+      var taClose = Math.min(1, (t - 3.6) / 0.3);
+      if (t > 4.2) taClose *= Math.max(0, 1 - (t - 4.2) / 0.4);
+      ctx.globalAlpha = taClose;
+      ctx.fillStyle = "#ff9a78";
+      ctx.font = "bold " + Math.floor(22 * U) + "px Fredoka, sans-serif";
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.strokeStyle = "rgba(0,0,0,0.85)"; ctx.lineWidth = 3;
+      ctx.strokeText("ALGUNOS LOGRARON ESCAPAR", VW / 2, VH * 0.85);
+      ctx.fillText("ALGUNOS LOGRARON ESCAPAR", VW / 2, VH * 0.85);
+      ctx.fillStyle = "#d4a888";
+      ctx.font = "italic " + Math.floor(13 * U) + "px Fredoka, sans-serif";
+      ctx.fillText("hacia " + dOver.organ.label.toLowerCase() + "…", VW / 2, VH * 0.91);
       ctx.globalAlpha = 1;
     }
     ctx.restore();
@@ -23267,10 +23374,17 @@
       return;
     }
     var paused = state.confirmRestart || state.showTitle || state.showIntro || state.cinematicEnd || state.compendiumOpen || !!state.phaseTransition || !!state.bodyMap || state.tutorialOpen;
-    // Nivel puente: pausamos la lógica al caer el primer carril (cinemática + placeholder).
+    // Nivel puente: pausamos la lógica al caer el primer carril (cinemática
+    // de derrota o de victoria-con-quiebre). Al terminar la cinemática se
+    // encola el hero level real del órgano elegido — ya no es un dead-end.
     if (state.disseminationOver) {
       state.disseminationOver.t += dt;
       paused = true;
+      var dOverThresh = state.disseminationOver.mode === "win" ? 4.7 : 3.3;
+      if (!state.disseminationOver.resolved && state.disseminationOver.t >= dOverThresh && !state.pendingHeroLevel) {
+        state.disseminationOver.resolved = true;
+        state.pendingHeroLevel = { organ: state.disseminationOver.organ.id, delay: 0.6 };
+      }
     }
     if (state.disseminationIntroTimer > 0) state.disseminationIntroTimer -= dt;
     // Hero level encolado: cuenta atrás y dispara cuando el delay llega a 0.
@@ -23290,6 +23404,10 @@
         var f2Subtitle = F2_SUBTITLE[unlockedF2] || "";
         // Persistir el F2 desbloqueado (para futuras transiciones).
         state.unlockedF2 = unlockedF2;
+        // Limpiar: si vino de un órgano que cayó/se filtró, esa cinemática
+        // ya cumplió su función — no debe seguir forzando "paused" después
+        // de este punto (ver el chequeo de paused más arriba en el loop).
+        state.disseminationOver = null;
         enterBodyMap({
           currentNode: "dissem",
           // F2 desbloqueado por el órgano que cayó + H_F1 hero. Player elige
@@ -23298,11 +23416,13 @@
           forkOpen: true,
           title: "DISEMINACIÓN COMPLETA",
           subtitle: f2Subtitle + " · héroes pueden empezar por la piel",
-          // Por ahora F2 TD no implementado: CONTINUAR siempre va a H_F1.
-          // Cuando F2 esté listo, el tap-on-node permitirá elegir.
+          // Por ahora F2 TD no implementado: CONTINUAR siempre va a H_F1
+          // (el hero level de Piel — el único con contenido real hoy;
+          // corazón/hueso/articulación solo tienen label, no escena propia
+          // todavía). Cuando F2 esté listo, el tap-on-node permitirá elegir.
           onContinue: function () {
             state.heroLevelPlayed[pending.organ] = true;
-            enterHeroLevel(pending.organ);
+            enterHeroLevel("piel");
           }
         });
       }

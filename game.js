@@ -22016,6 +22016,7 @@
   // Los demás (órganos Diana) vienen después en la secuencia.
   var HERO_LEVEL_ORGANS = {
     piel:        { label: "PIEL",         sub: "Herida — rastro de la invasión", bg: "#7a3a2e", accent: "#f3d5c8" },
+    pielvaso:    { label: "ESCOMBROS",    sub: "De la herida al vaso sanguíneo", bg: "#5a2018", accent: "#f0c8a0" },
     corazon:     { label: "CORAZÓN",      sub: "Aurícula derecha",        bg: "#5a1820", accent: "#c1416a" },
     pulmon:      { label: "PULMÓN",       sub: "Alvéolos inflamados",     bg: "#2f4858", accent: "#a8d8e8" },
     sangre:      { label: "SANGRE",       sub: "Endotelio dañado",        bg: "#3a1015", accent: "#dc3545" },
@@ -22025,18 +22026,375 @@
   // Qué organId tiene una escena REAL hoy (ver docs/superpowers/specs/
   // 2026-06-02-hero-level-corazon-design.md) — el resto cae a "piel" como
   // fallback en el routing de pendingHeroLevel hasta que se construyan.
-  var HERO_LEVEL_BUILT = ["piel", "corazon"];
+  var HERO_LEVEL_BUILT = ["piel", "pielvaso", "corazon"];
   // organId !== "piel" → plataformero real (spec Corazón): input libre,
   // sin la coreografía de entrada/diálogo automática de Piel.
   function isHeroPlatformer(organId) { return organId !== "piel"; }
+
+  // ──── PIEL → VASO SANGUÍNEO (6 zonas) ────
+  // Primer nivel jugable de la persecución: los héroes recorren los
+  // escombros desde la herida (donde terminó la cinemática de Piel) hasta
+  // zambullirse en el torrente sanguíneo. Tutorial de combate: cada zona
+  // presenta una mecánica nueva (ataque, especial de Mac, especial de
+  // DenK, combo, timing) antes del guardián final.
+  // xFrac/yFrac son relativos a la zona (0..1); se resuelven a coords
+  // absolutas en buildPielVasoLevel() porque dependen de VW/VH actuales.
+  var PIELVASO_ZONES = [
+    { name: "Epidermis rota", bgA: "#5a2018", bgB: "#8a4030",
+      enemies: [{ kind: "epidermidis", xFrac: 0.55, hp: 2 }] },
+    { name: "Dermis superficial", bgA: "#4a1810", bgB: "#6a2818",
+      enemies: [{ kind: "aureus", xFrac: 0.38, hp: 4, capsule: 2 }],
+      obstacles: [{ kind: "telarana", xFrac: 0.75 }] },
+    { name: "Folículo piloso", bgA: "#301810", bgB: "#502820",
+      enemies: [{ kind: "sarna", xFrac: 0.50, hp: 3, burrowed: true }] },
+    { name: "Tejido conectivo", bgA: "#403018", bgB: "#5a4828",
+      enemies: [
+        { kind: "cacnes", xFrac: 0.28, hp: 2 },
+        { kind: "hsv",    xFrac: 0.54, hp: 2 },
+        { kind: "cacnes", xFrac: 0.80, hp: 2 }
+      ] },
+    { name: "Pared del vaso", bgA: "#5a1828", bgB: "#8a3050",
+      obstacles: [{ kind: "vesselgate", xFrac: 0.60 }] },
+    { name: "Guardián del vaso", bgA: "#3a0810", bgB: "#7a1020", widthMult: 1.4,
+      boss: { kind: "aureus_guard", xFrac: 0.55, hp: 20 } }
+  ];
+
+  function makePielVasoEnemy(def, x, groundY) {
+    return {
+      kind: def.kind,
+      x: x, y: groundY,
+      hp: def.hp, maxHp: def.hp,
+      // Cápsula: pool aparte que SOLO el ataque a distancia de DenK reduce.
+      // Mientras capsule>0, los golpes de Mac (melee) no hacen nada al hp
+      // real — enseña a usar DenK primero y Mac para rematar.
+      capsule: def.capsule || 0,
+      maxCapsule: def.capsule || 0,
+      // Sarna: enterrada e invisible/invulnerable hasta que el especial de
+      // DenK la revela (revealT cuenta el tiempo restante revelada).
+      burrowed: !!def.burrowed,
+      revealed: false,
+      revealT: 0,
+      dead: false,
+      facing: -1,
+      hitFlash: 0,
+      vx: 0,
+      homeX: x,
+      patrolRange: (def.kind === "hsv") ? 40 : 0,
+      patrolPhase: Math.random() * Math.PI * 2,
+      isBoss: false
+    };
+  }
+  function makePielVasoObstacle(def, x, groundY) {
+    return { kind: def.kind, x: x, y: groundY, broken: false };
+  }
+  // Resuelve PIELVASO_ZONES (fracciones relativas) a coordenadas absolutas
+  // para el nivel actual — depende de VW/groundY, por eso se llama recién
+  // en enterHeroLevel (no es una constante estática).
+  function buildPielVasoLevel(hl) {
+    var zones = PIELVASO_ZONES;
+    var bounds = [0];
+    for (var zi = 0; zi < zones.length; zi++) {
+      bounds.push(bounds[zi] + VW * (zones[zi].widthMult || 1));
+    }
+    hl.pvZoneBounds = bounds;
+    hl.enemies = [];
+    hl.obstacles = [];
+    hl.boss = null;
+    hl.projectiles = [];
+    for (var zj = 0; zj < zones.length; zj++) {
+      var z = zones[zj];
+      var zx0 = bounds[zj], zw = bounds[zj + 1] - bounds[zj];
+      if (z.enemies) {
+        for (var ei = 0; ei < z.enemies.length; ei++) {
+          var ed = z.enemies[ei];
+          hl.enemies.push(makePielVasoEnemy(ed, zx0 + ed.xFrac * zw, hl.groundY));
+        }
+      }
+      if (z.obstacles) {
+        for (var oi = 0; oi < z.obstacles.length; oi++) {
+          var od = z.obstacles[oi];
+          hl.obstacles.push(makePielVasoObstacle(od, zx0 + od.xFrac * zw, hl.groundY));
+        }
+      }
+      if (z.boss) {
+        hl.boss = makePielVasoEnemy(z.boss, zx0 + z.boss.xFrac * zw, hl.groundY);
+        hl.boss.isBoss = true;
+        hl.boss.bossPhase = 1;
+        hl.boss.spitCooldown = 1.5;
+        hl.boss.chargeT = 0;
+      }
+    }
+  }
+
+  // Daño real a un enemigo de Piel→Vaso. isMelee distingue el golpe de
+  // Mac (no atraviesa la cápsula — rebota) del proyectil de DenK (sí la
+  // desgasta) — enseña a alternar: DenK rompe la cápsula, Mac remata.
+  function pielVasoDamageEnemy(e, dmg, isMelee) {
+    if (!e || e.dead) return;
+    if (isMelee && e.capsule > 0) { e.hitFlash = 0.15; return; }
+    if (!isMelee && e.capsule > 0) {
+      e.capsule = Math.max(0, e.capsule - dmg);
+      e.hitFlash = 0.15;
+      return;
+    }
+    e.hp -= dmg;
+    e.hitFlash = 0.15;
+    if (e.hp <= 0) { e.hp = 0; e.dead = true; }
+  }
+  function pielVasoMeleeHit(hl, hero, range, dmg) {
+    var targets = hl.enemies.concat(hl.boss ? [hl.boss] : []);
+    for (var i = 0; i < targets.length; i++) {
+      var e = targets[i];
+      if (e.dead || (e.burrowed && !e.revealed)) continue;
+      var dx = e.x - hero.x;
+      if (Math.abs(dx) > range) continue;
+      if ((dx > 1 && hero.facing < 0) || (dx < -1 && hero.facing > 0)) continue;
+      pielVasoDamageEnemy(e, dmg, true);
+    }
+  }
+  function pielVasoDenkReveal(hl, hero, radius, duration) {
+    for (var i = 0; i < hl.enemies.length; i++) {
+      var e = hl.enemies[i];
+      if (e.dead || !e.burrowed) continue;
+      if (Math.abs(e.x - hero.x) <= radius) { e.revealed = true; e.revealT = duration; }
+    }
+  }
+  function pielVasoMacBreak(hl, hero, range) {
+    for (var i = 0; i < hl.obstacles.length; i++) {
+      var o = hl.obstacles[i];
+      if (o.broken || o.kind !== "telarana") continue;
+      if (Math.abs(o.x - hero.x) <= range) o.broken = true;
+    }
+  }
+  function pielVasoCheckHeroDeath(hl) {
+    var hero = hl[hl.activeHero];
+    if (hero.hp > 0) return;
+    hero.hp = 0;
+    var other = (hl.activeHero === "denk") ? "mac" : "denk";
+    if (hl[other].hp <= 0) {
+      // Ambos cayeron: fin del nivel sin medalla.
+      hl.exitRequested = true;
+      hl.exitOutcome = "lose";
+      return;
+    }
+    swapActiveHero();
+    showMsg((hl.activeHero === "denk" ? "DenK" : "Mac") + " toma el relevo");
+  }
+  function updatePielVasoEnemies(hl, dt) {
+    var hero = hl[hl.activeHero];
+    var all = hl.boss ? hl.enemies.concat([hl.boss]) : hl.enemies;
+    for (var i = 0; i < all.length; i++) {
+      var e = all[i];
+      if (e.dead) continue;
+      if (e.hitFlash > 0) e.hitFlash -= dt;
+      if (e.burrowed && e.revealed) {
+        e.revealT -= dt;
+        if (e.revealT <= 0) e.revealed = false;
+      }
+      if (e.patrolRange > 0 && !e.isBoss) {
+        e.patrolPhase += dt * 1.5;
+        e.x = e.homeX + Math.sin(e.patrolPhase) * e.patrolRange;
+      }
+      var canHurt = !(e.burrowed && !e.revealed);
+      if (canHurt && hero.hurtCooldown <= 0) {
+        var ddx = e.x - hero.x;
+        var hitR = e.isBoss ? 30 : 16;
+        if (Math.abs(ddx) < hitR + 14) {
+          hero.hp -= 1;
+          hero.hurtCooldown = 0.8;
+          sfx("playerHurt");
+          pielVasoCheckHeroDeath(hl);
+        }
+      }
+    }
+  }
+  function updatePielVasoBoss(hl, dt) {
+    var boss = hl.boss;
+    if (!boss || boss.dead) return;
+    var hero = hl[hl.activeHero];
+    boss.bossPhase = (boss.hp <= boss.maxHp * 0.5) ? 2 : 1;
+    var arenaMin = hl.pvZoneBounds[5] + 40, arenaMax = hl.pvZoneBounds[6] - 40;
+    if (boss.bossPhase === 1) {
+      boss.patrolPhase = (boss.patrolPhase || 0) + dt;
+      boss.x = boss.homeX + Math.sin(boss.patrolPhase * 0.6) * 60;
+      boss.spitCooldown -= dt;
+      if (boss.spitCooldown <= 0) {
+        boss.spitCooldown = 1.6;
+        var dir = hero.x > boss.x ? 1 : -1;
+        boss.facing = dir;
+        hl.projectiles.push({ x: boss.x, y: boss.y - 24, vx: dir * 180, life: 1.6, dmg: 1, enemy: true });
+      }
+    } else {
+      var ddir = hero.x > boss.x ? 1 : -1;
+      boss.facing = ddir;
+      boss.x += ddir * 130 * dt;
+    }
+    boss.x = Math.max(arenaMin, Math.min(arenaMax, boss.x));
+  }
+  function updatePielVasoProjectiles(hl, dt) {
+    var hero = hl[hl.activeHero];
+    for (var i = hl.projectiles.length - 1; i >= 0; i--) {
+      var p = hl.projectiles[i];
+      p.life -= dt;
+      p.x += p.vx * dt;
+      if (p.life <= 0) { hl.projectiles.splice(i, 1); continue; }
+      if (p.enemy) {
+        if (Math.abs(p.x - hero.x) < 16 && hero.hurtCooldown <= 0) {
+          hero.hp -= p.dmg;
+          hero.hurtCooldown = 0.8;
+          hl.projectiles.splice(i, 1);
+          sfx("playerHurt");
+          pielVasoCheckHeroDeath(hl);
+        }
+        continue;
+      }
+      var hitSomething = false;
+      for (var j = 0; j < hl.enemies.length; j++) {
+        var e = hl.enemies[j];
+        if (e.dead || (e.burrowed && !e.revealed)) continue;
+        if (Math.abs(e.x - p.x) < 16) {
+          pielVasoDamageEnemy(e, p.dmg, false);
+          hitSomething = true;
+          break;
+        }
+      }
+      if (!hitSomething && hl.boss && !hl.boss.dead) {
+        if (Math.abs(hl.boss.x - p.x) < 26) {
+          pielVasoDamageEnemy(hl.boss, p.dmg, false);
+          hitSomething = true;
+        }
+      }
+      if (hitSomething) hl.projectiles.splice(i, 1);
+    }
+  }
+
+  // Colores reusados del roster real de ENEMY_DEFS — el jugador reconoce
+  // al mismo bicho que ya peleó en el TD, ahora como "rezagado" más débil.
+  var PIELVASO_ENEMY_COLORS = {
+    epidermidis: { c: "#90A4AE", d: "#546E7A" },
+    aureus:       { c: "#F9A825", d: "#9c6e0a" },
+    aureus_guard: { c: "#F9A825", d: "#9c6e0a" },
+    sarna:        { c: "#8a5a2b", d: "#4d3014" },
+    cacnes:       { c: "#C9A66B", d: "#7a5c33" },
+    hsv:          { c: "#9575CD", d: "#4527A0" }
+  };
+  function drawPielVasoEnemySprite(e, sx, groundY) {
+    if (e.burrowed && !e.revealed) {
+      // Bulto apenas visible bajo tierra — telegraph sutil (no del todo
+      // invisible) de que algo enterrado está ahí, para que sea justo.
+      ctx.save();
+      ctx.globalAlpha = 0.35;
+      ctx.fillStyle = "#5a3a18";
+      ctx.beginPath();
+      ctx.ellipse(sx, groundY - 2, 14, 5, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+      return;
+    }
+    var col = PIELVASO_ENEMY_COLORS[e.kind] || { c: "#aaa", d: "#555" };
+    var r = e.isBoss ? 26 : 14;
+    ctx.save();
+    if (e.revealed) {
+      ctx.shadowColor = "rgba(255, 230, 150, 0.9)";
+      ctx.shadowBlur = 12;
+    }
+    ctx.fillStyle = (e.hitFlash > 0) ? "#fff" : col.c;
+    ctx.beginPath();
+    ctx.arc(sx, groundY - r * 0.7, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = col.d;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    // Cápsula (anillo blanco) mientras tenga ese pool sin gastar — solo
+    // el ataque a distancia de DenK la reduce (ver pielVasoDamageEnemy).
+    if (e.capsule > 0) {
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.8)";
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.arc(sx, groundY - r * 0.7, r + 4, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+  function drawPielVasoActors(hl, cx) {
+    for (var oi = 0; oi < hl.obstacles.length; oi++) {
+      var o = hl.obstacles[oi];
+      if (o.broken) continue;
+      var ox = o.x - cx;
+      if (ox < -40 || ox > VW + 40) continue;
+      if (o.kind === "telarana") {
+        ctx.save();
+        ctx.strokeStyle = "rgba(230, 220, 200, 0.75)";
+        ctx.lineWidth = 1.5;
+        var topY = hl.groundY - 64, botY = hl.groundY;
+        for (var wl = 0; wl < 4; wl++) {
+          ctx.beginPath();
+          ctx.moveTo(ox - 12 + wl * 8, topY);
+          ctx.lineTo(ox + 12 - wl * 8, botY);
+          ctx.stroke();
+        }
+        for (var wr = 1; wr < 4; wr++) {
+          var wy = topY + (botY - topY) * (wr / 4);
+          ctx.beginPath();
+          ctx.moveTo(ox - 14, wy);
+          ctx.lineTo(ox + 14, wy);
+          ctx.stroke();
+        }
+        ctx.restore();
+      } else if (o.kind === "vesselgate") {
+        ctx.save();
+        ctx.fillStyle = o.gateOpen ? "rgba(120, 220, 150, 0.30)" : "rgba(220, 70, 70, 0.55)";
+        ctx.fillRect(ox - 9, hl.groundY - 70, 18, 70);
+        ctx.strokeStyle = o.gateOpen ? "rgba(180, 255, 200, 0.85)" : "rgba(255, 140, 130, 0.9)";
+        ctx.lineWidth = 2;
+        ctx.strokeRect(ox - 9, hl.groundY - 70, 18, 70);
+        ctx.restore();
+      }
+    }
+    for (var ei = 0; ei < hl.enemies.length; ei++) {
+      var e = hl.enemies[ei];
+      if (e.dead) continue;
+      var ex = e.x - cx;
+      if (ex < -40 || ex > VW + 40) continue;
+      drawPielVasoEnemySprite(e, ex, hl.groundY);
+    }
+    if (hl.boss && !hl.boss.dead && hl.boss.x - cx > -40 && hl.boss.x - cx < VW + 40) {
+      drawPielVasoEnemySprite(hl.boss, hl.boss.x - cx, hl.groundY);
+      ctx.save();
+      var barW = 140, barX = VW / 2 - barW / 2, barY = 60;
+      ctx.fillStyle = "rgba(0,0,0,0.5)";
+      ctx.fillRect(barX, barY, barW, 8);
+      ctx.fillStyle = "#e85050";
+      ctx.fillRect(barX, barY, barW * Math.max(0, hl.boss.hp / hl.boss.maxHp), 8);
+      ctx.strokeStyle = "rgba(255,255,255,0.5)"; ctx.lineWidth = 1;
+      ctx.strokeRect(barX, barY, barW, 8);
+      ctx.fillStyle = "#ffd0c8";
+      ctx.font = "bold 10px Fredoka, sans-serif";
+      ctx.textAlign = "center"; ctx.textBaseline = "bottom";
+      ctx.fillText("GUARDIÁN", VW / 2, barY - 3);
+      ctx.restore();
+    }
+    for (var pi = 0; pi < hl.projectiles.length; pi++) {
+      var p = hl.projectiles[pi];
+      var px = p.x - cx;
+      if (px < -20 || px > VW + 20) continue;
+      ctx.save();
+      ctx.fillStyle = p.enemy ? "rgba(120, 220, 90, 0.9)" : "rgba(140, 220, 255, 0.95)";
+      ctx.beginPath();
+      ctx.arc(px, p.y, p.enemy ? 6 : 5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+  }
 
   function enterHeroLevel(organId) {
     var def = HERO_LEVEL_ORGANS[organId] || HERO_LEVEL_ORGANS.corazon;
     var platformer = isHeroPlatformer(organId);
     // Piel: bg FIJO, no scroll, levelWidth = VW (cinemática automática).
     // Plataformero (corazón y los que sigan): nivel ancho con scroll real,
-    // input libre — ver spec hero-level-corazon-design.md.
-    var levelWidth = platformer ? VW * 2.5 : VW;
+    // input libre — ver spec hero-level-corazon-design.md. Piel→Vaso tiene
+    // 6 zonas (PIELVASO_ZONES) — más ancho que el placeholder de corazón.
+    var levelWidth = !platformer ? VW : (organId === "pielvaso" ? VW * 6.4 : VW * 2.5);
     var startX = VW * 0.10;
     // groundY = línea de piso. Piel la alinea con la "plateau" del bg
     // pintado (~52% VH); el plataformero usa un piso plano más bajo (sin
@@ -22189,6 +22547,16 @@
         fadingOut: false,
         fadeT: 0
       };
+    } else if (organId === "pielvaso") {
+      // ──── CAMPOS EXCLUSIVOS DE PIEL→VASO (plataformero con combate) ────
+      var hl2 = state.heroLevel;
+      hl2.denk.attackCooldown = 0;
+      hl2.denk.specialCooldown = 0;
+      hl2.mac.attackCooldown = 0;
+      hl2.mac.specialCooldown = 0;
+      hl2.denk.hurtCooldown = 0;
+      hl2.mac.hurtCooldown = 0;
+      buildPielVasoLevel(hl2);
     }
   }
 
@@ -22205,7 +22573,7 @@
     var hl = state.heroLevel;
     // Botón EXIT (plataformero, para pruebas — spec paso 3): vuelve sin
     // medalla, equivalente a abortar.
-    if (hl.exitRequested) { exitHeroLevel("abort"); return; }
+    if (hl.exitRequested) { exitHeroLevel(hl.exitOutcome || "abort"); return; }
     hl.time += dt;
     if (hl.swapCooldown > 0) hl.swapCooldown -= dt;
     hl.denk.anim += dt;
@@ -22267,6 +22635,29 @@
     if (hero.x < 14) hero.x = 14;
     if (hero.x > hl.levelWidth - 14) hero.x = hl.levelWidth - 14;
 
+    // OBSTÁCULOS (Piel→Vaso): telaraña bloquea siempre hasta que Mac la
+    // rompe con su especial; la pared del vaso solo se abre en la ventana
+    // del latido (late real — hl.time, mismo reloj que el pulso visual).
+    if (hl.obstacles) {
+      for (var oi2 = 0; oi2 < hl.obstacles.length; oi2++) {
+        var obs = hl.obstacles[oi2];
+        if (obs.broken) continue;
+        var passable = false;
+        if (obs.kind === "vesselgate") {
+          var beatT2 = hl.time % 1.0;
+          passable = (beatT2 > 0.62 && beatT2 < 0.82);
+          obs.gateOpen = passable;
+        }
+        if (passable) continue;
+        var halfW = 10;
+        if (hero.x + 14 > obs.x - halfW && hero.x - 14 < obs.x + halfW) {
+          if (hero.x < obs.x) hero.x = obs.x - halfW - 14;
+          else hero.x = obs.x + halfW + 14;
+          hero.vx = 0;
+        }
+      }
+    }
+
     // WOUND BLOCK: cada héroe no puede cruzar al lado opuesto de la herida.
     // DenK queda confinado a la izquierda (x <= wound.leftEdge).
     // Mac queda confinado a la derecha (x >= wound.rightEdge).
@@ -22325,6 +22716,57 @@
 
     // Reset edge-trigger.
     input.jumpPressedThisFrame = false;
+
+    // ──── PIEL→VASO: combate, enemigos, obstáculos, boss ────
+    if (hl.organ === "pielvaso") {
+      if (hero.attackCooldown > 0) hero.attackCooldown -= dt;
+      if (hero.specialCooldown > 0) hero.specialCooldown -= dt;
+      if (hero.hurtCooldown > 0) hero.hurtCooldown -= dt;
+
+      if (hl.attackRequested) {
+        hl.attackRequested = false;
+        if (hero.attackCooldown <= 0) {
+          hero.attackingUntil = state.time + 0.25;
+          if (hl.activeHero === "denk") {
+            hero.attackCooldown = 0.45;
+            hl.projectiles.push({
+              x: hero.x + hero.facing * 16, y: hero.y - 24,
+              vx: hero.facing * 480, life: 0.7, dmg: 1, enemy: false
+            });
+          } else {
+            hero.attackCooldown = 0.55;
+            pielVasoMeleeHit(hl, hero, 32, 2);
+          }
+          sfx("tick");
+        }
+      }
+      if (hl.specialRequested) {
+        hl.specialRequested = false;
+        if (hero.specialCooldown <= 0) {
+          hero.specialCooldown = 3.0;
+          if (hl.activeHero === "denk") {
+            pielVasoDenkReveal(hl, hero, 90, 4.0);
+          } else {
+            pielVasoMacBreak(hl, hero, 42);
+          }
+          sfx("upgrade");
+        }
+      }
+
+      updatePielVasoEnemies(hl, dt);
+      updatePielVasoBoss(hl, dt);
+      updatePielVasoProjectiles(hl, dt);
+
+      if (hl.boss && hl.boss.dead && !hl.bossDefeatedAt) {
+        hl.bossDefeatedAt = hl.time;
+        showMsg("¡Guardián vencido!");
+        sfx("victory");
+      }
+      if (hl.bossDefeatedAt && hl.time - hl.bossDefeatedAt > 1.5) {
+        exitHeroLevel("win");
+        return;
+      }
+    }
 
     // Mac entrada cinemática: viene desde la derecha sobre el demodex,
     // camina automáticamente hasta su posición de descanso.
@@ -22441,13 +22883,13 @@
         hl.dialog.fadeT = 0;
       }
     }
-    // Fade out al "entrar a la herida".
+    // Fade out al "entrar a la herida": encadena directo al primer nivel
+    // jugable de la persecución (Piel→Vaso) — la cinemática de Piel ya
+    // cumplió su función narrativa (decidieron bajar a perseguir).
     if (hl.dialog && hl.dialog.fadingOut) {
       hl.dialog.fadeT += dt;
       if (hl.dialog.fadeT >= 1.0) {
-        // TODO: aquí se conectará la escena 2 (interior de la herida).
-        // Por ahora, simplemente salimos del hero level.
-        exitHeroLevel("win");
+        enterHeroLevel("pielvaso");
         return;
       }
     }
@@ -22758,56 +23200,65 @@
     var hl = state.heroLevel;
     var def = hl.def;
 
-    // ──── FRAME "RECUERDO ANIME" ────
-    // La escena se renderiza dentro de un recuadro centrado al 75% del
-    // viewport. Alrededor: backdrop oscuro tipo interior del cuerpo
-    // (gradiente borgoña→negro). El frame tiene esquinas redondeadas,
-    // borde cálido sutil y vignette interior. Al entrar, fade-in suave
-    // con scale-in (0.65→0.75) para sensación de memoria emergiendo.
+    // ──── FRAME "RECUERDO ANIME" (solo Piel) vs PANTALLA COMPLETA
+    // (plataformero — Mega Man style, sin encuadre, pedido explícito del
+    // usuario: un nivel jugable se siente como nivel, no como flashback). ────
+    var isPlat = isHeroPlatformer(hl.organ);
     var fadeIn = hl.frameFadeIn || 0;
     var frameAlpha = Math.min(1, fadeIn * 1.4);
-    var scaleProgress = Math.min(1, Math.max(0, (fadeIn - 0.1) / 0.7));
-    var easedIn = 1 - Math.pow(1 - scaleProgress, 3);
-    var frameScale = 0.65 + 0.10 * easedIn;
-    var frameW = VW * frameScale;
-    var frameH = VH * frameScale;
-    var frameX = (VW - frameW) / 2;
-    var frameY = (VH - frameH) / 2;
-    var frameR = 14;
+    var frameScale, frameW, frameH, frameX, frameY, frameR;
+    if (isPlat) {
+      frameScale = 1; frameW = VW; frameH = VH; frameX = 0; frameY = 0; frameR = 0;
+    } else {
+      var scaleProgress = Math.min(1, Math.max(0, (fadeIn - 0.1) / 0.7));
+      var easedIn = 1 - Math.pow(1 - scaleProgress, 3);
+      frameScale = 0.65 + 0.10 * easedIn;
+      frameW = VW * frameScale;
+      frameH = VH * frameScale;
+      frameX = (VW - frameW) / 2;
+      frameY = (VH - frameH) / 2;
+      frameR = 14;
+    }
     // Guarda transform para el input handler (mapeo pantalla→escena).
     hl.frameTransform.x = frameX;
     hl.frameTransform.y = frameY;
     hl.frameTransform.scale = frameScale;
 
-    // Backdrop: full-screen negro + gradiente borgoña radial.
-    ctx.fillStyle = "#070306";
-    ctx.fillRect(0, 0, VW, VH);
-    ctx.save();
-    ctx.globalAlpha = Math.min(1, fadeIn * 1.8);
-    var bdGrad = ctx.createRadialGradient(VW/2, VH/2, 0, VW/2, VH/2, Math.max(VW, VH) * 0.75);
-    bdGrad.addColorStop(0,    "rgba(78, 22, 36, 0.95)");
-    bdGrad.addColorStop(0.55, "rgba(34, 10, 18, 0.85)");
-    bdGrad.addColorStop(1,    "rgba(6, 3, 5, 1)");
-    ctx.fillStyle = bdGrad;
-    ctx.fillRect(0, 0, VW, VH);
-    ctx.restore();
+    if (!isPlat) {
+      // Backdrop: full-screen negro + gradiente borgoña radial.
+      ctx.fillStyle = "#070306";
+      ctx.fillRect(0, 0, VW, VH);
+      ctx.save();
+      ctx.globalAlpha = Math.min(1, fadeIn * 1.8);
+      var bdGrad = ctx.createRadialGradient(VW/2, VH/2, 0, VW/2, VH/2, Math.max(VW, VH) * 0.75);
+      bdGrad.addColorStop(0,    "rgba(78, 22, 36, 0.95)");
+      bdGrad.addColorStop(0.55, "rgba(34, 10, 18, 0.85)");
+      bdGrad.addColorStop(1,    "rgba(6, 3, 5, 1)");
+      ctx.fillStyle = bdGrad;
+      ctx.fillRect(0, 0, VW, VH);
+      ctx.restore();
 
-    // Glow exterior cálido detrás del frame.
-    ctx.save();
-    ctx.globalAlpha = frameAlpha * 0.55;
-    ctx.shadowColor = "rgba(255, 195, 130, 0.85)";
-    ctx.shadowBlur = 36;
-    ctx.fillStyle = "rgba(20, 10, 14, 1)";
-    _hlRoundedRectPath(frameX, frameY, frameW, frameH, frameR);
-    ctx.fill();
-    ctx.restore();
+      // Glow exterior cálido detrás del frame.
+      ctx.save();
+      ctx.globalAlpha = frameAlpha * 0.55;
+      ctx.shadowColor = "rgba(255, 195, 130, 0.85)";
+      ctx.shadowBlur = 36;
+      ctx.fillStyle = "rgba(20, 10, 14, 1)";
+      _hlRoundedRectPath(frameX, frameY, frameW, frameH, frameR);
+      ctx.fill();
+      ctx.restore();
+    }
 
     // Clip al frame + transform para que el resto del render use coords
     // de "escena" (0..VW, 0..VH) pero salga proyectado dentro del frame.
+    // En plataformero el "frame" es la pantalla completa — el clip/scale
+    // son no-ops, pero se mantiene el mismo código para no duplicar lógica.
     ctx.save();
     ctx.globalAlpha = frameAlpha;
-    _hlRoundedRectPath(frameX, frameY, frameW, frameH, frameR);
-    ctx.clip();
+    if (!isPlat) {
+      _hlRoundedRectPath(frameX, frameY, frameW, frameH, frameR);
+      ctx.clip();
+    }
     ctx.translate(frameX, frameY);
     ctx.scale(frameScale, frameScale);
 
@@ -22847,6 +23298,28 @@
       );
       ctx.fillStyle = "rgba(255, 90, 110, " + (beatPulse * 0.18) + ")";
       ctx.fillRect(0, 0, VW, bgBottomScreen);
+    } else if (hl.organ === "pielvaso") {
+      // Fondo por zona (canvas puro): qué zona corresponde se decide por
+      // la posición REAL de cámara (mundo, no decorativo) — cambia de
+      // tema al avanzar por las 6 zonas de PIELVASO_ZONES.
+      var camCenterX = cx + VW * 0.5;
+      var zIdx = 0;
+      for (var zb = 0; zb < hl.pvZoneBounds.length - 1; zb++) {
+        if (camCenterX >= hl.pvZoneBounds[zb]) zIdx = zb;
+      }
+      var zoneNow = PIELVASO_ZONES[zIdx];
+      var pvGrad = ctx.createLinearGradient(0, 0, 0, bgBottomScreen);
+      pvGrad.addColorStop(0, zoneNow.bgA);
+      pvGrad.addColorStop(1, zoneNow.bgB);
+      ctx.fillStyle = pvGrad;
+      ctx.fillRect(0, 0, VW, bgBottomScreen);
+      // Línea de piso sutil.
+      ctx.strokeStyle = "rgba(0,0,0,0.30)";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(0, hl.groundY + 2);
+      ctx.lineTo(VW, hl.groundY + 2);
+      ctx.stroke();
     } else {
       var skyGrad = ctx.createLinearGradient(0, 0, 0, bgBottomScreen);
       skyGrad.addColorStop(0, "#3a1410");
@@ -22916,7 +23389,17 @@
       ctx.restore();
     }
 
-    // Header con título del órgano.
+    // Header con título del órgano. En Piel→Vaso el subtítulo es la zona
+    // REAL actual (según la posición de cámara), no un texto fijo.
+    var headerSub = def.sub;
+    if (hl.organ === "pielvaso") {
+      var hCamCenterX = cx + VW * 0.5;
+      var hZoneIdx = 0;
+      for (var hzb = 0; hzb < hl.pvZoneBounds.length - 1; hzb++) {
+        if (hCamCenterX >= hl.pvZoneBounds[hzb]) hZoneIdx = hzb;
+      }
+      headerSub = PIELVASO_ZONES[hZoneIdx].name;
+    }
     ctx.fillStyle = def.accent;
     ctx.font = "bold " + Math.max(20, Math.min(32, VW * 0.07)) + "px Fredoka, sans-serif";
     ctx.textAlign = "center";
@@ -22924,7 +23407,7 @@
     ctx.fillText(def.label, VW / 2, 60);
     ctx.fillStyle = "rgba(240, 220, 220, 0.85)";
     ctx.font = "italic " + Math.max(12, Math.min(16, VW * 0.035)) + "px Fredoka, sans-serif";
-    ctx.fillText(def.sub, VW / 2, 100);
+    ctx.fillText(headerSub, VW / 2, 100);
 
     // (Floor strip y debris canvas removidos — la imagen bg ya muestra
     // el corte dérmico completo y los escombros pintados.)
@@ -23092,6 +23575,8 @@
         ctx.restore();
       }
     }
+
+    if (hl.organ === "pielvaso") drawPielVasoActors(hl, cx);
 
     drawHeroSprite(hl.denk, denkScreenX, hl.activeHero === "denk", hl.denk.anim, hl.denk.facing, "denk");
 
@@ -23278,6 +23763,29 @@
       hlBtn(hl.leftBtn,  "◄", hl.input.left);
       hlBtn(hl.rightBtn, "►", hl.input.right);
       hlBtn(hl.jumpBtn,  "▲", hl.input.jumpHeld);
+      // ATAQUE/ESPECIAL — solo en Piel→Vaso (Corazón todavía no tiene
+      // combate, ver paso 10 del spec). A la izquierda de SALTAR.
+      if (hl.organ === "pielvaso") {
+        hl.attackBtn  = { x: VW - btnR * 4 - 30, y: VH - btnR * 2 - 14, w: btnR * 2, h: btnR * 2 };
+        hl.specialBtn = { x: VW - btnR * 4 - 30, y: VH - btnR * 4 - 26, w: btnR * 2, h: btnR * 2 };
+        var hero2 = hl[hl.activeHero];
+        hlBtn(hl.attackBtn, "✦", hero2.attackCooldown > 0);
+        ctx.save();
+        ctx.globalAlpha = hero2.specialCooldown > 0 ? 0.20 : 0.40;
+        ctx.fillStyle = "#1a2a3a";
+        var scxB = hl.specialBtn.x + hl.specialBtn.w / 2, scyB = hl.specialBtn.y + hl.specialBtn.h / 2;
+        ctx.beginPath(); ctx.arc(scxB, scyB, hl.specialBtn.w / 2, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = "rgba(150, 210, 255, 0.6)"; ctx.lineWidth = 2; ctx.stroke();
+        ctx.globalAlpha = 0.9;
+        ctx.fillStyle = "#cfeeff";
+        ctx.font = "bold 9px Fredoka, sans-serif";
+        ctx.textAlign = "center"; ctx.textBaseline = "middle";
+        ctx.fillText(hl.activeHero === "denk" ? "REVELAR" : "ROMPER", scxB, scyB + 1);
+        ctx.restore();
+      } else {
+        hl.attackBtn = null;
+        hl.specialBtn = null;
+      }
       // SWAP — circular, distinto color para diferenciarlo de movimiento.
       ctx.save();
       ctx.globalAlpha = hl.swapCooldown > 0 ? 0.25 : 0.5;
@@ -23312,6 +23820,8 @@
       hl.exitBtn = null;
       hl.leftBtn = null;
       hl.rightBtn = null;
+      hl.attackBtn = null;
+      hl.specialBtn = null;
     }
 
     // ──── BOTÓN PLAY (solo antes de arrancar la cinemática) ────
@@ -23364,35 +23874,37 @@
     // de pantalla full-screen para dibujar borde, vignette y fade-out.
     ctx.restore();
 
-    // Vignette interior (oscurece esquinas del frame para reforzar
-    // sensación de memoria/foto antigua).
-    ctx.save();
-    ctx.globalAlpha = frameAlpha;
-    _hlRoundedRectPath(frameX, frameY, frameW, frameH, frameR);
-    ctx.clip();
-    var vgrad = ctx.createRadialGradient(
-      VW/2, VH/2, Math.min(frameW, frameH) * 0.25,
-      VW/2, VH/2, Math.min(frameW, frameH) * 0.65
-    );
-    vgrad.addColorStop(0, "rgba(0, 0, 0, 0)");
-    vgrad.addColorStop(1, "rgba(0, 0, 0, 0.42)");
-    ctx.fillStyle = vgrad;
-    ctx.fillRect(frameX, frameY, frameW, frameH);
-    ctx.restore();
+    if (!isPlat) {
+      // Vignette interior (oscurece esquinas del frame para reforzar
+      // sensación de memoria/foto antigua).
+      ctx.save();
+      ctx.globalAlpha = frameAlpha;
+      _hlRoundedRectPath(frameX, frameY, frameW, frameH, frameR);
+      ctx.clip();
+      var vgrad = ctx.createRadialGradient(
+        VW/2, VH/2, Math.min(frameW, frameH) * 0.25,
+        VW/2, VH/2, Math.min(frameW, frameH) * 0.65
+      );
+      vgrad.addColorStop(0, "rgba(0, 0, 0, 0)");
+      vgrad.addColorStop(1, "rgba(0, 0, 0, 0.42)");
+      ctx.fillStyle = vgrad;
+      ctx.fillRect(frameX, frameY, frameW, frameH);
+      ctx.restore();
 
-    // Borde sutil cálido alrededor del frame.
-    ctx.save();
-    ctx.globalAlpha = frameAlpha;
-    ctx.strokeStyle = "rgba(255, 220, 180, 0.35)";
-    ctx.lineWidth = 2;
-    _hlRoundedRectPath(frameX, frameY, frameW, frameH, frameR);
-    ctx.stroke();
-    // Línea interior más fina (acento "marco de foto").
-    ctx.strokeStyle = "rgba(255, 230, 200, 0.15)";
-    ctx.lineWidth = 1;
-    _hlRoundedRectPath(frameX + 3, frameY + 3, frameW - 6, frameH - 6, frameR - 3);
-    ctx.stroke();
-    ctx.restore();
+      // Borde sutil cálido alrededor del frame.
+      ctx.save();
+      ctx.globalAlpha = frameAlpha;
+      ctx.strokeStyle = "rgba(255, 220, 180, 0.35)";
+      ctx.lineWidth = 2;
+      _hlRoundedRectPath(frameX, frameY, frameW, frameH, frameR);
+      ctx.stroke();
+      // Línea interior más fina (acento "marco de foto").
+      ctx.strokeStyle = "rgba(255, 230, 200, 0.15)";
+      ctx.lineWidth = 1;
+      _hlRoundedRectPath(frameX + 3, frameY + 3, frameW - 6, frameH - 6, frameR - 3);
+      ctx.stroke();
+      ctx.restore();
+    }
 
     // ──── FADE OUT al entrar a la herida ────
     // Cubre TODO (frame + backdrop). Al apretar ENTRAR la pantalla
@@ -23440,6 +23952,8 @@
     }
     if (_inBtn(hl.swapBtn, x, y)) { swapActiveHero(); sfx("tick"); return; }
     if (_inBtn(hl.exitBtn, x, y)) { hl.exitRequested = true; return; }
+    if (_inBtn(hl.attackBtn, x, y))  { hl.attackRequested = true;  return; }
+    if (_inBtn(hl.specialBtn, x, y)) { hl.specialRequested = true; return; }
   }
 
   function handleHeroLevelPointerUp(pointerId) {

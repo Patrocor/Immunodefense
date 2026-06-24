@@ -22022,21 +22022,26 @@
     hueso:       { label: "HUESO",        sub: "Médula necrótica",        bg: "#3a2a18", accent: "#c8a070" },
     articulacion:{ label: "ARTICULACIÓN", sub: "Cápsula sinovial",        bg: "#1a2a3a", accent: "#8ec5d0" }
   };
+  // Qué organId tiene una escena REAL hoy (ver docs/superpowers/specs/
+  // 2026-06-02-hero-level-corazon-design.md) — el resto cae a "piel" como
+  // fallback en el routing de pendingHeroLevel hasta que se construyan.
+  var HERO_LEVEL_BUILT = ["piel", "corazon"];
+  // organId !== "piel" → plataformero real (spec Corazón): input libre,
+  // sin la coreografía de entrada/diálogo automática de Piel.
+  function isHeroPlatformer(organId) { return organId !== "piel"; }
 
   function enterHeroLevel(organId) {
     var def = HERO_LEVEL_ORGANS[organId] || HERO_LEVEL_ORGANS.corazon;
-    // Escena 1 (piel): bg FIJO, no scroll. levelWidth = VW. Los héroes
-    // caminan dentro del viewport visible. Al cruzar woundTriggerX se
-    // disparan los diálogos.
-    var levelWidth = VW;
+    var platformer = isHeroPlatformer(organId);
+    // Piel: bg FIJO, no scroll, levelWidth = VW (cinemática automática).
+    // Plataformero (corazón y los que sigan): nivel ancho con scroll real,
+    // input libre — ver spec hero-level-corazon-design.md.
+    var levelWidth = platformer ? VW * 2.5 : VW;
     var startX = VW * 0.10;
-    // groundY = línea de la superficie de la piel pintada en el bg
-    // (donde los héroes deben caminar). Se ajusta empíricamente al ~52%
-    // del viewport para alinear con la "plateau" del scene1 image.
-    var groundY = VH * 0.52;
-    // bgBottom = hasta dónde renderea la imagen del fondo. Llega casi
-    // hasta los controles (~92% del VH) para mostrar el corte dérmico
-    // completo (encima Y debajo de la superficie).
+    // groundY = línea de piso. Piel la alinea con la "plateau" del bg
+    // pintado (~52% VH); el plataformero usa un piso plano más bajo (sin
+    // imagen de fondo que lo defina) hasta que el tilemap (paso 6) lo reemplace.
+    var groundY = platformer ? VH * 0.62 : VH * 0.52;
     var bgBottom = VH * 0.92;
     state.heroLevel = {
       active: true,
@@ -22051,39 +22056,38 @@
       // coords de pantalla a coords de escena.
       frameFadeIn: 0,
       frameTransform: { x: 0, y: 0, scale: 1 },
-      // Cinemática 100% automática: el jugador solo tapea PLAY al inicio,
-      // luego todo se reproduce solo (entrada de héroes, auto-walk hasta
-      // el borde, diálogo auto-avanza, fade-out al final).
+      // El jugador tapea PLAY al inicio. En Piel, todo lo demás se
+      // reproduce solo. En el plataformero, tras PLAY el input queda libre.
       awaitingPlay: true,
-      postDialogT: 0,                  // tiempo desde que terminó la última línea
+      postDialogT: 0,                  // tiempo desde que terminó la última línea (piel)
       // Dimensiones del nivel + cámara.
       levelWidth: levelWidth,
       cameraX: 0,
       finishX: levelWidth - 80,               // donde termina el nivel
-      // Escena 1: AMBOS héroes visibles. DenK arranca a la izquierda
-      // (player-controlled), Mac entra desde la derecha montado en el
-      // demodex (auto-cinematic). Se encuentran en los bordes del wound.
       activeHero: "denk",
       denk: {
-        // Arranca BIEN arriba del viewport para la entrada en rappel
-        // (cuelga de un dendrito que desciende desde fuera de pantalla).
-        x: startX, y: groundY - VH * 0.85,
+        // Piel: arranca arriba del viewport para la entrada en rappel.
+        // Plataformero: ya parado en el piso, listo para moverse.
+        x: platformer ? VW * 0.42 : startX,
+        y: platformer ? groundY : (groundY - VH * 0.85),
         vx: 0, vy: 0,
         hp: 3, hpMax: 3,
         facing: 1,
         anim: 0,
-        grounded: false,
+        grounded: !!platformer,
         moveSpeed: 220,
         jumpV: -480,
         canDoubleJump: true,
         usedDoubleJump: false
       },
       mac: {
-        x: VW + 220,                  // BIEN off-screen — entrada cinemática larga
+        // Piel: BIEN off-screen para la entrada cinemática larga.
+        // Plataformero: al lado de DenK, ya en escena.
+        x: platformer ? VW * 0.52 : (VW + 220),
         y: groundY,
         vx: 0, vy: 0,
         hp: 5, hpMax: 5,
-        facing: -1,                   // mira a la izquierda al entrar
+        facing: -1,
         anim: 0,
         grounded: true,
         moveSpeed: 150,
@@ -22091,10 +22095,28 @@
         canDoubleJump: false,
         usedDoubleJump: false
       },
+      swapCooldown: 0,
+      gravity: 1200,
+      groundY: groundY,
+      bgBottom: bgBottom,
+      // Input state — set por pointer handlers, leído por update. En Piel
+      // queda siempre en false (cinemática automática lo machaca).
+      input: {
+        left: false,
+        right: false,
+        jumpPressedThisFrame: false,
+        jumpHeld: false
+      },
+      // Track pointer touches: pointerId → buttonName ('left'/'right'/'jump').
+      activeTouches: {}
+    };
+    if (!platformer) {
+      // ──── CAMPOS EXCLUSIVOS DE PIEL (cinemática automática) ────
+      var hl = state.heroLevel;
       // Estado de la entrada de DenK en rappel: cuelga de un dendrito
       // celeste que desciende desde arriba del canvas (off-screen) hasta
       // la superficie de la piel. Una vez landed, el dendrito se retrae.
-      denkEntry: {
+      hl.denkEntry = {
         active: true,
         t: 0,
         descentTime: 2.2,             // duración del descenso
@@ -22103,38 +22125,25 @@
         startY: groundY - VH * 0.85,
         targetY: groundY,
         x: startX                     // X fijo durante la entrada
-      },
+      };
       // Estado de la entrada de Mac sobre el demodex.
-      macEntry: {
+      hl.macEntry = {
         active: true,
         targetX: VW * 0.72,           // se detiene a una distancia segura del borde
         demodexSeed: Math.random() * 100
-      },
+      };
       // El demodex después de dejar a Mac: se va al fondo a comer.
-      demodex: null,                  // se inicializa cuando termina macEntry
+      hl.demodex = null;              // se inicializa cuando termina macEntry
       // Zonas del wound (los héroes no pueden cruzar). Valores más
       // conservadores para que ningún sprite "se asome" sobre el boquete:
       // DenK (sprite ~60px) se detiene con su borde derecho fuera del wound,
       // Mac (sprite ~80px) idem por el lado izquierdo.
-      wound: {
+      hl.wound = {
         leftEdge:  VW * 0.33,         // DenK no puede pasar de aquí
         rightEdge: VW * 0.70          // Mac no puede pasar de aquí
-      },
-      swapCooldown: 0,
-      gravity: 1200,
-      groundY: groundY,
-      bgBottom: bgBottom,
-      // Input state — set por pointer handlers, leído por update.
-      input: {
-        left: false,
-        right: false,
-        jumpPressedThisFrame: false,
-        jumpHeld: false
-      },
-      // Track pointer touches: pointerId → buttonName ('left'/'right'/'jump').
-      activeTouches: {},
+      };
       // Atmósfera escénica (canvas, sutil, animada).
-      particles: (function () {
+      hl.particles = (function () {
         var arr = [];
         for (var p = 0; p < 22; p++) {
           arr.push({
@@ -22147,8 +22156,8 @@
           });
         }
         return arr;
-      })(),
-      vaporWisps: (function () {
+      })();
+      hl.vaporWisps = (function () {
         var arr = [];
         for (var w = 0; w < 4; w++) {
           arr.push({
@@ -22159,11 +22168,11 @@
           });
         }
         return arr;
-      })(),
+      })();
       // Sistema de diálogos para la escena de llegada a la herida.
       // Se activa al cruzar woundTriggerX. Tap avanza líneas.
-      woundTriggerX: VW * 0.55,        // donde está la herida en el bg
-      dialog: {
+      hl.woundTriggerX = VW * 0.55;        // donde está la herida en el bg
+      hl.dialog = {
         triggered: false,              // pasa a true cuando lo cruzas
         active: false,                 // burbuja visible
         currentLine: 0,
@@ -22179,8 +22188,8 @@
         readyToEnter: false,           // al final de los diálogos
         fadingOut: false,
         fadeT: 0
-      }
-    };
+      };
+    }
   }
 
   function exitHeroLevel(outcome) {
@@ -22194,6 +22203,9 @@
   function updateHeroLevel(dt) {
     if (!state.heroLevel) return;
     var hl = state.heroLevel;
+    // Botón EXIT (plataformero, para pruebas — spec paso 3): vuelve sin
+    // medalla, equivalente a abortar.
+    if (hl.exitRequested) { exitHeroLevel("abort"); return; }
     hl.time += dt;
     if (hl.swapCooldown > 0) hl.swapCooldown -= dt;
     hl.denk.anim += dt;
@@ -22818,6 +22830,23 @@
       // la superficie); los héroes caminan en groundY (la línea pintada
       // del bg, no el bottom de la imagen).
       ctx.drawImage(sceneImg, 0, 0, VW, bgBottomScreen);
+    } else if (hl.organ === "corazon") {
+      // Placeholder canvas puro (spec paso 3): cámara cardíaca, sin
+      // sprites/imagen nuevos. Latido global — pulso rojo cada 1.0s
+      // (spec §4) sobre el gradiente base de la cámara.
+      var heartGrad = ctx.createLinearGradient(0, 0, 0, bgBottomScreen);
+      heartGrad.addColorStop(0, "#2a0810");
+      heartGrad.addColorStop(0.55, hl.def.bg);
+      heartGrad.addColorStop(1, "#7a2030");
+      ctx.fillStyle = heartGrad;
+      ctx.fillRect(0, 0, VW, bgBottomScreen);
+      var beatT = hl.time % 1.0;
+      var beatPulse = Math.max(
+        Math.exp(-Math.pow((beatT - 0.05) * 16, 2)),
+        Math.exp(-Math.pow((beatT - 0.22) * 16, 2)) * 0.7
+      );
+      ctx.fillStyle = "rgba(255, 90, 110, " + (beatPulse * 0.18) + ")";
+      ctx.fillRect(0, 0, VW, bgBottomScreen);
     } else {
       var skyGrad = ctx.createLinearGradient(0, 0, 0, bgBottomScreen);
       skyGrad.addColorStop(0, "#3a1410");
@@ -23222,15 +23251,68 @@
       ctx.fill();
     }
 
-    // Cinemática 100% automática: sin controles direccionales, swap,
-    // salto ni salir. El único botón es PLAY al inicio (mientras
-    // awaitingPlay=true). Todos los demás se marcan null para que
-    // _inBtn los ignore.
-    hl.swapBtn = null;
-    hl.jumpBtn = null;
-    hl.exitBtn = null;
-    hl.leftBtn = null;
-    hl.rightBtn = null;
+    if (isHeroPlatformer(hl.organ) && !hl.awaitingPlay) {
+      // ──── CONTROLES TÁCTILES (spec §8): izq/der + saltar + swap + salir ────
+      function hlBtn(rect, glyph, active) {
+        ctx.save();
+        ctx.globalAlpha = active ? 0.55 : 0.32;
+        ctx.fillStyle = "#2a1410";
+        var cxB = rect.x + rect.w / 2, cyB = rect.y + rect.h / 2, rB = Math.min(rect.w, rect.h) / 2;
+        ctx.beginPath(); ctx.arc(cxB, cyB, rB, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = "rgba(255, 220, 190, 0.55)";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.globalAlpha = 0.9;
+        ctx.fillStyle = "#ffe6d0";
+        ctx.font = "bold " + Math.round(rB * 0.9) + "px Fredoka, sans-serif";
+        ctx.textAlign = "center"; ctx.textBaseline = "middle";
+        ctx.fillText(glyph, cxB, cyB + 1);
+        ctx.restore();
+      }
+      var btnR = Math.max(26, Math.min(36, VH * 0.06));
+      hl.leftBtn  = { x: 18, y: VH - btnR * 2 - 14, w: btnR * 2, h: btnR * 2 };
+      hl.rightBtn = { x: 18 + btnR * 2 + 10, y: VH - btnR * 2 - 14, w: btnR * 2, h: btnR * 2 };
+      hl.jumpBtn  = { x: VW - btnR * 2 - 18, y: VH - btnR * 2 - 14, w: btnR * 2, h: btnR * 2 };
+      hl.swapBtn  = { x: VW - 60, y: 16, w: 46, h: 46 };
+      hl.exitBtn  = { x: VW - 116, y: 16, w: 46, h: 30 };
+      hlBtn(hl.leftBtn,  "◄", hl.input.left);
+      hlBtn(hl.rightBtn, "►", hl.input.right);
+      hlBtn(hl.jumpBtn,  "▲", hl.input.jumpHeld);
+      // SWAP — circular, distinto color para diferenciarlo de movimiento.
+      ctx.save();
+      ctx.globalAlpha = hl.swapCooldown > 0 ? 0.25 : 0.5;
+      ctx.fillStyle = "#3a1a30";
+      ctx.beginPath();
+      ctx.arc(hl.swapBtn.x + hl.swapBtn.w / 2, hl.swapBtn.y + hl.swapBtn.h / 2, hl.swapBtn.w / 2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "rgba(230, 180, 255, 0.6)"; ctx.lineWidth = 2; ctx.stroke();
+      ctx.fillStyle = "#f0d8ff";
+      ctx.font = "bold 10px Fredoka, sans-serif";
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText("SWAP", hl.swapBtn.x + hl.swapBtn.w / 2, hl.swapBtn.y + hl.swapBtn.h / 2 + 1);
+      ctx.restore();
+      // EXIT — solo para pruebas (spec paso 3).
+      ctx.save();
+      ctx.globalAlpha = 0.4;
+      ctx.fillStyle = "#3a1414";
+      ctx.fillRect(hl.exitBtn.x, hl.exitBtn.y, hl.exitBtn.w, hl.exitBtn.h);
+      ctx.strokeStyle = "rgba(255, 160, 140, 0.6)"; ctx.lineWidth = 1.5;
+      ctx.strokeRect(hl.exitBtn.x, hl.exitBtn.y, hl.exitBtn.w, hl.exitBtn.h);
+      ctx.globalAlpha = 0.85;
+      ctx.fillStyle = "#ffc8b8";
+      ctx.font = "bold 10px Fredoka, sans-serif";
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText("SALIR", hl.exitBtn.x + hl.exitBtn.w / 2, hl.exitBtn.y + hl.exitBtn.h / 2 + 1);
+      ctx.restore();
+    } else {
+      // Cinemática 100% automática (Piel) o esperando PLAY: sin controles.
+      // Se marcan null para que _inBtn los ignore.
+      hl.swapBtn = null;
+      hl.jumpBtn = null;
+      hl.exitBtn = null;
+      hl.leftBtn = null;
+      hl.rightBtn = null;
+    }
 
     // ──── BOTÓN PLAY (solo antes de arrancar la cinemática) ────
     if (hl.awaitingPlay) {
@@ -23338,13 +23420,26 @@
       x = (x - ft.x) / ft.scale;
       y = (y - ft.y) / ft.scale;
     }
-    // Único botón interactivo: PLAY (al inicio). Tras tapear, arranca
-    // la cinemática y no se acepta más input.
+    // Único botón interactivo en Piel: PLAY (al inicio). Tras tapear,
+    // arranca la cinemática y no se acepta más input.
     if (hl.awaitingPlay && _inBtn(hl.playBtn, x, y)) {
       hl.awaitingPlay = false;
       sfx("upgrade");
       return;
     }
+    if (!isHeroPlatformer(hl.organ) || hl.awaitingPlay) return;
+    // Controles del plataformero: izq/der/saltar son "held" (multi-touch,
+    // se sueltan en pointerUp); swap/salir son tap simple.
+    if (_inBtn(hl.leftBtn, x, y))  { hl.input.left = true;  hl.activeTouches[pointerId] = "left";  return; }
+    if (_inBtn(hl.rightBtn, x, y)) { hl.input.right = true; hl.activeTouches[pointerId] = "right"; return; }
+    if (_inBtn(hl.jumpBtn, x, y)) {
+      hl.input.jumpHeld = true;
+      hl.input.jumpPressedThisFrame = true;
+      hl.activeTouches[pointerId] = "jump";
+      return;
+    }
+    if (_inBtn(hl.swapBtn, x, y)) { swapActiveHero(); sfx("tick"); return; }
+    if (_inBtn(hl.exitBtn, x, y)) { hl.exitRequested = true; return; }
   }
 
   function handleHeroLevelPointerUp(pointerId) {
@@ -23407,6 +23502,10 @@
         var f2Subtitle = F2_SUBTITLE[unlockedF2] || "";
         // Persistir el F2 desbloqueado (para futuras transiciones).
         state.unlockedF2 = unlockedF2;
+        // Severidad real de cómo se llegó a este órgano (victoria con
+        // quiebre vs derrota real) — la escena de héroe la usa para elegir
+        // el tono del diálogo. Se captura ANTES de limpiar disseminationOver.
+        state.lastDisseminationMode = state.disseminationOver ? state.disseminationOver.mode : null;
         // Limpiar: si vino de un órgano que cayó/se filtró, esa cinemática
         // ya cumplió su función — no debe seguir forzando "paused" después
         // de este punto (ver el chequeo de paused más arriba en el loop).
@@ -23419,13 +23518,14 @@
           forkOpen: true,
           title: "DISEMINACIÓN COMPLETA",
           subtitle: f2Subtitle + " · héroes pueden empezar por la piel",
-          // Por ahora F2 TD no implementado: CONTINUAR siempre va a H_F1
-          // (el hero level de Piel — el único con contenido real hoy;
-          // corazón/hueso/articulación solo tienen label, no escena propia
-          // todavía). Cuando F2 esté listo, el tap-on-node permitirá elegir.
+          // Por ahora F2 TD no implementado, pero la PERSECUCIÓN de los
+          // héroes (H.Dissem → H.Endo/Osteo/Artri en el mapa) sí avanza:
+          // CONTINUAR lleva al hero level del órgano real si ya tiene
+          // escena construida (ver HERO_LEVEL_BUILT), o a Piel si no.
           onContinue: function () {
             state.heroLevelPlayed[pending.organ] = true;
-            enterHeroLevel("piel");
+            var heroOrgan = HERO_LEVEL_BUILT.indexOf(pending.organ) !== -1 ? pending.organ : "piel";
+            enterHeroLevel(heroOrgan);
           }
         });
       }

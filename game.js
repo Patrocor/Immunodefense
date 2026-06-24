@@ -3456,10 +3456,10 @@
       levelTransition: false,
       finalScreen: false,
       transitionTimer: 0,
-      // Nivel puente "Diseminación" (5 carriles, post ola 18).
+      // Nivel puente "Diseminación" (3 carriles, post ola 10).
       dissemination: false,
-      disseminationWaveIdx: 0,         // 0..2 dentro del puente
-      disseminationOver: null,         // { germ, organ } cuando un órgano llena
+      disseminationWaveIdx: 0,         // 0..5 dentro del puente (6 olas)
+      disseminationOver: null,         // { germ, organ, mode } cuando un órgano llena o se gana con quiebre
       disseminationIntroTimer: 0,      // banner de entrada al puente
       spreadOrganLoad: [0,0,0],       // 0..10 (germenes pasando tras romper barrera) — 3 carriles
       spreadFlash: [0,0,0],       // brillo de impacto al recibir germen
@@ -4207,7 +4207,7 @@
     var groups = DISSEMINATION_WAVE_TABLE[idx];
     state.waveActive = true;
     state.waveCountdownActive = false;
-    // Sincronizar waveIdx para que el HUD muestre "Oleada 1/2/3" correctamente.
+    // Sincronizar waveIdx para que el HUD muestre "Oleada 1-6" correctamente.
     state.waveIdx = idx + 1;
     state.pendingSpawns = [];
     state.spawnElapsed = 0;
@@ -4429,9 +4429,12 @@
       }
       // Auto-schedule next wave: base gap shrinks with wave, infestation
       // multiplier shrinks gap further (snowball).
-      // En diseminación: pausa larga entre olas (~14-18s) para construir defensa.
+      // En diseminación: pausa larga entre olas (~14-18s) para construir
+      // defensa. El gap de 18s cae antes de la ola con el primer boss
+      // (idx 2 = "ola 3" en la tabla de 6 olas) para dar tiempo extra de
+      // preparación justo antes de esa escalada — no antes de la ola 1.
       var gapBase = state.dissemination
-        ? (state.disseminationWaveIdx === 1 ? 18 : 14)
+        ? (state.disseminationWaveIdx === 2 ? 18 : 14)
         : Math.max(2.5, 7.5 - state.waveIdx * 0.4);
       state.nextWaveAt = state.dissemination ? gapBase : (gapBase * infestWaveGapMult(state.viralLoad));
       state.waveCountdownActive = true;

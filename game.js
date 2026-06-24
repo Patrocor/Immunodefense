@@ -23170,10 +23170,18 @@
         stateName = lineNow.expr;
       }
     }
-    var assetPath = "assets/piel/" + type + "-" + stateName + ".webp";
-    var img = ASSETS.get(assetPath);
-    if (!img && stateName !== "idle") {
-      img = ASSETS.get("assets/piel/" + type + "-idle.webp");
+    // Piel (cinemática): usa los sprites reales como siempre. El resto
+    // de los niveles jugables (plataformero) dibuja a DenK/Mac 100% en
+    // canvas a propósito — control total de la animación real (caminata/
+    // salto/ataque atados al estado real, no una pose estática por sprite).
+    var useRealSprite = !hl || hl.organ === "piel";
+    var img = null;
+    if (useRealSprite) {
+      var assetPath = "assets/piel/" + type + "-" + stateName + ".webp";
+      img = ASSETS.get(assetPath);
+      if (!img && stateName !== "idle") {
+        img = ASSETS.get("assets/piel/" + type + "-idle.webp");
+      }
     }
     // Direccion NATIVA del sprite (en source). Los sprites base están
     // dibujados mirando a la derecha; algunas expresiones específicas
@@ -23255,20 +23263,23 @@
       ctx.restore();
       return;
     }
-    // Fallback: primitiva canvas.
-    if (type === "denk") drawDenK(screenX, hero.y, isActive, animT, facing);
-    else                  drawMac(screenX, hero.y, isActive, animT, facing);
+    // Fallback / diseño canvas a propósito en plataformero.
+    if (type === "denk") drawDenK(screenX, hero.y, isActive, animT, facing, stateName);
+    else                  drawMac(screenX, hero.y, isActive, animT, facing, stateName);
   }
 
-  function drawDenK(x, y, isActive, animT, facing) {
+  function drawDenK(x, y, isActive, animT, facing, stateName) {
     var R = 14;
+    var walking = stateName === "walk";
+    var jumping = stateName === "jump";
+    var attacking = stateName === "attack";
     var pulse = 1 + Math.sin(animT * 3) * 0.04;
     ctx.save();
     ctx.translate(x, y);
-    // Sombra
+    // Sombra — se achica en el aire (sensación real de altura).
     ctx.fillStyle = "rgba(0,0,0,0.35)";
     ctx.beginPath();
-    ctx.ellipse(0, R * 0.85, R * 0.95, R * 0.30, 0, 0, Math.PI * 2);
+    ctx.ellipse(0, R * 0.85, R * (jumping ? 0.55 : 0.95), R * (jumping ? 0.18 : 0.30), 0, 0, Math.PI * 2);
     ctx.fill();
     // Halo si está activo
     if (isActive) {
@@ -23279,6 +23290,19 @@
       ctx.arc(0, 0, R * 1.6, 0, Math.PI * 2);
       ctx.stroke();
     }
+    // Patas — ciclo de caminata REAL atado al estado (no decorativo):
+    // se mueven solo caminando, se encogen saltando, quietas en reposo.
+    var legSwing = walking ? Math.sin(animT * 9) : 0;
+    var legTuck = jumping ? 0.5 : 0;
+    ctx.strokeStyle = "#3a7d92";
+    ctx.lineWidth = 2.4;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(-R * 0.32, R * 0.62);
+    ctx.lineTo(-R * 0.32 + legSwing * R * 0.45, R * (0.95 - legTuck * 0.35));
+    ctx.moveTo(R * 0.32, R * 0.62);
+    ctx.lineTo(R * 0.32 - legSwing * R * 0.45, R * (0.95 - legTuck * 0.35));
+    ctx.stroke();
     // Dendritas (los procesos que dan nombre a la célula): 6 brazos radiales.
     ctx.strokeStyle = "#6ec0d6";
     ctx.lineWidth = 2;
@@ -23291,7 +23315,10 @@
       ctx.lineTo(Math.cos(da) * (R + len * 0.5), Math.sin(da) * (R + len * 0.5));
       ctx.stroke();
     }
-    // Cuerpo celeste
+    // Cuerpo celeste — comprimido lateral al saltar (squash/stretch real).
+    var sqx = jumping ? 0.92 : 1, sqy = jumping ? 1.10 : 1;
+    ctx.save();
+    ctx.scale(sqx, sqy);
     var grad = ctx.createRadialGradient(-R * 0.3, -R * 0.3, R * 0.2, 0, 0, R);
     grad.addColorStop(0, "#b8eaf6");
     grad.addColorStop(0.6, "#7ec5d8");
@@ -23303,16 +23330,36 @@
     ctx.strokeStyle = "#2a5a6e";
     ctx.lineWidth = 1.5;
     ctx.stroke();
-    // Cara estilo anime: ojos grandes
+    ctx.restore();
+    // Brazo + disparo de antígeno — gesto real de ataque, no una pose fija.
+    if (attacking) {
+      ctx.strokeStyle = "#3a7d92";
+      ctx.lineWidth = 3;
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.moveTo(facing * R * 0.25, R * 0.05);
+      ctx.lineTo(facing * R * 1.35, -R * 0.10);
+      ctx.stroke();
+      var shotGlow = 0.6 + 0.4 * Math.sin(animT * 20);
+      var shotGrad = ctx.createRadialGradient(facing * R * 1.45, -R * 0.10, 0, facing * R * 1.45, -R * 0.10, R * 0.55);
+      shotGrad.addColorStop(0, "rgba(220, 245, 255, " + shotGlow + ")");
+      shotGrad.addColorStop(1, "rgba(140, 220, 255, 0)");
+      ctx.fillStyle = shotGrad;
+      ctx.beginPath();
+      ctx.arc(facing * R * 1.45, -R * 0.10, R * 0.55, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // Cara estilo anime: ojos grandes (más entrecerrados/enfocados al atacar).
+    var eyeH = attacking ? 0.55 : 1;
     ctx.fillStyle = "#fff";
     ctx.beginPath();
-    ctx.arc(-R * 0.30 + facing * 1.5, -R * 0.10, R * 0.30, 0, Math.PI * 2);
-    ctx.arc( R * 0.30 + facing * 1.5, -R * 0.10, R * 0.30, 0, Math.PI * 2);
+    ctx.ellipse(-R * 0.30 + facing * 1.5, -R * 0.10, R * 0.30, R * 0.30 * eyeH, 0, 0, Math.PI * 2);
+    ctx.ellipse( R * 0.30 + facing * 1.5, -R * 0.10, R * 0.30, R * 0.30 * eyeH, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.fillStyle = "#1a2030";
     ctx.beginPath();
-    ctx.arc(-R * 0.30 + facing * 3, -R * 0.05, R * 0.15, 0, Math.PI * 2);
-    ctx.arc( R * 0.30 + facing * 3, -R * 0.05, R * 0.15, 0, Math.PI * 2);
+    ctx.arc(-R * 0.30 + facing * 3, -R * 0.05, R * 0.15 * eyeH, 0, Math.PI * 2);
+    ctx.arc( R * 0.30 + facing * 3, -R * 0.05, R * 0.15 * eyeH, 0, Math.PI * 2);
     ctx.fill();
     // Sonrisita
     ctx.strokeStyle = "#2a5a6e";
@@ -23323,14 +23370,17 @@
     ctx.restore();
   }
 
-  function drawMac(x, y, isActive, animT, facing) {
+  function drawMac(x, y, isActive, animT, facing, stateName) {
     var R = 21;
+    var walking = stateName === "walk";
+    var jumping = stateName === "jump";
+    var attacking = stateName === "attack";
     var pulse = 1 + Math.sin(animT * 2.5) * 0.05;
     ctx.save();
     ctx.translate(x, y);
     ctx.fillStyle = "rgba(0,0,0,0.40)";
     ctx.beginPath();
-    ctx.ellipse(0, R * 0.85, R * 1.10, R * 0.32, 0, 0, Math.PI * 2);
+    ctx.ellipse(0, R * 0.85, R * (jumping ? 0.65 : 1.10), R * (jumping ? 0.18 : 0.32), 0, 0, Math.PI * 2);
     ctx.fill();
     if (isActive) {
       var glow = 0.5 + 0.5 * Math.sin(animT * 4);
@@ -23340,7 +23390,22 @@
       ctx.arc(0, 0, R * 1.45, 0, Math.PI * 2);
       ctx.stroke();
     }
-    // Pseudópodos (bumps irregulares en el contorno)
+    // Patas cortas y pesadas — pisada real al caminar, encogidas al saltar.
+    var stomp = walking ? Math.abs(Math.sin(animT * 7)) : 0;
+    var legTuck = jumping ? 0.5 : 0;
+    ctx.strokeStyle = "#7a3010";
+    ctx.lineWidth = 3.5;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(-R * 0.36, R * 0.55);
+    ctx.lineTo(-R * 0.36, R * (0.95 - stomp * 0.12 - legTuck * 0.3));
+    ctx.moveTo(R * 0.36, R * 0.55);
+    ctx.lineTo(R * 0.36, R * (0.95 - (1 - stomp) * 0.12 - legTuck * 0.3));
+    ctx.stroke();
+    // Pseudópodos (bumps irregulares en el contorno) — comprimido al saltar.
+    var sqx = jumping ? 0.90 : 1, sqy = jumping ? 1.12 : 1;
+    ctx.save();
+    ctx.scale(sqx, sqy);
     var grad = ctx.createRadialGradient(-R * 0.3, -R * 0.3, R * 0.2, 0, 0, R);
     grad.addColorStop(0, "#ffd0a0");
     grad.addColorStop(0.6, "#d68040");
@@ -23360,16 +23425,48 @@
     ctx.strokeStyle = "#5a2010";
     ctx.lineWidth = 1.8;
     ctx.stroke();
-    // Ojos grandes (fiero, decidido)
+    ctx.restore();
+    // Puñetazo real — el brazo se extiende hacia el frente al atacar.
+    if (attacking) {
+      var punchExt = 0.7 + 0.3 * Math.sin(animT * 18);
+      ctx.strokeStyle = "#7a3010";
+      ctx.lineWidth = 6;
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.moveTo(facing * R * 0.2, R * 0.05);
+      ctx.lineTo(facing * R * (0.9 + punchExt * 0.6), -R * 0.05);
+      ctx.stroke();
+      ctx.fillStyle = "#ffd0a0";
+      ctx.beginPath();
+      ctx.arc(facing * R * (0.9 + punchExt * 0.6), -R * 0.05, R * 0.30, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "#5a2010";
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      // Impacto: 3 líneas cortas al frente del puño.
+      ctx.strokeStyle = "rgba(255, 230, 200, 0.8)";
+      ctx.lineWidth = 2;
+      for (var ik = 0; ik < 3; ik++) {
+        var iang = (ik - 1) * 0.5;
+        var ibx = facing * R * (0.9 + punchExt * 0.6) + Math.cos(iang) * facing * R * 0.5;
+        var iby = -R * 0.05 + Math.sin(iang) * R * 0.5;
+        ctx.beginPath();
+        ctx.moveTo(facing * R * (0.9 + punchExt * 0.6), -R * 0.05);
+        ctx.lineTo(ibx, iby);
+        ctx.stroke();
+      }
+    }
+    // Ojos grandes (fiero, decidido) — más entrecerrados al atacar.
+    var eyeH = attacking ? 0.5 : 1;
     ctx.fillStyle = "#fff";
     ctx.beginPath();
-    ctx.arc(-R * 0.28 + facing * 2, -R * 0.10, R * 0.28, 0, Math.PI * 2);
-    ctx.arc( R * 0.28 + facing * 2, -R * 0.10, R * 0.28, 0, Math.PI * 2);
+    ctx.ellipse(-R * 0.28 + facing * 2, -R * 0.10, R * 0.28, R * 0.28 * eyeH, 0, 0, Math.PI * 2);
+    ctx.ellipse( R * 0.28 + facing * 2, -R * 0.10, R * 0.28, R * 0.28 * eyeH, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.fillStyle = "#1a1010";
     ctx.beginPath();
-    ctx.arc(-R * 0.28 + facing * 4, -R * 0.05, R * 0.14, 0, Math.PI * 2);
-    ctx.arc( R * 0.28 + facing * 4, -R * 0.05, R * 0.14, 0, Math.PI * 2);
+    ctx.arc(-R * 0.28 + facing * 4, -R * 0.05, R * 0.14 * eyeH, 0, Math.PI * 2);
+    ctx.arc( R * 0.28 + facing * 4, -R * 0.05, R * 0.14 * eyeH, 0, Math.PI * 2);
     ctx.fill();
     // Boca firme (línea horizontal)
     ctx.strokeStyle = "#5a2010";

@@ -2002,6 +2002,22 @@
       potentiates: ["complemento", "neutrofilo"],
       bestIn: ["sangre"],
       affinity: "Fibrina · Coagulación"
+    },
+    trombo: {
+      strong: "Empuja a los gérmenes en cada golpe (knockback real)",
+      weak: "Daño bajo por sí solo — su verdadero golpe es la bomba al romperse",
+      synergyWith: ["langerhans"],
+      potentiates: [],
+      bestIn: ["piel"],
+      affinity: "Plaquetario · Coagulación"
+    },
+    centinela: {
+      strong: "Atrae los poderes especiales de los gérmenes (señuelo)",
+      weak: "Daño casi nulo — protege a las otras torres, no remata",
+      synergyWith: ["langerhans"],
+      potentiates: [],
+      bestIn: ["piel"],
+      affinity: "Centinela · Señuelo"
     }
   };
   var ENEMY_LORE = {
@@ -2013,6 +2029,10 @@
                       weak:   "Linfocito T citotóxico (lo atraviesa)" },
     candida:        { strong: "Pared blanca: resiste anticuerpos",
                       weak:   "Eosinófilo (gránulos antifúngicos), MAC" },
+    vih:            { strong: "Escudo spike: solo Linfocito T lo atraviesa de verdad",
+                      weak:   "Linfocito T (citotóxico), NK (rompe escudos virales)" },
+    dermatofito:    { strong: "Suelta esporas hijas que cazan torres directamente",
+                      weak:   "Eosinófilo (hongos), rematarlo antes de que esporule" },
     pseudomonas:    { strong: "Biofilm protector, suelta esporas buscadoras",
                       weak:   "MAC (ácido lo derrite), Mastocito (ralentiza)" },
     hpv:            { strong: "Esquivo y duradero",
@@ -5650,6 +5670,12 @@
       langerhans: { damage:   1.20 }  // marcado universal
     },
     plaqueta:    {
+      langerhans: { damage:   1.20 }  // marcado universal
+    },
+    trombo:      {
+      langerhans: { damage:   1.20 }  // marcado universal — también es daño directo
+    },
+    centinela:   {
       langerhans: { damage:   1.20 }  // marcado universal
     }
   };

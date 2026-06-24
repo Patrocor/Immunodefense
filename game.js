@@ -22039,23 +22039,34 @@
   // DenK, combo, timing) antes del guardián final.
   // xFrac/yFrac son relativos a la zona (0..1); se resuelven a coords
   // absolutas en buildPielVasoLevel() porque dependen de VW/VH actuales.
+  // bgImgRange: franja (fracción 0..1 del ancho real de pielvaso.PNG) que
+  // le corresponde a cada zona en el corte biológico continuo de la
+  // imagen real. Se panea suavemente DENTRO de ese rango mientras el
+  // jugador atraviesa la zona (ver drawPielVasoBackground). bgA/bgB
+  // quedan como fallback de gradiente si la imagen no carga.
   var PIELVASO_ZONES = [
     { name: "Epidermis rota", bgA: "#5a2018", bgB: "#8a4030",
+      bgImgRange: { x0: 0.00, x1: 0.16 },
       enemies: [{ kind: "epidermidis", xFrac: 0.55, hp: 2 }] },
     { name: "Dermis superficial", bgA: "#4a1810", bgB: "#6a2818",
+      bgImgRange: { x0: 0.10, x1: 0.32 },
       enemies: [{ kind: "aureus", xFrac: 0.38, hp: 4, capsule: 2 }],
       obstacles: [{ kind: "telarana", xFrac: 0.75 }] },
     { name: "Folículo piloso", bgA: "#301810", bgB: "#502820",
+      bgImgRange: { x0: 0.30, x1: 0.50 },
       enemies: [{ kind: "sarna", xFrac: 0.50, hp: 3, burrowed: true }] },
     { name: "Tejido conectivo", bgA: "#403018", bgB: "#5a4828",
+      bgImgRange: { x0: 0.46, x1: 0.74 },
       enemies: [
         { kind: "cacnes", xFrac: 0.28, hp: 2 },
         { kind: "hsv",    xFrac: 0.54, hp: 2 },
         { kind: "cacnes", xFrac: 0.80, hp: 2 }
       ] },
     { name: "Pared del vaso", bgA: "#5a1828", bgB: "#8a3050",
+      bgImgRange: { x0: 0.70, x1: 0.92 },
       obstacles: [{ kind: "vesselgate", xFrac: 0.60 }] },
     { name: "Guardián del vaso", bgA: "#3a0810", bgB: "#7a1020", widthMult: 1.4,
+      bgImgRange: { x0: 0.84, x1: 1.00 },
       boss: { kind: "aureus_guard", xFrac: 0.55, hp: 20 } }
   ];
 
@@ -22461,9 +22472,12 @@
     var levelWidth = !platformer ? VW : (organId === "pielvaso" ? VW * 6.4 : VW * 2.5);
     var startX = VW * 0.10;
     // groundY = línea de piso. Piel la alinea con la "plateau" del bg
-    // pintado (~52% VH); el plataformero usa un piso plano más bajo (sin
-    // imagen de fondo que lo defina) hasta que el tilemap (paso 6) lo reemplace.
-    var groundY = platformer ? VH * 0.62 : VH * 0.52;
+    // pintado (~52% VH). Piel→Vaso usa el fondo real (assets/pielvaso/
+    // pielvaso.PNG) cuya franja de piso pintada está ~78% de la altura
+    // de la imagen — ver drawPielVasoActors/render para el cálculo exacto.
+    // Corazón sigue con piso plano (sin imagen) hasta tener su propio fondo.
+    var groundY = !platformer ? VH * 0.52
+      : (organId === "pielvaso" ? VH * 0.72 : VH * 0.62);
     var bgBottom = VH * 0.92;
     state.heroLevel = {
       active: true,
@@ -23363,51 +23377,72 @@
       ctx.fillStyle = "rgba(255, 90, 110, " + (beatPulse * 0.18) + ")";
       ctx.fillRect(0, 0, VW, bgBottomScreen);
     } else if (hl.organ === "pielvaso") {
-      // Fondo por zona (canvas puro): qué zona corresponde se decide por
-      // la posición REAL de cámara (mundo, no decorativo) — cambia de
-      // tema al avanzar por las 6 zonas de PIELVASO_ZONES.
+      // Fondo por zona: qué zona corresponde se decide por la posición
+      // REAL de cámara (mundo, no decorativo) — cambia de tema al avanzar
+      // por las 6 zonas de PIELVASO_ZONES.
       var camCenterX = cx + VW * 0.5;
       var zIdx = 0;
       for (var zb = 0; zb < hl.pvZoneBounds.length - 1; zb++) {
         if (camCenterX >= hl.pvZoneBounds[zb]) zIdx = zb;
       }
       var zoneNow = PIELVASO_ZONES[zIdx];
-      // Tejido (arriba del piso): gradiente de la zona.
-      var pvGrad = ctx.createLinearGradient(0, 0, 0, hl.groundY);
-      pvGrad.addColorStop(0, zoneNow.bgA);
-      pvGrad.addColorStop(1, zoneNow.bgB);
-      ctx.fillStyle = pvGrad;
-      ctx.fillRect(0, 0, VW, hl.groundY);
-      // Textura orgánica de fondo: manchas difusas con seed FIJO por
-      // posición de mundo (no por frame) para que no titilen al scrollear.
-      ctx.save();
-      ctx.globalAlpha = 0.10;
-      ctx.fillStyle = zoneNow.bgB;
-      for (var tb = -1; tb < Math.ceil(VW / 230) + 1; tb++) {
-        var tbSeed = Math.floor(cx / 230) + tb;
-        var trx = ((tbSeed * 9301 + 49297) % 233280) / 233280;
-        var try_ = ((tbSeed * 4111 + 17) % 9973) / 9973;
-        var tbx = tbSeed * 230 - cx + trx * 160;
-        var tby = 20 + try_ * Math.max(20, hl.groundY - 60);
+      var pvImg = ASSETS.get("assets/pielvaso/pielvaso.PNG");
+      if (pvImg) {
+        // Imagen real: corte biológico continuo (epidermis→dermis→
+        // folículo→tejido conectivo→vaso), generada para este nivel.
+        // Se panea suavemente DENTRO de la franja de la zona actual a
+        // medida que la cámara avanza — no es un fondo estático fijo.
+        var zoneStart = hl.pvZoneBounds[zIdx], zoneW = hl.pvZoneBounds[zIdx + 1] - zoneStart;
+        var zoneProg = Math.max(0, Math.min(1, (camCenterX - zoneStart) / zoneW));
+        var rng = zoneNow.bgImgRange;
+        // 0.85 (no 0.55): la imagen fuente es 3:1 pero el destino (VW x
+        // bgBottomScreen) es bien más alto que ancho en mobile portrait —
+        // mostrar una franja muy angosta la estira/distorsiona de más.
+        // Con 0.85 el paneo es más sutil pero la proporción se ve mejor.
+        var viewFrac = (rng.x1 - rng.x0) * 0.85;
+        var panFrac = rng.x0 + (rng.x1 - rng.x0 - viewFrac) * zoneProg;
+        var pvSx = panFrac * pvImg.naturalWidth;
+        var pvSw = viewFrac * pvImg.naturalWidth;
+        ctx.drawImage(pvImg, pvSx, 0, pvSw, pvImg.naturalHeight, 0, 0, VW, bgBottomScreen);
+      } else {
+        // Fallback canvas (mientras carga la imagen real, o si fallara):
+        // Tejido (arriba del piso): gradiente de la zona.
+        var pvGrad = ctx.createLinearGradient(0, 0, 0, hl.groundY);
+        pvGrad.addColorStop(0, zoneNow.bgA);
+        pvGrad.addColorStop(1, zoneNow.bgB);
+        ctx.fillStyle = pvGrad;
+        ctx.fillRect(0, 0, VW, hl.groundY);
+        // Textura orgánica de fondo: manchas difusas con seed FIJO por
+        // posición de mundo (no por frame) para que no titilen al scrollear.
+        ctx.save();
+        ctx.globalAlpha = 0.10;
+        ctx.fillStyle = zoneNow.bgB;
+        for (var tb = -1; tb < Math.ceil(VW / 230) + 1; tb++) {
+          var tbSeed = Math.floor(cx / 230) + tb;
+          var trx = ((tbSeed * 9301 + 49297) % 233280) / 233280;
+          var try_ = ((tbSeed * 4111 + 17) % 9973) / 9973;
+          var tbx = tbSeed * 230 - cx + trx * 160;
+          var tby = 20 + try_ * Math.max(20, hl.groundY - 60);
+          ctx.beginPath();
+          ctx.arc(tbx, tby, 18 + try_ * 22, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+        // Banda de PISO: color sólido bien distinto del tejido de arriba,
+        // para que se note claramente dónde se puede caminar (queja real:
+        // "no se ve bien el nivel" — el piso se perdía en un gradiente liso).
+        var floorGrad = ctx.createLinearGradient(0, hl.groundY, 0, bgBottomScreen);
+        floorGrad.addColorStop(0, "#1c0e08");
+        floorGrad.addColorStop(1, "#0a0504");
+        ctx.fillStyle = floorGrad;
+        ctx.fillRect(0, hl.groundY, VW, bgBottomScreen - hl.groundY);
+        ctx.strokeStyle = "rgba(255, 210, 180, 0.35)";
+        ctx.lineWidth = 2;
         ctx.beginPath();
-        ctx.arc(tbx, tby, 18 + try_ * 22, 0, Math.PI * 2);
-        ctx.fill();
+        ctx.moveTo(0, hl.groundY);
+        ctx.lineTo(VW, hl.groundY);
+        ctx.stroke();
       }
-      ctx.restore();
-      // Banda de PISO: color sólido bien distinto del tejido de arriba,
-      // para que se note claramente dónde se puede caminar (queja real:
-      // "no se ve bien el nivel" — el piso se perdía en un gradiente liso).
-      var floorGrad = ctx.createLinearGradient(0, hl.groundY, 0, bgBottomScreen);
-      floorGrad.addColorStop(0, "#1c0e08");
-      floorGrad.addColorStop(1, "#0a0504");
-      ctx.fillStyle = floorGrad;
-      ctx.fillRect(0, hl.groundY, VW, bgBottomScreen - hl.groundY);
-      ctx.strokeStyle = "rgba(255, 210, 180, 0.35)";
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(0, hl.groundY);
-      ctx.lineTo(VW, hl.groundY);
-      ctx.stroke();
     } else {
       var skyGrad = ctx.createLinearGradient(0, 0, 0, bgBottomScreen);
       skyGrad.addColorStop(0, "#3a1410");

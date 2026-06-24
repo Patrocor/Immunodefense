@@ -22198,7 +22198,7 @@
       var canHurt = !(e.burrowed && !e.revealed);
       if (canHurt && hero.hurtCooldown <= 0) {
         var ddx = e.x - hero.x;
-        var hitR = e.isBoss ? 30 : 16;
+        var hitR = e.isBoss ? 42 : 24;
         if (Math.abs(ddx) < hitR + 14) {
           hero.hp -= 1;
           hero.hurtCooldown = 0.8;
@@ -22252,14 +22252,14 @@
       for (var j = 0; j < hl.enemies.length; j++) {
         var e = hl.enemies[j];
         if (e.dead || (e.burrowed && !e.revealed)) continue;
-        if (Math.abs(e.x - p.x) < 16) {
+        if (Math.abs(e.x - p.x) < 24) {
           pielVasoDamageEnemy(e, p.dmg, false);
           hitSomething = true;
           break;
         }
       }
       if (!hitSomething && hl.boss && !hl.boss.dead) {
-        if (Math.abs(hl.boss.x - p.x) < 26) {
+        if (Math.abs(hl.boss.x - p.x) < 42) {
           pielVasoDamageEnemy(hl.boss, p.dmg, false);
           hitSomething = true;
         }
@@ -22286,15 +22286,22 @@
       ctx.globalAlpha = 0.35;
       ctx.fillStyle = "#5a3a18";
       ctx.beginPath();
-      ctx.ellipse(sx, groundY - 2, 14, 5, 0, 0, Math.PI * 2);
+      ctx.ellipse(sx, groundY - 2, 22, 8, 0, 0, Math.PI * 2);
       ctx.fill();
       ctx.restore();
       return;
     }
     var col = PIELVASO_ENEMY_COLORS[e.kind] || { c: "#aaa", d: "#555" };
-    var r = e.isBoss ? 26 : 14;
+    // Tamaño a escala de los héroes (antes 14/26 — se veían canicas al
+    // lado de DenK/Mac, que rondan los 64-84px de ancho).
+    var r = e.isBoss ? 42 : 24;
     var cy = groundY - r * 0.7;
     ctx.save();
+    // Sombra de contacto con el piso — mismo tratamiento que los héroes.
+    ctx.fillStyle = "rgba(0, 0, 0, 0.35)";
+    ctx.beginPath();
+    ctx.ellipse(sx, groundY, r * 0.85, r * 0.22, 0, 0, Math.PI * 2);
+    ctx.fill();
     if (e.revealed) {
       ctx.shadowColor = "rgba(255, 230, 150, 0.9)";
       ctx.shadowBlur = 12;
@@ -22792,7 +22799,7 @@
             });
           } else {
             hero.attackCooldown = 0.55;
-            pielVasoMeleeHit(hl, hero, 32, 2);
+            pielVasoMeleeHit(hl, hero, 46, 2);
           }
           sfx("tick");
         }

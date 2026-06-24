@@ -23303,19 +23303,44 @@
     ctx.moveTo(R * 0.32, R * 0.62);
     ctx.lineTo(R * 0.32 - legSwing * R * 0.45, R * (0.95 - legTuck * 0.35));
     ctx.stroke();
-    // Dendritas (los procesos que dan nombre a la célula): 6 brazos radiales.
-    ctx.strokeStyle = "#6ec0d6";
-    ctx.lineWidth = 2;
+    // Dendritas (los procesos que dan nombre a la célula) — reaccionan
+    // DE VERDAD al movimiento: se arrastran hacia atrás al caminar (inercia
+    // real, contra la dirección de avance), se tensan adelante al atacar.
+    // 2 "antenas" primarias más largas con horquilla en la punta (dendrítica
+    // de verdad) + 6 más cortas alrededor — no son líneas radiales fijas.
     ctx.lineCap = "round";
-    for (var d = 0; d < 6; d++) {
-      var da = (d / 6) * Math.PI * 2 + animT * 0.3;
-      var len = R * (0.9 + 0.15 * Math.sin(animT * 2 + d));
+    for (var d = 0; d < 8; d++) {
+      var isPrimary = (d === 0 || d === 1);
+      var baseAngle = isPrimary
+        ? (d === 0 ? -Math.PI * 0.62 : -Math.PI * 0.38)
+        : (Math.PI * 0.15 + (d - 2) * (Math.PI * 1.7 / 6));
+      var drag = walking ? -facing * 0.35 : (attacking ? facing * 0.22 : 0);
+      var sway = Math.sin(animT * (isPrimary ? 2.2 : 3) + d * 1.3) * (isPrimary ? 0.16 : 0.10);
+      var da = baseAngle + drag + sway;
+      var len = isPrimary ? R * 1.15 : R * 0.55;
+      var baseR = R * 0.75;
+      var dbx = Math.cos(baseAngle) * baseR, dby = Math.sin(baseAngle) * baseR;
+      var dtx = Math.cos(da) * (baseR + len), dty = Math.sin(da) * (baseR + len);
+      ctx.strokeStyle = isPrimary ? "#a8e0f0" : "#6ec0d6";
+      ctx.lineWidth = isPrimary ? 2.2 : 1.6;
       ctx.beginPath();
-      ctx.moveTo(Math.cos(da) * R * 0.7, Math.sin(da) * R * 0.7);
-      ctx.lineTo(Math.cos(da) * (R + len * 0.5), Math.sin(da) * (R + len * 0.5));
+      ctx.moveTo(dbx, dby);
+      var dmx = (dbx + dtx) / 2 + Math.cos(da + Math.PI / 2) * len * 0.15;
+      var dmy = (dby + dty) / 2 + Math.sin(da + Math.PI / 2) * len * 0.15;
+      ctx.quadraticCurveTo(dmx, dmy, dtx, dty);
       ctx.stroke();
+      if (isPrimary) {
+        var forkA = da + 0.35, forkB = da - 0.35;
+        ctx.beginPath();
+        ctx.moveTo(dtx, dty);
+        ctx.lineTo(dtx + Math.cos(forkA) * R * 0.25, dty + Math.sin(forkA) * R * 0.25);
+        ctx.moveTo(dtx, dty);
+        ctx.lineTo(dtx + Math.cos(forkB) * R * 0.25, dty + Math.sin(forkB) * R * 0.25);
+        ctx.stroke();
+      }
     }
-    // Cuerpo celeste — comprimido lateral al saltar (squash/stretch real).
+    // Cuerpo celeste — silueta con leve ondulación (no un disco perfecto),
+    // comprimido lateral al saltar (squash/stretch real).
     var sqx = jumping ? 0.92 : 1, sqy = jumping ? 1.10 : 1;
     ctx.save();
     ctx.scale(sqx, sqy);
@@ -23325,7 +23350,14 @@
     grad.addColorStop(1, "#3a7d92");
     ctx.fillStyle = grad;
     ctx.beginPath();
-    ctx.arc(0, 0, R * pulse, 0, Math.PI * 2);
+    var bodyPts = 12;
+    for (var bp = 0; bp <= bodyPts; bp++) {
+      var ba = (bp / bodyPts) * Math.PI * 2;
+      var wob = 1 + Math.sin(ba * 5 + animT * 1.2) * 0.04;
+      var bx2 = Math.cos(ba) * R * pulse * wob, by2 = Math.sin(ba) * R * pulse * wob;
+      if (bp === 0) ctx.moveTo(bx2, by2); else ctx.lineTo(bx2, by2);
+    }
+    ctx.closePath();
     ctx.fill();
     ctx.strokeStyle = "#2a5a6e";
     ctx.lineWidth = 1.5;
@@ -23402,7 +23434,10 @@
     ctx.moveTo(R * 0.36, R * 0.55);
     ctx.lineTo(R * 0.36, R * (0.95 - (1 - stomp) * 0.12 - legTuck * 0.3));
     ctx.stroke();
-    // Pseudópodos (bumps irregulares en el contorno) — comprimido al saltar.
+    // Pseudópodo REAL: el lado hacia donde camina se estira de verdad
+    // (un macrófago se mueve extendiendo y retrayendo pseudópodos) — el
+    // lado contrario se comprime. No son bultos fijos, cambian con el
+    // movimiento real. Comprimido entero al saltar (squash/stretch).
     var sqx = jumping ? 0.90 : 1, sqy = jumping ? 1.12 : 1;
     ctx.save();
     ctx.scale(sqx, sqy);
@@ -23412,10 +23447,14 @@
     grad.addColorStop(1, "#7a3010");
     ctx.fillStyle = grad;
     ctx.beginPath();
-    var bumps = 8;
+    var bumps = 10;
+    var pseudopodPulse = 0.6 + 0.4 * Math.sin(animT * 6);
     for (var i = 0; i <= bumps; i++) {
       var a = (i / bumps) * Math.PI * 2;
-      var rr = R * pulse * (0.92 + 0.10 * Math.sin(a * 3 + animT * 0.5));
+      var dirAlign = Math.cos(a) * facing;          // 1 = mirando hacia el avance
+      var stretch = walking ? 1 + Math.max(0, dirAlign) * 0.40 * pseudopodPulse : 1;
+      var compress = walking ? 1 - Math.max(0, -dirAlign) * 0.16 : 1;
+      var rr = R * pulse * (0.92 + 0.10 * Math.sin(a * 3 + animT * 0.5)) * stretch * compress;
       var px = Math.cos(a) * rr;
       var py = Math.sin(a) * rr;
       if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);

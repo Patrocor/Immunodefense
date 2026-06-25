@@ -22070,26 +22070,39 @@
       obstacles: [{ kind: "telarana", xFrac: 0.40 }],
       terrain: [{ type: "pit", x0: 0.22, x1: 0.30 }, { type: "pit", x0: 0.68, x1: 0.76 }],
       powerup: { kind: "pierce", xFrac: 0.34 } },
-    { name: "Folículo piloso", bgA: "#301810", bgB: "#502820", widthMult: 2.0,
+    // Folículo piloso: YA NO es una zona horizontal — es un POZO vertical
+    // real (la cámara sigue Y, no X). Angosto a propósito (pasillo entre
+    // 2 paredes), el héroe cae/desciende controlando con el planeo real
+    // de DenK. Sarna a distintas profundidades (yFrac 0=arriba, 1=abajo),
+    // pegada a una pared u otra (xFrac cerca de 0 o 1 dentro del pozo).
+    { name: "Folículo piloso", bgA: "#301810", bgB: "#502820", widthMult: 1.2,
       bgImgRange: { x0: 0.30, x1: 0.50 },
+      vertical: true, shaftDepthMult: 2.6, shaftWallIn: 0.14,
       enemies: [
-        { kind: "sarna", xFrac: 0.15, hp: 3, burrowed: true },
-        { kind: "sarna", xFrac: 0.50, hp: 3, burrowed: true },
-        { kind: "sarna", xFrac: 0.85, hp: 3, burrowed: true }
+        { kind: "sarna", xFrac: 0.18, yFrac: 0.22, hp: 3, burrowed: true },
+        { kind: "sarna", xFrac: 0.82, yFrac: 0.50, hp: 3, burrowed: true },
+        { kind: "sarna", xFrac: 0.18, yFrac: 0.78, hp: 3, burrowed: true }
       ],
-      terrain: [{ type: "pit", x0: 0.30, x1: 0.38 }, { type: "pit", x0: 0.65, x1: 0.73 }],
-      powerup: { kind: "netSpecial", xFrac: 0.42 } },
+      powerup: { kind: "netSpecial", xFrac: 0.5, yFrac: 0.62 } },
+    // Tejido conectivo: plataformas reales a distinta altura (las
+    // células de grasa de la imagen — bloques sólidos, no líneas
+    // flotantes) en vez de una sola línea con huecos.
     { name: "Tejido conectivo", bgA: "#403018", bgB: "#5a4828", widthMult: 2.0,
       bgImgRange: { x0: 0.46, x1: 0.74 },
       enemies: [
         { kind: "cacnes", xFrac: 0.08, hp: 2 },
-        { kind: "hsv",    xFrac: 0.22, hp: 2 },
+        { kind: "hsv",    xFrac: 0.36, hp: 2, yOffset: 64 },
         { kind: "cacnes", xFrac: 0.50, hp: 2 },
-        { kind: "hsv",    xFrac: 0.64, hp: 2 },
+        { kind: "hsv",    xFrac: 0.66, hp: 2, yOffset: 104 },
         { kind: "cacnes", xFrac: 0.92, hp: 2 }
       ],
-      powerup: { kind: "macSplash", xFrac: 0.45 },
-      terrain: [{ type: "pit", x0: 0.32, x1: 0.40 }, { type: "pit", x0: 0.74, x1: 0.82 }] },
+      powerup: { kind: "macSplash", xFrac: 0.69, yOffset: 104 },
+      terrain: [
+        { type: "pit", x0: 0.18, x1: 0.26 },
+        { type: "platform", x0: 0.31, x1: 0.43, height: 64 },
+        { type: "pit", x0: 0.78, x1: 0.86 },
+        { type: "platform", x0: 0.59, x1: 0.73, height: 104 }
+      ] },
     { name: "Pared del vaso", bgA: "#5a1828", bgB: "#8a3050", widthMult: 2.0,
       bgImgRange: { x0: 0.70, x1: 0.92 },
       obstacles: [{ kind: "vesselgate", xFrac: 0.38 }, { kind: "vesselgate", xFrac: 0.80 }],
@@ -22145,32 +22158,49 @@
     // Poderes/herramientas (ver state.heroUpgrades) — si ya se consiguió
     // antes (persiste entre niveles), no vuelve a aparecer.
     hl.powerups = [];
-    // Terreno real (huecos con pinches) — coords absolutas de mundo,
-    // resueltas desde las fracciones de PIELVASO_ZONES igual que enemigos.
+    // Terreno real (huecos con pinches, plataformas elevadas) — coords
+    // absolutas de mundo, resueltas desde las fracciones de PIELVASO_ZONES
+    // igual que enemigos.
     hl.terrain = [];
+    // Pozos verticales (Folículo): cámara sigue Y dentro de estos rangos X.
+    hl.shafts = [];
     var PIT_DEPTH = 46;
     for (var zj = 0; zj < zones.length; zj++) {
       var z = zones[zj];
       var zx0 = bounds[zj], zw = bounds[zj + 1] - bounds[zj];
+      var shaft = null;
+      if (z.vertical) {
+        var wallIn = z.shaftWallIn || 0.25;
+        shaft = {
+          x0: zx0, x1: bounds[zj + 1],
+          leftWallX: zx0 + wallIn * zw,
+          rightWallX: zx0 + (1 - wallIn) * zw,
+          topY: hl.groundY,
+          bottomY: hl.groundY + (z.shaftDepthMult || 2) * VH
+        };
+        hl.shafts.push(shaft);
+      }
       if (z.enemies) {
         for (var ei = 0; ei < z.enemies.length; ei++) {
           var ed = z.enemies[ei];
-          hl.enemies.push(makePielVasoEnemy(ed, zx0 + ed.xFrac * zw, hl.groundY));
+          var ey = shaft
+            ? shaft.topY + (ed.yFrac || 0) * (shaft.bottomY - shaft.topY)
+            : hl.groundY - (ed.yOffset || 0);
+          hl.enemies.push(makePielVasoEnemy(ed, zx0 + ed.xFrac * zw, ey));
         }
       }
       if (z.obstacles) {
         for (var oi = 0; oi < z.obstacles.length; oi++) {
           var od = z.obstacles[oi];
-          hl.obstacles.push(makePielVasoObstacle(od, zx0 + od.xFrac * zw, hl.groundY));
+          hl.obstacles.push(makePielVasoObstacle(od, zx0 + od.xFrac * zw, hl.groundY - (od.yOffset || 0)));
         }
       }
       if (z.powerup && !state.heroUpgrades[z.powerup.kind]) {
-        hl.powerups.push({
-          kind: z.powerup.kind,
-          x: zx0 + z.powerup.xFrac * zw,
-          y: hl.groundY,
-          collected: false
-        });
+        var pu = z.powerup;
+        var puy = shaft
+          ? shaft.topY + (pu.yFrac || 0) * (shaft.bottomY - shaft.topY)
+          : hl.groundY - (pu.yOffset || 0);
+        hl.powerups.push({ kind: pu.kind, x: zx0 + pu.xFrac * zw, y: puy, collected: false });
       }
       if (z.terrain) {
         for (var ti = 0; ti < z.terrain.length; ti++) {
@@ -22179,7 +22209,8 @@
             type: td.type,
             x0: zx0 + td.x0 * zw,
             x1: zx0 + td.x1 * zw,
-            depth: PIT_DEPTH
+            depth: PIT_DEPTH,
+            height: td.height || 0
           });
         }
       }
@@ -22192,14 +22223,25 @@
       }
     }
   }
-  // Altura real del piso en X (Piel→Vaso): hl.groundY normal, o más abajo
-  // (+ PIT_DEPTH) si X cae dentro de un hueco — usado por la física del
-  // héroe Y por el render del piso/pinches.
+  // Devuelve el pozo vertical (si existe) cuyo rango X contiene a worldX.
+  function pielVasoShaftAt(hl, worldX) {
+    if (!hl.shafts) return null;
+    for (var i = 0; i < hl.shafts.length; i++) {
+      var s = hl.shafts[i];
+      if (worldX >= s.x0 && worldX <= s.x1) return s;
+    }
+    return null;
+  }
+  // Altura real del piso en X (Piel→Vaso): hl.groundY normal, más abajo
+  // en un hueco (+depth, con pinches), o más arriba sobre una plataforma
+  // (-height, célula sólida) — usado por la física del héroe y el render.
   function pielVasoGroundAt(hl, worldX) {
     if (!hl.terrain) return hl.groundY;
     for (var i = 0; i < hl.terrain.length; i++) {
       var t = hl.terrain[i];
-      if (t.type === "pit" && worldX > t.x0 && worldX < t.x1) return hl.groundY + t.depth;
+      if (worldX <= t.x0 || worldX >= t.x1) continue;
+      if (t.type === "pit") return hl.groundY + t.depth;
+      if (t.type === "platform") return hl.groundY - t.height;
     }
     return hl.groundY;
   }
@@ -22226,6 +22268,9 @@
     for (var i = 0; i < targets.length; i++) {
       var e = targets[i];
       if (e.dead || (e.burrowed && !e.revealed)) continue;
+      // Gate vertical: con plataformas/pozo real, un enemigo puede estar
+      // cerca en X pero a otra altura — el melee no debe atravesar pisos.
+      if (Math.abs(e.y - hero.y) > 40) continue;
       var dx = e.x - hero.x;
       if (Math.abs(dx) > range) continue;
       if ((dx > 1 && hero.facing < 0) || (dx < -1 && hero.facing > 0)) continue;
@@ -22234,7 +22279,7 @@
         for (var j = 0; j < targets.length; j++) {
           var e2 = targets[j];
           if (e2 === e || e2.dead || (e2.burrowed && !e2.revealed)) continue;
-          if (Math.abs(e2.x - e.x) <= 50) pielVasoDamageEnemy(e2, Math.ceil(dmg * 0.6), false);
+          if (Math.abs(e2.x - e.x) <= 50 && Math.abs(e2.y - e.y) <= 40) pielVasoDamageEnemy(e2, Math.ceil(dmg * 0.6), false);
         }
       }
     }
@@ -22246,7 +22291,7 @@
     for (var i = 0; i < hl.enemies.length; i++) {
       var e = hl.enemies[i];
       if (e.dead) continue;
-      if (Math.abs(e.x - hero.x) > radius) continue;
+      if (Math.abs(e.x - hero.x) > radius || Math.abs(e.y - hero.y) > radius) continue;
       if (e.burrowed) { e.revealed = true; e.revealT = duration; }
       if (immobilize) e.stunT = duration;
     }
@@ -22263,7 +22308,7 @@
       for (var ei = 0; ei < hl.enemies.length; ei++) {
         var e = hl.enemies[ei];
         if (e.dead) continue;
-        if (Math.abs(e.x - hero.x) <= range) e.stunT = 2.5;
+        if (Math.abs(e.x - hero.x) <= range && Math.abs(e.y - hero.y) <= 50) e.stunT = 2.5;
       }
     }
   }
@@ -22302,8 +22347,12 @@
       var canHurt = !(e.burrowed && !e.revealed) && !stunned;
       if (canHurt && hero.hurtCooldown <= 0) {
         var ddx = e.x - hero.x;
+        var ddy = e.y - hero.y;
         var hitR = e.isBoss ? 42 : 24;
-        if (Math.abs(ddx) < hitR + 14) {
+        // ddy gateado: con plataformas/pozo, un enemigo puede estar cerca
+        // en X pero a otra altura real (sobre una plataforma, en el
+        // fondo de un hueco) — sin esto dañaría "a través" del piso.
+        if (Math.abs(ddx) < hitR + 14 && Math.abs(ddy) < hitR + 20) {
           hero.hp -= 1;
           hero.hurtCooldown = 0.8;
           sfx("playerHurt");
@@ -22319,7 +22368,7 @@
     var hero = hl[hl.activeHero];
     for (var i = hl.powerups.length - 1; i >= 0; i--) {
       var pu = hl.powerups[i];
-      if (Math.abs(pu.x - hero.x) < 30) {
+      if (Math.abs(pu.x - hero.x) < 30 && Math.abs(pu.y - hero.y) < 50) {
         state.heroUpgrades[pu.kind] = true;
         var meta = PIELVASO_POWERUPS[pu.kind];
         showMsg("¡" + meta.label + "! " + meta.desc);
@@ -22377,7 +22426,7 @@
         var e = hl.enemies[j];
         if (e.dead || (e.burrowed && !e.revealed)) continue;
         if (p.hit && p.hit.indexOf(e) !== -1) continue;
-        if (Math.abs(e.x - p.x) < 24) {
+        if (Math.abs(e.x - p.x) < 24 && Math.abs(e.y - p.y) < 28) {
           pielVasoDamageEnemy(e, p.dmg, false);
           if (p.pierce) { if (!p.hit) p.hit = []; p.hit.push(e); }
           else { hitSomething = true; break; }
@@ -22529,6 +22578,7 @@
     ctx.restore();
   }
   function drawPielVasoActors(hl, cx) {
+    var cy = hl.cameraY || 0;
     // Cápsulas de poder — flotan y pulsan para invitar al tap/paso.
     if (hl.powerups) {
       for (var pu2 = 0; pu2 < hl.powerups.length; pu2++) {
@@ -22537,7 +22587,7 @@
         if (pux < -30 || pux > VW + 30) continue;
         var meta = PIELVASO_POWERUPS[pu.kind];
         var puFloat = Math.sin(state.time * 2.5 + pu2) * 5;
-        var puY = hl.groundY - 40 + puFloat;
+        var puY = pu.y - 40 + puFloat - cy;
         var puPulse = 0.5 + 0.5 * Math.sin(state.time * 4 + pu2);
         ctx.save();
         ctx.fillStyle = colorAlpha(meta.color, 0.25 + puPulse * 0.25);
@@ -22587,38 +22637,70 @@
     if (hl.terrain) {
       for (var pi2 = 0; pi2 < hl.terrain.length; pi2++) {
         var pit = hl.terrain[pi2];
-        if (pit.type !== "pit") continue;
         var px0 = pit.x0 - cx, px1 = pit.x1 - cx;
         if (px1 < -20 || px0 > VW + 20) continue;
-        var pitBotY = hl.groundY + pit.depth;
-        ctx.save();
-        ctx.fillStyle = "#0a0604";
-        ctx.fillRect(px0, hl.groundY - 6, px1 - px0, pit.depth + 26);
-        // Pinches: triángulos apuntando hacia arriba desde el fondo real.
-        var spikeW = 11, nSpikes = Math.max(2, Math.round((px1 - px0) / spikeW));
-        ctx.fillStyle = "#c8c8d0";
-        ctx.strokeStyle = "#5a5a64";
-        ctx.lineWidth = 1;
-        for (var sk = 0; sk < nSpikes; sk++) {
-          var skx = px0 + (sk + 0.5) * ((px1 - px0) / nSpikes);
+        if (pit.type === "pit") {
+          var pitBotY = hl.groundY + pit.depth - cy;
+          var pitTopY = hl.groundY - cy;
+          ctx.save();
+          ctx.fillStyle = "#0a0604";
+          ctx.fillRect(px0, pitTopY - 6, px1 - px0, pit.depth + 26);
+          // Pinches: triángulos apuntando hacia arriba desde el fondo real.
+          var spikeW = 11, nSpikes = Math.max(2, Math.round((px1 - px0) / spikeW));
+          ctx.fillStyle = "#c8c8d0";
+          ctx.strokeStyle = "#5a5a64";
+          ctx.lineWidth = 1;
+          for (var sk = 0; sk < nSpikes; sk++) {
+            var skx = px0 + (sk + 0.5) * ((px1 - px0) / nSpikes);
+            ctx.beginPath();
+            ctx.moveTo(skx - spikeW * 0.42, pitBotY);
+            ctx.lineTo(skx, pitBotY - 14);
+            ctx.lineTo(skx + spikeW * 0.42, pitBotY);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+          }
+          // Bordes laterales VISIBLES — labios de tejido que marcan la
+          // pared real (antes invisible, solo lógica de colisión).
+          ctx.fillStyle = "#7a3828";
+          ctx.fillRect(px0 - 5, pitTopY - 10, 5, pit.depth + 16);
+          ctx.fillRect(px1, pitTopY - 10, 5, pit.depth + 16);
+          ctx.strokeStyle = "rgba(255, 210, 180, 0.45)";
+          ctx.lineWidth = 2;
           ctx.beginPath();
-          ctx.moveTo(skx - spikeW * 0.42, pitBotY);
-          ctx.lineTo(skx, pitBotY - 14);
-          ctx.lineTo(skx + spikeW * 0.42, pitBotY);
+          ctx.moveTo(px0, pitTopY);
+          ctx.lineTo(px0, pitBotY);
+          ctx.moveTo(px1, pitTopY);
+          ctx.lineTo(px1, pitBotY);
+          ctx.stroke();
+          ctx.restore();
+        } else if (pit.type === "platform") {
+          // Plataforma sólida (célula de tejido) — bloque visible real,
+          // no una línea flotante.
+          var platTopY = hl.groundY - pit.height - cy;
+          var platBotY = hl.groundY - cy;
+          ctx.save();
+          var platGrad = ctx.createLinearGradient(0, platTopY, 0, platBotY);
+          platGrad.addColorStop(0, "#c8985a");
+          platGrad.addColorStop(1, "#7a5028");
+          ctx.fillStyle = platGrad;
+          ctx.beginPath();
+          ctx.moveTo(px0, platBotY);
+          ctx.lineTo(px0, platTopY + 10);
+          ctx.quadraticCurveTo(px0, platTopY, px0 + 10, platTopY);
+          ctx.lineTo(px1 - 10, platTopY);
+          ctx.quadraticCurveTo(px1, platTopY, px1, platTopY + 10);
+          ctx.lineTo(px1, platBotY);
           ctx.closePath();
           ctx.fill();
+          ctx.strokeStyle = "rgba(255, 220, 180, 0.55)";
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(px0, platTopY + 4);
+          ctx.lineTo(px1, platTopY + 4);
           ctx.stroke();
+          ctx.restore();
         }
-        // Borde superior del hueco (marca clara dónde termina el piso real).
-        ctx.strokeStyle = "rgba(255, 210, 180, 0.45)";
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(px0, hl.groundY);
-        ctx.lineTo(px0, pitBotY);
-        ctx.moveTo(px1, hl.groundY);
-        ctx.lineTo(px1, pitBotY);
-        ctx.stroke();
-        ctx.restore();
       }
     }
     for (var oi = 0; oi < hl.obstacles.length; oi++) {
@@ -22626,11 +22708,12 @@
       if (o.broken) continue;
       var ox = o.x - cx;
       if (ox < -40 || ox > VW + 40) continue;
+      var oGroundScreenY = hl.groundY - cy;
       if (o.kind === "telarana") {
         ctx.save();
         ctx.strokeStyle = "rgba(230, 220, 200, 0.75)";
         ctx.lineWidth = 1.5;
-        var topY = hl.groundY - 64, botY = hl.groundY;
+        var topY = oGroundScreenY - 64, botY = oGroundScreenY;
         for (var wl = 0; wl < 4; wl++) {
           ctx.beginPath();
           ctx.moveTo(ox - 12 + wl * 8, topY);
@@ -22648,10 +22731,10 @@
       } else if (o.kind === "vesselgate") {
         ctx.save();
         ctx.fillStyle = o.gateOpen ? "rgba(120, 220, 150, 0.30)" : "rgba(220, 70, 70, 0.55)";
-        ctx.fillRect(ox - 9, hl.groundY - 70, 18, 70);
+        ctx.fillRect(ox - 9, oGroundScreenY - 70, 18, 70);
         ctx.strokeStyle = o.gateOpen ? "rgba(180, 255, 200, 0.85)" : "rgba(255, 140, 130, 0.9)";
         ctx.lineWidth = 2;
-        ctx.strokeRect(ox - 9, hl.groundY - 70, 18, 70);
+        ctx.strokeRect(ox - 9, oGroundScreenY - 70, 18, 70);
         ctx.restore();
       }
     }
@@ -22660,10 +22743,10 @@
       if (e.dead) continue;
       var ex = e.x - cx;
       if (ex < -40 || ex > VW + 40) continue;
-      drawPielVasoEnemySprite(e, ex, hl.groundY);
+      drawPielVasoEnemySprite(e, ex, e.y - cy);
     }
     if (hl.boss && !hl.boss.dead && hl.boss.x - cx > -40 && hl.boss.x - cx < VW + 40) {
-      drawPielVasoEnemySprite(hl.boss, hl.boss.x - cx, hl.groundY);
+      drawPielVasoEnemySprite(hl.boss, hl.boss.x - cx, hl.boss.y - cy);
       ctx.save();
       var barW = 140, barX = VW / 2 - barW / 2, barY = 60;
       ctx.fillStyle = "rgba(0,0,0,0.5)";
@@ -22685,9 +22768,32 @@
       ctx.save();
       ctx.fillStyle = p.enemy ? "rgba(120, 220, 90, 0.9)" : "rgba(140, 220, 255, 0.95)";
       ctx.beginPath();
-      ctx.arc(px, p.y, p.enemy ? 6 : 5, 0, Math.PI * 2);
+      ctx.arc(px, p.y - cy, p.enemy ? 6 : 5, 0, Math.PI * 2);
       ctx.fill();
       ctx.restore();
+    }
+    // Pozo vertical (Folículo): paredes VISIBLES a los lados + viñeta
+    // que oscurece con la profundidad (sensación real de "bajando").
+    if (hl.shafts) {
+      for (var shi = 0; shi < hl.shafts.length; shi++) {
+        var sh = hl.shafts[shi];
+        var slx = sh.leftWallX - cx, srx = sh.rightWallX - cx;
+        if (srx < -10 || slx > VW + 10) continue;
+        ctx.save();
+        var wallGrad = ctx.createLinearGradient(0, 0, 0, VH);
+        wallGrad.addColorStop(0, "#5a3020");
+        wallGrad.addColorStop(1, "#2a1208");
+        ctx.fillStyle = wallGrad;
+        if (slx > -200) ctx.fillRect(slx - 200, 0, 200, VH);
+        if (srx < VW + 200) ctx.fillRect(srx, 0, 200, VH);
+        ctx.strokeStyle = "rgba(255, 200, 160, 0.35)";
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(slx, 0); ctx.lineTo(slx, VH);
+        ctx.moveTo(srx, 0); ctx.lineTo(srx, VH);
+        ctx.stroke();
+        ctx.restore();
+      }
     }
   }
 
@@ -22697,8 +22803,13 @@
     // Piel: bg FIJO, no scroll, levelWidth = VW (cinemática automática).
     // Plataformero (corazón y los que sigan): nivel ancho con scroll real,
     // input libre — ver spec hero-level-corazon-design.md. Piel→Vaso tiene
-    // 6 zonas (PIELVASO_ZONES) — más ancho que el placeholder de corazón.
-    var levelWidth = !platformer ? VW : (organId === "pielvaso" ? VW * 12.8 : VW * 2.5);
+    // 6 zonas (PIELVASO_ZONES) — el ancho total se suma de sus widthMult
+    // reales (no un número fijo, para no desincronizarse si cambian).
+    var pvTotalWidthMult = 0;
+    for (var pvwi = 0; pvwi < PIELVASO_ZONES.length; pvwi++) {
+      pvTotalWidthMult += (PIELVASO_ZONES[pvwi].widthMult || 1);
+    }
+    var levelWidth = !platformer ? VW : (organId === "pielvaso" ? VW * pvTotalWidthMult : VW * 2.5);
     var startX = VW * 0.10;
     // groundY = línea de piso. Piel la alinea con la "plateau" del bg
     // pintado (~52% VH). Piel→Vaso usa el fondo real (assets/pielvaso/
@@ -22728,6 +22839,7 @@
       // Dimensiones del nivel + cámara.
       levelWidth: levelWidth,
       cameraX: 0,
+      cameraY: 0,
       finishX: levelWidth - 80,               // donde termina el nivel
       activeHero: "denk",
       denk: {
@@ -22931,43 +23043,79 @@
     hero.x += hero.vx * dt;
     hero.y += hero.vy * dt;
 
-    // Colisión con el piso — terreno real en Piel→Vaso (huecos más abajo
-    // con pinches), plano en los demás niveles hasta tener su propio terreno.
-    var localGroundY = (hl.organ === "pielvaso") ? pielVasoGroundAt(hl, hero.x) : hl.groundY;
-    if (hero.y >= localGroundY) {
-      var fellInPit = localGroundY > hl.groundY + 1;
-      hero.y = localGroundY;
-      hero.vy = 0;
-      hero.grounded = true;
-      hero.usedDoubleJump = false;
-      // Pinches del fondo del hueco: daño real mientras se queda parado.
-      if (fellInPit && hero.hurtCooldown <= 0) {
-        hero.hp -= 1;
-        hero.hurtCooldown = 0.8;
-        sfx("playerHurt");
-        pielVasoCheckHeroDeath(hl);
+    // POZO VERTICAL (Folículo): dentro de este rango X no hay piso normal
+    // — cae/desciende libre (el planeo real de DenK controla la caída de
+    // verdad acá) hasta el fondo del pozo. Paredes del pozo limitan el
+    // movimiento horizontal — anulan la colisión de piso normal.
+    var pvShaft = (hl.organ === "pielvaso") ? pielVasoShaftAt(hl, hero.x) : null;
+    if (pvShaft) {
+      if (hero.x < pvShaft.leftWallX + 14) { hero.x = pvShaft.leftWallX + 14; if (hero.vx < 0) hero.vx = 0; }
+      if (hero.x > pvShaft.rightWallX - 14) { hero.x = pvShaft.rightWallX - 14; if (hero.vx > 0) hero.vx = 0; }
+      if (hero.y >= pvShaft.bottomY) {
+        // Tocó fondo: no hay piso físico real ahí abajo en la imagen, así
+        // que la salida se resuelve como transición directa a la altura
+        // normal — el impulso de la caída te lleva a la siguiente zona
+        // (igual criterio que otras transiciones de zona del nivel).
+        hero.y = hl.groundY;
+        hero.x = pvShaft.x1 + 24;
+        hero.vy = 0;
+        hero.grounded = true;
+        hero.usedDoubleJump = false;
+        sfx("tick");
+        triggerShake(0.12, 4);
+        pvShaft = null;
+      } else {
+        hero.grounded = false;
       }
     } else {
-      hero.grounded = false;
+      // Colisión con el piso — terreno real en Piel→Vaso (huecos más abajo
+      // con pinches, plataformas más arriba), plano en los demás niveles
+      // hasta tener su propio terreno.
+      var localGroundY = (hl.organ === "pielvaso") ? pielVasoGroundAt(hl, hero.x) : hl.groundY;
+      if (hero.y >= localGroundY) {
+        var fellInPit = localGroundY > hl.groundY + 1;
+        hero.y = localGroundY;
+        hero.vy = 0;
+        hero.grounded = true;
+        hero.usedDoubleJump = false;
+        // Pinches del fondo del hueco: daño real mientras se queda parado.
+        if (fellInPit && hero.hurtCooldown <= 0) {
+          hero.hp -= 1;
+          hero.hurtCooldown = 0.8;
+          sfx("playerHurt");
+          pielVasoCheckHeroDeath(hl);
+        }
+      } else {
+        hero.grounded = false;
+      }
     }
     // Bordes del NIVEL.
     if (hero.x < 14) hero.x = 14;
     if (hero.x > hl.levelWidth - 14) hero.x = hl.levelWidth - 14;
 
-    // HUECOS (Piel→Vaso): pared invisible en los bordes que SOLO bloquea
-    // si está parado en el piso — en el aire (saltando) cruza libre. Esto
-    // fuerza un salto real tanto para entrar como para salir del hueco.
-    if (hl.terrain && hero.grounded) {
+    // HUECOS Y PLATAFORMAS (Piel→Vaso): pared VISIBLE (ver render) en los
+    // bordes que SOLO bloquea estando en el piso — en el aire cruza/sube
+    // libre. Esto fuerza un salto real para entrar a un hueco o subir a
+    // una plataforma, no se puede simplemente caminar a través.
+    if (hl.terrain && hero.grounded && !pvShaft) {
       for (var pti = 0; pti < hl.terrain.length; pti++) {
         var pit = hl.terrain[pti];
-        if (pit.type !== "pit") continue;
-        var insidePit = hero.x > pit.x0 && hero.x < pit.x1;
-        if (!insidePit) {
-          if (hero.x + 14 > pit.x0 && hero.x < pit.x0) { hero.x = pit.x0 - 14; hero.vx = 0; }
-          if (hero.x - 14 < pit.x1 && hero.x > pit.x1) { hero.x = pit.x1 + 14; hero.vx = 0; }
-        } else {
-          if (hero.x - 14 < pit.x0) { hero.x = pit.x0 + 14; hero.vx = 0; }
-          if (hero.x + 14 > pit.x1) { hero.x = pit.x1 - 14; hero.vx = 0; }
+        if (pit.type === "pit") {
+          var insidePit = hero.x > pit.x0 && hero.x < pit.x1;
+          if (!insidePit) {
+            if (hero.x + 14 > pit.x0 && hero.x < pit.x0) { hero.x = pit.x0 - 14; hero.vx = 0; }
+            if (hero.x - 14 < pit.x1 && hero.x > pit.x1) { hero.x = pit.x1 + 14; hero.vx = 0; }
+          } else {
+            if (hero.x - 14 < pit.x0) { hero.x = pit.x0 + 14; hero.vx = 0; }
+            if (hero.x + 14 > pit.x1) { hero.x = pit.x1 - 14; hero.vx = 0; }
+          }
+        } else if (pit.type === "platform") {
+          // Solo bloquea SUBIR caminando desde más abajo (fuerza el
+          // salto real); bajar caminando hacia el borde es libre.
+          if (hero.y > hl.groundY - pit.height + 1) {
+            if (hero.x + 14 > pit.x0 && hero.x < pit.x0) { hero.x = pit.x0 - 14; hero.vx = 0; }
+            if (hero.x - 14 < pit.x1 && hero.x > pit.x1) { hero.x = pit.x1 + 14; hero.vx = 0; }
+          }
         }
       }
     }
@@ -23046,10 +23194,26 @@
     }
 
     // Cámara: sigue al héroe activo manteniéndolo cerca del centro-izquierda.
-    var targetCamX = hero.x - VW * 0.35;
+    // Dentro de un pozo vertical la cámara X queda FIJA al centro del pozo
+    // (no sigue al héroe) — el pozo es angosto, si la cámara siguiera con
+    // el mismo offset se verían las zonas vecinas en los bordes de pantalla.
+    var targetCamX;
+    if (pvShaft) {
+      targetCamX = (pvShaft.x0 + pvShaft.x1) / 2 - VW * 0.5;
+    } else {
+      targetCamX = hero.x - VW * 0.35;
+    }
     targetCamX = Math.max(0, Math.min(hl.levelWidth - VW, targetCamX));
     // Lerp suave (smooth follow).
     hl.cameraX += (targetCamX - hl.cameraX) * Math.min(1, dt * 6);
+    // Cámara Y: solo se mueve de verdad dentro de un pozo vertical
+    // (Folículo) — el resto del nivel usa Y fija, como antes.
+    var targetCamY = 0;
+    if (pvShaft) {
+      targetCamY = hero.y - VH * 0.4;
+      targetCamY = Math.max(0, Math.min(Math.max(0, pvShaft.bottomY - VH * 0.6), targetCamY));
+    }
+    hl.cameraY = (hl.cameraY || 0) + (targetCamY - (hl.cameraY || 0)) * Math.min(1, dt * 6);
 
     // Reset edge-trigger.
     input.jumpPressedThisFrame = false;
@@ -23398,9 +23562,11 @@
       ctx.restore();
       return;
     }
-    // Fallback / diseño canvas a propósito en plataformero.
-    if (type === "denk") drawDenK(screenX, hero.y, isActive, animT, facing, stateName);
-    else                  drawMac(screenX, hero.y, isActive, animT, facing, stateName);
+    // Fallback / diseño canvas a propósito en plataformero. cameraY solo
+    // es != 0 dentro de un pozo vertical (Folículo) — fuera de ahí es 0.
+    var heroScreenY = hero.y - (hl ? (hl.cameraY || 0) : 0);
+    if (type === "denk") drawDenK(screenX, heroScreenY, isActive, animT, facing, stateName);
+    else                  drawMac(screenX, heroScreenY, isActive, animT, facing, stateName);
   }
 
   function drawDenK(x, y, isActive, animT, facing, stateName) {
@@ -23840,6 +24006,19 @@
         ctx.moveTo(0, hl.groundY);
         ctx.lineTo(VW, hl.groundY);
         ctx.stroke();
+      }
+      // Pozo vertical (Folículo): oscurece progresivamente con la
+      // profundidad real del descenso — la imagen fuente no tiene más
+      // franja para "bajar" dentro de ella, así que la sensación de
+      // profundidad la dan esto + las paredes laterales (drawPielVasoActors).
+      if (zoneNow.vertical) {
+        var shaftNow = pielVasoShaftAt(hl, camCenterX);
+        if (shaftNow) {
+          var depthRange = Math.max(1, (shaftNow.bottomY - shaftNow.topY) - VH * 0.6);
+          var depthFrac = Math.max(0, Math.min(1, hl.cameraY / depthRange));
+          ctx.fillStyle = "rgba(5, 2, 4, " + (depthFrac * 0.65) + ")";
+          ctx.fillRect(0, 0, VW, bgBottomScreen);
+        }
       }
     } else {
       var skyGrad = ctx.createLinearGradient(0, 0, 0, bgBottomScreen);

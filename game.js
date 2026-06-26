@@ -3488,6 +3488,8 @@
       loadout: { towers: [], tanks: [], barriers: [] },  // selección 5+2+1 del Dex
       loadoutEditing: false,            // true cuando se abre Dex con pausa para editar
       unlockedF2: null,                 // qué complicación se desbloqueó tras diseminación
+      completedMapNodes: {},            // nodeKey → true cuando esa pieza fue completada
+      activeF3: null,                   // qué nodo F3 está activo (null hasta llegar ahí)
       pathInflammation: [],             // marks where enemies recently passed
       bossActive: null,                 // ref to current boss enemy (if alive)
       showTitle: true,                  // pantalla de título del juego
@@ -8356,6 +8358,61 @@
   // F1 ─── DIS ──┤
   //               └── H1 ─── H2 ─── H3
   //
+  // Títulos y subtítulos del mapa según el nodo que acaba de completarse.
+  // enterBodyMapForState los lee desde completedMapNodes.currentNode.
+  var MAP_COMPLETED_LABELS = {
+    "fase1": {
+      title:    "FASE 1 SUPERADA",
+      subtitle: "La infección alcanzó el torrente sanguíneo"
+    },
+    "dissem": {
+      title:    "DISEMINACIÓN COMPLETA",
+      subtitle: "Los héroes entran en escena — rastro desde la piel"
+    },
+    "h_fase1": {
+      title:    "HÉROES: PIEL → VASO",
+      subtitle: "Seguimos el rastro al órgano diana"
+    },
+    "endocarditis": {
+      title:    "ENDOCARDITIS",
+      subtitle: "Corazón comprometido — héroes en la circulación"
+    },
+    "osteomielitis": {
+      title:    "OSTEOMIELITIS",
+      subtitle: "Hueso comprometido — héroes en la circulación"
+    },
+    "artritis": {
+      title:    "ARTRITIS",
+      subtitle: "Articulación comprometida — héroes en la circulación"
+    },
+    "h_dissem": {
+      title:    "HÉROES EN LA SANGRE",
+      subtitle: "Persiguiendo la diseminación"
+    },
+    "sepsis": {
+      title:    "SEPSIS SISTÉMICA",
+      subtitle: "Todo converge — héroes y gérmenes frente a frente"
+    },
+    "mods": {
+      title:    "SHOCK SÉPTICO",
+      subtitle: "Falla multiorgánica · boss final"
+    }
+  };
+
+  // Tabla de contenido construido. nodeKey → { built: bool, launch: fn }.
+  // launchNextContent consulta esto para saber qué lanzar al presionar CONTINUAR.
+  // Para agregar nuevo contenido: agregar la entrada y el exit handler correspondiente.
+  var MAP_NODE_CONTENT = {
+    "fase1":   { built: false },   // punto de entrada — no se rejuega
+    "dissem":  { built: true,  launch: function() { enterDissemination(); } },
+    "h_fase1": { built: true,  launch: function() { enterHeroLevel("piel"); } }
+    // Futuros:
+    // "endocarditis":  { built: true, launch: function() { enterF2TD("endocarditis"); } },
+    // "osteomielitis": { built: true, launch: function() { enterF2TD("osteomielitis"); } },
+    // "artritis":      { built: true, launch: function() { enterF2TD("artritis"); } },
+    // "h_endocarditis": { built: true, launch: function() { enterHeroLevel("corazon"); } },
+  };
+
   // Coords x,y relativas al rect del mapa (mapX, mapY, mapW, mapH).
   // Estructura: 3 F2 (triada hematógena clásica) → 9 F3 fan (3 por F2)
   //              → CONVERGE en F4 SEPSIS → F5 SHOCK+MODS boss.

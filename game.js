@@ -23099,10 +23099,25 @@
 
   function exitHeroLevel(outcome) {
     // outcome: "win" | "lose" | "abort" (debug)
-    if (outcome === "win" && state.heroLevel) {
-      state.heroLevelMedals[state.heroLevel.organ] = true;
+    var organ = state.heroLevel ? state.heroLevel.organ : null;
+    // completedMapNodes.dissem es true solo después del pendingHeroLevel post-diseminación.
+    // Si es false, este hero level es la cinemática mid-dissem (narrativa, no secuencia principal).
+    var isMainSequence = !!(state.completedMapNodes && state.completedMapNodes.dissem);
+
+    if (outcome === "win" && organ) {
+      state.heroLevelMedals[organ] = true;
+      if (isMainSequence && (organ === "piel" || organ === "pielvaso")) {
+        state.completedMapNodes["h_fase1"] = true;
+      }
+      // Futuros: agregar aquí el mapeo organ → completedMapNodes key cuando se
+      // construyan los hero levels de corazon/hueso/articulacion.
     }
     state.heroLevel = null;
+    // Mostrar mapa solo en la secuencia principal (no en la cinemática mid-dissem).
+    // "abort" (debug) tampoco muestra el mapa.
+    if (isMainSequence && (outcome === "win" || outcome === "lose")) {
+      enterBodyMapForState();
+    }
   }
 
   function updateHeroLevel(dt) {

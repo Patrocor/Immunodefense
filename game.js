@@ -24776,44 +24776,21 @@
     if (state.pendingHeroLevel) {
       state.pendingHeroLevel.delay -= dt;
       if (state.pendingHeroLevel.delay <= 0) {
-        var pending = state.pendingHeroLevel;
         state.pendingHeroLevel = null;
-        state.heroLevelPlayed = state.heroLevelPlayed || {};
-        // Determinar qué F2 se desbloquea según el órgano ganador.
-        // Si por algún motivo no hubo ganador (edge case), default a endocarditis.
-        var winningOrgan = (state.disseminationOver && state.disseminationOver.organ)
-          ? state.disseminationOver.organ.id
-          : "corazon";
-        var unlockedF2 = ORGAN_TO_F2[winningOrgan] || "endocarditis";
-        var f2Subtitle = F2_SUBTITLE[unlockedF2] || "";
-        // Persistir el F2 desbloqueado (para futuras transiciones).
-        state.unlockedF2 = unlockedF2;
-        // Severidad real de cómo se llegó a este órgano (victoria con
-        // quiebre vs derrota real) — la escena de héroe la usa para elegir
-        // el tono del diálogo. Se captura ANTES de limpiar disseminationOver.
-        state.lastDisseminationMode = state.disseminationOver ? state.disseminationOver.mode : null;
-        // Limpiar: si vino de un órgano que cayó/se filtró, esa cinemática
-        // ya cumplió su función — no debe seguir forzando "paused" después
-        // de este punto (ver el chequeo de paused más arriba en el loop).
-        state.disseminationOver = null;
-        enterBodyMap({
-          currentNode: "dissem",
-          // F2 desbloqueado por el órgano que cayó + H_F1 hero. Player elige
-          // qué jugar primero. Las otras 2 complicaciones quedan en gris.
-          availableNodes: [unlockedF2, "h_fase1"],
-          forkOpen: true,
-          title: "DISEMINACIÓN COMPLETA",
-          subtitle: f2Subtitle + " · héroes pueden empezar por la piel",
-          // Por ahora F2 TD no implementado, pero la PERSECUCIÓN de los
-          // héroes (H.Dissem → H.Endo/Osteo/Artri en el mapa) sí avanza:
-          // CONTINUAR lleva al hero level del órgano real si ya tiene
-          // escena construida (ver HERO_LEVEL_BUILT), o a Piel si no.
-          onContinue: function () {
-            state.heroLevelPlayed[pending.organ] = true;
-            var heroOrgan = HERO_LEVEL_BUILT.indexOf(pending.organ) !== -1 ? pending.organ : "piel";
-            enterHeroLevel(heroOrgan);
-          }
-        });
+        // Este handler solo se dispara tras disseminationOver (el trigger
+        // mid-dissem de enterDissemination() tiene un bug que lo inhibe).
+        if (state.disseminationOver) {
+          var winningOrgan = state.disseminationOver.organ.id;
+          var unlockedF2 = ORGAN_TO_F2[winningOrgan] || "endocarditis";
+          state.unlockedF2 = unlockedF2;
+          state.lastDisseminationMode = state.disseminationOver.mode;
+          state.disseminationOver = null;
+          // Marcar dissem completo + mostrar mapa.
+          // CONTINUAR → launchNextContent() → enterHeroLevel("piel") via MAP_NODE_CONTENT.
+          state.completedMapNodes = state.completedMapNodes || {};
+          state.completedMapNodes.dissem = true;
+          enterBodyMapForState();
+        }
       }
     }
     if (state.spreadFlash) {

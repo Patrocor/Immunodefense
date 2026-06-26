@@ -8981,6 +8981,81 @@
     }
     return false;
   }
+
+  // Deriva { currentNode, availableNodes } desde el estado real del jugador.
+  // Función pura — sin side effects. Llámala cada vez que necesites saber
+  // dónde está el jugador y qué nodo sigue.
+  function computeMapState(st) {
+    var done = st.completedMapNodes || {};
+    var f2   = st.unlockedF2 || "endocarditis";
+    var hf2  = "h_" + f2;                       // "h_endocarditis", "h_osteomielitis", etc.
+    var f3   = st.activeF3 || null;
+
+    // Secuencia lineal completa. filter(Boolean) elimina null cuando f3 no está definido.
+    var sequence = [
+      "fase1", "dissem", "h_fase1",
+      f2, "h_dissem",
+      f3, hf2,
+      "sepsis", "h_sepsis",
+      "mods", "h_mods"
+    ].filter(Boolean);
+
+    var currentNode = null;
+    var nextNode    = null;
+
+    for (var i = 0; i < sequence.length; i++) {
+      if (done[sequence[i]]) {
+        currentNode = sequence[i];
+      } else {
+        nextNode = sequence[i];
+        break;
+      }
+    }
+
+    return {
+      currentNode:    currentNode,
+      availableNodes: nextNode ? [nextNode] : []
+    };
+  }
+
+  // Muestra el mapa derivando currentNode y availableNodes desde el estado real.
+  // titleOverride: { title, subtitle } — úsalo para los textos narrativos
+  // específicos de Fase 1 (victory/contained/overload) que difieren del label
+  // genérico en MAP_COMPLETED_LABELS.
+  function enterBodyMapForState(titleOverride) {
+    var ms     = computeMapState(state);
+    var labels = (ms.currentNode && MAP_COMPLETED_LABELS[ms.currentNode]) || {};
+    enterBodyMap({
+      currentNode:    ms.currentNode,
+      availableNodes: ms.availableNodes,
+      forkOpen:       ms.availableNodes.length > 0,
+      title:    (titleOverride && titleOverride.title)    || labels.title    || "MAPA DE LA INVASIÓN",
+      subtitle: (titleOverride && titleOverride.subtitle) || labels.subtitle || "",
+      onContinue: launchNextContent
+    });
+  }
+
+  // Lanza el siguiente contenido según computeMapState + MAP_NODE_CONTENT.
+  // Si el nodo no tiene contenido construido, muestra "próximamente".
+  function launchNextContent() {
+    var ms   = computeMapState(state);
+    var next = ms.availableNodes[0];
+    if (!next) { showProximamente(); return; }
+    var content = MAP_NODE_CONTENT[next];
+    if (content && content.built) {
+      content.launch();
+    } else {
+      showProximamente();
+    }
+  }
+
+  // Muestra un aviso de "próximamente" cuando el siguiente nodo no tiene
+  // contenido construido, y ofrece al jugador reiniciar.
+  function showProximamente() {
+    showMsg("Has llegado al límite del contenido actual  ·  PRÓXIMAMENTE más");
+    state.confirmRestart = true;
+  }
+
   // ============ FIN BODY-MAP ==============================================
 
   // -------- PODERES DE GÉRMENES (ataques especiales a torres) -------------

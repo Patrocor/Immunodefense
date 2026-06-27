@@ -1375,7 +1375,7 @@
   var BASIC_TOWERS = ["neutrofilo", "linfocitoB", "linfocitoT"];
   var UNLOCK_SCHEDULE = {
     2: "langerhans",
-    4: "nk"
+    5: "nk"
   };
   // Catch-up: si el jugador llega a Diseminación sin haber conseguido
   // alguna de estas (perdió el pickup por ola, o no llegó a matar al boss

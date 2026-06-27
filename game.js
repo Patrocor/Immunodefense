@@ -14099,6 +14099,19 @@
     ctx.restore();
   }
 
+  function drawTankHpBar(R, hpFrac, color) {
+    var bW = R * 2.4, bH = Math.max(4, 5 * U);
+    var bX = -bW / 2, bY = R + Math.max(4, 5 * U);
+    ctx.fillStyle = "rgba(0,0,0,0.55)";
+    ctx.fillRect(bX - 1, bY - 1, bW + 2, bH + 2);
+    var hue = hpFrac > 0.5 ? "#4caf50" : hpFrac > 0.25 ? "#ff9800" : "#f44336";
+    ctx.fillStyle = hue;
+    ctx.fillRect(bX, bY, Math.max(0, bW * hpFrac), bH);
+    ctx.strokeStyle = "rgba(255,255,255,0.25)";
+    ctx.lineWidth = 1;
+    ctx.strokeRect(bX - 1, bY - 1, bW + 2, bH + 2);
+  }
+
   function drawTrombo(t, pulse, expression, blink) {
     // Trombo de Respuesta — coágulo de plaquetas + fibrina (hemostasia
     // real). Masa irregular rojo oscuro, malla de fibrina en la
@@ -14193,6 +14206,8 @@
     ctx.fill();
 
     towerFace(R, expression, blink, "angry", "serious");
+    var tHpFrac = (t.maxHp && t.hp > 0) ? Math.max(0, t.hp / t.maxHp) : 1;
+    drawTankHpBar(R, tHpFrac, t.def.color);
     ctx.restore();
   }
 
@@ -14295,6 +14310,8 @@
     }
 
     towerFace(R, expression, blink, "neutral", "serious");
+    var cHpFrac = (t.maxHp && t.hp > 0) ? Math.max(0, t.hp / t.maxHp) : 1;
+    drawTankHpBar(R, cHpFrac, t.def.color);
     ctx.restore();
   }
 
@@ -14563,6 +14580,12 @@
     }
     ctx.restore(); // fin tubo con retroceso
     ctx.restore(); // fin transform principal
+    // HP bar sin rotación — se dibuja en coordenadas mundo después de restaurar
+    ctx.save();
+    ctx.translate(x, y);
+    var ccHpFrac = (t.maxHp && t.hp > 0) ? Math.max(0, t.hp / t.maxHp) : 1;
+    drawTankHpBar(R, ccHpFrac, t.def.color);
+    ctx.restore();
   }
 
   // LATIGAZO DE BIOFILM: filamento gelatinoso translúcido sale del lomo

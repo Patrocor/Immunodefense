@@ -6125,7 +6125,7 @@
       // Empuje (Trombo de Respuesta): resta progreso real en el camino —
       // un atropellón de verdad, no solo daño.
       if (stats.knockback) target.progress = Math.max(0, target.progress - stats.knockback * U);
-      pushEffect({ kind: "melee", x1: t.x, y1: t.y, x2: target.x, y2: target.y, life: 0.18, max: 0.18, color: t.def.color });
+      pushEffect({ kind: "melee", x1: t.x, y1: t.y, x2: target.x, y2: target.y, life: 0.28, max: 0.28, color: t.def.color, towerId: t.def.id });
     } else {
       state.projectiles.push({
         x: t.x, y: t.y,
@@ -18815,6 +18815,18 @@
       ctx.beginPath();
       ctx.arc(ef.x2, ef.y2, (7 + (1 - alpha) * 7) * U, 0, Math.PI * 2);
       ctx.fill();
+      // Shockwave anillo expansivo específico por torre
+      if (ef.towerId === "neutrofilo" || ef.towerId === "trombo") {
+        var swColor = ef.towerId === "neutrofilo" ? "rgba(255,140,50," : "rgba(200,50,30,";
+        var swR = (8 + (1 - alpha) * 42) * U;
+        ctx.globalAlpha = alpha * 0.85;
+        ctx.strokeStyle = swColor + (alpha * 0.8) + ")";
+        ctx.lineWidth = (3 * alpha) * U;
+        ctx.beginPath(); ctx.arc(ef.x2, ef.y2, swR, 0, Math.PI * 2); ctx.stroke();
+        ctx.strokeStyle = swColor + (alpha * 0.5) + ")";
+        ctx.lineWidth = 1.5 * U;
+        ctx.beginPath(); ctx.arc(ef.x2, ef.y2, swR * 0.55, 0, Math.PI * 2); ctx.stroke();
+      }
       ctx.globalAlpha = 1;
     } else if (ef.kind === "escape") {
       ctx.strokeStyle = "#d9534f";

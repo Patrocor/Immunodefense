@@ -5478,6 +5478,7 @@
           vx: (ee.x - t.x) / gsDur, vy: (ee.y - t.y) / gsDur,
           life: gsDur, max: gsDur });
       }
+      pushEffect({ kind: "novaRing", x: t.x, y: t.y, r: eoR, color: "#F2774E", life: 0.55, max: 0.55 });
       t.specialAnim = 1.0;
       t.specialReady = false;
       t.specialCharge = 0;

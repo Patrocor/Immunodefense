@@ -3260,13 +3260,6 @@
     hueso:        "osteomielitis",
     articulacion: "artritis"
   };
-  // Subtítulo dramático según el F2 desbloqueado.
-  var F2_SUBTITLE = {
-    endocarditis:  "El corazón comprometido — endocarditis en marcha",
-    osteomielitis: "El hueso atacado — osteomielitis hematógena",
-    artritis:      "Las articulaciones tomadas — artritis séptica"
-  };
-
   // 6 oleadas in crescendo (expandido de 3 a 6 el 2026-06-23 para que
   // defender limpio sea un logro real, no algo que "no debería pasar").
   // Mismo pool de gérmenes que antes, repartido en una curva más gradual;
@@ -8506,8 +8499,9 @@
   // Orden de progresión. Las F3 dependen de qué F2 cayó (placeholder con endo→pulm).
   var MAP_PROGRESSION = [
     "fase1", "dissem", "h_fase1",
-    "endocarditis", "h_dissem", "h_endocarditis",
-    "f3_pulm",
+    "endocarditis", "osteomielitis", "artritis",
+    "h_dissem",
+    "h_endocarditis", "h_osteomielitis", "h_artritis",
     "sepsis", "h_sepsis",
     "mods", "h_mods"
   ];

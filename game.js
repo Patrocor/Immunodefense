@@ -5498,6 +5498,7 @@
         me2.slowTimer = Math.max(me2.slowTimer || 0, 3.0);
         damageEnemy(me2, (maStats.dotPerSec || 4) * 8, "mastocito");
       }
+      pushEffect({ kind: "mastocWave", x: t.x, y: t.y, r: maR, life: 0.7, max: 0.7 });
       t.specialAnim = 1.0;
       t.specialReady = false;
       t.specialCharge = 0;

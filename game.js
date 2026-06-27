@@ -5932,6 +5932,7 @@
           dealAoEDamageAt(t.x, t.y, 32 * U, ndStats.damage * 6);
           triggerShake(0.30, 7);
           pushEffect({ kind: "pathCrack", x: t.x, y: t.y, r: 26 * U, life: 1.6, max: 1.6, seed: Math.random() * 1000 });
+          pushEffect({ kind: "defensinWave", x: t.x, y: t.y, r: ndStats.range * U * 1.1, life: 0.9, max: 0.9 });
         }
         if ((t.specialAnim || 0) <= 0) {
           t.bombardImpacts = null;
@@ -18900,6 +18901,79 @@
       ctx.fillStyle = ef.color;
       ctx.fillRect(-ef.size, -ef.size * 0.4, ef.size * 2, ef.size * 0.8);
       ctx.globalAlpha = 1;
+      ctx.restore();
+    } else if (ef.kind === "defensinWave") {
+      var dwT = 1 - ef.life / ef.max;
+      var dwR = ef.r * (0.15 + 0.85 * dwT);
+      ctx.save();
+      ctx.globalAlpha = (1 - dwT) * 0.9;
+      ctx.strokeStyle = "rgba(180,240,255," + (1 - dwT) + ")";
+      ctx.lineWidth = (5 - dwT * 3) * Math.max(1, U);
+      ctx.beginPath(); ctx.arc(ef.x, ef.y, dwR, 0, Math.PI * 2); ctx.stroke();
+      ctx.strokeStyle = "rgba(255,255,255," + ((1 - dwT) * 0.5) + ")";
+      ctx.lineWidth = 2 * Math.max(1, U);
+      ctx.beginPath(); ctx.arc(ef.x, ef.y, dwR * 0.65, 0, Math.PI * 2); ctx.stroke();
+      var dwGrad = ctx.createRadialGradient(ef.x, ef.y, 0, ef.x, ef.y, dwR * 0.5);
+      dwGrad.addColorStop(0, "rgba(180,240,255," + ((1 - dwT) * 0.3) + ")");
+      dwGrad.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.fillStyle = dwGrad;
+      ctx.beginPath(); ctx.arc(ef.x, ef.y, dwR * 0.5, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    } else if (ef.kind === "novaRing") {
+      var nrT = 1 - ef.life / ef.max;
+      var nrR = ef.r * (0.05 + 0.95 * nrT);
+      ctx.save();
+      ctx.globalAlpha = (1 - nrT);
+      ctx.strokeStyle = ef.color || "#F2774E";
+      ctx.lineWidth = (6 - nrT * 4) * Math.max(1, U);
+      ctx.beginPath(); ctx.arc(ef.x, ef.y, nrR, 0, Math.PI * 2); ctx.stroke();
+      var nrGrad = ctx.createRadialGradient(ef.x, ef.y, nrR * 0.3, ef.x, ef.y, nrR);
+      nrGrad.addColorStop(0, "rgba(255,160,60," + ((1 - nrT) * 0.35) + ")");
+      nrGrad.addColorStop(1, "rgba(242,119,78,0)");
+      ctx.fillStyle = nrGrad;
+      ctx.beginPath(); ctx.arc(ef.x, ef.y, nrR, 0, Math.PI * 2); ctx.fill();
+      for (var nrP = 0; nrP < 8; nrP++) {
+        var nrA = nrP * Math.PI / 4;
+        var nrPx = ef.x + Math.cos(nrA) * nrR * 0.85;
+        var nrPy = ef.y + Math.sin(nrA) * nrR * 0.85;
+        ctx.fillStyle = "rgba(242,119,78," + ((1 - nrT) * 0.7) + ")";
+        ctx.beginPath(); ctx.arc(nrPx, nrPy, 4 * Math.max(1, U), 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.restore();
+    } else if (ef.kind === "shieldBurst") {
+      var sbT = 1 - ef.life / ef.max;
+      var sbR = ef.r * (0.2 + 0.8 * sbT);
+      ctx.save();
+      ctx.globalAlpha = (1 - sbT) * 0.9;
+      ctx.strokeStyle = ef.color || "#E84393";
+      ctx.lineWidth = (4 - sbT * 3) * Math.max(1, U);
+      ctx.beginPath();
+      for (var sbI = 0; sbI < 6; sbI++) {
+        var sbA = sbI * Math.PI / 3;
+        var sbX = ef.x + Math.cos(sbA) * sbR;
+        var sbY = ef.y + Math.sin(sbA) * sbR;
+        if (sbI === 0) ctx.moveTo(sbX, sbY); else ctx.lineTo(sbX, sbY);
+      }
+      ctx.closePath(); ctx.stroke();
+      ctx.fillStyle = "rgba(255,255,255," + ((1 - sbT) * 0.4) + ")";
+      ctx.beginPath(); ctx.arc(ef.x, ef.y, sbR * 0.4, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    } else if (ef.kind === "mastocWave") {
+      var mwT = 1 - ef.life / ef.max;
+      var mwR = ef.r * (0.05 + 0.95 * mwT);
+      ctx.save();
+      ctx.globalAlpha = (1 - mwT) * 0.85;
+      ctx.strokeStyle = "rgba(79,143,224," + (1 - mwT) + ")";
+      ctx.lineWidth = (7 - mwT * 5) * Math.max(1, U);
+      ctx.beginPath(); ctx.arc(ef.x, ef.y, mwR, 0, Math.PI * 2); ctx.stroke();
+      ctx.strokeStyle = "rgba(180,220,255," + ((1 - mwT) * 0.6) + ")";
+      ctx.lineWidth = 2.5 * Math.max(1, U);
+      ctx.beginPath(); ctx.arc(ef.x, ef.y, mwR * 0.7, 0, Math.PI * 2); ctx.stroke();
+      var mwGrad = ctx.createRadialGradient(ef.x, ef.y, 0, ef.x, ef.y, mwR * 0.55);
+      mwGrad.addColorStop(0, "rgba(79,143,224," + ((1 - mwT) * 0.18) + ")");
+      mwGrad.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.fillStyle = mwGrad;
+      ctx.beginPath(); ctx.arc(ef.x, ef.y, mwR * 0.55, 0, Math.PI * 2); ctx.fill();
       ctx.restore();
     }
   }

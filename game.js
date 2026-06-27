@@ -6356,6 +6356,14 @@
               color: shieldGlowColor(sd.type)
             });
           }
+          // Hexagonal burst visible al romper el escudo — NK lo hace claramente
+          pushEffect({
+            kind: "shieldBurst",
+            x: e.x, y: e.y,
+            r: def.radius * U * 2.2,
+            life: 0.4, max: 0.4,
+            color: shieldGlowColor(sd.type)
+          });
         }
         dmgLabel = "-" + Math.round(bodyDamage) + " ◇";
         dmgColor = "#FFE680";

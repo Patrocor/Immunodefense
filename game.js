@@ -24851,18 +24851,22 @@
           var ptOutcome = state.phaseTransition.outcome;
           var ptVictory = ptOutcome === "victory" || ptOutcome === "contained";
           var ptContained = ptOutcome === "contained";
-          enterBodyMap({
-            currentNode: "fase1",
-            availableNodes: ["dissem"],
-            forkOpen: false,
+          // Marcar Fase 1 como completada antes de mostrar el mapa.
+          state.completedMapNodes = state.completedMapNodes || {};
+          state.completedMapNodes.fase1 = true;
+          // Los títulos de Fase 1 varían según el outcome narrativo (victory/
+          // contained/overload), así que se pasan como override en vez de
+          // usar MAP_COMPLETED_LABELS["fase1"] que es el texto genérico.
+          enterBodyMapForState({
             title: ptContained ? "CONTENCIÓN ROTA" : (ptVictory ? "¡MRSA DERROTADO!" : "FASE 1 SUPERADA"),
             subtitle: ptContained
               ? "La controlaste casi por completo — pero algo logró escapar hacia el torrente sanguíneo"
               : (ptVictory
                 ? "Contuviste la infección en la piel — pero ya alcanzó el torrente sanguíneo"
-                : "La infección rompe la barrera de la piel · diseminación inminente"),
-            onContinue: function () { enterDissemination(); }
+                : "La infección rompe la barrera de la piel · diseminación inminente")
           });
+          // onContinue ya no se pasa aquí: enterBodyMapForState lo setea a
+          // launchNextContent(), que llama enterDissemination() vía MAP_NODE_CONTENT.
         }
       }
       if (state.phaseTransition.t >= state.phaseTransition.duration) {

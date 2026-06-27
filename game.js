@@ -1237,63 +1237,6 @@
     malassezia:  { pulseGap: 0.60, punchDur: 0.46, color: "#d8c060" }
   };
 
-  // Cada oleada INTRODUCE un patógeno cutáneo específico, con progresión
-  // pedagógica clara: el jugador aprende un mecanismo nuevo por ola.
-  //
-  //  W1: S. epidermidis (intro: rápido, débil, sin escudo)
-  //  W2: + S. aureus (intro: cápsula → necesita anticuerpos)
-  //  W3: + HSV (intro: virus rápido)
-  //  W4: + C. acnes (intro: anaerobio tough con shield wall)
-  //  W5: + Candida (intro: hongo, ataque catapult, wall shield)
-  //  W6: + Dermatofito (intro: spores hijas) + Pseudomonas (spray + seekers)
-  //  W7: BOSS pyogenes intermedio (cápsula regen)
-  //  W8: BOSS MRSA final + escolta variada (climax — diseminación inevitable)
-  var WAVES = [
-    { groups: [
-      { type: "sepidermidis", count: 8, interval: 1.4 }
-    ], hpMult: 1.0 },
-    { groups: [
-      { type: "sepidermidis", count: 6, interval: 1.3 },
-      { type: "saureus",      count: 3, interval: 1.6 }
-    ], hpMult: 1.0 },
-    { groups: [
-      { type: "sepidermidis", count: 4, interval: 1.3 },
-      { type: "saureus",      count: 3, interval: 1.5 },
-      { type: "hsv",          count: 6, interval: 0.7 }
-    ], hpMult: 1.05 },
-    { groups: [
-      { type: "saureus", count: 4, interval: 1.4 },
-      { type: "hsv",     count: 6, interval: 0.65 },
-      { type: "cacnes",  count: 4, interval: 1.2 }
-    ], hpMult: 1.10 },
-    { groups: [
-      { type: "saureus", count: 4, interval: 1.3 },
-      { type: "hsv",     count: 7, interval: 0.55 },
-      { type: "cacnes",  count: 3, interval: 1.2 },
-      { type: "candida", count: 3, interval: 1.0 }
-    ], hpMult: 1.15 },
-    { groups: [
-      { type: "saureus",     count: 5, interval: 1.2 },
-      { type: "hsv",         count: 8, interval: 0.55 },
-      { type: "candida",     count: 3, interval: 1.0 },
-      { type: "dermatofito", count: 3, interval: 1.2 },
-      { type: "pseudomonas", count: 2, interval: 1.6 }
-    ], hpMult: 1.25 },
-    { groups: [
-      { type: "saureus",      count: 6, interval: 1.0 },
-      { type: "hsv",          count: 10, interval: 0.5 },
-      { type: "pseudomonas",  count: 3, interval: 1.3 },
-      { type: "candida",      count: 3, interval: 1.0 },
-      { type: "bossPyogenes", count: 1, interval: 0 }
-    ], hpMult: 1.35 },
-    { groups: [
-      { type: "saureus",      count: 5, interval: 1.0 },
-      { type: "sepidermidis", count: 6, interval: 1.0 },
-      { type: "pseudomonas",  count: 4, interval: 1.0 },
-      { type: "hsv",          count: 10, interval: 0.45 },
-      { type: "bossMRSA",     count: 1, interval: 0 }
-    ], hpMult: 1.5 }
-  ];
 
   // -------- STATE ---------------------------------------------------------
   var state;
@@ -1312,7 +1255,6 @@
     bossHongo: 22,
     bossPrimordial: 35
   };
-  var BOSS_WAVES = { 2: "bossPyogenes", 4: "bossPseudomonas", 7: "bossClostridium", 10: "bossMRSA" };
   // Snowball multipliers as a function of infestation 0-100.
   function infestSpawnMult(inf) {
     // 0%->1.0  30%->1.3  60%->1.6  85%->1.85  100%->2.0
@@ -1339,25 +1281,30 @@
   }
   function getInitialAtp() { return 80; }
   function getInitialDripDelay() { return 6; }
-  // ---- Wave roster -------------------------------------------------------
-  // Each entry is an array of { type, count, interval }. After wave 10 we
-  // fall back to a procedural mix so the game keeps escalating.
-  // Fase 1 = infección de piel: solo gérmenes cutáneos. Jefes en 2/4/7/10.
-  // Comprimida de 18→10 olas (2026-06-22): se tomó cada ~1.89 ola del
-  // roster original de 18, conservando los 4 bosses en su posición
-  // proporcional casi exacta (ver getWaveDef para el ajuste de la curva
-  // de dificultad que compensa el menor número de olas).
+  // ---- Wave roster — Fase 1 (Piel) ----------------------------------------
+  // Progresión biológica real: flora normal → virus cutáneos → hongos/parásitos
+  // → infecciones graves de heridas → MRSA resistente. Bosses en 2/4/7/10.
+  //   W1: S. epidermidis + C. acnes (flora normal de piel desequilibrada)
+  //   W2: BOSS Pyogenes — impétigo/fascitis; Langerhans se desbloquea
+  //   W3: HSV (herpes, rapidísimo) + Molluscum (pox que se divide al morir)
+  //   W4: BOSS Pseudomonas — coloniza herida abierta; S. aureus hace su entrada
+  //   W5: S. aureus dominante + Malassezia (caspa) + Dermatofito (tiña); NK aquí
+  //   W6: Sarna (ácaro que se entierra y deja larvas) + Molluscum + Malassezia
+  //   W7: BOSS Clostridium — gangrena gaseosa; HPV aparece (escudo queratínico)
+  //   W8: HPV + Candida cutánea (intertrigo) + pseudomonas + mezcla grave
+  //   W9: Oleada caótica — todos los gérmenes de piel juntos, pre-climax
+  //  W10: BOSS MRSA — Staph multiresistente, el clímax final
   var WAVE_TABLE = {
-    1:  [["sepidermidis",5,1.1]],
-    2:  [["sepidermidis",5,1.0],["hsv",4,0.6],["bossPyogenes",1,0]],
-    3:  [["sepidermidis",5,1.0],["hsv",5,0.55],["cacnes",3,1.0],["dermatofito",1,1.0]],
-    4:  [["sepidermidis",4,0.9],["hsv",5,0.55],["cacnes",3,1.0],["pseudomonas",2,0.9],["molluscum",2,0.9],["bossPseudomonas",1,0]],
-    5:  [["hsv",6,0.5],["cacnes",3,1.0],["pseudomonas",3,0.9],["candida",3,0.9],["saureus",2,1.0],["hpv",2,1.0]],
-    6:  [["hsv",6,0.5],["cacnes",3,1.0],["pseudomonas",4,0.9],["candida",3,0.9],["saureus",3,1.0],["molluscum",2,0.9]],
-    7:  [["hsv",6,0.5],["pseudomonas",4,0.9],["candida",4,0.9],["saureus",3,1.0],["sarna",2,1.0],["hpv",2,1.0],["bossClostridium",1,0]],
-    8:  [["hsv",7,0.5],["cacnes",4,0.95],["pseudomonas",5,0.9],["candida",5,0.9],["saureus",4,1.0],["malassezia",2,0.9],["sarna",2,1.0]],
-    9:  [["hsv",8,0.45],["cacnes",5,0.9],["pseudomonas",6,0.85],["candida",5,0.9],["saureus",5,1.0],["dermatofito",2,1.0],["molluscum",2,0.9],["malassezia",2,0.9]],
-    10: [["hsv",6,0.45],["pseudomonas",5,0.85],["candida",4,0.9],["saureus",8,1.0],["hpv",3,1.0],["bossMRSA",1,0]]
+    1:  [["sepidermidis",6,1.2],["cacnes",3,1.4]],
+    2:  [["sepidermidis",5,1.0],["cacnes",3,1.2],["bossPyogenes",1,0]],
+    3:  [["sepidermidis",4,1.0],["hsv",6,0.55],["molluscum",3,0.9]],
+    4:  [["cacnes",3,1.0],["hsv",6,0.5],["saureus",2,1.0],["bossPseudomonas",1,0]],
+    5:  [["saureus",3,1.0],["hsv",7,0.5],["malassezia",3,0.9],["dermatofito",2,1.0]],
+    6:  [["saureus",4,1.0],["hsv",7,0.5],["sarna",3,1.0],["molluscum",3,0.9],["malassezia",2,0.9]],
+    7:  [["saureus",4,1.0],["pseudomonas",3,0.9],["sarna",3,1.0],["hpv",3,1.0],["bossClostridium",1,0]],
+    8:  [["saureus",5,0.95],["hsv",7,0.5],["pseudomonas",4,0.9],["hpv",3,0.9],["sarna",2,1.0],["candida",2,0.9]],
+    9:  [["saureus",6,0.9],["hsv",8,0.45],["pseudomonas",5,0.85],["hpv",4,0.9],["dermatofito",2,1.0],["malassezia",3,0.9]],
+    10: [["saureus",6,0.9],["hsv",6,0.45],["pseudomonas",5,0.85],["hpv",3,0.9],["bossMRSA",1,0]]
   };
 
   // ============ MÉDULA ÓSEA Y PICKUPS DE DESBLOQUEO ============
@@ -1367,8 +1314,8 @@
   // al cambiar de fase — toda torre conseguida queda en el repertorio).
   // El roster de 7 torres desbloqueables se repartió entre las 2 fases reales
   // para que ninguna fase agote todo el contenido de golpe:
-  //  · Fase 1 (médula, por ola): Langerhans@2, NK@4 — misma ola que sus
-  //    bosses asociados (Pyogenes, Pseudomonas).
+  //  · Fase 1 (médula, por ola): Langerhans@W2 (junto a bossPyogenes),
+  //    NK@W5 (cuando entran los hongos/dermatofito que necesitan su detección).
   //  · Fase 1 (boss-kill, ver BOSS_TANK_DROPS): Complemento/Trombo/Centinela.
   //  · Diseminación (médula, por ola de dissem): Eosinófilo@0, Mastocito@1
   //    — ver DISSEM_UNLOCK_SCHEDULE más abajo.

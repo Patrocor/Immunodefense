@@ -5385,7 +5385,7 @@
             e.piliTarget = null;
             if (!e.leishAmastigote) e.state = "walking";
           } else {
-            e.piliTarget.slowFireTimer = Math.max(e.piliTarget.slowFireTimer || 0, 0.5);
+            e.piliTarget.slowFireTimer = Math.max(e.piliTarget.slowFireTimer || 0, pa.slowFire);
             e.piliTimer -= dt;
             if (e.piliTimer <= 0) {
               e.piliTarget = null;
@@ -5764,6 +5764,8 @@
       for (var kci = 0; kci < state.enemies.length; kci++) {
         var kce = state.enemies[kci];
         if (kce.dead || kce.dying || kce.absorbing) continue;
+        if (kce.burrowed && !kce.revealed) continue;
+        if (kce.def.cloaked && !kce.revealed) continue;
         if (Math.hypot(kce.x - t.x, kce.y - t.y) > kcR) continue;
         kce.slowTimer = Math.max(kce.slowTimer || 0, 4.0);
         damageEnemy(kce, kcStats.damage * 3.5, "queratinocito");
@@ -5797,6 +5799,8 @@
       for (var sbj = 0; sbj < state.enemies.length; sbj++) {
         var sbe = state.enemies[sbj];
         if (sbe.dead || sbe.dying || sbe.absorbing) continue;
+        if (sbe.burrowed && !sbe.revealed) continue;
+        if (sbe.def.cloaked && !sbe.revealed) continue;
         if (Math.hypot(sbe.x - t.x, sbe.y - t.y) > sbR) continue;
         damageEnemy(sbe, sbStats.damage * 2.0, "sebocito");
       }
@@ -5816,6 +5820,8 @@
       for (var pdi = 0; pdi < state.enemies.length; pdi++) {
         var pde = state.enemies[pdi];
         if (pde.dead || pde.dying || pde.absorbing) continue;
+        if (pde.burrowed && !pde.revealed) continue;
+        if (pde.def.cloaked && !pde.revealed) continue;
         if (Math.hypot(pde.x - t.x, pde.y - t.y) > pdR) continue;
         if (pde.def.baseKind === "virus") {
           var pdDmg = pdStats.damage * (t.def.bonusVs ? t.def.bonusVs.mult : 1) * 3.0;
@@ -6502,6 +6508,8 @@
         for (var qj = 0; qj < state.enemies.length; qj++) {
           var qe = state.enemies[qj];
           if (qe.dead || qe.dying || qe.absorbing || qe.beingEngulfed || qe.state === "falling" || qe.state === "entering") continue;
+          if (qe.burrowed && !qe.revealed) continue;
+          if (qe.def.cloaked && !qe.revealed) continue;
           if (Math.hypot(qe.x - t.x, qe.y - t.y) <= rangePx) {
             qe.slowTimer = Math.max(qe.slowTimer || 0, 0.6);
           }
@@ -6519,6 +6527,8 @@
         for (var pvj = 0; pvj < state.enemies.length; pvj++) {
           var pve = state.enemies[pvj];
           if (pve.dead || pve.dying || pve.absorbing || pve.state === "falling" || pve.state === "entering") continue;
+          if (pve.burrowed && !pve.revealed) continue;
+          if (pve.def.cloaked && !pve.revealed) continue;
           if (pve.def.baseKind !== "virus") continue;
           if (Math.hypot(pve.x - t.x, pve.y - t.y) <= rangePx) {
             pve.slowTimer = Math.max(pve.slowTimer || 0, 0.5);
@@ -6573,7 +6583,7 @@
         var d = Math.hypot(e.x - t.x, e.y - t.y);
         if (d > rangePx) continue;
         if (t.def.huntWounded) {
-          var hpFrac = e.hp / (e.def.hp || 1);
+          var hpFrac = e.hp / (e.maxHp || e.def.hp || 1);
           if (hpFrac < gdBestHpFrac) { gdBestHpFrac = hpFrac; target = e; }
         } else if (t.def.virusPriority) {
           if (e.def.baseKind === "virus" && e.progress > pdcVirusBestProg) {
@@ -7351,7 +7361,7 @@
         var ve = state.enemies[vi];
         if (ve.dead || ve.dying || ve.absorbing || ve.beingEngulfed) continue;
         if (ve.state !== "walking" && ve.state !== "blocked") continue;
-        var vulnerable = (ve.slowTimer > 0) || (ve.stunTimer > 0) || (ve.state === "blocked");
+        var vulnerable = (ve.slowTimer > 0) || (ve.stunTimer > 0) || (ve.state === "blocked" && !ve.leishAmastigote);
         if (!vulnerable) continue;
         var vdd = Math.hypot(ve.x - g.x, ve.y - g.y);
         if (vdd < vd) { vd = vdd; vuln = ve; }

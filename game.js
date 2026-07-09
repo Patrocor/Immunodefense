@@ -376,6 +376,24 @@
     { id: "disolvente",   name: "Vancomicina",  short: "Vancomicina",  className: "Glicopéptido",     color: "#E055C8", desc: "Rompe pared/cápsula · disuelve escudos" },
     { id: "antibiotico",  name: "Carbapenem",   short: "Carbapenem",   className: "Amplio espectro",  color: "#F5C518", desc: "Bactericida total en área" }
   ];
+  // Bonificaciones que la médula puede ofrecer además del +1 nivel de torre.
+  var MED_BONUS_TYPES = [
+    { id: "regen",   name: "Regeneración", icon: "♻",  color: "#4caf50",
+      desc: "Torres recuperan 2 HP/s · 45s",
+      dur: 45 },
+    { id: "charge",  name: "Carga Acelerada", icon: "⚡", color: "#ffb300",
+      desc: "Carga de especiales ×2 · 40s",
+      dur: 40 },
+    { id: "prima",   name: "Prima de Eliminación", icon: "💰", color: "#ff9800",
+      desc: "+2 ATP por germen derrotado · 60s",
+      dur: 60 },
+    { id: "cito",    name: "Red de Citoquinas", icon: "⬆",  color: "#e91e63",
+      desc: "Todas las torres +35% daño · 35s",
+      dur: 35 },
+    { id: "reserva", name: "Célula de Reserva", icon: "🛡", color: "#7c4dff",
+      desc: "La próxima torre caída se reconstruye (×3 usos)",
+      dur: 0 }
+  ];
   // Radio del aura de daño por germen: escala con su ataque, así los gérmenes
   // más peligrosos (S. aureus, Pseudomonas, jefes) tienen MAYOR rango y se
   // distinguen de los débiles. En px diseño; multiplicar por U al usar.
@@ -815,7 +833,7 @@
       color: "#B79CE0",
       colorDark: "#7E5FB0",
       cost: 55,
-      desc: "Cuerpo a cuerpo",
+      desc: "Fagocitosis, NETs y degranulación — primera línea de defensa. Ultimate: Bombardeo de Defensinas que aniquila invasores cercanos.",
       // Ultimate: BOMBARDEO DE DEFENSINAS — 7 gránulos caen escalonados
       // sobre un tramo ancho del camino (dmg 2.2x c/u), cerrando con un
       // shockwave propio (dmg 6x). Ver triggerTowerSpecial/updateTowers.
@@ -835,7 +853,7 @@
       color: "#50C878",
       colorDark: "#2c8049",
       cost: 83,
-      desc: "Ametralladora de anticuerpos",
+      desc: "Produce anticuerpos IgG e IgM que opsonizan bacterias marcándolas para su destrucción. Ultimate: cañones de anticuerpos penetrantes.",
       machineGun: true,
       // Ultimate: DIFERENCIACIÓN A PLASMOCITO — la torre se infla y
       // dispara una ráfaga de 30 anticuerpos Y al sector más cercano
@@ -856,7 +874,7 @@
       color: "#9370DB",
       colorDark: "#5d44a0",
       cost: 121,
-      desc: "Citotoxico (area)",
+      desc: "Reconoce péptidos en MHC-I y libera granzima B y perforina induciendo apoptosis. Ultimate: elimina instantáneamente hasta 5 enemigos.",
       // Ultimate: APOPTOSIS — marca con granzima a los enemigos más
       // avanzados en rango (hasta 5); tras un breve retraso, todos
       // explotan juntos con daño masivo (ejecución retardada, no más
@@ -872,7 +890,7 @@
     },
     langerhans: {
       id: "langerhans", name: "Cel. de Langerhans", shortName: "Langer",
-      color: "#3FC1C9", colorDark: "#26797f", cost: 70, desc: "Marca antigeno (+dano)",
+      color: "#3FC1C9", colorDark: "#26797f", cost: 70, desc: "Captura antígenos en la epidermis y activa células T helper en los ganglios. Ultimate: Presentación Antigénica Masiva — marca y bufa aliados.",
       support: "mark",
       // Ultimate: PRESENTACIÓN ANTIGÉNICA MASIVA + COORDINACIÓN INMUNE.
       // Las 9 dendritas se extienden enormemente y disparan flags MHC-II
@@ -890,7 +908,7 @@
     },
     nk: {
       id: "nk", name: "Celula NK", shortName: "NK",
-      color: "#E84393", colorDark: "#a82d6a", cost: 95, desc: "Antiviral, rompe escudos",
+      color: "#E84393", colorDark: "#a82d6a", cost: 95, desc: "Detecta ausencia de MHC-I y libera perforina y granzimas. Rompe escudos y bonus ×2.3 vs virus. Ultimate: Frenesí citotóxico.",
       bonusVs: { kind: "virus", mult: 2.3 }, breakShield: true,
       // Ultimate: FRENESÍ CITOTÓXICO — rota como tornado fucsia y
       // dispara una tormenta de perforinas penetrantes que ignoran
@@ -906,7 +924,7 @@
     },
     eosinofilo: {
       id: "eosinofilo", name: "Eosinofilo", shortName: "Eosin",
-      color: "#F2774E", colorDark: "#a8401f", cost: 88, desc: "Antiparasito (granulos)",
+      color: "#F2774E", colorDark: "#a8401f", cost: 88, desc: "Gránulos de MBP, ECP y EDN atacan parásitos con ADCC; IL-4 e IL-13 potencian la respuesta. Bonus ×2.6 vs parásitos. Ultimate: Descarga de gránulos.",
       bonusVs: { kind: "parasito", mult: 2.6 },
       // Ultimate: DESCARGA DE GRÁNULOS — daño instantáneo a TODOS los
       // enemigos en rango; a los parásitos además les queda un DoT
@@ -922,7 +940,7 @@
     },
     mastocito: {
       id: "mastocito", name: "Mastocito", shortName: "Masto",
-      color: "#4F8FE0", colorDark: "#2c5da0", cost: 75, desc: "Histamina (ralentiza)",
+      color: "#4F8FE0", colorDark: "#2c5da0", cost: 75, desc: "Desgranula histamina, triptasa y leucotrienos que ralentizan gérmenes en área. Ultimate: Onda de desgranulación — mediadores que paralizan invasores.",
       support: "slow",
       // Ultimate: DESGRANULACIÓN — onda de choque única: daño +
       // ralentización mucho más fuertes que su aura pasiva, en un radio
@@ -939,7 +957,7 @@
     complemento: {
       id: "complemento", name: "Cañón del Complemento", shortName: "Cañón MAC",
       color: "#FFD24A", colorDark: "#b8860b", cost: 5, currency: "complement",
-      desc: "MAC manual: ácido que ignora escudos",
+      desc: "El complejo C5b-9 perfora membranas de bacterias gram-negativas causando su lisis. Disparo manual concentrado que ignora todos los escudos.",
       ignoreShield: true,
       manualFire: true,             // el jugador apunta y dispara
       immuneToAura: true,           // el aura de contacto no le hace daño
@@ -957,7 +975,7 @@
     plaqueta: {
       id: "plaqueta", name: "Malla de fibrina", shortName: "Fibrina",
       color: "#E8A020", colorDark: "#8A5010", cost: 30,
-      desc: "Panal hemostático: barrera larga que obstruye el carril",
+      desc: "Coágulo de fibrina con tromboxano A2 y factor von Willebrand que obstruye el carril. Ralentiza significativamente el avance enemigo, dando ventaja a las torres aliadas.",
       disseminationOnly: true,
       obstructs: true,
       obstructRX: 52, obstructRY: 18,   // elipse de obstrucción (forma larga)
@@ -972,7 +990,7 @@
     trombo: {
       id: "trombo", name: "Trombo de Respuesta", shortName: "Trombo",
       color: "#C0392B", colorDark: "#6B1410", cost: 45,
-      desc: "Coágulo: atropella y empuja; al romperse deja una bomba",
+      desc: "Plaqueta activada con pseudópodos que empuja gérmenes hacia atrás. Al destruirse libera una bomba de factores de coagulación de alto impacto.",
       // Sin ultimate propio — su payoff es el death-bomb (factores de
       // coagulación liberados) al llegar a 0 HP, no una carga de ultimate.
       // Cada golpe además empuja al germen hacia atrás en el camino
@@ -988,11 +1006,7 @@
     centinela: {
       id: "centinela", name: "Centinela de Alarma", shortName: "Centinela",
       color: "#E8A33D", colorDark: "#8A5A12", cost: 50,
-      desc: "Faro: atrae los poderes especiales de los germenes hacia si",
-      // Señuelo: decoyAttraction divide la distancia real en la
-      // comparación de "más cercano" que hacen los gérmenes con poder
-      // especial (devorar/catapulta/dardo/spray) — ver updateEnemies.
-      // Ataque propio débil, su rol real es absorber esos poderes.
+      desc: "Receptor PRR/TLR que detecta moléculas asociadas a patógenos y emite alarmas. Actúa como señuelo atrayendo los poderes especiales de los gérmenes hacia sí.",
       decoyAttraction: 2.5,
       levels: [
         { range: 130, damage: 4, fireRate: 0.6, projectileSpeed: 0, splash: 0, hp: 140 },
@@ -1000,10 +1014,84 @@
         { range: 130, damage: 9, fireRate: 0.8, projectileSpeed: 0, splash: 0, hp: 280 }
       ],
       upgradeCost: [60, 100]
+    },
+    queratinocito: {
+      id: "queratinocito", name: "Queratinocito activado", shortName: "Queratino",
+      color: "#d4a855", colorDark: "#7a5a18", cost: 65,
+      desc: "Produce defensinas α/β, IL-8 e IL-1β creando barrera física y química. Campo de defensinas ralentiza invasores; IL-8 recluta neutrófilos aumentando su cadencia.",
+      defensinField: true,
+      specialChargeSec: 30,
+      specialName: "Cornificación",
+      levels: [
+        { range: 105, damage: 10, fireRate: 0.8, projectileSpeed: 270, splash: 0, hp: 100 },
+        { range: 120, damage: 16, fireRate: 1.0, projectileSpeed: 300, splash: 0, hp: 130 },
+        { range: 135, damage: 22, fireRate: 1.2, projectileSpeed: 330, splash: 0, hp: 165 }
+      ],
+      upgradeCost: [70, 120]
+    },
+    sebocito: {
+      id: "sebocito", name: "Sebocito", shortName: "Sebocito",
+      color: "#c8980a", colorDark: "#7a5a04", cost: 80,
+      desc: "Produce sebo antimicrobiano (ácidos grasos, escualeno, ceras) formando charcos de DoT continuo. Daño ×3 contra Cutibacterium acnes y dermatofitos.",
+      sebumSpecialist: ["cacnes", "dermatofito"],
+      specialChargeSec: 28,
+      specialName: "Hiperseborrhea",
+      levels: [
+        { range: 165, damage: 12, fireRate: 0.7, projectileSpeed: 280, splash: 0, hp: 90,  puddle: { r: 32, life: 6, dot: 10 } },
+        { range: 185, damage: 18, fireRate: 0.9, projectileSpeed: 300, splash: 0, hp: 115, puddle: { r: 38, life: 7, dot: 15 } },
+        { range: 205, damage: 26, fireRate: 1.1, projectileSpeed: 320, splash: 0, hp: 145, puddle: { r: 45, life: 8, dot: 22 } }
+      ],
+      upgradeCost: [85, 145]
+    },
+    pdc: {
+      id: "pdc", name: "Célula Dendrítica Plasmocitoide", shortName: "pDC",
+      color: "#6a3dd4", colorDark: "#3a1a80", cost: 85,
+      desc: "Detecta ácidos nucleicos virales vía TLR7/9 y produce IFN-α/β. Ralentiza y debilita virus en rango. Ultimate: Tormenta IFN-α — devastadora contra virus.",
+      antiviralAura: true,
+      virusPriority: true,
+      bonusVs: { kind: "virus", mult: 2.0 },
+      specialChargeSec: 32,
+      specialName: "Tormenta IFN-α",
+      levels: [
+        { range: 145, damage: 18, fireRate: 1.0, projectileSpeed: 380, splash: 0, hp: 85 },
+        { range: 165, damage: 28, fireRate: 1.2, projectileSpeed: 410, splash: 0, hp: 110 },
+        { range: 185, damage: 40, fireRate: 1.4, projectileSpeed: 440, splash: 0, hp: 140 }
+      ],
+      upgradeCost: [90, 150]
+    },
+    linfocitogd: {
+      id: "linfocitogd", name: "Linfocito γδ", shortName: "γδ T",
+      color: "#8bc34a", colorDark: "#4a6e18", cost: 100,
+      desc: "Reconoce antígenos no peptídicos sin presentación por MHC, priorizando patógenos heridos. Bonus ×1.6 vs bacterias y hongos; IL-17 bufa todas las torres cercanas.",
+      huntWounded: true,
+      bonusVsKinds: ["bacteria", "hongo"],
+      bonusVsMult: 1.6,
+      specialChargeSec: 30,
+      specialName: "Cascada IL-17",
+      levels: [
+        { range: 140, damage: 32, fireRate: 1.1, projectileSpeed: 400, splash: 0, hp: 100 },
+        { range: 160, damage: 50, fireRate: 1.3, projectileSpeed: 440, splash: 0, hp: 130 },
+        { range: 180, damage: 72, fireRate: 1.5, projectileSpeed: 480, splash: 0, hp: 165 }
+      ],
+      upgradeCost: [105, 170]
+    },
+    ilc2: {
+      id: "ilc2", name: "ILC2 Linfoide Innato 2", shortName: "ILC2",
+      color: "#26c6da", colorDark: "#0e7a8a", cost: 90,
+      desc: "Produce IL-4, IL-5 e IL-13 amplificando la actividad de Eosinófilos, Mastocitos y Langerhans cercanos. No ataca. Ultimate: IL-5 activa los ultimates de aliados cercanos.",
+      ilc2Aura: true,
+      specialChargeSec: 35,
+      specialName: "Descarga IL-5",
+      levels: [
+        { range: 130, damage: 0, fireRate: 1.0, projectileSpeed: 0, splash: 0, hp: 80 },
+        { range: 150, damage: 0, fireRate: 1.0, projectileSpeed: 0, splash: 0, hp: 105 },
+        { range: 170, damage: 0, fireRate: 1.0, projectileSpeed: 0, splash: 0, hp: 135 }
+      ],
+      upgradeCost: [95, 160]
     }
   };
   var MAC_COST = 5;   // fragmentos de complemento para ensamblar el cañón
-  var TOWER_LIST = ["neutrofilo", "linfocitoB", "linfocitoT", "langerhans", "nk", "eosinofilo", "mastocito", "complemento", "plaqueta", "trombo", "centinela"];
+  var TOWER_LIST = ["neutrofilo", "linfocitoB", "linfocitoT", "langerhans", "nk", "eosinofilo", "mastocito", "complemento", "plaqueta", "trombo", "centinela", "queratinocito", "sebocito", "pdc", "linfocitogd", "ilc2"];
   // Cartilla por grupos desplegables (categorías de defensa).
   // 3 grupos principales + 1 "otras estructuras":
   //  · Defensas: torres que atacan directamente
@@ -1011,8 +1099,8 @@
   //  · Tanques: estructuras pesadas/persistentes (MAC, Trombo)
   //  · Otras estructuras: el resto (Fibrina solo en diseminación)
   var TOWER_GROUPS = [
-    { id: "defensas",      label: "Defensas",      towers: ["neutrofilo", "linfocitoB", "linfocitoT", "nk", "eosinofilo"] },
-    { id: "potenciadores", label: "Potenciadores", towers: ["langerhans", "mastocito"] },
+    { id: "defensas",      label: "Defensas",      towers: ["neutrofilo", "linfocitoB", "linfocitoT", "nk", "eosinofilo", "sebocito", "linfocitogd"] },
+    { id: "potenciadores", label: "Potenciadores", towers: ["langerhans", "mastocito", "queratinocito", "pdc", "ilc2"] },
     { id: "tanques",       label: "Tanques",       towers: ["complemento", "trombo", "centinela"] },
     { id: "otras",         label: "Otras estructuras", towers: ["plaqueta"] }
   ];
@@ -1070,28 +1158,28 @@
       color: "#F9A825", colorDark: "#9c6e0a", radius: 27,
       speedMult: 0.7, hp: 578, reward: 18, viralAdd: 8, attack: 12, power: { type: "burst", range: 135, cooldown: 4, dmg: 13, slowFire: 3 }, isBoss: false,
       shield: { type: "capsula", maxHP: 5, regenRate: 0, regenDelay: 0, doubleRing: true },
-      tooltip: "Bacteria con cápsula y capacidad de formar biofilm protector. Causa infecciones cutáneas, neumonía y septicemia. Algunas cepas (MRSA) son resistentes a antibióticos."
+      tooltip: "Staphylococcus aureus se protege con una cápsula polisacárida y puede formar biofilms que dificultan su eliminación. Su capacidad para producir cepas resistentes como la MRSA, inmune a los antibióticos β-lactámicos, la convierte en un oponente peligroso. Los neutrófilos son las células clave para combatirla mediante fagocitosis."
     },
     influenza: {
       id: "influenza", name: "Virus Influenza", baseKind: "virus",
       color: "#66BB6A", colorDark: "#357a32", radius: 9,
       speedMult: 1.5, hp: 165, reward: 10, viralAdd: 6, isBoss: false,
       shield: null,
-      tooltip: "Virus de RNA muy rápido y mutable. Sin defensas estructurales fuertes. Causa la gripe estacional. Su mutabilidad le permite evadir la inmunidad previa."
+      tooltip: "El Virus Influenza A utiliza su hemaglutinina para adherirse a las células del huésped y su neuraminidasa para escapar de ellas, mutando con frecuencia para evadir el sistema inmunitario. Su capacidad de cambio rápido lo convierte en un desafío para los linfocitos T citotóxicos, que deben reconocer y atacar a los virus infectados con precisión."
     },
     vih: {
       id: "vih", name: "Virus VIH", baseKind: "virus",
       color: "#7B1FA2", colorDark: "#3e0e54", radius: 11,
       speedMult: 1.0, hp: 297, reward: 20, viralAdd: 8, isBoss: false,
       shield: { type: "spike", maxHP: 4, regenRate: 4 / 12, regenDelay: 0, requiresT: true },
-      tooltip: "Retrovirus con envoltura de proteínas spike (gp120/gp41). Solo los Linfocitos T citotóxicos pueden eliminarlo eficazmente. Ataca al sistema inmune y causa el SIDA."
+      tooltip: "El VIH-1 utiliza sus proteínas gp120 y gp41 para adherirse a los receptores de las células CD4+, infiltrándose y tomando el control de estas células clave del sistema inmunológico. Su capacidad para evadir la respuesta inmune es notable, pero los Linfocitos T citotóxicos son los especialistas capacitados para reconocer y eliminar a este virus invasor."
     },
     candida: {
       id: "candida", name: "Candida albicans", baseKind: "hongo",
       color: "#EC407A", colorDark: "#7a1d3e", radius: 27,
       speedMult: 0.9, hp: 413, reward: 15, viralAdd: 8, attack: 6, power: { type: "catapult", range: 150, cooldown: 5, dmg: 32 }, isBoss: false,
       shield: { type: "wall", maxHP: 4, regenRate: 0, regenDelay: 0 },
-      tooltip: "Hongo levadura con pared celular de quitina y β-glucanos. Causa candidiasis. Su pared rígida lo protege parcialmente del ataque inmune."
+      tooltip: "Candida albicans es un hongo dimorfo que puede cambiar de forma levadura a hifa para adaptarse a diferentes entornos y evadir al sistema inmune. Su pared celular, compuesta por β-glucanos y quitina, actúa como escudo protector que dificulta la acción de las células fagocíticas especializadas en combatirlo."
     },
     dermatofito: {
       id: "dermatofito", name: "Trichophyton rubrum", shortName: "Dermatofito", baseKind: "hongo",
@@ -1099,7 +1187,7 @@
       speedMult: 0.85, hp: 352, reward: 14, viralAdd: 7, attack: 5, isBoss: false,
       shield: { type: "wall", maxHP: 2, regenRate: 0, regenDelay: 0 },
       spore: { interval: 3.2, childHpFrac: 0.2, childSpeedMult: 1.9, maxChildren: 5, huntsTowers: true, huntDmg: 18 },
-      tooltip: "Hongo dermatofito de la tiña (pie de atleta y tiña corporal o 'ringworm'). Mientras avanza suelta esporas hijas que corren directo a atacar la torre más cercana."
+      tooltip: "Trichophyton rubrum secreta queratinasas para degradar la queratina de las células huésped, penetrando en las capas más profundas de la piel. Sus conidios resistentes pueden esparcirse y dar origen a esporas hijas que atacan con ferocidad las torres más cercanas."
     },
     // ---- Patógenos cutáneos (Fase 1 = infección de piel) ---------------
     sepidermidis: {
@@ -1108,21 +1196,21 @@
       speedMult: 1.3, hp: 132, reward: 6, viralAdd: 4, attack: 3, isBoss: false,
       shield: null,
       tentacles: { range: 70, dmg: 7, interval: 1.8, pulses: 3, pulseGap: 0.22 },
-      tooltip: "Coco gram positivo de la flora normal de la piel. Rápido y débil... pero cuando pasa pegado a una torre saca SEUDÓPODOS y le mete puñetazos. Forma biofilm sobre catéteres y prótesis."
+      tooltip: "Staphylococcus epidermidis es un oportunista de la flora normal que aprovecha las defensas debilitadas; su capacidad para formar biofilms en prótesis y superficies médicas lo hace persistente. Rápido y débil, pero cuando pasa junto a una torre saca SEUDÓPODOS y le mete puñetazos."
     },
     hsv: {
       id: "hsv", name: "Herpes simplex (HSV)", baseKind: "virus",
       color: "#9575CD", colorDark: "#4527A0", radius: 26,
       speedMult: 1.55, hp: 143, reward: 9, viralAdd: 6, attack: 4, isBoss: false,
       shield: null,
-      tooltip: "Virus con envoltura que causa vesículas dolorosas en piel y mucosas (herpes labial/genital). Muy rápido y queda latente en los nervios para reactivarse. Poca vida, pero difícil de atrapar."
+      tooltip: "El Virus Herpes Simple se esconde en los ganglios nerviosos, permaneciendo latente y listo para reactivarse en cualquier momento. Su envoltura viral está equipada con glicoproteínas que facilitan la fusión con las células huésped — los linfocitos T citotóxicos son los especialistas para eliminarlo."
     },
     cacnes: {
       id: "cacnes", name: "Cutibacterium acnes", baseKind: "bacteria",
       color: "#C9A66B", colorDark: "#7a5c33", colorLight: "#E8D2A8", radius: 20,
       speedMult: 0.7, hp: 308, reward: 12, viralAdd: 6, attack: 4, isBoss: false,
       shield: { type: "wall", maxHP: 2, regenRate: 0, regenDelay: 0 },
-      tooltip: "Bacilo anaerobio del folículo piloso, responsable del acné. Lento y resistente; su biofilm en el poro lo protege parcialmente del ataque inmune."
+      tooltip: "Cutibacterium acnes prospera en los folículos pilosos produciendo porfirinas y lipasas que le permiten explotar este entorno rico en sebo. Aunque se mueve lentamente, su biofilm parcial lo hace resistente al ataque inmune — el Sebocito multiplica su daño ×3 contra este germen."
     },
     pseudomonas: {
       id: "pseudomonas", name: "Pseudomonas aeruginosa", baseKind: "bacteria",
@@ -1130,7 +1218,7 @@
       speedMult: 1.0, hp: 396, reward: 16, viralAdd: 7, attack: 10, power: { type: "spray", range: 115, cooldown: 5, stun: 2.4, dmg: 16 }, isBoss: false,
       shield: { type: "wall", maxHP: 3, regenRate: 3 / 12, regenDelay: 8 },
       seekers: { interval: 7.5, hp: 8, speed: 75, dmg: 22 },   // esporas buscadoras de torres disparadoras (cañón MAC, NK, linfocito B/T, eosinófilo)
-      tooltip: "Bacilo gram negativo de heridas húmedas. Además de su spray paralizante, suelta esporas que vuelan hacia las torres disparadoras (cañón MAC, Linfocito B/T, NK, Eosinófilo) para destruirlas. Piocianina y biofilm resistente."
+      tooltip: "Pseudomonas aeruginosa forma biofilms resistentes en heridas abiertas, libera piocianina que inhibe la función de los neutrófilos, y despliega exotoxina A que interfiere con la síntesis proteica del huésped. Además de su spray paralizante, suelta esporas que vuelan hacia las torres disparadoras para destruirlas."
     },
     // ---- Lote 2: gérmenes de piel con poderes propios ------------------
     sarna: {
@@ -1140,14 +1228,14 @@
       shield: null,
       burrow: { interval: 5.0, duration: 1.5, speedMult: 1.9, surfaceJump: 90 },
       spore: { interval: 4.5, childHpFrac: 0.2, childSpeedMult: 1.6, maxChildren: 3 },
-      tooltip: "Ácaro que excava galerías en la piel (escabiosis). Se entierra para esquivar el ataque y reaparece adelante; va dejando larvas. El Eosinófilo lo destroza y la Cel. de Langerhans lo delata cuando se esconde."
+      tooltip: "Sarcoptes scabiei excava galerías en el estrato córneo de la piel, donde deposita sus huevos y se refugia. Al enterrarse se vuelve temporalmente invulnerable — el Eosinófilo lo destroza cuando emerge y la Célula de Langerhans lo delata cuando está escondido."
     },
     hpv: {
       id: "hpv", name: "Virus del papiloma (HPV)", shortName: "HPV", baseKind: "virus",
       color: "#8a9a5e", colorDark: "#4f5a2c", colorLight: "#c2cf90", radius: 25,
       speedMult: 0.6, hp: 396, reward: 15, viralAdd: 8, attack: 6, isBoss: false,
       shield: { type: "wall", maxHP: 4, regenRate: 4 / 9, regenDelay: 3 },
-      tooltip: "Virus de las verrugas. Su coraza de queratina se regenera y amortigua los golpes, así que es muy duro y lento. La Célula NK le rompe el escudo y le hace daño extra."
+      tooltip: "El Virus del Papiloma Humano se disfraza con una cápside de 72 capsómeros L1/L2; sus proteínas E6 y E7 inactivan a p53 y Rb, los reguladores del ciclo celular. Su coraza de queratina se regenera y amortigua los golpes — la Célula NK es la más efectiva para romperle el escudo."
     },
     molluscum: {
       id: "molluscum", name: "Molluscum contagiosum", shortName: "Molluscum", baseKind: "virus",
@@ -1156,7 +1244,7 @@
       shield: null,
       spore: { interval: 3.5, childHpFrac: 0.4, childSpeedMult: 1.0, maxChildren: 3 },
       deathSplit: { count: 2, hpFrac: 0.35 },
-      tooltip: "Poxvirus muy contagioso, típico en niños: pápulas cerosas con un hoyuelo central. Suelta 'perlas' que germinan en nuevos molluscum y, al morir, se divide en dos. La Célula NK es la indicada."
+      tooltip: "El Molluscum contagiosum ha evolucionado proteínas MC159 y MC160 que bloquean activamente la respuesta inmune. Suelta perlas que germinan en nuevos molluscum y, al morir, se divide en dos — los linfocitos T citotóxicos son clave para eliminar las células infectadas."
     },
     malassezia: {
       id: "malassezia", name: "Malassezia", shortName: "Malassezia", baseKind: "hongo",
@@ -1164,7 +1252,34 @@
       speedMult: 0.85, hp: 264, reward: 12, viralAdd: 7, attack: 5, isBoss: false,
       shield: null,
       greaseAura: { range: 95, slowFire: 1.5 },
-      tooltip: "Levadura grasa de la piel (pitiriasis versicolor y caspa). Suelta una película aceitosa que 'engrasa' a las torres cercanas y les baja la cadencia de disparo. Cae con daño bruto o antiséptico."
+      tooltip: "Malassezia furfur es una levadura lipofílica que metaboliza los triglicéridos del sebo produciendo ácido oleico, alterando la melanogénesis y causando pitiriasis versicolor y caspa. Su aura sebácea engrasa las torres cercanas reduciendo su cadencia de disparo — el daño bruto es la mejor salida contra este hongo."
+    },
+    // ---- Nuevos gérmenes de piel (Fase 1) -------------------------------
+    demodex: {
+      id: "demodex", name: "Demodex folliculorum", shortName: "Demodex", baseKind: "parasito",
+      color: "#c8a86a", colorDark: "#7a5c20", colorLight: "#e8d4a0", radius: 16,
+      speedMult: 0.55, hp: 110, reward: 7, viralAdd: 3, attack: 2, isBoss: false,
+      shield: null,
+      cloaked: true,
+      zigzag: { amplitude: 18, frequency: 0.9 },
+      spore: { interval: 6.0, childHpFrac: 0.25, childSpeedMult: 1.3, maxChildren: 3 },
+      tooltip: "Demodex folliculorum produce antígenos que inhiben la respuesta inmune, haciéndolo casi invisible para las torres. Solo las células de Langerhans pueden procesarlo y marcarlo para su destrucción — avanza en zigzag dejando larvas mientras el Eosinófilo lo destroza."
+    },
+    neisseria: {
+      id: "neisseria", name: "Neisseria gonorrhoeae", shortName: "Gonococo", baseKind: "bacteria",
+      color: "#d47c3a", colorDark: "#7a4010", colorLight: "#f0b880", radius: 20,
+      speedMult: 0.70, hp: 235, reward: 11, viralAdd: 5, attack: 4, isBoss: false,
+      shield: null,
+      piliAdhesion: { range: 55, slowFire: 4.0, duration: 4.5 },
+      tooltip: "Neisseria gonorrhoeae utiliza sus pili tipo IV para adherirse a las células huésped; su variación antigénica de proteínas Opa le permite cambiar constantemente de apariencia. Se adhiere a torres cercanas ralentizando su cadencia — los anticuerpos del Linfocito B neutralizan sus pili (daño ×2)."
+    },
+    leishmania: {
+      id: "leishmania", name: "Leishmania major", shortName: "Leishmania", baseKind: "parasito",
+      color: "#7aaa44", colorDark: "#3d5a18", colorLight: "#b8d880", radius: 19,
+      speedMult: 1.0, hp: 290, reward: 14, viralAdd: 6, attack: 5, isBoss: false,
+      shield: null,
+      leishForm: { interval: 7.0, amastigoteDmgMult: 0.10 },
+      tooltip: "Leishmania major alterna entre el promastigote flagelado, que se desplaza libremente, y el amastigote, que se esconde dentro de macrófagos suprimiendo la producción de óxido nítrico para sobrevivir. Actúa rápido antes de que cambie de forma y se vuelva casi invulnerable — el Eosinófilo es la mejor defensa."
     },
     // ---- Bosses --------------------------------------------------------
     bossPyogenes: {
@@ -1172,28 +1287,28 @@
       color: "#C62828", colorDark: "#5a0d0d", radius: 32,
       speedMult: 0.8, hp: 1155, reward: 50, viralAdd: 15, attack: 25, power: { type: "burst", range: 165, cooldown: 3, dmg: 24, slowFire: 3 }, isBoss: true,
       shield: { type: "capsula", maxHP: 6, regenRate: 6 / 8, regenDelay: 0 },
-      tooltip: "La 'bacteria carnívora'. Causa fascitis necrotizante y faringitis severa. Su cápsula y exotoxinas la hacen muy peligrosa."
+      tooltip: "Streptococcus pyogenes utiliza su estreptolisina O/S para destruir membranas celulares y su hialuronidasa para disolver el ácido hialurónico, avanzando por los tejidos y dejando un rastro de necrosis. Su proteína M antifagocítica le permite evadir a los neutrófilos — requiere respuesta completa del sistema inmune."
     },
     bossMRSA: {
       id: "bossMRSA", name: "MRSA", baseKind: "bacteria",
       color: "#424242", colorDark: "#1a1a1a", radius: 38,
       speedMult: 0.6, hp: 2970, reward: 150, viralAdd: 35, attack: 35, power: { type: "spray", range: 165, cooldown: 3, stun: 3, dmg: 28 }, isBoss: true,
       shield: { type: "capsula", maxHP: 10, regenRate: 2 / 6, regenDelay: 0, doubleRing: true, mrsaHalo: true },
-      tooltip: "Staphylococcus aureus multi-resistente a antibióticos. Una de las amenazas microbiológicas más serias del siglo XXI. Combina cápsula, biofilm y resistencia genética. Su erradicación requiere arsenal completo del sistema inmune."
+      tooltip: "MRSA porta el gen mecA en el cassette SCCmec, lo que le permite esquivar los antibióticos β-lactámicos y resistir la mayoría de los tratamientos convencionales. Combina cápsula, biofilm y resistencia genética — el jefe final de la Fase 1 requiere todo el arsenal inmune disponible."
     },
     bossPseudomonas: {
       id: "bossPseudomonas", name: "Pseudomonas aeruginosa", baseKind: "bacteria",
       color: "#00ACC1", colorDark: "#00606e", colorLight: "#4DD0E1", radius: 30,
       speedMult: 0.9, hp: 1540, reward: 65, viralAdd: 18, attack: 22, power: { type: "devour", range: 130, cooldown: 11, pull: 1.5 }, isBoss: true,
       shield: { type: "wall", maxHP: 6, regenRate: 6 / 8, regenDelay: 0 },
-      tooltip: "Pseudomonas invasiva: ectima gangrenoso. Coloniza heridas y quemaduras extensas, destruye el tejido y resiste muchos antibióticos. Su biofilm se regenera con rapidez."
+      tooltip: "Pseudomonas aeruginosa hipervirulenta usa su sistema de secreción tipo III para inyectar exoenzimas directamente en las células huésped, mientras la piocianina bloquea la fagocitosis y su biofilm regenera el escudo continuamente. JEFE de ectima gangrenoso — atrae y devora torres cercanas con su campo de captación."
     },
     bossClostridium: {
       id: "bossClostridium", name: "Clostridium perfringens", baseKind: "bacteria",
       color: "#546E7A", colorDark: "#263238", radius: 32,
       speedMult: 0.55, hp: 1815, reward: 80, viralAdd: 22, attack: 28, power: { type: "devour", range: 120, cooldown: 13, pull: 1.8 }, isBoss: true,
       shield: { type: "wall", maxHP: 5, regenRate: 0, regenDelay: 0 },
-      tooltip: "Bacilo anaerobio de la gangrena gaseosa. Sus toxinas necrosan músculo y piel produciendo gas en los tejidos. Avanza lento e implacable; emergencia quirúrgica."
+      tooltip: "Clostridium perfringens produce la letal α-toxina fosfolipasa C que destruye membranas celulares, causando gangrena gaseosa al producir gas en los tejidos. Avanza lento e implacable — los neutrófilos son los candidatos más eficaces para combatir a este formidable jefe."
     },
     // ---- Legacy aliases (some old code still references these by name) --
     bacteria: {
@@ -1234,7 +1349,10 @@
     sarna:       { pulseGap: 0.60, punchDur: 0.38, color: "#8a5a2b" },
     hpv:         { pulseGap: 0.50, punchDur: 0.42, color: "#8a9a5e" },
     molluscum:   { pulseGap: 0.55, punchDur: 0.52, color: "#e8d6c0" },
-    malassezia:  { pulseGap: 0.60, punchDur: 0.46, color: "#d8c060" }
+    malassezia:  { pulseGap: 0.60, punchDur: 0.46, color: "#d8c060" },
+    demodex:     { pulseGap: 0.85, punchDur: 0.55, color: "#c8a86a" },
+    neisseria:   { pulseGap: 0.65, punchDur: 0.45, color: "#d47c3a" },
+    leishmania:  { pulseGap: 0.58, punchDur: 0.42, color: "#7aaa44" }
   };
 
 
@@ -1297,13 +1415,13 @@
   var WAVE_TABLE = {
     1:  [["sepidermidis",6,1.2],["cacnes",3,1.4]],
     2:  [["sepidermidis",5,1.0],["cacnes",3,1.2],["bossPyogenes",1,0]],
-    3:  [["sepidermidis",4,1.0],["hsv",6,0.55],["molluscum",3,0.9]],
-    4:  [["cacnes",3,1.0],["hsv",6,0.5],["saureus",2,1.0],["bossPseudomonas",1,0]],
-    5:  [["saureus",3,1.0],["hsv",7,0.5],["malassezia",3,0.9],["dermatofito",2,1.0]],
-    6:  [["saureus",4,1.0],["hsv",7,0.5],["sarna",3,1.0],["molluscum",3,0.9],["malassezia",2,0.9]],
-    7:  [["saureus",4,1.0],["pseudomonas",3,0.9],["sarna",3,1.0],["hpv",3,1.0],["bossClostridium",1,0]],
-    8:  [["saureus",5,0.95],["hsv",7,0.5],["pseudomonas",4,0.9],["hpv",3,0.9],["sarna",2,1.0],["candida",2,0.9]],
-    9:  [["saureus",6,0.9],["hsv",8,0.45],["pseudomonas",5,0.85],["hpv",4,0.9],["dermatofito",2,1.0],["malassezia",3,0.9]],
+    3:  [["sepidermidis",4,1.0],["hsv",6,0.55],["molluscum",3,0.9],["demodex",2,1.2]],
+    4:  [["cacnes",3,1.0],["hsv",6,0.5],["saureus",2,1.0],["demodex",3,1.0],["bossPseudomonas",1,0]],
+    5:  [["saureus",3,1.0],["hsv",7,0.5],["malassezia",3,0.9],["dermatofito",2,1.0],["demodex",2,1.0],["neisseria",2,1.2]],
+    6:  [["saureus",4,1.0],["hsv",7,0.5],["sarna",3,1.0],["molluscum",3,0.9],["neisseria",3,1.0],["leishmania",2,1.3]],
+    7:  [["saureus",4,1.0],["pseudomonas",3,0.9],["sarna",3,1.0],["hpv",3,1.0],["neisseria",2,0.9],["leishmania",3,1.0],["bossClostridium",1,0]],
+    8:  [["saureus",5,0.95],["hsv",7,0.5],["pseudomonas",4,0.9],["hpv",3,0.9],["sarna",2,1.0],["leishmania",3,0.9],["candida",2,0.9]],
+    9:  [["saureus",6,0.9],["hsv",8,0.45],["pseudomonas",5,0.85],["hpv",4,0.9],["dermatofito",2,1.0],["malassezia",3,0.9],["leishmania",2,0.9]],
     10: [["saureus",6,0.9],["hsv",6,0.45],["pseudomonas",5,0.85],["hpv",3,0.9],["bossMRSA",1,0]]
   };
 
@@ -1322,14 +1440,18 @@
   var BASIC_TOWERS = ["neutrofilo", "linfocitoB", "linfocitoT"];
   var UNLOCK_SCHEDULE = {
     2: "langerhans",
-    5: "nk"
+    3: "nk",
+    4: "queratinocito",
+    5: "sebocito",
+    6: "pdc",
+    8: "linfocitogd"
   };
   // Catch-up: si el jugador llega a Diseminación sin haber conseguido
   // alguna de estas (perdió el pickup por ola, o no llegó a matar al boss
   // correspondiente), se le vuelve a ofrecer ahí — ninguna torre queda
   // inalcanzable. Eosinófilo/Mastocito NO están acá porque su unlock
   // primario YA es en Diseminación (no necesitan catch-up dentro de ella).
-  var PHASE1_CATCHUP_TOWERS = ["langerhans", "nk", "complemento", "trombo", "centinela"];
+  var PHASE1_CATCHUP_TOWERS = ["langerhans", "nk", "complemento", "trombo", "centinela", "queratinocito", "pdc", "sebocito", "linfocitogd"];
   // TANQUES: se ganan matando a un boss específico, no por ola. El drop
   // real ocurre en updateEnemies cuando el boss termina su animación de
   // muerte (dyingTimer<=0) — ver BOSS_TANK_DROPS ahí.
@@ -1338,7 +1460,8 @@
   // 6 olas), ver startNextDisseminationWave().
   var DISSEM_UNLOCK_SCHEDULE = {
     0: "eosinofilo",
-    1: "mastocito"
+    1: "mastocito",
+    2: "ilc2"
   };
 
   // === MEGACARIOCITO: produce plaquetas maduras periódicamente ===
@@ -1661,6 +1784,29 @@
     ctx.textAlign = "center";
     ctx.textBaseline = "top";
     ctx.fillText("MÉDULA", 0, 20 * s);
+    // Badges de bonuses activos
+    var activeBonuses = [];
+    if ((state.medRegenTimer   || 0) > 0) activeBonuses.push({ icon: "♻", color: "#4caf50" });
+    if ((state.medChargeBoostTimer||0)>0) activeBonuses.push({ icon: "⚡", color: "#ffb300" });
+    if ((state.medPrimaTimer   || 0) > 0) activeBonuses.push({ icon: "💰", color: "#ff9800" });
+    if ((state.medCitoTimer    || 0) > 0) activeBonuses.push({ icon: "⬆", color: "#e91e63" });
+    if ((state.medCelulaReserva|| 0) > 0) activeBonuses.push({ icon: "🛡", color: "#7c4dff" });
+    if (activeBonuses.length > 0) {
+      var bR = 7 * s;
+      var bSpan = activeBonuses.length * (bR * 2 + 2 * s) - 2 * s;
+      var bStartX = -bSpan / 2 + bR;
+      var bY = 32 * s;
+      ctx.font = Math.floor(8 * s) + "px Fredoka, sans-serif";
+      ctx.textBaseline = "middle";
+      for (var ab = 0; ab < activeBonuses.length; ab++) {
+        var bx = bStartX + ab * (bR * 2 + 2 * s);
+        ctx.fillStyle = activeBonuses[ab].color + "cc";
+        ctx.beginPath(); ctx.arc(bx, bY, bR, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = "#fff";
+        ctx.textAlign = "center";
+        ctx.fillText(activeBonuses[ab].icon, bx, bY);
+      }
+    }
     ctx.restore();
   }
 
@@ -1772,9 +1918,6 @@
   }
 
   function openMedReinforcePicker() {
-    // Un tipo es elegible si AL MENOS UNA copia en pantalla no está al
-    // máximo — no basta con mirar la primera copia encontrada, puede
-    // haber varias del mismo tipo en niveles distintos.
     var eligible = {};
     for (var i = 0; i < state.towers.length; i++) {
       var tw = state.towers[i];
@@ -1783,11 +1926,7 @@
       if (tw.level < tw.def.levels.length - 1) eligible[id] = true;
     }
     var opts = Object.keys(eligible);
-    if (opts.length === 0) {
-      showMsg("No hay torres para reforzar ahora");
-      return;
-    }
-    state.medReinforcePicker = { options: opts };
+    state.medReinforcePicker = { options: opts, bonusOptions: MED_BONUS_TYPES };
   }
 
   function applyMedReinforce(typeId) {
@@ -1801,7 +1940,20 @@
       var defB = TOWER_DEFS[typeId];
       showMsg("¡" + (defB.shortName || defB.name) + " reforzado! +1 nivel por " + MED_REINFORCE_DUR + "s");
       sfx("upgrade");
+    } else {
+      // No hay torres de ese tipo en campo — solo cerrar el picker.
+      state.medReinforcePicker = null;
     }
+  }
+
+  function applyMedulaBonus(bonusId) {
+    state.medReinforcePicker = null;
+    if (bonusId === "regen")   { state.medRegenTimer = Math.max(state.medRegenTimer, 45); showMsg("¡Regeneración celular activa! 2 HP/s · 45s"); }
+    if (bonusId === "charge")  { state.medChargeBoostTimer = Math.max(state.medChargeBoostTimer, 40); showMsg("¡Carga acelerada! Especiales ×2 · 40s"); }
+    if (bonusId === "prima")   { state.medPrimaTimer = Math.max(state.medPrimaTimer, 60); showMsg("¡Prima de eliminación! +2 ATP por germen · 60s"); }
+    if (bonusId === "cito")    { state.medCitoTimer = Math.max(state.medCitoTimer, 35); showMsg("¡Red de citoquinas! Torres +35% daño · 35s"); }
+    if (bonusId === "reserva") { state.medCelulaReserva = Math.min(3, (state.medCelulaReserva || 0) + 3); showMsg("¡Célula de Reserva lista! ×3 reconstrucciones"); }
+    sfx("upgrade");
   }
 
   function handleMedReinforcePickerTap(x, y) {
@@ -1809,58 +1961,121 @@
     for (var i = 0; i < opts.length; i++) {
       if (inRect(x, y, opts[i])) { applyMedReinforce(opts[i].typeId); return; }
     }
+    var bonusOpts = UI.medBonusOptions || [];
+    for (var j = 0; j < bonusOpts.length; j++) {
+      if (inRect(x, y, bonusOpts[j])) { applyMedulaBonus(bonusOpts[j].bonusId); return; }
+    }
+    // Tap fuera de opciones → cerrar picker
+    state.medReinforcePicker = null;
   }
 
   function drawMedReinforcePicker() {
     var picker = state.medReinforcePicker;
-    if (!picker) { UI.medReinforceOptions = null; return; }
+    if (!picker) { UI.medReinforceOptions = null; UI.medBonusOptions = null; return; }
     ctx.save();
-    ctx.fillStyle = "rgba(10, 14, 24, 0.72)";
+    ctx.fillStyle = "rgba(10, 14, 24, 0.78)";
     ctx.fillRect(0, 0, VW, VH);
-    ctx.fillStyle = "#fff";
-    ctx.font = "bold " + Math.floor(15 * U) + "px Fredoka, sans-serif";
+
+    var centerX = VW / 2;
+    var iconR   = 24 * U;
+    var gap     = 14 * U;
+
+    // === Fila 1: Torres (+1 nivel temporal) ===
+    var opts = picker.options;
+    var hasTowers = opts.length > 0;
+    var row1Y = VH * 0.32;
+
+    ctx.font = "bold " + Math.floor(13 * U) + "px Fredoka, sans-serif";
+    ctx.fillStyle = "#5BC8E8";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText("Elegí una torre para reforzar", VW / 2, VH / 2 - 70 * U);
-    ctx.font = Math.floor(11 * U) + "px Fredoka, sans-serif";
-    ctx.fillStyle = "rgba(255,255,255,0.75)";
-    ctx.fillText("+1 nivel temporal durante " + MED_REINFORCE_DUR + "s", VW / 2, VH / 2 - 48 * U);
+    ctx.fillText("Reforzar torre  (+1 nivel, " + MED_REINFORCE_DUR + "s)", centerX, row1Y - iconR - 14 * U);
 
-    var n = picker.options.length;
-    var iconR = 26 * U;
-    var gap = 18 * U;
-    var totalW = n * iconR * 2 + (n - 1) * gap;
-    var startX = VW / 2 - totalW / 2 + iconR;
-    var y = VH / 2;
-    var opts = [];
-    for (var i = 0; i < n; i++) {
-      var typeId = picker.options[i];
-      var def = TOWER_DEFS[typeId];
-      var cx = startX + i * (iconR * 2 + gap);
-      var pulse = 0.5 + 0.5 * Math.sin(state.time * 3 + i);
+    var towerCards = [];
+    if (hasTowers) {
+      var totalW1 = opts.length * iconR * 2 + (opts.length - 1) * gap;
+      var startX1 = centerX - totalW1 / 2 + iconR;
+      for (var i = 0; i < opts.length; i++) {
+        var typeId = opts[i];
+        var def = TOWER_DEFS[typeId];
+        var cx = startX1 + i * (iconR * 2 + gap);
+        var pulse = 0.5 + 0.5 * Math.sin(state.time * 3 + i);
+        ctx.save();
+        ctx.translate(cx, row1Y);
+        ctx.fillStyle = "rgba(91, 200, 232, " + (0.18 + pulse * 0.22) + ")";
+        ctx.beginPath(); ctx.arc(0, 0, iconR * 1.2, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = "#5BC8E8"; ctx.strokeStyle = "#1a6b80"; ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.arc(0, 0, iconR, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+        drawCardIcon(typeId, 0, 0, iconR * 0.60, true);
+        ctx.restore();
+        ctx.fillStyle = "#fff";
+        ctx.font = "bold " + Math.floor(8 * U) + "px Fredoka, sans-serif";
+        ctx.textAlign = "center"; ctx.textBaseline = "top";
+        ctx.fillText(def.shortName || def.name, cx, row1Y + iconR + 4 * U);
+        towerCards.push({ x: cx - iconR, y: row1Y - iconR, w: iconR * 2, h: iconR * 2, typeId: typeId });
+      }
+    } else {
+      ctx.font = Math.floor(10 * U) + "px Fredoka, sans-serif";
+      ctx.fillStyle = "rgba(255,255,255,0.45)";
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText("(ninguna torre elegible para reforzar)", centerX, row1Y);
+    }
+    UI.medReinforceOptions = towerCards;
+
+    // === Separador ===
+    var sepY = VH * 0.52;
+    ctx.strokeStyle = "rgba(255,255,255,0.18)";
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(centerX - 90 * U, sepY); ctx.lineTo(centerX + 90 * U, sepY); ctx.stroke();
+
+    // === Fila 2: Bonuses de la médula ===
+    var bonuses = picker.bonusOptions || MED_BONUS_TYPES;
+    var row2Y   = VH * 0.70;
+    ctx.font = "bold " + Math.floor(13 * U) + "px Fredoka, sans-serif";
+    ctx.fillStyle = "#ffd54f";
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillText("Bonus de Médula  (elige uno)", centerX, row2Y - iconR - 14 * U);
+
+    var bIconR = 20 * U;
+    var bGap   = 12 * U;
+    var nb     = bonuses.length;
+    var totalW2 = nb * bIconR * 2 + (nb - 1) * bGap;
+    var startX2 = centerX - totalW2 / 2 + bIconR;
+    var bonusCards = [];
+    for (var j = 0; j < nb; j++) {
+      var bns = bonuses[j];
+      var bcx = startX2 + j * (bIconR * 2 + bGap);
+      var bpulse = 0.5 + 0.5 * Math.sin(state.time * 2.5 + j * 1.2);
       ctx.save();
-      ctx.translate(cx, y);
-      ctx.fillStyle = "rgba(110, 220, 220, " + (0.20 + pulse * 0.25) + ")";
-      ctx.beginPath();
-      ctx.arc(0, 0, iconR * 1.25, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = "#5BC8E8";
-      ctx.strokeStyle = "#1a6b80";
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.arc(0, 0, iconR, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
-      drawCardIcon(typeId, 0, 0, iconR * 0.62, true);
+      ctx.translate(bcx, row2Y);
+      ctx.fillStyle = bns.color + "33";
+      ctx.beginPath(); ctx.arc(0, 0, bIconR * 1.25, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = bns.color; ctx.strokeStyle = bns.color; ctx.globalAlpha = 0.85; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(0, 0, bIconR, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = 1;
+      ctx.strokeStyle = "#fff"; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(0, 0, bIconR, 0, Math.PI * 2); ctx.stroke();
+      ctx.fillStyle = "#fff";
+      ctx.font = "bold " + Math.floor(11 * U) + "px Fredoka, sans-serif";
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText(bns.icon, 0, 0);
       ctx.restore();
       ctx.fillStyle = "#fff";
-      ctx.font = "bold " + Math.floor(9 * U) + "px Fredoka, sans-serif";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "top";
-      ctx.fillText(def.shortName || def.name, cx, y + iconR + 6 * U);
-      opts.push({ x: cx - iconR, y: y - iconR, w: iconR * 2, h: iconR * 2, typeId: typeId });
+      ctx.font = "bold " + Math.floor(8 * U) + "px Fredoka, sans-serif";
+      ctx.textAlign = "center"; ctx.textBaseline = "top";
+      ctx.fillText(bns.name, bcx, row2Y + bIconR + 4 * U);
+      ctx.fillStyle = "rgba(255,255,255,0.55)";
+      ctx.font = Math.floor(7 * U) + "px Fredoka, sans-serif";
+      ctx.fillText(bns.desc, bcx, row2Y + bIconR + 14 * U);
+      bonusCards.push({ x: bcx - bIconR, y: row2Y - bIconR, w: bIconR * 2, h: bIconR * 2, bonusId: bns.id });
     }
-    UI.medReinforceOptions = opts;
+    UI.medBonusOptions = bonusCards;
+
+    // Hint para cerrar
+    ctx.fillStyle = "rgba(255,255,255,0.30)";
+    ctx.font = Math.floor(8 * U) + "px Fredoka, sans-serif";
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillText("Toca fuera para cerrar", centerX, VH * 0.92);
     ctx.restore();
   }
   // ============ FIN MÉDULA ÓSEA ============
@@ -3342,6 +3557,11 @@
       acidTimer: 0,
       gasFx: null,
       medFx: null,                      // {id, color, life, max, origX, origY, flashLife, ...}
+      medRegenTimer: 0,                 // Torres recuperan HP pasivamente mientras > 0
+      medChargeBoostTimer: 0,           // Ultimates cargan 2x mientras > 0
+      medPrimaTimer: 0,                 // +2 ATP por kill mientras > 0
+      medCitoTimer: 0,                  // Todas torres +35% daño mientras > 0
+      medCelulaReserva: 0,              // N torres caídas se reconstruyen
       bodyMap: null,                    // {from, to, heroFrom, heroTo, t, duration, phase}
       secondEntryOpen: false,
       surgeAnnounced: false,
@@ -4024,6 +4244,8 @@
     state.unlockScheduleNotified = {};
     state.unlockPickups = [];
     state.medReinforcePicker = null;
+    state.medRegenTimer = 0; state.medChargeBoostTimer = 0;
+    state.medPrimaTimer = 0; state.medCitoTimer = 0; state.medCelulaReserva = 0;
     // Catch-up: lo que se haya perdido en Fase 1 (pickup de ola no
     // recogido, boss no derrotado) se ofrece acá, en cadena. Eosinófilo/
     // Mastocito NO entran porque su unlock primario ya es de Diseminación
@@ -4257,6 +4479,9 @@
       shieldRegenAccum: 0,
       shieldShatterTimer: 0,
       shieldHitTimer: 0,
+      piliTarget: null, piliTimer: 0,
+      leishAmastigote: false, leishFormTimer: null,
+      zigzagPhase: 0,
       tooltipShown: false,
       dead: false
     });
@@ -4447,6 +4672,22 @@
         if (state.slicks[si].life <= 0) state.slicks.splice(si, 1);
       }
     }
+    // Charcos de sebo (Sebocito): se desvanecen y aplican DoT a los gérmenes que pisan.
+    if (state.sebumPuddles && state.sebumPuddles.length) {
+      for (var spi = state.sebumPuddles.length - 1; spi >= 0; spi--) {
+        var spd = state.sebumPuddles[spi];
+        spd.life -= dt;
+        if (spd.life <= 0) { state.sebumPuddles.splice(spi, 1); continue; }
+        for (var ei = 0; ei < state.enemies.length; ei++) {
+          var ee = state.enemies[ei];
+          if (ee.dead || ee.dying || ee.absorbing) continue;
+          var ddx = ee.x - spd.x, ddy = ee.y - spd.y;
+          if (ddx * ddx + ddy * ddy <= spd.r * spd.r) {
+            damageEnemy(ee, spd.dot * dt, "sebocito");
+          }
+        }
+      }
+    }
     for (var i = 0; i < state.enemies.length; i++) {
       var e = state.enemies[i];
       if (e.dead) continue;
@@ -4494,6 +4735,7 @@
             spawnAntigenDrop(e.x, e.y);
             e.antigenSpawned = true;
           }
+          if (e.piliTarget) e.piliTarget = null;
           e.dead = true;
           spawnEffect("death", e.x, e.y, e.def.color);
           sfx("enemyDie");
@@ -5018,6 +5260,13 @@
           e.x = p.x;
           e.y = p.y;
         }
+        // Demodex: zigzag lateral sobre el camino (movimiento serpentino).
+        if (e.def.zigzag && e.state === "walking" && !e.dying) {
+          e.zigzagPhase += dt * e.def.zigzag.frequency * Math.PI * 2;
+          var zAmp = e.def.zigzag.amplitude * U;
+          e.x += -Math.sin(p.angle) * Math.sin(e.zigzagPhase) * zAmp;
+          e.y +=  Math.cos(p.angle) * Math.sin(e.zigzagPhase) * zAmp;
+        }
       }
       // Combate: gérmenes agresivos dañan torres dentro del aura al pasar
       // (sin detenerse). Solo en el camino y si no están siendo absorbidos.
@@ -5092,6 +5341,57 @@
         if (e.slickTimer <= 0) {
           e.slickTimer = 0.8;
           state.slicks.push({ x: e.x, y: e.y, r: 22 * U, life: 3, max: 3 });
+        }
+      }
+      // Leishmania: alternancia de formas promastigote / amastigote cada 7s.
+      if (e.def.leishForm && !e.dying && !e.absorbing &&
+          e.state !== "falling" && e.state !== "outside" && e.state !== "entering") {
+        if (e.leishFormTimer == null) e.leishFormTimer = e.def.leishForm.interval;
+        e.leishFormTimer -= dt;
+        if (e.leishFormTimer <= 0) {
+          e.leishAmastigote = !e.leishAmastigote;
+          e.leishFormTimer = e.def.leishForm.interval;
+          if (e.leishAmastigote) {
+            e.state = "blocked";
+          } else if (!e.piliTarget) {
+            e.state = "walking";
+          }
+          for (var lfp = 0; lfp < 5; lfp++) {
+            var lfa = Math.random() * Math.PI * 2, lfs = (20 + Math.random() * 30) * U;
+            pushEffect({ kind: "particle", x: e.x, y: e.y,
+              vx: Math.cos(lfa) * lfs, vy: Math.sin(lfa) * lfs,
+              life: 0.35, max: 0.35, color: e.leishAmastigote ? "#8B4513" : "#7aaa44" });
+          }
+        }
+      }
+      // Neisseria: pili tipo IV — se adhiere a torres cercanas y ralentiza su cadencia.
+      if (e.def.piliAdhesion && !e.dying && !e.absorbing &&
+          (e.state === "walking" || (e.state === "blocked" && e.piliTarget))) {
+        var pa = e.def.piliAdhesion;
+        if (!e.piliTarget) {
+          var paRange = pa.range * U;
+          for (var pti = 0; pti < state.towers.length; pti++) {
+            var ptw = state.towers[pti];
+            if (ptw.devouredBy) continue;
+            if (Math.hypot(ptw.x - e.x, ptw.y - e.y) <= paRange) {
+              e.piliTarget = ptw;
+              e.piliTimer = pa.duration;
+              e.state = "blocked";
+              break;
+            }
+          }
+        } else {
+          if (state.towers.indexOf(e.piliTarget) === -1 || e.piliTarget.devouredBy) {
+            e.piliTarget = null;
+            if (!e.leishAmastigote) e.state = "walking";
+          } else {
+            e.piliTarget.slowFireTimer = Math.max(e.piliTarget.slowFireTimer || 0, 0.5);
+            e.piliTimer -= dt;
+            if (e.piliTimer <= 0) {
+              e.piliTarget = null;
+              if (!e.leishAmastigote) e.state = "walking";
+            }
+          }
         }
       }
       // Tópico: ácido en el camino — DoT a todos los gérmenes mientras dura.
@@ -5383,6 +5683,7 @@
         var le = state.enemies[li];
         if (le.dead || le.dying || le.absorbing) continue;
         if (le.burrowed && !le.revealed) continue;
+        if (le.def.cloaked && !le.revealed) continue;
         if (Math.hypot(le.x - t.x, le.y - t.y) > ltR) continue;
         ltCandidates.push(le);
       }
@@ -5409,6 +5710,7 @@
         var ee = state.enemies[ei2];
         if (ee.dead || ee.dying || ee.absorbing) continue;
         if (ee.burrowed && !ee.revealed) continue;
+        if (ee.def.cloaked && !ee.revealed) continue;
         if (Math.hypot(ee.x - t.x, ee.y - t.y) > eoR) continue;
         var eoDmg = eoStats.damage * 2.2;   // subido de 1.5x — estaba muy por debajo del resto del roster
         if (t.def.bonusVs && ee.def.baseKind === t.def.bonusVs.kind) eoDmg *= t.def.bonusVs.mult;
@@ -5441,6 +5743,7 @@
         var me2 = state.enemies[mi2];
         if (me2.dead || me2.dying || me2.absorbing) continue;
         if (me2.burrowed && !me2.revealed) continue;
+        if (me2.def.cloaked && !me2.revealed) continue;
         if (Math.hypot(me2.x - t.x, me2.y - t.y) > maR) continue;
         me2.slowTimer = Math.max(me2.slowTimer || 0, 3.0);
         damageEnemy(me2, (maStats.dotPerSec || 4) * 8, "mastocito");
@@ -5451,6 +5754,134 @@
       t.specialCharge = 0;
       sfx("upgrade");
       triggerShake(0.12, 4);
+      return;
+    }
+    if (def.id === "queratinocito") {
+      // CORNIFICACIÓN: la capa córnea forma una barrera — congela todos
+      // los gérmenes en rango 4 s y les hace daño AoE masivo al final.
+      var kcStats = towerStats(t);
+      var kcR = kcStats.range * U * 1.2;
+      for (var kci = 0; kci < state.enemies.length; kci++) {
+        var kce = state.enemies[kci];
+        if (kce.dead || kce.dying || kce.absorbing) continue;
+        if (Math.hypot(kce.x - t.x, kce.y - t.y) > kcR) continue;
+        kce.slowTimer = Math.max(kce.slowTimer || 0, 4.0);
+        damageEnemy(kce, kcStats.damage * 3.5, "queratinocito");
+        pushEffect({ kind: "particle", x: kce.x, y: kce.y,
+          vx: 0, vy: -30 * U, life: 0.6, max: 0.6, color: "#d4a855" });
+      }
+      pushEffect({ kind: "novaRing", x: t.x, y: t.y, r: kcR, color: "#d4a855", life: 0.65, max: 0.65 });
+      t.specialAnim = 1.2;
+      t.specialReady = false;
+      t.specialCharge = 0;
+      sfx("upgrade");
+      triggerShake(0.12, 3);
+      return;
+    }
+    if (def.id === "sebocito") {
+      // HIPERSEBORRHEA: inunda el path con charcos de sebo reforzados.
+      var sbStats = towerStats(t);
+      var sbLvl = def.levels[Math.min(t.level, def.levels.length - 1)];
+      var sbPuddle = sbLvl.puddle || { r: 38, life: 8, dot: 18 };
+      var sbR = sbStats.range * U * 1.4;
+      if (!state.sebumPuddles) state.sebumPuddles = [];
+      // 6 charcos distribuidos a lo largo del path dentro del rango.
+      for (var sbi = 0; sbi < 6; sbi++) {
+        var sbAngle = (sbi / 6) * Math.PI * 2;
+        var sbDist  = sbR * (0.35 + (sbi % 3) * 0.2);
+        var sbx = t.x + Math.cos(sbAngle) * sbDist;
+        var sby = t.y + Math.sin(sbAngle) * sbDist;
+        state.sebumPuddles.push({ x: sbx, y: sby, r: sbPuddle.r * U * 1.5, life: sbPuddle.life * 1.5, max: sbPuddle.life * 1.5, dot: sbPuddle.dot * 1.8 });
+      }
+      // Daño directo a todos en rango
+      for (var sbj = 0; sbj < state.enemies.length; sbj++) {
+        var sbe = state.enemies[sbj];
+        if (sbe.dead || sbe.dying || sbe.absorbing) continue;
+        if (Math.hypot(sbe.x - t.x, sbe.y - t.y) > sbR) continue;
+        damageEnemy(sbe, sbStats.damage * 2.0, "sebocito");
+      }
+      pushEffect({ kind: "novaRing", x: t.x, y: t.y, r: sbR, color: "#c8980a", life: 0.55, max: 0.55 });
+      t.specialAnim = 1.0;
+      t.specialReady = false;
+      t.specialCharge = 0;
+      sfx("upgrade");
+      triggerShake(0.10, 3);
+      return;
+    }
+    if (def.id === "pdc") {
+      // TORMENTA IFN-α: ráfaga de interferón — aplasta todos los virus
+      // en rango, los paraliza y activa el overclocking propio.
+      var pdStats = towerStats(t);
+      var pdR = pdStats.range * U * 1.3;
+      for (var pdi = 0; pdi < state.enemies.length; pdi++) {
+        var pde = state.enemies[pdi];
+        if (pde.dead || pde.dying || pde.absorbing) continue;
+        if (Math.hypot(pde.x - t.x, pde.y - t.y) > pdR) continue;
+        if (pde.def.baseKind === "virus") {
+          var pdDmg = pdStats.damage * (t.def.bonusVs ? t.def.bonusVs.mult : 1) * 3.0;
+          damageEnemy(pde, pdDmg, "pdc");
+          pde.slowTimer = Math.max(pde.slowTimer || 0, 3.5);
+          pushEffect({ kind: "particle", x: pde.x, y: pde.y,
+            vx: 0, vy: -40 * U, life: 0.5, max: 0.5, color: "#6a3dd4" });
+        }
+      }
+      // pDC misma entra en modo tormenta: dispara 40% más rápido 5s
+      t.ifnBuffT = 5.0;
+      pushEffect({ kind: "novaRing", x: t.x, y: t.y, r: pdR, color: "#6a3dd4", life: 0.65, max: 0.65 });
+      t.specialAnim = 1.4;
+      t.specialReady = false;
+      t.specialCharge = 0;
+      sfx("upgrade");
+      triggerShake(0.14, 4);
+      return;
+    }
+    if (def.id === "linfocitogd") {
+      // CASCADA IL-17: señal proinflamatoria — todas las torres en rango
+      // hacen +45% de daño durante 8s.
+      var gdStats = towerStats(t);
+      var gdR = gdStats.range * U * 1.2;
+      for (var gdi = 0; gdi < state.towers.length; gdi++) {
+        var gdt = state.towers[gdi];
+        if (gdt === t) continue;
+        if (Math.hypot(gdt.x - t.x, gdt.y - t.y) > gdR) continue;
+        gdt.il17BuffT = 8.0;
+        pushEffect({ kind: "particle", x: gdt.x, y: gdt.y,
+          vx: 0, vy: -35 * U, life: 0.7, max: 0.7, color: "#8bc34a" });
+      }
+      t.il17BuffT = 8.0;  // el propio linfocitogd también se bufa
+      pushEffect({ kind: "novaRing", x: t.x, y: t.y, r: gdR, color: "#8bc34a", life: 0.7, max: 0.7 });
+      t.specialAnim = 1.2;
+      t.specialReady = false;
+      t.specialCharge = 0;
+      sfx("upgrade");
+      triggerShake(0.12, 3);
+      return;
+    }
+    if (def.id === "ilc2") {
+      // DESCARGA IL-5: activa el ultimate de todos los Eosinófilos y
+      // Mastocitos cercanos con ≥50% de carga (sin consumir su propia carga).
+      var ilStats = towerStats(t);
+      var ilR = ilStats.range * U * 1.4;
+      var ilTriggered = 0;
+      for (var ili = 0; ili < state.towers.length; ili++) {
+        var ilt = state.towers[ili];
+        if (ilt === t) continue;
+        if (Math.hypot(ilt.x - t.x, ilt.y - t.y) > ilR) continue;
+        if ((ilt.def.id === "eosinofilo" || ilt.def.id === "mastocito") &&
+            (ilt.specialCharge || 0) >= 0.5) {
+          ilt.specialReady = true;
+          triggerTowerSpecial(ilt);
+          ilTriggered++;
+          pushEffect({ kind: "particle", x: ilt.x, y: ilt.y,
+            vx: 0, vy: -40 * U, life: 0.6, max: 0.6, color: "#26c6da" });
+        }
+      }
+      pushEffect({ kind: "novaRing", x: t.x, y: t.y, r: ilR, color: "#26c6da", life: 0.65, max: 0.65 });
+      t.specialAnim = 1.2;
+      t.specialReady = false;
+      t.specialCharge = 0;
+      sfx("upgrade");
+      triggerShake(0.10, 3);
       return;
     }
     // Fallback: si la torre no tiene ultimate implementado, no hace nada.
@@ -5699,7 +6130,13 @@
     if ((t.tempBoostTimer || 0) > 0) effLevel = Math.min(t.def.levels.length - 1, t.level + 1);
     var base = t.def.levels[effLevel];
     var hasLangerBuff = ((t.langerBuffT || 0) > 0) && (t.langerBuff || 0) > 1;
-    if (!t.synBuff && !hasLangerBuff) return base;
+    var hasKcBuff   = (t.def.id === "neutrofilo") && ((t.kcBuffT  || 0) > 0);
+    var hasIfnBuff  = (t.def.id === "pdc")        && ((t.ifnBuffT || 0) > 0);
+    var hasIl17Buff = ((t.il17BuffT || 0) > 0);
+    var hasIlc2Eosin = (t.def.id === "eosinofilo") && ((t.ilc2EosinT || 0) > 0);
+    var hasIlc2Lang  = (t.def.id === "langerhans") && ((t.ilc2LangT  || 0) > 0);
+    var hasCitoBuff = (state && (state.medCitoTimer || 0) > 0);
+    if (!t.synBuff && !hasLangerBuff && !hasKcBuff && !hasIfnBuff && !hasIl17Buff && !hasIlc2Eosin && !hasIlc2Lang && !hasCitoBuff) return base;
     // Devuelve una copia con multiplicadores aplicados.
     var out = {};
     for (var k in base) { if (base.hasOwnProperty(k)) out[k] = base[k]; }
@@ -5709,9 +6146,19 @@
       if (out.fireRate != null) out.fireRate = out.fireRate * t.synBuff.fireRate;
     }
     // Buff Langerhans ultimate: fireRate boost temporal
-    if (hasLangerBuff && out.fireRate != null) {
-      out.fireRate = out.fireRate * t.langerBuff;
-    }
+    if (hasLangerBuff && out.fireRate != null) out.fireRate = out.fireRate * t.langerBuff;
+    // Queratinocito IL-8: Neutrófilos cercanos disparan 30% más rápido
+    if (hasKcBuff && out.fireRate != null) out.fireRate = out.fireRate * 1.30;
+    // pDC Tormenta IFN-α: pDC misma dispara 40% más rápido durante la tormenta
+    if (hasIfnBuff && out.fireRate != null) out.fireRate = out.fireRate * 1.40;
+    // Linfocito γδ Cascada IL-17: todas las torres dentro del rango +45% daño
+    if (hasIl17Buff && out.damage != null) out.damage = out.damage * 1.45;
+    // ILC2: Eosinófilo hace +60% daño vs parásitos (se aplica multiplicativamente con bonusVs en fireTower)
+    if (hasIlc2Eosin && out.damage != null) out.damage = out.damage * 1.60;
+    // ILC2: Langerhans extiende duración de marca (ver marca apply en support block)
+    if (hasIlc2Lang && out.markDur != null) out.markDur = out.markDur * 1.40;
+    // Médula: Red de Citoquinas — +35% daño a todas las torres
+    if (hasCitoBuff && out.damage != null) out.damage = out.damage * 1.35;
     return out;
   }
 
@@ -5852,9 +6299,23 @@
         t.langerBuffT -= dt;
         if (t.langerBuffT <= 0) { t.langerBuffT = 0; t.langerBuff = 1; }
       }
+      if ((t.kcBuffT   || 0) > 0) t.kcBuffT   -= dt;
+      if ((t.ifnBuffT  || 0) > 0) t.ifnBuffT  -= dt;
+      if ((t.il17BuffT || 0) > 0) t.il17BuffT -= dt;
+      if ((t.ilc2EosinT|| 0) > 0) t.ilc2EosinT-= dt;
+      if ((t.ilc2MastoT|| 0) > 0) t.ilc2MastoT-= dt;
+      if ((t.ilc2LangT || 0) > 0) t.ilc2LangT -= dt;
+      // Médula: Regeneración celular pasiva
+      if ((state.medRegenTimer || 0) > 0 && t.maxHp) {
+        t.hp = Math.min(t.maxHp, t.hp + 2 * dt);
+      }
       // Sistema de poder especial: carga continua mientras la torre vive.
       // Duración de carga por torre (depende del def, default 28s).
       var specCharge = (t.def && t.def.specialChargeSec) || 28;
+      // ILC2: Mastocito cercano carga un 30% más rápido mientras el buff activo.
+      if (t.def.id === "mastocito" && (t.ilc2MastoT || 0) > 0) specCharge *= 0.70;
+      // Médula: Carga acelerada — ultimates cargan 2× mientras dure el buff.
+      if ((state.medChargeBoostTimer || 0) > 0) specCharge *= 0.5;
       if (!t.specialReady && (t.specialAnim || 0) <= 0 && (t.stunTimer || 0) <= 0) {
         t.specialCharge = Math.min(1, (t.specialCharge || 0) + dt / specCharge);
         if (t.specialCharge >= 1) t.specialReady = true;
@@ -5975,6 +6436,18 @@
             timer: db.delay, max: db.delay
           });
         }
+        // Médula: Célula de Reserva — la torre se reconstruye con 25% HP.
+        if ((state.medCelulaReserva || 0) > 0 && !t.isGhostCell) {
+          state.medCelulaReserva -= 1;
+          var ghostStats = towerStats(t);
+          t.hp = Math.ceil((ghostStats.hp || 60) * 0.25);
+          t.maxHp = ghostStats.hp || 60;
+          t.isGhostCell = true;
+          t.tempBoostTimer = 0;   // ghost no tiene nivel extra, solo sobrevive
+          showMsg(t.def.shortName + " reconstruida por la médula (25% HP)");
+          sfx("upgrade");
+          continue;   // no eliminar — continúa la iteración normalmente
+        }
         // La célula caída refuerza el medicamento sanguíneo (+1 bloque).
         state.medCharge = Math.min(MED_MAX, state.medCharge + MED_PER_TOWER_DEATH);
         showMsg(t.def.name + " cayó — el medicamento sanguíneo se refuerza");
@@ -5999,6 +6472,7 @@
           var me = state.enemies[mi];
           if (me.dead || me.dying || me.absorbing || me.beingEngulfed || me.beingDropped || me.state === "falling" || me.state === "entering") continue;
           if (me.burrowed && !me.revealed) continue;
+          if (me.def.cloaked && !me.revealed) continue;
           if (Math.hypot(me.x - t.x, me.y - t.y) <= rangePx) macCandidates.push(me);
         }
         if (macCandidates.length) {
@@ -6006,6 +6480,51 @@
           fireCannonAt(t, macTarget.x, macTarget.y);
         }
         continue;
+      }
+      // === ILC2: amplificador puro — no dispara, solo bufa torres cercanas ===
+      if (t.def.ilc2Aura) {
+        var ilcActed = false;
+        for (var ii = 0; ii < state.towers.length; ii++) {
+          var ally = state.towers[ii];
+          if (ally === t) continue;
+          if (Math.hypot(ally.x - t.x, ally.y - t.y) > rangePx) continue;
+          ilcActed = true;
+          if (ally.def.id === "eosinofilo") { ally.ilc2EosinT = 5; }
+          if (ally.def.id === "mastocito")  { ally.ilc2MastoT = 6; }
+          if (ally.def.id === "langerhans") { ally.ilc2LangT  = 5; }
+        }
+        if (ilcActed) { t.attackAnim = 0.2; t.muzzleFlash = 0.06; }
+        t.cooldown = 0.5;
+        continue;
+      }
+      // === Queratinocito: campo de defensinas — ralentiza gérmenes + bufa Neutrófilos ===
+      if (t.def.defensinField) {
+        for (var qj = 0; qj < state.enemies.length; qj++) {
+          var qe = state.enemies[qj];
+          if (qe.dead || qe.dying || qe.absorbing || qe.beingEngulfed || qe.state === "falling" || qe.state === "entering") continue;
+          if (Math.hypot(qe.x - t.x, qe.y - t.y) <= rangePx) {
+            qe.slowTimer = Math.max(qe.slowTimer || 0, 0.6);
+          }
+        }
+        for (var qi = 0; qi < state.towers.length; qi++) {
+          var qt = state.towers[qi];
+          if (qt.def.id === "neutrofilo" && Math.hypot(qt.x - t.x, qt.y - t.y) <= rangePx) {
+            qt.kcBuffT = 3.0;   // IL-8: Neutrófilo dispara 30% más rápido (ver towerStats)
+          }
+        }
+        // Queratinocito TAMBIÉN dispara proyectiles defensinas — cae al loop normal.
+      }
+      // === pDC: aura antiviral — ralentiza virus en rango ===
+      if (t.def.antiviralAura) {
+        for (var pvj = 0; pvj < state.enemies.length; pvj++) {
+          var pve = state.enemies[pvj];
+          if (pve.dead || pve.dying || pve.absorbing || pve.state === "falling" || pve.state === "entering") continue;
+          if (pve.def.baseKind !== "virus") continue;
+          if (Math.hypot(pve.x - t.x, pve.y - t.y) <= rangePx) {
+            pve.slowTimer = Math.max(pve.slowTimer || 0, 0.5);
+          }
+        }
+        // pDC TAMBIÉN dispara proyectiles — cae al loop normal con virusPriority.
       }
       // Torres de SOPORTE: aplican aura a todos los gérmenes en rango (sin
       // objetivo único). Langerhans marca (+daño y revela); Mastocito ralentiza.
@@ -6042,16 +6561,30 @@
         continue;
       }
       var target = null, bestProgress = -1;
+      // linfocitogd: prioriza el germen más herido dentro del rango (hp/maxHp más bajo).
+      var gdBestHpFrac = 1.1;
+      // pDC: en primer paso prioriza virus; si no hay virus, ataca cualquier germen.
+      var pdcVirusTarget = null, pdcVirusBestProg = -1;
       for (var j = 0; j < state.enemies.length; j++) {
         var e = state.enemies[j];
         if (e.dead || e.dying || e.absorbing || e.beingEngulfed || e.beingDropped || e.state === "falling" || e.state === "entering") continue;
         if (e.burrowed && !e.revealed) continue;   // sarna enterrada: intocable salvo si está marcada
+        if (e.def.cloaked && !e.revealed) continue; // demodex oculto: torres no pueden apuntar
         var d = Math.hypot(e.x - t.x, e.y - t.y);
-        if (d <= rangePx && e.progress > bestProgress) {
-          bestProgress = e.progress;
-          target = e;
+        if (d > rangePx) continue;
+        if (t.def.huntWounded) {
+          var hpFrac = e.hp / (e.def.hp || 1);
+          if (hpFrac < gdBestHpFrac) { gdBestHpFrac = hpFrac; target = e; }
+        } else if (t.def.virusPriority) {
+          if (e.def.baseKind === "virus" && e.progress > pdcVirusBestProg) {
+            pdcVirusBestProg = e.progress; pdcVirusTarget = e;
+          }
+          if (e.progress > bestProgress) { bestProgress = e.progress; target = e; }
+        } else {
+          if (e.progress > bestProgress) { bestProgress = e.progress; target = e; }
         }
       }
+      if (t.def.virusPriority && pdcVirusTarget) target = pdcVirusTarget;
       if (target) {
         fireTower(t, target);
         t.cooldown = (1 / stats.fireRate) * (t.slowFireTimer > 0 ? 2 : 1);
@@ -6068,8 +6601,12 @@
     var stats = towerStats(t);
     t.lastTargetX = target.x; t.lastTargetY = target.y;   // para apuntar el cañón
     var dmg = stats.damage;
-    // Bonus de especialista: NK vs virus, Eosinófilo vs parásitos.
+    // Bonus de especialista: NK vs virus, Eosinófilo vs parásitos, pDC vs virus, Queratinocito IL-8, etc.
     if (t.def.bonusVs && target.def.baseKind === t.def.bonusVs.kind) dmg *= t.def.bonusVs.mult;
+    // Linfocito γδ: bonus vs bacteria y hongo
+    if (t.def.bonusVsKinds && t.def.bonusVsKinds.indexOf(target.def.baseKind) >= 0) dmg *= t.def.bonusVsMult;
+    // Sebocito: ×3 vs acné y dermatofito
+    if (t.def.sebumSpecialist && t.def.sebumSpecialist.indexOf(target.def.id) >= 0) dmg *= 3;
     if (stats.projectileSpeed === 0) {
       damageEnemy(target, dmg, t.def.id);
       // Empuje (Trombo de Respuesta): resta progreso real en el camino —
@@ -6077,6 +6614,8 @@
       if (stats.knockback) target.progress = Math.max(0, target.progress - stats.knockback * U);
       pushEffect({ kind: "melee", x1: t.x, y1: t.y, x2: target.x, y2: target.y, life: 0.28, max: 0.28, color: t.def.color, towerId: t.def.id });
     } else {
+      var isSebumShot = t.def.id === "sebocito";
+      var lvlStats = t.def.levels[Math.min(t.level, t.def.levels.length - 1)];
       state.projectiles.push({
         x: t.x, y: t.y,
         target: target,
@@ -6087,6 +6626,8 @@
         towerId: t.def.id,
         attackerType: t.def.id,
         slowOnHit: t.def.slowOnHit || null,   // {dur, mult} — Plaqueta lo usa
+        isSebumShot: isSebumShot,
+        sebumPuddle: isSebumShot ? lvlStats.puddle : null,
         rot: 0,
         dead: false
       });
@@ -6262,6 +6803,7 @@
     if (e.dead || e.dying) return;
     // Sarna enterrada: invulnerable salvo que esté marcada (Langerhans).
     if (e.burrowed && !e.revealed) return;
+    if (e.def.cloaked && !e.revealed) return;
     var def = e.def;
     // Marca de Langerhans: amplifica TODO el daño recibido mientras dura.
     if ((e.markTimer || 0) > 0 && (e.markBonus || 0) > 0) amount *= (1 + e.markBonus);
@@ -6317,6 +6859,12 @@
         dmgColor = "#FFE680";
       }
     }
+    // Leishmania amastigote: forma casi invulnerable — 90% reducción de daño.
+    if (e.leishAmastigote && e.def.leishForm) {
+      bodyDamage *= e.def.leishForm.amastigoteDmgMult;
+      dmgLabel = "~" + Math.max(1, Math.round(bodyDamage));
+      dmgColor = "#b07a50";
+    }
     e.hp -= bodyDamage;
     e.hitFlash = 0.35;
     e.hurtTimer = 0.22;
@@ -6331,6 +6879,11 @@
       e.dying = true;
       e.dyingTimer = 0.30;
       state.atp += def.reward;
+      // Médula: Prima de Eliminación — +2 ATP extra por germen derrotado.
+      if ((state.medPrimaTimer || 0) > 0) {
+        state.atp += 2;
+        pushDamageNumber(e.x, e.y - def.radius * U - 14 * U, "+2", "#ff9800");
+      }
       state.pathogensDefeated += 1;
       META.totalPathogensDefeated += 1;
       // Cada germen vencido carga el TÓPICO (ácido). El sanguíneo se carga con
@@ -6534,6 +7087,7 @@
       if (e.dead || e.dying || e.absorbing || e.beingEngulfed || e.beingDropped) continue;
       if (e.state === "falling" || e.state === "entering") continue;
       if (e.burrowed && !e.revealed) continue;
+      if (e.def.cloaked && !e.revealed) continue;
       if (Math.hypot(e.x - best.x, e.y - best.y) > rangePx) continue;
       if (e.progress > bestProgress) { bestProgress = e.progress; target = e; }
     }
@@ -7488,10 +8042,14 @@
       if (state.medFx.flashLife > 0) state.medFx.flashLife -= dt;
       if (state.medFx.waveLife > 0) state.medFx.waveLife -= dt;
       if (state.medFx.shakeLife > 0) state.medFx.shakeLife -= dt;
-      // El efecto se cierra cuando la vida principal Y la onda terminaron.
       if (state.medFx.life <= 0 && state.medFx.waveLife <= 0) state.medFx = null;
     }
     if (state.acidTimer > 0) state.acidTimer -= dt;
+    // Bonus timers
+    if ((state.medRegenTimer   || 0) > 0) state.medRegenTimer   -= dt;
+    if ((state.medChargeBoostTimer || 0) > 0) state.medChargeBoostTimer -= dt;
+    if ((state.medPrimaTimer   || 0) > 0) state.medPrimaTimer   -= dt;
+    if ((state.medCitoTimer    || 0) > 0) state.medCitoTimer    -= dt;
   }
 
   function drawMedVial() {
@@ -7961,6 +8519,29 @@
       // brillo aceitoso
       ctx.fillStyle = "rgba(255,255,255," + (0.18 * a) + ")";
       ctx.beginPath(); ctx.ellipse(sk.x - sk.r * 0.25, sk.y - sk.r * 0.12, sk.r * 0.3, sk.r * 0.12, -0.4, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  function drawSebumPuddles() {
+    if (!state.sebumPuddles || !state.sebumPuddles.length) return;
+    ctx.save();
+    for (var i = 0; i < state.sebumPuddles.length; i++) {
+      var sp = state.sebumPuddles[i];
+      var a = Math.min(1, sp.life / sp.max);
+      var g = ctx.createRadialGradient(sp.x, sp.y, sp.r * 0.15, sp.x, sp.y, sp.r);
+      g.addColorStop(0, "rgba(200,152,10," + (0.45 * a) + ")");
+      g.addColorStop(0.65, "rgba(122,90,4," + (0.28 * a) + ")");
+      g.addColorStop(1, "rgba(122,90,4,0)");
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.ellipse(sp.x, sp.y, sp.r, sp.r * 0.55, 0.3, 0, Math.PI * 2);
+      ctx.fill();
+      // brillo graso blanco
+      ctx.fillStyle = "rgba(255,240,160," + (0.22 * a) + ")";
+      ctx.beginPath();
+      ctx.ellipse(sp.x - sp.r * 0.2, sp.y - sp.r * 0.1, sp.r * 0.28, sp.r * 0.1, -0.3, 0, Math.PI * 2);
+      ctx.fill();
     }
     ctx.restore();
   }
@@ -9134,6 +9715,12 @@
           // Aplica el efecto adicional de ralentización (Plaqueta).
           if (p.slowOnHit && p.target && !p.target.dead) {
             p.target.slowTimer = Math.max(p.target.slowTimer || 0, p.slowOnHit.dur);
+          }
+          // Sebocito: deja charco de sebo en el punto de impacto.
+          if (p.isSebumShot && p.sebumPuddle) {
+            if (!state.sebumPuddles) state.sebumPuddles = [];
+            var sp = p.sebumPuddle;
+            state.sebumPuddles.push({ x: p.target.x, y: p.target.y, r: sp.r * U, life: sp.life, max: sp.life, dot: sp.dot });
           }
           pushEffect({ kind: "hit", x: p.target.x, y: p.target.y, life: 0.2, max: 0.2, color: p.color });
         }
@@ -12643,6 +13230,11 @@
     else if (t.def.id === "plaqueta") drawPlaqueta(t, pulse, expression, blink);
     else if (t.def.id === "trombo") drawTrombo(t, pulse, expression, blink);
     else if (t.def.id === "centinela") drawCentinela(t, pulse, expression, blink);
+    else if (t.def.id === "queratinocito") drawQueratinocito(t, pulse, expression, blink);
+    else if (t.def.id === "sebocito") drawSebocito(t, pulse, expression, blink);
+    else if (t.def.id === "pdc") drawPDC(t, pulse, expression, blink);
+    else if (t.def.id === "linfocitogd") drawLinfocitoGD(t, pulse, expression, blink);
+    else if (t.def.id === "ilc2") drawILC2(t, pulse, expression, blink);
     else drawLinfocitoT(t, pulse, expression, blink);
     // Level-up sparkles
     if (levelup) {
@@ -14273,6 +14865,243 @@
     ctx.restore();
   }
 
+  function drawQueratinocito(t, pulse, expression, blink) {
+    // Queratinocito activado — célula epitelial con capas córneas doradas
+    // y proyecciones de defensinas. Campo amarillo con placas escamosas.
+    var R = 15 * U * pulse;
+    var time = state.time;
+    ctx.save();
+    ctx.translate(t.x, t.y);
+
+    // Halo campo defensinas si ilc2Lang buff o kcBuff activo
+    var fieldPulse = 0.3 + 0.15 * Math.sin(time * 2.8);
+    ctx.strokeStyle = "rgba(212, 168, 85, " + fieldPulse + ")";
+    ctx.lineWidth = 1.5 * U;
+    ctx.beginPath();
+    ctx.arc(0, 0, R * 1.55, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Cuerpo hexagonal aplastado (queratino es plana por naturaleza)
+    ctx.save();
+    ctx.rotate(time * 0.2);
+    var grad = ctx.createRadialGradient(-R * 0.25, -R * 0.25, R * 0.1, 0, 0, R);
+    grad.addColorStop(0, "#f0d080");
+    grad.addColorStop(0.55, "#d4a855");
+    grad.addColorStop(1, "#7a5a18");
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    for (var hi = 0; hi < 6; hi++) {
+      var ha = (hi / 6) * Math.PI * 2;
+      var hx = Math.cos(ha) * R, hy = Math.sin(ha) * R * 0.82;
+      if (hi === 0) ctx.moveTo(hx, hy); else ctx.lineTo(hx, hy);
+    }
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+
+    // 4 placas córneas superpuestas
+    ctx.strokeStyle = "rgba(255,220,100,0.55)";
+    ctx.lineWidth = 1.0 * U;
+    for (var pi2 = 0; pi2 < 4; pi2++) {
+      var pa2 = (pi2 / 4) * Math.PI * 2 + time * 0.3;
+      var px2 = Math.cos(pa2) * R * 0.55, py2 = Math.sin(pa2) * R * 0.55;
+      ctx.save();
+      ctx.translate(px2, py2);
+      ctx.rotate(pa2);
+      ctx.beginPath();
+      ctx.ellipse(0, 0, R * 0.32, R * 0.18, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    towerFace(R, expression, blink, "neutral", "determined");
+    ctx.restore();
+  }
+
+  function drawSebocito(t, pulse, expression, blink) {
+    // Sebocito — glándula sebácea dorada/ámbar con gotas lipídicas
+    // brillantes y un aura grasienta translúcida.
+    var R = 15 * U * pulse;
+    var time = state.time;
+    ctx.save();
+    ctx.translate(t.x, t.y);
+
+    // Aura grasienta exterior
+    var auraA = 0.18 + 0.08 * Math.sin(time * 1.4);
+    ctx.fillStyle = "rgba(200, 152, 10, " + auraA + ")";
+    ctx.beginPath();
+    ctx.arc(0, 0, R * 1.7, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Cuerpo principal — esfera con gradiente sebo ámbar
+    var g = ctx.createRadialGradient(-R * 0.3, -R * 0.35, R * 0.05, 0, 0, R);
+    g.addColorStop(0, "#ffe090");
+    g.addColorStop(0.5, "#c8980a");
+    g.addColorStop(1, "#7a5a04");
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(0, 0, R, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 3 gotas lipídicas orbitando
+    for (var di = 0; di < 3; di++) {
+      var da = (di / 3) * Math.PI * 2 + time * 0.8;
+      var dr = R * 0.62;
+      var dx2 = Math.cos(da) * dr, dy2 = Math.sin(da) * dr;
+      var dropR = R * 0.22 + R * 0.06 * Math.sin(time * 2 + di);
+      ctx.fillStyle = "rgba(255,230,120,0.85)";
+      ctx.beginPath();
+      ctx.arc(dx2, dy2, dropR, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    towerFace(R, expression, blink, "happy", "happy");
+    ctx.restore();
+  }
+
+  function drawPDC(t, pulse, expression, blink) {
+    // Célula Dendrítica Plasmocitoide — proyecta interferones en ondas
+    // violetas. Forma esférica con dendritas antiviral rectas.
+    var R = 15 * U * pulse;
+    var time = state.time;
+    var ifnActive = (t.ifnBuffT || 0) > 0;
+    ctx.save();
+    ctx.translate(t.x, t.y);
+
+    // Onda de interferón expansiva (siempre, más intensa en tormenta)
+    var waveA = ifnActive ? 0.5 + 0.25 * Math.sin(time * 6) : 0.2 + 0.1 * Math.sin(time * 2);
+    ctx.strokeStyle = "rgba(106, 61, 212, " + waveA + ")";
+    ctx.lineWidth = 1.2 * U;
+    ctx.beginPath();
+    ctx.arc(0, 0, R * (1.5 + 0.15 * Math.sin(time * 4)), 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Cuerpo celular violeta
+    var gp = ctx.createRadialGradient(-R * 0.28, -R * 0.28, R * 0.08, 0, 0, R);
+    gp.addColorStop(0, "#b090ff");
+    gp.addColorStop(0.55, "#6a3dd4");
+    gp.addColorStop(1, "#3a1a80");
+    ctx.fillStyle = gp;
+    ctx.beginPath();
+    ctx.arc(0, 0, R, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 5 dendritas IFN pulsantes
+    var numD = 5;
+    ctx.strokeStyle = ifnActive ? "rgba(200,160,255,0.85)" : "rgba(180,130,255,0.55)";
+    ctx.lineWidth = 1.1 * U;
+    for (var di2 = 0; di2 < numD; di2++) {
+      var da2 = (di2 / numD) * Math.PI * 2 + time * (ifnActive ? 1.2 : 0.4);
+      var dlen = R * (1.1 + 0.2 * Math.sin(time * 3 + di2));
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(da2) * R * 0.85, Math.sin(da2) * R * 0.85);
+      ctx.lineTo(Math.cos(da2) * (R + dlen), Math.sin(da2) * (R + dlen));
+      ctx.stroke();
+    }
+
+    towerFace(R, expression, blink, "focused", "angry");
+    ctx.restore();
+  }
+
+  function drawLinfocitoGD(t, pulse, expression, blink) {
+    // Linfocito γδ — linfocito sin MHC, verde brillante. Cuerpo esférico
+    // con receptor γδ caracterísico (2 astas curvadas) y halo IL-17.
+    var R = 15 * U * pulse;
+    var time = state.time;
+    var il17Active = (t.il17BuffT || 0) > 0;
+    ctx.save();
+    ctx.translate(t.x, t.y);
+
+    // Halo IL-17 cuando el buff está activo
+    if (il17Active) {
+      var ilA = 0.35 + 0.2 * Math.sin(time * 5);
+      ctx.fillStyle = "rgba(139, 195, 74, " + ilA + ")";
+      ctx.beginPath();
+      ctx.arc(0, 0, R * 1.8, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Cuerpo celular verde
+    var gg = ctx.createRadialGradient(-R * 0.28, -R * 0.28, R * 0.08, 0, 0, R);
+    gg.addColorStop(0, "#c8ee80");
+    gg.addColorStop(0.55, "#8bc34a");
+    gg.addColorStop(1, "#4a6e18");
+    ctx.fillStyle = gg;
+    ctx.beginPath();
+    ctx.arc(0, 0, R, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Receptor γδ: 2 astas curvadas características
+    ctx.strokeStyle = il17Active ? "rgba(200,255,100,0.9)" : "rgba(160,230,80,0.7)";
+    ctx.lineWidth = 1.3 * U;
+    ctx.lineCap = "round";
+    for (var ri = 0; ri < 2; ri++) {
+      var rBase = (ri === 0 ? -0.35 : 0.35) * Math.PI;
+      var rAngle = rBase + time * 0.5;
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(rAngle) * R * 0.7, Math.sin(rAngle) * R * 0.7);
+      ctx.quadraticCurveTo(
+        Math.cos(rAngle + 0.5) * R * 1.4, Math.sin(rAngle + 0.5) * R * 1.4,
+        Math.cos(rAngle + 0.9) * R * 1.0, Math.sin(rAngle + 0.9) * R * 1.0
+      );
+      ctx.stroke();
+    }
+    ctx.lineCap = "butt";
+
+    towerFace(R, expression, blink, "angry", "angry");
+    ctx.restore();
+  }
+
+  function drawILC2(t, pulse, expression, blink) {
+    // ILC2 Linfoide Innato 2 — célula amplificadora cian. Corpo pequeño
+    // con 4 antenas señalizadoras que apuntan a las torres aliadas.
+    var R = 14 * U * pulse;
+    var time = state.time;
+    ctx.save();
+    ctx.translate(t.x, t.y);
+
+    // Pulso de señal exterior
+    var sigA = 0.25 + 0.15 * Math.sin(time * 2.5);
+    ctx.strokeStyle = "rgba(38, 198, 218, " + sigA + ")";
+    ctx.lineWidth = 1.2 * U;
+    ctx.beginPath();
+    ctx.arc(0, 0, R * 1.6, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(0, 0, R * 2.0 + R * 0.1 * Math.sin(time * 4), 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Cuerpo cian
+    var gc = ctx.createRadialGradient(-R * 0.25, -R * 0.25, R * 0.08, 0, 0, R);
+    gc.addColorStop(0, "#88eeff");
+    gc.addColorStop(0.55, "#26c6da");
+    gc.addColorStop(1, "#0e7a8a");
+    ctx.fillStyle = gc;
+    ctx.beginPath();
+    ctx.arc(0, 0, R, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 4 antenas citocinéticas
+    ctx.strokeStyle = "rgba(38, 198, 218, 0.8)";
+    ctx.lineWidth = 1.0 * U;
+    for (var ai = 0; ai < 4; ai++) {
+      var aa = (ai / 4) * Math.PI * 2 + time * 0.6;
+      var aLen = R * (0.9 + 0.2 * Math.sin(time * 2.5 + ai));
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(aa) * R * 0.75, Math.sin(aa) * R * 0.75);
+      ctx.lineTo(Math.cos(aa) * (R + aLen), Math.sin(aa) * (R + aLen));
+      ctx.stroke();
+      // pequeño dot en la punta
+      ctx.fillStyle = "rgba(200,255,255,0.7)";
+      ctx.beginPath();
+      ctx.arc(Math.cos(aa) * (R + aLen), Math.sin(aa) * (R + aLen), 1.5 * U, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    towerFace(R, expression, blink, "happy", "happy");
+    ctx.restore();
+  }
+
   function drawMastocito(t, pulse, expression, blink) {
     // Mastocito — célula de respuesta alérgica/inflamatoria. Biología:
     //  · Cuerpo redondo PACKED con GRÁNULOS BASOFÍLICOS (histamina,
@@ -15108,6 +15937,9 @@
     else if (def.id === "pseudomonas")  drawPseudomonas(e, rad * scale, expression, blink);
     else if (def.id === "bossPseudomonas") drawPseudomonas(e, rad * scale, expression, blink);
     // Sprint 8C-2: bosses con morfología real, antes del fallback genérico.
+    else if (def.id === "demodex")           drawDemodex(e, rad * scale, expression, blink);
+    else if (def.id === "neisseria")         drawNeisseria(e, rad * scale, expression, blink);
+    else if (def.id === "leishmania")        drawLeishmania(e, rad * scale, expression, blink);
     else if (def.id === "bossPyogenes")      drawBossPyogenes(e, rad * scale, expression, blink);
     else if (def.id === "bossMRSA")          drawBossMRSA(e, rad * scale, expression, blink);
     else if (def.id === "bossClostridium")   drawBossClostridium(e, rad * scale, expression, blink);
@@ -18223,6 +19055,167 @@
     ctx.restore();
   }
 
+  function drawDemodex(e, rad, expression, blink) {
+    var R = rad;
+    ctx.save();
+    ctx.translate(e.x, e.y);
+    var revealed = e.revealed;
+    ctx.globalAlpha = revealed ? 1.0 : 0.38;
+    if (revealed) {
+      var hGrd = ctx.createRadialGradient(0, 0, R * 0.4, 0, 0, R * 1.9);
+      hGrd.addColorStop(0, "rgba(255,100,200,0.30)");
+      hGrd.addColorStop(1, "rgba(255,100,200,0)");
+      ctx.fillStyle = hGrd;
+      ctx.beginPath(); ctx.arc(0, 0, R * 1.9, 0, Math.PI * 2); ctx.fill();
+    }
+    if (e._lastPosX == null) { e._lastPosX = e.x; e._lastPosY = e.y; }
+    var dMag = Math.hypot(e.x - e._lastPosX, e.y - e._lastPosY);
+    e._lastPosX = e.x; e._lastPosY = e.y;
+    e._gaitPhase = (e._gaitPhase || 0) + dMag * 0.12;
+    var gait = e._gaitPhase;
+    var bodyGrd = ctx.createRadialGradient(-R * 0.2, -R * 0.45, R * 0.15, 0, 0, R * 0.95);
+    bodyGrd.addColorStop(0, "#f0dca0");
+    bodyGrd.addColorStop(0.55, e.def.color);
+    bodyGrd.addColorStop(1, e.def.colorDark);
+    ctx.fillStyle = bodyGrd;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, R * 0.52, R * 0.92, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = e.def.colorDark;
+    ctx.lineWidth = Math.max(0.8, 1.0 * U);
+    ctx.stroke();
+    ctx.strokeStyle = e.def.colorDark;
+    ctx.lineWidth = Math.max(0.9, 1.2 * U);
+    ctx.lineCap = "round";
+    for (var leg = 0; leg < 4; leg++) {
+      var legY = -R * 0.38 + leg * R * 0.25;
+      var swing = Math.sin(gait * 3 + leg * 0.7) * 0.18;
+      for (var side = -1; side <= 1; side += 2) {
+        var bx = side * R * 0.48, by2 = legY;
+        var ex2 = side * (R * 0.48 + R * 0.45);
+        var ey2 = legY + R * 0.28 * (1 + swing * side * 0.4);
+        var mx = (bx + ex2) / 2 + side * R * 0.05;
+        var my = (by2 + ey2) / 2 - R * 0.12;
+        ctx.beginPath();
+        ctx.moveTo(bx, by2);
+        ctx.quadraticCurveTo(mx, my, ex2, ey2);
+        ctx.stroke();
+      }
+    }
+    ctx.fillStyle = "#b89050";
+    ctx.beginPath();
+    ctx.ellipse(0, -R * 0.75, R * 0.38, R * 0.26, 0, 0, Math.PI * 2);
+    ctx.fill();
+    var bite = Math.max(0, Math.sin(gait * 4) * 0.3);
+    ctx.strokeStyle = e.def.colorDark;
+    ctx.lineWidth = Math.max(0.7, 0.9 * U);
+    ctx.beginPath();
+    ctx.moveTo(-R * 0.16, -R * 0.88);
+    ctx.lineTo(-R * 0.28, -R * 1.05 - bite * R * 0.10);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(R * 0.16, -R * 0.88);
+    ctx.lineTo(R * 0.28, -R * 1.05 - bite * R * 0.10);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+
+  function drawNeisseria(e, rad, expression, blink) {
+    var R = rad, t = state.time;
+    ctx.save();
+    ctx.translate(e.x, e.y);
+    if (e.piliTarget) {
+      var ptx = e.piliTarget.x - e.x, pty = e.piliTarget.y - e.y;
+      var piliPulse = 0.5 + 0.5 * Math.sin(t * 8);
+      ctx.strokeStyle = "rgba(212,124,58," + (0.4 + piliPulse * 0.25) + ")";
+      ctx.lineWidth = Math.max(0.8, 1.0 * U);
+      ctx.setLineDash([2 * U, 2 * U]);
+      ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(ptx, pty); ctx.stroke();
+      ctx.setLineDash([]);
+    }
+    var angle = -Math.PI / 2;
+    if (e.lastTargetX != null) angle = Math.atan2(e.lastTargetY - e.y, e.lastTargetX - e.x);
+    var offX = Math.cos(angle) * R * 0.58;
+    var offY = Math.sin(angle) * R * 0.58;
+    for (var si = -1; si <= 1; si += 2) {
+      var cx2 = si * offX, cy2 = si * offY;
+      var g = ctx.createRadialGradient(cx2 - R * 0.22, cy2 - R * 0.22, R * 0.08, cx2, cy2, R * 0.72);
+      g.addColorStop(0, "#f5d0a8");
+      g.addColorStop(0.55, e.def.color);
+      g.addColorStop(1, e.def.colorDark);
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(cx2, cy2, R * 0.72, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = e.def.colorDark; ctx.lineWidth = Math.max(1, 1.2 * U); ctx.stroke();
+      var perpA = angle + Math.PI / 2;
+      var gr2 = R * 0.48;
+      ctx.strokeStyle = "rgba(80,30,0,0.22)";
+      ctx.lineWidth = Math.max(0.7, 1.0 * U);
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.moveTo(cx2 + Math.cos(perpA) * gr2, cy2 + Math.sin(perpA) * gr2);
+      ctx.quadraticCurveTo(cx2, cy2, cx2 - Math.cos(perpA) * gr2, cy2 - Math.sin(perpA) * gr2);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function drawLeishmania(e, rad, expression, blink) {
+    var R = rad, t = state.time;
+    var amastigote = !!e.leishAmastigote;
+    ctx.save();
+    ctx.translate(e.x, e.y);
+    if (amastigote) {
+      ctx.globalAlpha = 0.88;
+      var agGrd = ctx.createRadialGradient(-R * 0.28, -R * 0.28, R * 0.08, 0, R * 0.05, R * 0.82);
+      agGrd.addColorStop(0, "#d0905e");
+      agGrd.addColorStop(0.55, "#8B4513");
+      agGrd.addColorStop(1, "#3d1a08");
+      ctx.fillStyle = agGrd;
+      ctx.beginPath();
+      ctx.ellipse(0, R * 0.08, R * 0.82, R * 0.78, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "#2a1008"; ctx.lineWidth = Math.max(1, 1.2 * U); ctx.stroke();
+      ctx.fillStyle = "#1a0808";
+      ctx.beginPath(); ctx.arc(R * 0.26, R * 0.08, R * 0.16, 0, Math.PI * 2); ctx.fill();
+      var hPulse = 0.5 + 0.5 * Math.sin(t * 2.5);
+      ctx.globalAlpha = 0.18 + hPulse * 0.10;
+      ctx.fillStyle = "#8B4513";
+      ctx.beginPath(); ctx.arc(0, 0, R * 1.3, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = 1;
+    } else {
+      if (e._lastPosX == null) { e._lastPosX = e.x; e._lastPosY = e.y; }
+      var dMag2 = Math.hypot(e.x - e._lastPosX, e.y - e._lastPosY);
+      e._lastPosX = e.x; e._lastPosY = e.y;
+      e._leishFlagPhase = (e._leishFlagPhase || 0) + Math.max(0.005, dMag2 * 0.08);
+      var pgGrd = ctx.createRadialGradient(-R * 0.18, -R * 0.38, R * 0.12, 0, 0, R * 0.96);
+      pgGrd.addColorStop(0, "#c8e888");
+      pgGrd.addColorStop(0.55, e.def.color);
+      pgGrd.addColorStop(1, e.def.colorDark);
+      ctx.fillStyle = pgGrd;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, R * 0.46, R * 0.94, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = e.def.colorDark; ctx.lineWidth = Math.max(0.9, 1.1 * U); ctx.stroke();
+      ctx.fillStyle = "#1a3008";
+      ctx.beginPath(); ctx.arc(0, R * 0.62, R * 0.16, 0, Math.PI * 2); ctx.fill();
+      var flagPhase = e._leishFlagPhase || 0;
+      ctx.strokeStyle = e.def.colorLight;
+      ctx.lineWidth = Math.max(0.9, 1.1 * U);
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.moveTo(0, R * 0.78);
+      for (var fp = 1; fp <= 10; fp++) {
+        var ft = fp / 10;
+        var fx = Math.sin(flagPhase + ft * Math.PI * 2.8) * R * 0.32 * ft;
+        var fy = R * 0.78 + ft * R * 1.65;
+        ctx.lineTo(fx, fy);
+      }
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
   function drawBoss(e, rad, expression, blink) {
     var hit = e.hitFlash > 0;
     ctx.save();
@@ -18991,6 +19984,11 @@
     else if (typeId === "plaqueta")       drawPlaqueta(fakeTower, pulse, "idle", false);
     else if (typeId === "trombo")         drawTrombo(fakeTower, pulse, "idle", false);
     else if (typeId === "centinela")      drawCentinela(fakeTower, pulse, "idle", false);
+    else if (typeId === "queratinocito")  drawQueratinocito(fakeTower, pulse, "idle", false);
+    else if (typeId === "sebocito")       drawSebocito(fakeTower, pulse, "idle", false);
+    else if (typeId === "pdc")            drawPDC(fakeTower, pulse, "idle", false);
+    else if (typeId === "linfocitogd")    drawLinfocitoGD(fakeTower, pulse, "idle", false);
+    else if (typeId === "ilc2")           drawILC2(fakeTower, pulse, "idle", false);
     else {
       // Fallback al ícono simple si no hay función dedicada.
       ctx.translate(-cx, -cy);
@@ -19749,6 +20747,13 @@
     else if (def.id === "mastocito") drawMastocito(fakeTower, 1, "idle", false);
     else if (def.id === "plaqueta") drawPlaqueta(fakeTower, 1, "idle", false);
     else if (def.id === "complemento") drawComplementCannon(fakeTower, 1, "idle", false);
+    else if (def.id === "trombo") drawTrombo(fakeTower, 1, "idle", false);
+    else if (def.id === "centinela") drawCentinela(fakeTower, 1, "idle", false);
+    else if (def.id === "queratinocito") drawQueratinocito(fakeTower, 1, "idle", false);
+    else if (def.id === "sebocito") drawSebocito(fakeTower, 1, "idle", false);
+    else if (def.id === "pdc") drawPDC(fakeTower, 1, "idle", false);
+    else if (def.id === "linfocitogd") drawLinfocitoGD(fakeTower, 1, "idle", false);
+    else if (def.id === "ilc2") drawILC2(fakeTower, 1, "idle", false);
     else drawLinfocitoT(fakeTower, 1, "idle", false);
     ctx.globalAlpha = 1;
     ctx.restore();
@@ -20062,6 +21067,9 @@
     else if (def.id === "influenza") drawInfluenza(fakeEnemy, R, "idle", false);
     else if (def.id === "vih") drawVih(fakeEnemy, R, "idle", false);
     else if (def.id === "candida") drawCandida(fakeEnemy, R, "idle", false);
+    else if (def.id === "demodex") drawDemodex(fakeEnemy, R, "idle", false);
+    else if (def.id === "neisseria") drawNeisseria(fakeEnemy, R, "idle", false);
+    else if (def.id === "leishmania") drawLeishmania(fakeEnemy, R, "idle", false);
     else if (def.id === "bossPyogenes") drawBossPyogenes(fakeEnemy, R, "idle", false);
     else if (def.id === "bossMRSA") drawBossMRSA(fakeEnemy, R, "idle", false);
     else if (def.id === "bossClostridium") drawBossClostridium(fakeEnemy, R, "idle", false);
@@ -21380,6 +22388,7 @@
     safeDraw("Collectors", drawCollectors);
     safeDraw("Barricada", drawBarricada);
     safeDraw("Slicks", drawSlicks);
+    safeDraw("SebumPuddles", drawSebumPuddles);
     safeDraw("NecroticPatches", drawNecroticPatches);
     safeDraw("PendingBombs", drawPendingBombs);
     safeDraw("AcidSplats", drawAcidSplats);

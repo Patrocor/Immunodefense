@@ -1,0 +1,110 @@
+// ============================================================
+// TOOLTIPS GENERADOS — NVIDIA Llama 3.1-70B
+// Pegar en game.js reemplazando los campos tooltip:/desc:
+// ============================================================
+
+// ── GÉRMENES (campo tooltip: en ENEMY_DEFS) ─────────────────
+// saureus
+"Staphylococcus aureus es una bacteria formidable que se protege con una cápsula polisacárida y puede formar biofilms, lo que dificulta su eliminación. Su capacidad para producir cepas resistentes, como la MRSA, que es inmune a los antibióticos β-lactámicos, la convierte en un oponente peligroso. Los neutrófilos son las células inmunes clave para combatir esta bacteria, ya que pueden fagocitarla y eliminarla."
+
+// influenza
+"El Virus Influenza A es un patógeno altamente contagioso que utiliza su hemaglutinina para adherirse a las células del huésped y su neuraminidasa para escapar de ellas, permitiéndole mutar con frecuencia y evadir el sistema inmunitario. Su capacidad para cambiar rápidamente hace que sea un desafío para las células inmunes, especialmente para los linfocitos T citotóxicos, que deben reconocer y atacar a los virus infectados con precisión."
+
+// vih
+"El virus VIH-1 es un patógeno astuto que utiliza sus proteínas gp120 y gp41 para engañar y adherirse a los receptores de las células CD4+, permitiéndole infiltrarse y tomar el control de estas células clave del sistema inmunológico. Su capacidad para evadir la respuesta inmune es notable, pero los Linfocitos T citotóxicos son los especialistas capacitados para reconocer y eliminar a este virus invasor."
+
+// candida
+"\"Candida albicans es un hongo dimorfo que puede cambiar su forma de levadura a hifa, lo que le permite adaptarse a diferentes entornos y evadir al sistema inmune. Su pared celular, compuesta por β-glucanos y quitina, actúa como un escudo protector que dificulta la acción de las células inmunes, pero las células fagocíticas como los neutrófilos están especializadas para combatirlo. ¡Aprovecha esta información para desarrollar una estrategia efectiva y detener su avance!\""
+
+// dermatofito
+"Trichophyton rubrum, un hongo astuto que secreta queratinasas para degradar la queratina de las células huésped, permitiéndole penetrar en las capas más profundas de la piel. Sus conidios, resistentes y versátiles, pueden esparcirse y dar origen a nuevas esporas hijas que atacan con ferocidad. La linfocina T, una célula inmune especializada, es la mejor opción para combatir a este hongo, ya que puede reconocer y atacar las proteínas específicas de Trichophyton rubrum."
+
+// sepidermidis
+"\"Conoce a Staphylococcus epidermidis, un oportunista astuto que se aprovecha de su residencia en la flora normal de la piel para causar infecciones cuando el sistema inmune está debilitado. Su capacidad para formar biofilms en prótesis y superficies médicas lo hace particularmente peligroso, ya que puede evadir la respuesta inmune y persistir en el cuerpo. Los neutrófilos, con su capacidad para fagocitar y destruir bacterias, son los mejores defensores contra este germen.\""
+
+// hsv
+"El Virus Herpes Simple (HSV-1/2) es un patógeno astuto que se esconde en los ganglios nerviosos, donde permanece latente, listo para reactivarse. Su envoltura viral está equipada con glicoproteínas que facilitan la fusión con las células huésped, permitiéndole infectarlas con rapidez y eficacia. Los linfocitos T citotóxicos son los especialistas en combatir este virus, capaces de reconocer y eliminar las células infectadas antes de que el virus se propague."
+
+// cacnes
+"Cutibacterium acnes, un anaerobio que se siente como en casa en los folículos pilosos, donde produce porfirinas y lipasas que le permiten prosperar en este entorno rico en sebo. Aunque se mueve lentamente, su capacidad para formar un biofilm parcial lo hace un oponente desafiante, ya que puede resistir los ataques del sistema inmunitario. Las células inmunes como los macrófagos, especializados en la fagocitosis de patógenos, son las mejores opciones para combatirlo."
+
+// pseudomonas
+"Pseudomonas aeruginosa es una bacteria oportunista que se aprovecha de heridas abiertas para formar biofilms resistentes a la respuesta inmune, liberando la piocianina, un pigmento que inhibe la función de los neutrófilos, y la exotoxina A, que interfiere con la síntesis de proteínas en las células huésped. En este escenario, la bacteria despliega un arsenal químico que paraliza a nuestras torres defensivas, mientras que sus esporas buscan activamente destruir nuestras defensas. Los macrófagos son las células inmunes clave para combatir esta amenaza, ya que pueden fagocitar y degradar las bacterias y sus componentes."
+
+// sarna
+"Sarcoptes scabiei, el ácaro causante de la sarna, es un parásito que excava galerías en el estrato córneo de la piel humana, donde deposita sus huevos y se refugia. Al hacerlo, se vuelve temporalmente invulnerable a los ataques del sistema inmunitario, pero las células inmunes como los eosinófilos pueden detectar y combatir a estos parásitos. La proteína SCP-1, producida por el ácaro, juega un papel crucial en su capacidad para evadir la respuesta inmune."
+
+// hpv
+"El Virus del Papiloma Humano (HPV) es un astuto patógeno que se disfraza con una cápside compuesta por 72 capsómeros L1/L2, permitiéndole esconderse de nuestro sistema inmunitario. Las proteínas E6 y E7 que porta son verdaderas maestras de la manipulación, ya que inactivan a las proteínas p53 y Rb, que normalmente regulan el ciclo celular y previenen el cáncer. La célula inmune que mejor puede combatirlo es la célula T citotóxica, que puede reconocer y destruir las células infectadas antes de que el virus cause daño."
+
+// molluscum
+"El Molluscum contagiosum (MCV) es un astuto poxvirus que ha evolucionado para evadir el sistema inmune gracias a proteínas como MC159 y MC160, que bloquean la respuesta inmune. Cuando este virus es derrotado, se divide en dos, dejando tras de sí una estela de pápulas cerosas que pueden ser un desafío para el sistema inmune. Las células inmunes como los linfocitos T citotóxicos son clave para combatirlo, ya que pueden reconocer y eliminar las células infectadas."
+
+// demodex
+"Demodex folliculorum, un ácaro del folículo piloso, es un parásito que se esconde en las profundidades de la piel, donde pocos pueden detectarlo. Su capacidad para evadir al sistema inmune se debe a su habilidad para producir antígenos que inhiben la respuesta inmune, lo que lo hace casi invisible para la mayoría de las células inmunes. Sin embargo, las células de Langerhans, con su capacidad para procesar y presentar antígenos, son las únicas capaces de detectar y combatir a este astuto parásito."
+
+// neisseria
+"Neisseria gonorrhoeae es una bacteria astuta que utiliza sus pili tipo IV para adherirse a las células huésped y evadir el sistema inmunitario. Su capacidad para variar sus proteínas de superficie Opa le permite cambiar constantemente de apariencia, lo que dificulta que los linfocitos T citotóxicos la reconozcan y la eliminen."
+
+// leishmania
+"\"Leishmania major es un astuto parásito que alterna entre dos formas: el promastigote flagelado, que se desplaza libremente, y el amastigote, que se esconde dentro de los macrófagos, células inmunes que deberían combatirlo. Este parásito utiliza un mecanismo de evasión del sistema inmune llamado 'supresión de la producción de óxido nítrico', que le permite sobrevivir dentro de los macrófagos. Los macrófagos activados son las células inmunes ideales para combatir a este parásito, pero debes actuar rápido antes de que cambie de forma y se vuelva invulnerable.\""
+
+// bossPyogenes
+"\"¡Atención, sistema inmunológico! Streptococcus pyogenes, el temido jefe de la fascitis necrotizante, ha llegado al camino. Esta bacteria utiliza su estreptolisina O/S para destruir las membranas celulares y su hialuronidasa para disolver el ácido hialurónico, permitiéndole avanzar rápidamente a través de los tejidos, dejando un rastro de necrosis a su paso. La proteína M antifagocítica le permite evadir a los neutrófilos, pero los linfocitos T pueden reconocer y atacar a esta bacteria con eficacia.\""
+
+// bossMRSA
+"Este germen es el temido Staphylococcus aureus meticilino-resistente, también conocido como MRSA. Su resistencia a la meticilina se debe a la presencia del gen mecA, que se encuentra en el cassette SCCmec, lo que le permite esquivar la acción de muchos antibióticos. Los neutrófilos son las células inmunes que mejor pueden combatirlo, pero incluso ellos tienen dificultades para eliminarlo por completo."
+
+// bossClostridium
+"Clostridium perfringens, un temible enemigo que avanza con lentitud pero sin piedad. Esta bacteria produce la letal α-toxina fosfolipasa C, que destruye las membranas celulares, y causa la gangrena gaseosa al producir gas en los tejidos. Los neutrófilos, con su capacidad para fagocitar y eliminar patógenos, son los mejores candidatos para combatir a este formidable oponente."
+
+
+// ── TORRES (campo desc: en TOWER_DEFS) ──────────────────────
+// neutrofilo
+"Neutrófilo: célula de la primera línea de defensa que combate a los patógenos mediante fagocitosis, liberación de trampas extracelulares de cromatina (NET) y degranulación de gránulos que contienen enzimas y proteínas antimicrobianas. Su habilidad especial es el Bombardeo de Defensinas, una lluvia de péptidos antimicrobianos que aniquila a los invasores."
+
+// linfocitoB
+"Linfocito B / Plasmocito: Produce anticuerpos IgG e IgM que opsonizan bacterias, marcándolas para su destrucción. En combate, despliega cañones de anticuerpos penetrantes, aniquilando eficazmente a los patógenos invasores."
+
+// linfocitoT
+"Linfocito T citotóxico (CD8+): Reconoce péptidos presentados en moléculas MHC-I, desencadenando una respuesta letal con granzima B y perforina que induce apoptosis en patógenos invasores. Su habilidad especial es la apoptosis masiva, eliminando instantáneamente a 5 enemigos en un ataque devastador."
+
+// langerhans
+"Célula de Langerhans: especialista en vigilancia de la epidermis, captura antígenos y migra a los ganglios linfáticos para activar células T helper, desencadenando una respuesta inmune potente. Su Ultimate, Presentación Antigénica Masiva, marca y bufa a los aliados, potenciando su combate contra las amenazas."
+
+// nk
+"Célula NK: Reconoce y elimina células infectadas o tumorales al detectar la ausencia de MHC-I, liberando perforina y granzimas para destruirlas. Su habilidad especial es el Frenesí citotóxico, que maximiza su capacidad de matar sin MHC."
+
+// eosinofilo
+"El Eosinófilo es un guerrero especializado en la destrucción de parásitos y la regulación de la inflamación, liberando gránulos de MBP, ECP y EDN que atacan y desintegran a los invasores, mientras que las interleucinas IL-4 e IL-13 potencian su capacidad para eliminar amenazas, y su habilidad especial es la Descarga de gránulos, una lluvia de destrucción que aniquila a los parásitos con eficacia letal."
+
+// mastocito
+"Mastocito: célula inmune especializada en la desgranulación de histamina, triptasa y leucotrienos, que ralentiza a los gérmenes en el área. Su Ultimate, Onda de desgranulación, libera una potente descarga de mediadores químicos que paralizan a los invasores, convirtiéndolo en un defensor clave contra oleadas de patógenos."
+
+// complemento
+"El complejo de ataque a membrana C5b-9 es una estructura formada por la unión de proteínas del sistema complemento que perfora la membrana de bacterias gram-negativas, causando su lisis. En combate, la torre C5b-9 ignora los escudos y dispara un ataque manual concentrado, siendo especialmente efectiva contra bacterias gram-negativas."
+
+// plaqueta
+"La torre Fibrina / Plaqueta despliega un coágulo de fibrina que obstruye el carril, liberando tromboxano A2 y factor von Willebrand para atraer y retener a los patógenos, permitiendo a las demás torres atacar con mayor eficacia. Su habilidad especial es la capacidad de ralentizar significativamente el avance enemigo, dándole a las torres aliadas una ventaja crucial en el combate."
+
+// trombo
+"Trombo de Respuesta: Plaqueta activada que despliega pseudópodos para empujar gérmenes hacia atrás, activando la coagulación mediante la liberación de factores de coagulación al destruirse, lo que permite combatir eficazmente a los patógenos invasores."
+
+// centinela
+"La Célula Centinela es un receptor de reconocimiento de patrones que detecta moléculas asociadas a patógenos, activando una respuesta inmune temprana. Atrae los ataques especiales de los gérmenes hacia sí, convirtiéndose en un señuelo que protege al cuerpo y combate mejor a los patógenos con su capacidad de emitir alarmas."
+
+// queratinocito
+"El queratinocito activado es una célula epitelial clave en la respuesta inmune innata, capaz de producir defensinas α/β, IL-8 e IL-1β, creando una barrera física y química contra los patógenos. En combate, su campo de defensinas ralentiza a los invasores, mientras que la IL-8 recluta neutrófilos para aumentar la cadencia de ataque, lo que lo convierte en un defensor formidable contra las infecciones."
+
+// sebocito
+"El Sebocito es una célula especializada en la producción de sebo, una mezcla de lípidos que incluye ácidos grasos, escualeno y ceras, los cuales tienen propiedades antimicrobianas que ayudan a proteger la piel de patógenos. En combate, el Sebocito forma charcos de sebo que infligen daño continuo a los invasores, siendo especialmente efectivo contra el Cutibacterium acnes y los dermatofitos."
+
+// pdc
+"La Célula Dendrítica Plasmocitoide (pDC) es un poderoso aliado en la lucha contra los virus, detectando ácidos nucleicos virales a través de los receptores TLR7/9 y produciendo grandes cantidades de interferón alfa y beta (IFN-α/β), lo que le permite ralentizar y debilitar a los invasores virales. Su habilidad especial, la Tormenta de Interferón, es devastadora contra los virus, haciendo de la pDC una torre fundamental en la defensa inmunológica."
+
+// linfocitogd
+"Linfocito γδ: Reconoce antígenos no peptídicos sin presentación por MHC, priorizando a los patógenos que han penetrado la barrera epitelial. Combate con eficacia a bacterias y hongos, y se potencia con IL-17."
+
+// ilc2
+"ILC2 (Linfoide Innato tipo 2): célula clave en la respuesta inmune innata que desempeña un papel crucial en la activación de la respuesta alérgica y en la lucha contra los parásitos, mediante la producción de citoquinas como IL-4, IL-5 e IL-13, que a su vez potencian la actividad de eosinófilos y mastocitos. Su habilidad especial en combate es la capacidad de activar las habilidades especiales de aliados cercanos mediante la liberación de IL-5."
+

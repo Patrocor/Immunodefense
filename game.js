@@ -4517,6 +4517,7 @@
     state.enemies.push({
       def: m.def, hp: chp, maxHp: chp,
       speedMultLevel: m.speedMultLevel, heridaIdx: m.heridaIdx,
+      zigzagPhase: 0,
       state: (hunts && huntTarget) ? "huntingTower" : "walking", outsideTimer: 0,
       progress: Math.max(0, m.progress - 5 * U),
       huntTarget: huntTarget, huntDmg: sp.huntDmg || 18,
@@ -5262,7 +5263,7 @@
         }
         // Demodex: zigzag lateral sobre el camino (movimiento serpentino).
         if (e.def.zigzag && e.state === "walking" && !e.dying) {
-          e.zigzagPhase += dt * e.def.zigzag.frequency * Math.PI * 2;
+          e.zigzagPhase = (e.zigzagPhase || 0) + dt * e.def.zigzag.frequency * Math.PI * 2;
           var zAmp = e.def.zigzag.amplitude * U;
           e.x += -Math.sin(p.angle) * Math.sin(e.zigzagPhase) * zAmp;
           e.y +=  Math.cos(p.angle) * Math.sin(e.zigzagPhase) * zAmp;
@@ -12545,6 +12546,7 @@
   // Sprint 7: inflammation marks management.
   var MAX_PATH_INFLAMMATION = 30;
   function pushPathInflammation(x, y) {
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return;   // nunca contaminar el render del camino
     if (!state.pathInflammation) state.pathInflammation = [];
     if (state.pathInflammation.length >= MAX_PATH_INFLAMMATION) {
       state.pathInflammation.shift();

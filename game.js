@@ -22342,13 +22342,21 @@
     // todo el field (gérmenes, torres, etc desaparecían).
     clearCanvas();
     function safeDraw(name, fn) {
+      // save/restore alrededor de cada draw: si fn tira excepción a mitad
+      // (con globalAlpha/composite/shadow/lineDash/transform/CLIP seteados),
+      // el restore del finally devuelve el contexto al estado limpio del
+      // frame → el estado sucio NO se filtra al resto de los dibujos. El clip
+      // es el caso clave: solo se deshace con restore, un reset manual de
+      // propiedades no lo quitaría y todo lo siguiente quedaría recortado.
+      // Para un draw sano es transparente (ya restaura lo suyo).
+      ctx.save();
       try { fn(); }
       catch (e) {
         if (!window.__rerr || window.__rerr.name !== name) {
           window.__rerr = { name: name, msg: String(e && (e.message || e)), at: state.time };
           try { console.error("draw error:", name, e); } catch (_) {}
         }
-      }
+      } finally { ctx.restore(); }
     }
     // Durante la transición final de la intro (introOutroT activo), el
     // campo real arranca con un zoom temporal anclado en la herida y se

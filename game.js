@@ -23113,6 +23113,12 @@
     var dt = Math.min(0.05, (now - lastT) / 1000);
     lastT = now;
     state.time += dt;
+    // GUARD DEL LOOP: todo el update + render va en try/catch, y
+    // requestAnimationFrame se llama SIEMPRE al final (fuera del try). Antes,
+    // una excepción en cualquier update (un NaN/null/undefined) se propagaba
+    // fuera de loop() y nunca se re-agendaba el frame → el juego quedaba
+    // congelado hasta recargar. Ahora se saltea ese frame y sigue vivo.
+    try {
     var paused = state.confirmRestart || state.showTitle || state.showIntro || state.cinematicEnd || state.compendiumOpen || !!state.phaseTransition || !!state.bodyMap || state.tutorialOpen;
     // Nivel puente: pausamos la lógica al caer el primer carril (cinemática
     // de derrota o de victoria-con-quiebre). Al terminar la cinemática se
@@ -23216,6 +23222,14 @@
     updateGermIntro(dt);
     if (state.msgTimer > 0) state.msgTimer -= dt;
     render();
+    } catch (e) {
+      // Log deduplicado (como safeDraw): no spamear la consola cada frame si
+      // el error se repite. El loop sigue vivo pase lo que pase.
+      if (!window.__lerr || window.__lerr.msg !== String(e && (e.message || e))) {
+        window.__lerr = { msg: String(e && (e.message || e)), at: state.time };
+        try { console.error("loop error:", e); } catch (_) {}
+      }
+    }
     requestAnimationFrame(loop);
   }
 

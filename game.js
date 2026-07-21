@@ -4,6 +4,44 @@
   var canvas = document.getElementById("canvas");
   var ctx = canvas.getContext("2d");
 
+  // ============ CALIDAD ADAPTIVA (perf móvil) ============================
+  // En equipos flojos, shadowBlur (los "glows") es el mayor costo de canvas
+  // en móvil. En modo bajo lo apagamos GLOBALMENTE interceptando el setter
+  // del contexto — así los ~47 sitios que hacen ctx.shadowBlur = x quedan en
+  // 0 sin tocar ni una línea de ellos. Cómo entra el modo bajo:
+  //   1) Heurística de dispositivo al arrancar (conservadora).
+  //   2) Auto-degradado si el FPS se sostiene bajo jugando (ver loop) — clave
+  //      porque navigator.deviceMemory NO existe en iOS, así que la heurística
+  //      sola no detecta iPhones viejos.
+  //   3) Override manual: #lowfx / #hifx en la URL.
+  var QUALITY = { low: false };
+  (function detectQuality() {
+    try {
+      var hash = (location.hash || "").toLowerCase();
+      if (hash.indexOf("lowfx") >= 0) { QUALITY.low = true; QUALITY.forced = true; return; }
+      if (hash.indexOf("hifx")  >= 0) { QUALITY.low = false; QUALITY.forced = true; return; }
+      var mem = navigator.deviceMemory;          // GB — solo Chrome/Android
+      var cores = navigator.hardwareConcurrency || 8;
+      // Conservador: solo equipos claramente flojos. El resto lo agarra el
+      // auto-degradado por FPS bajo carga real.
+      QUALITY.low = (mem != null && mem <= 2) || cores <= 2;
+    } catch (e) {}
+  })();
+  // Gate global de shadowBlur: en modo bajo, cualquier ctx.shadowBlur = x => 0.
+  (function gateShadowBlur() {
+    try {
+      var proto = Object.getPrototypeOf(ctx);
+      var d = Object.getOwnPropertyDescriptor(proto, "shadowBlur");
+      if (d && d.get && d.set) {
+        Object.defineProperty(ctx, "shadowBlur", {
+          configurable: true,
+          get: function () { return d.get.call(this); },
+          set: function (v) { d.set.call(this, QUALITY.low ? 0 : v); }
+        });
+      }
+    } catch (e) {}
+  })();
+
   // ============ ASSETS (imágenes opcionales con fallback) ===================
   // Sistema de carga lazy de imágenes externas. Si una imagen no existe o
   // falla la carga, ASSETS.get() retorna null y el render usa la primitiva
@@ -23121,6 +23159,21 @@
     var dt = Math.min(0.05, (now - lastT) / 1000);
     lastT = now;
     state.time += dt;
+    // Auto-degradado de calidad: si el FPS se sostiene bajo mientras se juega,
+    // bajamos a modo low (apaga shadowBlur) de forma PERMANENTE — one-way,
+    // para no oscilar. Cubre iOS y cualquier equipo que la heurística de
+    // arranque no detecta. No cuenta en título/intro (poca carga).
+    if (!QUALITY.low && !QUALITY.forced && !state.showTitle && !state.showIntro) {
+      QUALITY._acc = (QUALITY._acc || 0) + dt;
+      QUALITY._fr = (QUALITY._fr || 0) + 1;
+      if (QUALITY._acc >= 2) {                       // ventana de 2s
+        if (QUALITY._fr / QUALITY._acc < 45) {       // < 45 fps sostenido
+          QUALITY._bad = (QUALITY._bad || 0) + 1;
+          if (QUALITY._bad >= 2) QUALITY.low = true; // 2 ventanas malas (~4s)
+        } else { QUALITY._bad = 0; }
+        QUALITY._acc = 0; QUALITY._fr = 0;
+      }
+    }
     // GUARD DEL LOOP: todo el update + render va en try/catch, y
     // requestAnimationFrame se llama SIEMPRE al final (fuera del try). Antes,
     // una excepción en cualquier update (un NaN/null/undefined) se propagaba

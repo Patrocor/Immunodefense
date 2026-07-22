@@ -6959,6 +6959,8 @@
       // que busca la torre potenciadora más cercana y le hace 5% maxHP de daño.
       if (def.id === "sepidermidis") releaseSepidermidisToxin(e);
       germExplode(e);   // estalla y daña a los personajes cercanos
+      // #8 Hitstop al matar un jefe: micro-freeze para que el golpe pese.
+      if (def.isBoss && QUALITY.motion > 0) state.hitstop = 0.07;
       // Molluscum: al morir se DIVIDE en mini-molluscum (salvo que ya sea hijo).
       if (def.deathSplit && !e.noSplit && !e.absorbing) {
         for (var ds = 0; ds < (def.deathSplit.count || 2); ds++) {
@@ -23246,8 +23248,13 @@
   // -------- LOOP ----------------------------------------------------------
   var lastT = performance.now();
   function loop(now) {
-    var dt = Math.min(0.05, (now - lastT) / 1000);
+    var realDt = Math.min(0.05, (now - lastT) / 1000);
     lastT = now;
+    // #8 HITSTOP: tras un impacto grande (muerte de jefe) congelamos la
+    // simulación ~70ms escalando dt a casi 0 — sim y animaciones se frizan un
+    // instante (el "impacto"), el render sigue dibujando el frame congelado.
+    if ((state.hitstop || 0) > 0) state.hitstop = Math.max(0, state.hitstop - realDt);
+    var dt = (state.hitstop || 0) > 0 ? realDt * 0.06 : realDt;
     state.time += dt;
     // Auto-degradado de calidad: si el FPS se sostiene bajo mientras se juega,
     // bajamos a modo low (apaga shadowBlur) de forma PERMANENTE — one-way,

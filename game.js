@@ -19221,7 +19221,7 @@
     if (e._lastPosX == null) { e._lastPosX = e.x; e._lastPosY = e.y; }
     var dMag = Math.hypot(e.x - e._lastPosX, e.y - e._lastPosY);
     e._lastPosX = e.x; e._lastPosY = e.y;
-    e._gaitPhase = (e._gaitPhase || 0) + dMag * 0.12;
+    e._gaitPhase = (e._gaitPhase || 0) + Math.max(0.03, dMag * 0.12);   // patas también en reposo
     var gait = e._gaitPhase;
     var bodyGrd = ctx.createRadialGradient(-R * 0.2, -R * 0.45, R * 0.15, 0, 0, R * 0.95);
     bodyGrd.addColorStop(0, "#f0dca0");
@@ -19234,6 +19234,14 @@
     ctx.strokeStyle = e.def.colorDark;
     ctx.lineWidth = Math.max(0.8, 1.0 * U);
     ctx.stroke();
+    // Estrías de segmentación del opistosoma (abdomen anillado del ácaro).
+    ctx.strokeStyle = colorAlpha(e.def.colorDark, 0.5);
+    ctx.lineWidth = Math.max(0.6, 0.8 * U);
+    for (var sg = 1; sg <= 4; sg++) {
+      var sgy = R * (0.05 + sg * 0.19);
+      var sgw = R * 0.5 * Math.sqrt(Math.max(0, 1 - Math.pow(sgy / (R * 0.92), 2)));
+      ctx.beginPath(); ctx.moveTo(-sgw, sgy); ctx.lineTo(sgw, sgy); ctx.stroke();
+    }
     ctx.strokeStyle = e.def.colorDark;
     ctx.lineWidth = Math.max(0.9, 1.2 * U);
     ctx.lineCap = "round";
@@ -19267,6 +19275,8 @@
     ctx.moveTo(R * 0.16, -R * 0.88);
     ctx.lineTo(R * 0.28, -R * 1.05 - bite * R * 0.10);
     ctx.stroke();
+    // Ojos villanos sobre el cuerpo (los quelíceros de arriba hacen de boca).
+    drawAnimeEyes(0, -R * 0.3, R * 0.17, R * 0.24, 0, 0, R * 0.09, R * 0.03, "evil");
     ctx.globalAlpha = 1;
     ctx.restore();
   }
@@ -19373,6 +19383,7 @@
       ctx.fillStyle = "#8B4513";
       ctx.beginPath(); ctx.arc(0, 0, R * 1.3, 0, Math.PI * 2); ctx.fill();
       ctx.globalAlpha = 1;
+      germFace(R * 0.6, expression, blink, R * 0.26);
     } else {
       if (e._lastPosX == null) { e._lastPosX = e.x; e._lastPosY = e.y; }
       var dMag2 = Math.hypot(e.x - e._lastPosX, e.y - e._lastPosY);
@@ -19389,19 +19400,24 @@
       ctx.strokeStyle = e.def.colorDark; ctx.lineWidth = Math.max(0.9, 1.1 * U); ctx.stroke();
       ctx.fillStyle = "#1a3008";
       ctx.beginPath(); ctx.arc(0, R * 0.62, R * 0.16, 0, Math.PI * 2); ctx.fill();
-      var flagPhase = e._leishFlagPhase || 0;
+      // Flagelo anterior largo que latiguea (idle + al moverse), doble armónico.
+      var flagPhase = (e._leishFlagPhase || 0) + t * 0.6;
       ctx.strokeStyle = e.def.colorLight;
-      ctx.lineWidth = Math.max(0.9, 1.1 * U);
+      ctx.lineWidth = Math.max(1.1, 1.5 * U);
       ctx.lineCap = "round";
       ctx.beginPath();
-      ctx.moveTo(0, R * 0.78);
-      for (var fp = 1; fp <= 10; fp++) {
-        var ft = fp / 10;
-        var fx = Math.sin(flagPhase + ft * Math.PI * 2.8) * R * 0.32 * ft;
-        var fy = R * 0.78 + ft * R * 1.65;
+      ctx.moveTo(0, R * 0.82);
+      for (var fp = 1; fp <= 14; fp++) {
+        var ft = fp / 14;
+        var fx = (Math.sin(flagPhase + ft * Math.PI * 3.0) * 0.42 + Math.sin(flagPhase * 1.7 + ft * Math.PI * 5) * 0.12) * R * ft;
+        var fy = R * 0.82 + ft * R * 2.1;
         ctx.lineTo(fx, fy);
       }
       ctx.stroke();
+      // Núcleo (mancha clara) + cara villana en el cuerpo.
+      ctx.fillStyle = "rgba(255,255,255,0.32)";
+      ctx.beginPath(); ctx.ellipse(0, -R * 0.16, R * 0.2, R * 0.28, 0, 0, Math.PI * 2); ctx.fill();
+      germFace(R * 0.52, expression, blink, R * 0.22);
     }
     ctx.restore();
   }

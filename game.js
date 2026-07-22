@@ -14,7 +14,7 @@
   //      porque navigator.deviceMemory NO existe en iOS, así que la heurística
   //      sola no detecta iPhones viejos.
   //   3) Override manual: #lowfx / #hifx en la URL.
-  var QUALITY = { low: false };
+  var QUALITY = { low: false, motion: 1 };
   (function detectQuality() {
     try {
       var hash = (location.hash || "").toLowerCase();
@@ -25,6 +25,21 @@
       // Conservador: solo equipos claramente flojos. El resto lo agarra el
       // auto-degradado por FPS bajo carga real.
       QUALITY.low = (mem != null && mem <= 2) || cores <= 2;
+    } catch (e) {}
+  })();
+  // Reducir movimiento (accesibilidad / fotosensibilidad): QUALITY.motion es
+  // un multiplicador global (1 = pleno, 0 = sin screenshake/parpadeos fuertes).
+  // Respeta prefers-reduced-motion; override manual #reducemotion / #fullmotion.
+  (function detectMotion() {
+    try {
+      var hash = (location.hash || "").toLowerCase();
+      if (hash.indexOf("reducemotion") >= 0) { QUALITY.motion = 0; QUALITY.motionForced = true; return; }
+      if (hash.indexOf("fullmotion")   >= 0) { QUALITY.motion = 1; QUALITY.motionForced = true; return; }
+      var mm = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)");
+      if (mm && mm.matches) QUALITY.motion = 0;
+      if (mm && mm.addEventListener) mm.addEventListener("change", function (e) {
+        if (!QUALITY.motionForced) QUALITY.motion = e.matches ? 0 : 1;
+      });
     } catch (e) {}
   })();
   // Gate global de shadowBlur: en modo bajo, cualquier ctx.shadowBlur = x => 0.
@@ -9858,6 +9873,8 @@
   }
 
   function triggerShake(time, mag) {
+    mag *= QUALITY.motion;                 // reduce-motion: escala el sacudón
+    if (mag <= 0) return;
     if (time > state.shakeTimer) state.shakeTimer = time;
     if (mag > state.shakeMag) state.shakeMag = mag;
   }
@@ -13184,6 +13201,22 @@
     var dyingLow = (t.hp / t.maxHp < 0.3) || !!t.devouredBy;
     var expression = levelup ? "levelup" : (dyingLow ? "dying" : (attacking ? "attacking" : "idle"));
     if (levelup) pulse *= 1.10;
+    // #6 Pop de colocación (scale-in ease-out-back, ~0.32s) + recoil breve al
+    // disparar. Reusa `pulse` (que escala todo el cuerpo de la torre), así que
+    // no agrega transforms. Gateado por reduce-motion (torres estáticas).
+    if (QUALITY.motion > 0) {
+      if (t.placedAt != null) {
+        var pt = (state.time - t.placedAt) / 0.32;
+        if (pt >= 0 && pt < 1) {
+          var pb = pt - 1, sBack = 1.5;
+          var eob = 1 + (sBack + 1) * pb * pb * pb + sBack * pb * pb; // easeOutBack
+          pulse *= 0.5 + 0.5 * eob;                                   // 0.5x → ~1.05 → 1
+        }
+      }
+      if ((t.muzzleFlash || 0) > 0) {
+        pulse *= 1 - 0.05 * Math.min(1, t.muzzleFlash / 0.15);        // recoil/squash
+      }
+    }
     drawShadow(t.x, t.y + 18 * U, 19 * U, 6 * U);
     // Glow/aura pulsante (Parte A: más vivo) — resalta la célula sobre el tejido.
     var glowP = 0.5 + 0.5 * Math.sin(state.time * 2 + (t.idlePhase || 0));
@@ -22369,8 +22402,8 @@
     }
     // MRSA intro earthquake: ±2px on both axes for the duration of the banner.
     if (state.mrsaIntro) {
-      shakeOff.x += (Math.random() - 0.5) * 4;
-      shakeOff.y += (Math.random() - 0.5) * 4;
+      shakeOff.x += (Math.random() - 0.5) * 4 * QUALITY.motion;
+      shakeOff.y += (Math.random() - 0.5) * 4 * QUALITY.motion;
     }
     ctx.setTransform(dpr, 0, 0, dpr, shakeOff.x * dpr, shakeOff.y * dpr);
 

@@ -6980,6 +6980,8 @@
         life: 0.85, max: 0.85,
         color: "#f5d76e"
       });
+      // #1 Moneda que vuela al contador de ATP y lo hace "latir" al llegar.
+      pushEffect({ kind: "atpCoin", x: e.x, y: e.y, x0: e.x, y0: e.y, life: 0.55, max: 0.55, delivered: false });
     }
   }
 
@@ -10211,6 +10213,15 @@
       } else if (ef.kind === "dmgText" || ef.kind === "atpText") {
         ef.y += ef.vy * dt;
         ef.vy *= 0.94;
+      } else if (ef.kind === "atpCoin") {
+        // Vuela del germen al contador de ATP del HUD, en arco, acelerando.
+        var acT = Math.max(0, Math.min(1, 1 - ef.life / ef.max));
+        var acE = acT * acT;                                  // ease-in
+        var acx = (state.atpHudPos && state.atpHudPos.x != null) ? state.atpHudPos.x : ef.x0;
+        var acy = (state.atpHudPos && state.atpHudPos.y != null) ? state.atpHudPos.y : (FIELD_TOP * 0.5);
+        ef.x = ef.x0 + (acx - ef.x0) * acE;
+        ef.y = ef.y0 + (acy - ef.y0) * acE - Math.sin(acT * Math.PI) * 26 * U;
+        if (acT > 0.9 && !ef.delivered) { ef.delivered = true; state.atpBump = 1; }
       } else if (ef.kind === "confetti") {
         ef.x += ef.vx * dt;
         ef.y += ef.vy * dt;
@@ -19926,6 +19937,19 @@
       ctx.fillStyle = ef.color;
       ctx.fillText(ef.text, ef.x, ef.y);
       ctx.globalAlpha = 1;
+    } else if (ef.kind === "atpCoin") {
+      ctx.globalAlpha = alpha;
+      var acr = 5 * U;
+      var acg = ctx.createRadialGradient(ef.x, ef.y, 0, ef.x, ef.y, acr * 2.2);
+      acg.addColorStop(0, "rgba(255, 244, 170, 0.95)");
+      acg.addColorStop(1, "rgba(245, 215, 110, 0)");
+      ctx.fillStyle = acg;
+      ctx.beginPath(); ctx.arc(ef.x, ef.y, acr * 2.2, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = "#f5d76e";
+      ctx.beginPath(); ctx.arc(ef.x, ef.y, acr, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = "rgba(150, 100, 20, 0.7)"; ctx.lineWidth = 1 * U;
+      ctx.beginPath(); ctx.arc(ef.x, ef.y, acr, 0, Math.PI * 2); ctx.stroke();
+      ctx.globalAlpha = 1;
     } else if (ef.kind === "confetti") {
       ctx.save();
       ctx.translate(ef.x, ef.y);
@@ -20357,6 +20381,16 @@
     ctx.fillText(label, bx + barW / 2, by + barH / 2);
   }
 
+  // #1 Contador de ATP animado: displayAtp persigue a state.atp (count-up) y
+  // atpBump es un pulso (0→1) que se dispara cuando una moneda llega al HUD.
+  function updateAtpDisplay(dt) {
+    if (state.displayAtp == null) state.displayAtp = state.atp;
+    var diff = state.atp - state.displayAtp;
+    if (Math.abs(diff) < 0.5) state.displayAtp = state.atp;
+    else state.displayAtp += diff * Math.min(1, dt * 12);   // count-up ease-out
+    if ((state.atpBump || 0) > 0) state.atpBump = Math.max(0, state.atpBump - dt * 3.5);
+  }
+
   function drawHUD() {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.fillStyle = "#3a2530";
@@ -20373,10 +20407,18 @@
       ctx.textAlign = "left";
       var cx = leftX;
       ctx.font = "700 15px Fredoka, sans-serif";
-      ctx.fillStyle = "#f5d76e";
-      var atpStr = "⚡ " + state.atp;
+      var atpNumP = Math.round(state.displayAtp != null ? state.displayAtp : state.atp);
+      var atpBumpP = state.atpBump || 0;
+      var atpStr = "⚡ " + atpNumP;
+      ctx.fillStyle = atpBumpP > 0.35 ? "#fff2b8" : "#f5d76e";
+      var atpWp = ctx.measureText(atpStr).width;
+      ctx.save();
+      var abScaleP = 1 + atpBumpP * 0.16;
+      ctx.translate(cx, midY); ctx.scale(abScaleP, abScaleP); ctx.translate(-cx, -midY);
       ctx.fillText(atpStr, cx, midY);
-      cx += ctx.measureText(atpStr).width + 14;
+      ctx.restore();
+      state.atpHudPos = { x: cx + atpWp * 0.5, y: midY };
+      cx += atpWp + 14;
       ctx.font = "600 12px Fredoka, sans-serif";
       ctx.fillStyle = "rgba(220, 200, 200, 0.9)";
       var phaseLabel = state.dissemination ? "DISEMINACIÓN" : "FASE 1";
@@ -20385,7 +20427,22 @@
       var statsY = safeTop + 8;
       var fontStat = Math.max(14, Math.min(20, VW * 0.018));
       var fontLabel = Math.max(10, Math.min(13, VW * 0.012));
-      drawHudStat("⚡ ATP", state.atp, leftX, statsY, "#f5d76e", fontStat, fontLabel);
+      // ATP inline con count-up + bump (destino de la moneda voladora).
+      var atpNumL = Math.round(state.displayAtp != null ? state.displayAtp : state.atp);
+      var atpBumpL = state.atpBump || 0;
+      ctx.textAlign = "left"; ctx.textBaseline = "top";
+      ctx.fillStyle = "rgba(255,255,255,0.55)";
+      ctx.font = fontLabel + "px Fredoka, sans-serif";
+      ctx.fillText("⚡ ATP", leftX, statsY);
+      var atpNumY = statsY + fontLabel + 4;
+      ctx.font = "bold " + fontStat + "px Fredoka, sans-serif";
+      ctx.fillStyle = atpBumpL > 0.35 ? "#fff2b8" : "#f5d76e";
+      ctx.save();
+      var abScaleL = 1 + atpBumpL * 0.16;
+      ctx.translate(leftX, atpNumY); ctx.scale(abScaleL, abScaleL); ctx.translate(-leftX, -atpNumY);
+      ctx.fillText(String(atpNumL), leftX, atpNumY);
+      ctx.restore();
+      state.atpHudPos = { x: leftX + 10 * U, y: atpNumY + fontStat * 0.4 };
       drawHudStat("⊛ Acto", state.dissemination ? "II — Diseminación" : "I — Invasión",
         leftX + Math.min(160, VW * 0.22), statsY, "#d6c0a0", fontStat, fontLabel);
     }
@@ -23313,6 +23370,7 @@
       }
     }
     updateEffects(dt);
+    updateAtpDisplay(dt);
     updateGermIntro(dt);
     if (state.msgTimer > 0) state.msgTimer -= dt;
     render();

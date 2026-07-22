@@ -1301,7 +1301,7 @@
     },
     malassezia: {
       id: "malassezia", name: "Malassezia", shortName: "Malassezia", baseKind: "hongo",
-      color: "#d8c060", colorDark: "#8a7320", colorLight: "#f0e29a", radius: 24,
+      color: "#d8c060", colorDark: "#8a7320", colorLight: "#f0e29a", radius: 30,
       speedMult: 0.85, hp: 264, reward: 12, viralAdd: 7, attack: 5, isBoss: false,
       shield: null,
       greaseAura: { range: 95, slowFire: 1.5 },
@@ -1310,7 +1310,7 @@
     // ---- Nuevos gérmenes de piel (Fase 1) -------------------------------
     demodex: {
       id: "demodex", name: "Demodex folliculorum", shortName: "Demodex", baseKind: "parasito",
-      color: "#c8a86a", colorDark: "#7a5c20", colorLight: "#e8d4a0", radius: 16,
+      color: "#c8a86a", colorDark: "#7a5c20", colorLight: "#e8d4a0", radius: 21,
       speedMult: 0.55, hp: 110, reward: 7, viralAdd: 3, attack: 2, isBoss: false,
       shield: null,
       cloaked: true,
@@ -1320,7 +1320,7 @@
     },
     neisseria: {
       id: "neisseria", name: "Neisseria gonorrhoeae", shortName: "Gonococo", baseKind: "bacteria",
-      color: "#d47c3a", colorDark: "#7a4010", colorLight: "#f0b880", radius: 20,
+      color: "#d47c3a", colorDark: "#7a4010", colorLight: "#f0b880", radius: 25,
       speedMult: 0.70, hp: 235, reward: 11, viralAdd: 5, attack: 4, isBoss: false,
       shield: null,
       piliAdhesion: { range: 55, slowFire: 4.0, duration: 4.5 },
@@ -1328,7 +1328,7 @@
     },
     leishmania: {
       id: "leishmania", name: "Leishmania major", shortName: "Leishmania", baseKind: "parasito",
-      color: "#7aaa44", colorDark: "#3d5a18", colorLight: "#b8d880", radius: 19,
+      color: "#7aaa44", colorDark: "#3d5a18", colorLight: "#b8d880", radius: 24,
       speedMult: 1.0, hp: 290, reward: 14, viralAdd: 6, attack: 5, isBoss: false,
       shield: null,
       leishForm: { interval: 7.0, amastigoteDmgMult: 0.10 },
@@ -16664,24 +16664,77 @@
 
   // MALASSEZIA — racimo de levaduras redondas con brillo aceitoso y yemas.
   function drawMalassezia(e, rad, expression, blink) {
-    var R = rad, w = e.wobble || 0;
+    // Malassezia — levadura lipofílica cutánea. Biología real:
+    //  · Célula ovalada tipo BOTELLA (más alta que ancha), pared gruesa.
+    //  · GEMACIÓN MONOPOLAR: brota siempre por el mismo polo, con COLLARETE
+    //    (anillo de cicatriz de gemación) en el cuello.
+    //  · Lipofílica → aspecto ACEITOSO (brillos untuosos, gotitas de sebo).
+    //  · En tiña versicolor: "spaghetti & meatballs" (hifas cortas + levaduras).
+    var R = rad, w = e.wobble || 0, t = state.time, hit = e.hitFlash > 0;
     ctx.save(); ctx.translate(e.x, e.y);
-    var ag = ctx.createRadialGradient(0, 0, R * 0.6, 0, 0, R * 1.5);
-    ag.addColorStop(0, "rgba(216,192,96,0.18)"); ag.addColorStop(1, "rgba(216,192,96,0)");
-    ctx.fillStyle = ag; ctx.beginPath(); ctx.arc(0, 0, R * 1.5, 0, Math.PI * 2); ctx.fill();
-    function yeast(cxp, cyp, r) {
-      var grad = ctx.createRadialGradient(cxp - r * 0.3, cyp - r * 0.3, r * 0.2, cxp, cyp, r);
-      grad.addColorStop(0, "#fff7d6"); grad.addColorStop(0.5, e.def.color); grad.addColorStop(1, e.def.colorDark);
-      ctx.fillStyle = (e.hitFlash > 0) ? "#fff" : grad;
-      ctx.beginPath(); ctx.arc(cxp, cyp, r, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = e.def.colorDark; ctx.lineWidth = Math.max(1, 1.2 * U); ctx.stroke();
+
+    // Aura oleosa cálida.
+    var ag = ctx.createRadialGradient(0, 0, R * 0.5, 0, 0, R * 1.8);
+    ag.addColorStop(0, "rgba(224,196,104,0.24)"); ag.addColorStop(1, "rgba(224,196,104,0)");
+    ctx.fillStyle = ag; ctx.beginPath(); ctx.arc(0, 0, R * 1.8, 0, Math.PI * 2); ctx.fill();
+
+    // Levadura abotellada reutilizable.
+    function yeast(cxp, cyp, rw, rh, rot) {
+      var mr = Math.max(rw, rh);
+      var grad = ctx.createRadialGradient(cxp - rw * 0.35, cyp - rh * 0.4, mr * 0.15, cxp, cyp, mr);
+      grad.addColorStop(0, "#fff8dc"); grad.addColorStop(0.45, e.def.color); grad.addColorStop(1, e.def.colorDark);
+      ctx.save(); ctx.translate(cxp, cyp); ctx.rotate(rot || 0);
+      ctx.fillStyle = hit ? "#fff" : grad;
+      ctx.beginPath(); ctx.ellipse(0, 0, rw, rh, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = e.def.colorDark; ctx.lineWidth = Math.max(1.2, 1.6 * U); ctx.stroke();
+      ctx.fillStyle = "rgba(255,255,255,0.55)";   // brillo untuoso
+      ctx.beginPath(); ctx.ellipse(-rw * 0.3, -rh * 0.42, rw * 0.3, rh * 0.16, -0.5, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
     }
-    yeast(-R * 0.5, R * 0.45, R * 0.5);
-    yeast(R * 0.55, R * 0.4, R * 0.42);
-    yeast(R * 0.5, -R * 0.45, R * 0.36 + Math.sin(w) * 1 * U);
-    yeast(0, 0, R * 0.85);
-    ctx.fillStyle = "rgba(255,255,255,0.5)"; ctx.beginPath(); ctx.ellipse(-R * 0.3, -R * 0.35, R * 0.2, R * 0.1, -0.5, 0, Math.PI * 2); ctx.fill();
-    germFace(R * 0.85, expression, blink, R * 0.26);
+
+    // Hifas largas ("spaghetti") ondulantes — 5, cada una con su fase.
+    ctx.strokeStyle = e.def.colorDark; ctx.lineWidth = Math.max(1.2, 1.6 * U); ctx.lineCap = "round";
+    for (var h = 0; h < 5; h++) {
+      var hx = (h - 2) * R * 0.42, sway = Math.sin(t * 2.2 + h * 1.3 + w) * 7 * U;
+      var sway2 = Math.sin(t * 3 + h) * 5 * U;
+      ctx.beginPath();
+      ctx.moveTo(hx * 0.55, R * 0.6);
+      ctx.quadraticCurveTo(hx + sway, R * 1.15, hx + sway + sway2, R * 1.7);
+      ctx.stroke();
+    }
+
+    // Cadena de PSEUDOHIFAS: fila de levaduras que emergen a un costado,
+    // cada eslabón con su latido (elongación de la cadena).
+    for (var pc = 1; pc <= 3; pc++) {
+      var pcp = 0.5 + 0.5 * Math.sin(t * 2 + pc * 0.8 + w);
+      var pcx = -R * (0.55 + pc * 0.42), pcy = -R * (0.2 + pc * 0.16);
+      var pcr = R * (0.30 - pc * 0.04) * (0.85 + 0.2 * pcp);
+      yeast(pcx, pcy, pcr, pcr * 1.1, -0.4 + pc * 0.1);
+    }
+
+    // Satélites que se mecen.
+    yeast(R * 0.68, R * 0.5, R * 0.34 + Math.sin(t * 2.5 + w) * 2 * U, R * 0.42, 0.3);
+    yeast(R * 0.72, -R * 0.15, R * 0.26, R * 0.32 + Math.sin(t * 3 + 1) * 2 * U, 0.5);
+
+    // Gema monopolar que "late" (budding) con su collarete.
+    var bud = 0.5 + 0.5 * Math.sin(t * 2.4 + w), budR = R * (0.30 + 0.14 * bud);
+    var bx = R * 0.42, by = -R * 0.72;
+    yeast(bx, by, budR, budR * 1.15, -0.2);
+    ctx.strokeStyle = e.def.colorDark; ctx.lineWidth = Math.max(1.6, 2.2 * U);   // collarete
+    ctx.beginPath();
+    ctx.moveTo(bx - budR * 0.55, by + budR * 0.85);
+    ctx.lineTo(bx + budR * 0.55, by + budR * 0.85);
+    ctx.stroke();
+
+    // Cuerpo principal abotellado (balanceo).
+    yeast(0, 0, R * 0.85, R * 1.02, Math.sin(w + t * 0.8) * 0.06);
+    // Gotitas de sebo lipofílico flotando (más y más grandes).
+    ctx.fillStyle = "rgba(255,240,180,0.55)";
+    for (var d = 0; d < 6; d++) {
+      var da = t * 1.1 + d * 1.05, dr = R * (1.05 + 0.12 * Math.sin(t * 3 + d));
+      ctx.beginPath(); ctx.arc(Math.cos(da) * dr, Math.sin(da) * dr, R * (0.05 + 0.03 * (d % 2)), 0, Math.PI * 2); ctx.fill();
+    }
+    germFace(R * 0.85, expression, blink, R * 0.28);
     ctx.restore();
   }
 
@@ -19219,9 +19272,15 @@
   }
 
   function drawNeisseria(e, rad, expression, blink) {
-    var R = rad, t = state.time;
+    // Neisseria (gonococo) — diplococo gram-negativo. Biología real:
+    //  · PAR de cocos en grano de café (dos cocos ovalados adyacentes).
+    //  · Membrana externa gram-neg → cápsula/halo tenue rosado.
+    //  · PILI (fimbrias): muchas hebras finas de adhesión, SIEMPRE presentes.
+    var R = rad, t = state.time, w = e.wobble || 0, hit = e.hitFlash > 0;
     ctx.save();
     ctx.translate(e.x, e.y);
+
+    // Pili de ATAQUE hacia el objetivo (se conserva).
     if (e.piliTarget) {
       var ptx = e.piliTarget.x - e.x, pty = e.piliTarget.y - e.y;
       var piliPulse = 0.5 + 0.5 * Math.sin(t * 8);
@@ -19231,29 +19290,63 @@
       ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(ptx, pty); ctx.stroke();
       ctx.setLineDash([]);
     }
+
     var angle = -Math.PI / 2;
     if (e.lastTargetX != null) angle = Math.atan2(e.lastTargetY - e.y, e.lastTargetX - e.x);
-    var offX = Math.cos(angle) * R * 0.58;
-    var offY = Math.sin(angle) * R * 0.58;
-    for (var si = -1; si <= 1; si += 2) {
-      var cx2 = si * offX, cy2 = si * offY;
-      var g = ctx.createRadialGradient(cx2 - R * 0.22, cy2 - R * 0.22, R * 0.08, cx2, cy2, R * 0.72);
-      g.addColorStop(0, "#f5d0a8");
-      g.addColorStop(0.55, e.def.color);
-      g.addColorStop(1, e.def.colorDark);
-      ctx.fillStyle = g;
-      ctx.beginPath(); ctx.arc(cx2, cy2, R * 0.72, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = e.def.colorDark; ctx.lineWidth = Math.max(1, 1.2 * U); ctx.stroke();
-      var perpA = angle + Math.PI / 2;
-      var gr2 = R * 0.48;
-      ctx.strokeStyle = "rgba(80,30,0,0.22)";
-      ctx.lineWidth = Math.max(0.7, 1.0 * U);
-      ctx.lineCap = "round";
+    angle += Math.sin(t * 3 + w) * 0.06;   // balanceo idle
+    var offX = Math.cos(angle) * R * 0.5, offY = Math.sin(angle) * R * 0.5;
+    var perpA = angle + Math.PI / 2;
+
+    // Cápsula / membrana externa: halo que respira.
+    var capPulse = 0.5 + 0.5 * Math.sin(t * 2 + w);
+    var cap = ctx.createRadialGradient(0, 0, R * 0.6, 0, 0, R * (1.4 + 0.1 * capPulse));
+    cap.addColorStop(0, "rgba(240,160,150," + (0.16 + 0.06 * capPulse) + ")"); cap.addColorStop(1, "rgba(240,160,150,0)");
+    ctx.fillStyle = cap; ctx.beginPath(); ctx.arc(0, 0, R * (1.4 + 0.1 * capPulse), 0, Math.PI * 2); ctx.fill();
+
+    // PILI en reposo: 16 hebras largas radiando del par, latigueando.
+    ctx.strokeStyle = "rgba(214,150,120,0.6)"; ctx.lineWidth = Math.max(0.7, 1.0 * U); ctx.lineCap = "round";
+    for (var p = 0; p < 16; p++) {
+      var pa = (p / 16) * Math.PI * 2 + w + Math.sin(t * 1.5) * 0.1;
+      var len = R * (1.0 + 0.35 * Math.sin(t * 4 + p));
+      var wob = Math.sin(t * 6 + p * 2) * R * 0.22;
+      var sx = Math.cos(pa) * R * 0.66, sy = Math.sin(pa) * R * 0.66;
+      var ex = Math.cos(pa) * len, ey = Math.sin(pa) * len;
+      var pperp = pa + Math.PI / 2;
       ctx.beginPath();
-      ctx.moveTo(cx2 + Math.cos(perpA) * gr2, cy2 + Math.sin(perpA) * gr2);
-      ctx.quadraticCurveTo(cx2, cy2, cx2 - Math.cos(perpA) * gr2, cy2 - Math.sin(perpA) * gr2);
+      ctx.moveTo(sx, sy);
+      ctx.quadraticCurveTo((sx + ex) / 2 + Math.cos(pperp) * wob, (sy + ey) / 2 + Math.sin(pperp) * wob, ex, ey);
       ctx.stroke();
     }
+
+    // Los dos cocos ovalados (grano de café), con latido propio.
+    var throb = 1 + Math.sin(t * 3 + w) * 0.05;
+    for (var si = -1; si <= 1; si += 2) {
+      var cx2 = si * offX, cy2 = si * offY;
+      ctx.save(); ctx.translate(cx2, cy2); ctx.rotate(angle); ctx.scale(throb, throb);
+      var g = ctx.createRadialGradient(-R * 0.2, -R * 0.24, R * 0.06, 0, 0, R * 0.72);
+      g.addColorStop(0, "#f7d8b0"); g.addColorStop(0.5, e.def.color); g.addColorStop(1, e.def.colorDark);
+      ctx.fillStyle = hit ? "#fff" : g;
+      ctx.beginPath(); ctx.ellipse(0, 0, R * 0.6, R * 0.72, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = e.def.colorDark; ctx.lineWidth = Math.max(1, 1.4 * U); ctx.stroke();
+      ctx.fillStyle = "rgba(255,255,255,0.42)";
+      ctx.beginPath(); ctx.ellipse(-R * 0.2, -R * 0.3, R * 0.22, R * 0.11, -0.5, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    }
+    // Vesículas de membrana externa (blebs) desprendiéndose, animadas.
+    ctx.fillStyle = colorAlpha(e.def.colorLight || "#f0b880", 0.7);
+    for (var bl = 0; bl < 4; bl++) {
+      var ba = t * 0.9 + bl * 1.6, brd = R * (1.05 + 0.15 * Math.sin(t * 2.5 + bl));
+      ctx.beginPath(); ctx.arc(Math.cos(ba) * brd, Math.sin(ba) * brd, R * 0.08, 0, Math.PI * 2); ctx.fill();
+    }
+    // Surco central del grano de café (contacto entre cocos).
+    ctx.strokeStyle = "rgba(80,30,10,0.3)"; ctx.lineWidth = Math.max(1, 1.4 * U);
+    ctx.beginPath();
+    ctx.moveTo(Math.cos(perpA) * R * 0.55, Math.sin(perpA) * R * 0.55);
+    ctx.lineTo(-Math.cos(perpA) * R * 0.55, -Math.sin(perpA) * R * 0.55);
+    ctx.stroke();
+
+    // Cara villana sobre el par (antes no tenía).
+    germFace(R * 0.82, expression, blink, R * 0.34);
     ctx.restore();
   }
 

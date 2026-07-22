@@ -23317,6 +23317,13 @@
       }
     }
     if (!paused) {
+      // FIX: la cinemática de entrada a Diseminación (velo negro) se controla
+      // con disseminationIntroTimer, que se seteaba en 4.0 pero NUNCA se
+      // decrementaba → el velo quedaba opaco para siempre y Diseminación se
+      // veía en negro (fase inaccesible). Ahora cuenta hacia 0 y revela el campo.
+      if (state.dissemination && state.disseminationIntroTimer > 0) {
+        state.disseminationIntroTimer = Math.max(0, state.disseminationIntroTimer - dt);
+      }
       updateWaveScheduler(dt);
       updateWave(dt);
       updateEnemies(dt);

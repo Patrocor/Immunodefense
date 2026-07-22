@@ -14963,137 +14963,186 @@
   }
 
   function drawQueratinocito(t, pulse, expression, blink) {
-    // Queratinocito activado — célula epitelial con capas córneas doradas
-    // y proyecciones de defensinas. Campo amarillo con placas escamosas.
-    var R = 15 * U * pulse;
-    var time = state.time;
+    // Queratinocito — célula epitelial de BARRERA. Poligonal, unida por
+    // DESMOSOMAS (espículas de unión célula-célula), con filamentos de
+    // QUERATINA internos y proyecciones de DEFENSINAS (péptidos
+    // antimicrobianos) que emite hacia afuera.
+    var R = 15 * U * pulse, time = state.time, w = (t.idlePhase || 0);
     ctx.save();
     ctx.translate(t.x, t.y);
 
-    // Halo campo defensinas si ilc2Lang buff o kcBuff activo
-    var fieldPulse = 0.3 + 0.15 * Math.sin(time * 2.8);
+    // Campo de defensinas: anillo + DARDOS alargados que se emiten (visibles).
+    var fieldPulse = 0.3 + 0.15 * Math.sin(time * 2.8 + w);
     ctx.strokeStyle = "rgba(212, 168, 85, " + fieldPulse + ")";
     ctx.lineWidth = 1.5 * U;
-    ctx.beginPath();
-    ctx.arc(0, 0, R * 1.55, 0, Math.PI * 2);
-    ctx.stroke();
-
-    // Cuerpo hexagonal aplastado (queratino es plana por naturaleza)
-    ctx.save();
-    ctx.rotate(time * 0.2);
-    var grad = ctx.createRadialGradient(-R * 0.25, -R * 0.25, R * 0.1, 0, 0, R);
-    grad.addColorStop(0, "#f0d080");
-    grad.addColorStop(0.55, "#d4a855");
-    grad.addColorStop(1, "#7a5a18");
-    ctx.fillStyle = grad;
-    ctx.beginPath();
-    for (var hi = 0; hi < 6; hi++) {
-      var ha = (hi / 6) * Math.PI * 2;
-      var hx = Math.cos(ha) * R, hy = Math.sin(ha) * R * 0.82;
-      if (hi === 0) ctx.moveTo(hx, hy); else ctx.lineTo(hx, hy);
-    }
-    ctx.closePath();
-    ctx.fill();
-    ctx.restore();
-
-    // 4 placas córneas superpuestas
-    ctx.strokeStyle = "rgba(255,220,100,0.55)";
-    ctx.lineWidth = 1.0 * U;
-    for (var pi2 = 0; pi2 < 4; pi2++) {
-      var pa2 = (pi2 / 4) * Math.PI * 2 + time * 0.3;
-      var px2 = Math.cos(pa2) * R * 0.55, py2 = Math.sin(pa2) * R * 0.55;
-      ctx.save();
-      ctx.translate(px2, py2);
-      ctx.rotate(pa2);
+    ctx.beginPath(); ctx.arc(0, 0, R * 1.7, 0, Math.PI * 2); ctx.stroke();
+    ctx.lineCap = "round";
+    for (var df = 0; df < 8; df++) {
+      var dfa = (df / 8) * Math.PI * 2 + time * 0.4;
+      var emit = 0.5 + 0.5 * Math.sin(time * 2 + df);
+      ctx.strokeStyle = "rgba(255, 224, 120, " + (0.9 - emit * 0.5) + ")";
+      ctx.lineWidth = Math.max(1.6, 2.3 * U);
       ctx.beginPath();
-      ctx.ellipse(0, 0, R * 0.32, R * 0.18, 0, 0, Math.PI * 2);
+      ctx.moveTo(Math.cos(dfa) * R * 1.05, Math.sin(dfa) * R * 1.05);
+      ctx.lineTo(Math.cos(dfa) * R * (1.3 + 0.55 * emit), Math.sin(dfa) * R * (1.3 + 0.55 * emit));
       ctx.stroke();
-      ctx.restore();
     }
+
+    ctx.save();
+    ctx.rotate(time * 0.12);
+    function kHex(rr) {
+      ctx.beginPath();
+      for (var i = 0; i < 6; i++) { var a = (i / 6) * Math.PI * 2; var x = Math.cos(a) * rr, y = Math.sin(a) * rr * 0.86; i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }
+      ctx.closePath();
+    }
+    // Cuerpo poligonal con BORDE GRUESO oscuro.
+    var grad = ctx.createRadialGradient(-R * 0.25, -R * 0.25, R * 0.1, 0, 0, R);
+    grad.addColorStop(0, "#f7dd90"); grad.addColorStop(0.55, "#d4a855"); grad.addColorStop(1, "#6a4a12");
+    ctx.fillStyle = grad; kHex(R); ctx.fill();
+    ctx.strokeStyle = "#3f2c06"; ctx.lineWidth = Math.max(1.8, 2.4 * U); ctx.stroke();
+
+    // Placas córneas concéntricas (barrera en capas) — bien marcadas.
+    ctx.strokeStyle = "rgba(70, 48, 10, 0.75)"; ctx.lineWidth = Math.max(1.1, 1.5 * U);
+    kHex(R * 0.7); ctx.stroke();
+    kHex(R * 0.42); ctx.stroke();
+
+    // Filamentos de queratina: haz oscuro que cruza desde el centro.
+    ctx.strokeStyle = "rgba(60, 42, 8, 0.55)"; ctx.lineWidth = Math.max(1, 1.4 * U); ctx.lineCap = "round";
+    for (var kf = 0; kf < 6; kf++) {
+      var ka = (kf / 6) * Math.PI * 2;
+      ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(Math.cos(ka) * R * 0.66, Math.sin(ka) * R * 0.57); ctx.stroke();
+    }
+
+    // DESMOSOMAS: placas/cuñas OSCURAS en cada vértice, que flexionan.
+    for (var ds = 0; ds < 6; ds++) {
+      var dsa = (ds / 6) * Math.PI * 2, flex = Math.sin(time * 3 + ds) * 0.12;
+      var bx = Math.cos(dsa) * R, by = Math.sin(dsa) * R * 0.86;
+      var ox = Math.cos(dsa + flex) * R * 1.26, oy = Math.sin(dsa + flex) * R * 1.08;
+      var pp = dsa + Math.PI / 2;
+      ctx.fillStyle = "#4a3208";
+      ctx.beginPath();
+      ctx.moveTo(bx + Math.cos(pp) * R * 0.14, by + Math.sin(pp) * R * 0.14);
+      ctx.lineTo(bx - Math.cos(pp) * R * 0.14, by - Math.sin(pp) * R * 0.14);
+      ctx.lineTo(ox, oy);
+      ctx.closePath(); ctx.fill();
+    }
+    ctx.restore();
 
     towerFace(R, expression, blink, "neutral", "determined");
     ctx.restore();
   }
 
   function drawSebocito(t, pulse, expression, blink) {
-    // Sebocito — glándula sebácea dorada/ámbar con gotas lipídicas
-    // brillantes y un aura grasienta translúcida.
-    var R = 15 * U * pulse;
-    var time = state.time;
+    // Sebocito — célula de glándula sebácea (secreción HOLOCRINA): el
+    // citoplasma se llena de VACUOLAS LIPÍDICAS hasta reventar liberando
+    // sebo que atrapa gérmenes. Núcleo desplazado por el aceite, aspecto
+    // espumoso y oleoso.
+    var R = 15 * U * pulse, time = state.time, w = (t.idlePhase || 0);
     ctx.save();
     ctx.translate(t.x, t.y);
 
-    // Aura grasienta exterior
-    var auraA = 0.18 + 0.08 * Math.sin(time * 1.4);
-    ctx.fillStyle = "rgba(200, 152, 10, " + auraA + ")";
-    ctx.beginPath();
-    ctx.arc(0, 0, R * 1.7, 0, Math.PI * 2);
-    ctx.fill();
+    // Aura grasienta que respira.
+    var auraA = 0.18 + 0.08 * Math.sin(time * 1.4 + w);
+    var aur = ctx.createRadialGradient(0, 0, R * 0.9, 0, 0, R * 1.85);
+    aur.addColorStop(0, "rgba(200,152,10," + auraA + ")"); aur.addColorStop(1, "rgba(200,152,10,0)");
+    ctx.fillStyle = aur; ctx.beginPath(); ctx.arc(0, 0, R * 1.85, 0, Math.PI * 2); ctx.fill();
 
-    // Cuerpo principal — esfera con gradiente sebo ámbar
+    // Cuerpo — esfera con BORDE GRUESO oscuro.
     var g = ctx.createRadialGradient(-R * 0.3, -R * 0.35, R * 0.05, 0, 0, R);
-    g.addColorStop(0, "#ffe090");
-    g.addColorStop(0.5, "#c8980a");
-    g.addColorStop(1, "#7a5a04");
+    g.addColorStop(0, "#ffe79a"); g.addColorStop(0.5, "#c8980a"); g.addColorStop(1, "#6a4c04");
     ctx.fillStyle = g;
-    ctx.beginPath();
-    ctx.arc(0, 0, R, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = "#3f2c02"; ctx.lineWidth = Math.max(1.8, 2.4 * U); ctx.stroke();
 
-    // 3 gotas lipídicas orbitando
-    for (var di = 0; di < 3; di++) {
-      var da = (di / 3) * Math.PI * 2 + time * 0.8;
-      var dr = R * 0.62;
-      var dx2 = Math.cos(da) * dr, dy2 = Math.sin(da) * dr;
-      var dropR = R * 0.22 + R * 0.06 * Math.sin(time * 2 + di);
-      ctx.fillStyle = "rgba(255,230,120,0.85)";
-      ctx.beginPath();
-      ctx.arc(dx2, dy2, dropR, 0, Math.PI * 2);
-      ctx.fill();
+    // Vacuolas lipídicas: BURBUJAS definidas (rim oscuro + highlight claro).
+    ctx.save();
+    ctx.beginPath(); ctx.arc(0, 0, R * 0.9, 0, Math.PI * 2); ctx.clip();
+    var vpos = [[-0.35, -0.22, 0.36], [0.32, -0.3, 0.3], [0.4, 0.24, 0.32], [-0.24, 0.42, 0.28], [0.02, 0.02, 0.34], [-0.55, 0.05, 0.24], [0.16, -0.05, 0.22]];
+    for (var vc = 0; vc < vpos.length; vc++) {
+      var vx = vpos[vc][0] * R, vy = vpos[vc][1] * R, vR = vpos[vc][2] * R * (0.92 + 0.1 * Math.sin(time * 2 + vc));
+      var vg = ctx.createRadialGradient(vx - vR * 0.3, vy - vR * 0.35, vR * 0.1, vx, vy, vR);
+      vg.addColorStop(0, "rgba(255,248,214,0.98)"); vg.addColorStop(0.7, "rgba(232,192,88,0.7)"); vg.addColorStop(1, "rgba(140,98,18,0.5)");
+      ctx.fillStyle = vg; ctx.beginPath(); ctx.arc(vx, vy, vR, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = "rgba(80,56,8,0.55)"; ctx.lineWidth = Math.max(0.9, 1.2 * U); ctx.stroke();
+      ctx.fillStyle = "rgba(255,255,255,0.75)";
+      ctx.beginPath(); ctx.arc(vx - vR * 0.32, vy - vR * 0.36, vR * 0.24, 0, Math.PI * 2); ctx.fill();
     }
+    ctx.restore();
+
+    // Núcleo desplazado, OSCURO y definido.
+    ctx.fillStyle = "#3f2c06";
+    ctx.beginPath(); ctx.ellipse(-R * 0.52, R * 0.44, R * 0.24, R * 0.17, 0.5, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = "rgba(255,230,150,0.35)"; ctx.lineWidth = Math.max(0.8, 1 * U); ctx.stroke();
+
+    // Gotas de sebo secretándose (grandes, con rim), pulsando.
+    for (var d = 0; d < 4; d++) {
+      var da2 = (d / 4) * Math.PI * 2 + time * 0.8, rel = 0.5 + 0.5 * Math.sin(time * 1.5 + d);
+      var dr2 = R * (0.98 + 0.55 * rel), dR2 = R * (0.15 + 0.1 * (1 - rel));
+      var dx3 = Math.cos(da2) * dr2, dy3 = Math.sin(da2) * dr2;
+      ctx.fillStyle = "rgba(255,232,130,0.94)"; ctx.beginPath(); ctx.arc(dx3, dy3, dR2, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = "rgba(120,84,14,0.5)"; ctx.lineWidth = Math.max(0.8, 1.1 * U); ctx.stroke();
+      ctx.fillStyle = "rgba(255,255,255,0.6)"; ctx.beginPath(); ctx.arc(dx3 - dR2 * 0.3, dy3 - dR2 * 0.3, dR2 * 0.3, 0, Math.PI * 2); ctx.fill();
+    }
+
+    // Brillo oleoso amplio.
+    ctx.fillStyle = "rgba(255,255,255,0.5)";
+    ctx.beginPath(); ctx.ellipse(-R * 0.3, -R * 0.4, R * 0.3, R * 0.15, -0.5, 0, Math.PI * 2); ctx.fill();
 
     towerFace(R, expression, blink, "happy", "happy");
     ctx.restore();
   }
 
   function drawPDC(t, pulse, expression, blink) {
-    // Célula Dendrítica Plasmocitoide — proyecta interferones en ondas
-    // violetas. Forma esférica con dendritas antiviral rectas.
-    var R = 15 * U * pulse;
-    var time = state.time;
+    // Célula Dendrítica Plasmocitoide — fábrica de INTERFERÓN tipo I
+    // (antiviral). Aspecto plasmocitoide: núcleo excéntrico "en reloj",
+    // dendritas cortas gruesas, y emisión de paquetes de IFN en ondas.
+    var R = 15 * U * pulse, time = state.time, w = (t.idlePhase || 0);
     var ifnActive = (t.ifnBuffT || 0) > 0;
     ctx.save();
     ctx.translate(t.x, t.y);
 
-    // Onda de interferón expansiva (siempre, más intensa en tormenta)
-    var waveA = ifnActive ? 0.5 + 0.25 * Math.sin(time * 6) : 0.2 + 0.1 * Math.sin(time * 2);
-    ctx.strokeStyle = "rgba(106, 61, 212, " + waveA + ")";
-    ctx.lineWidth = 1.2 * U;
-    ctx.beginPath();
-    ctx.arc(0, 0, R * (1.5 + 0.15 * Math.sin(time * 4)), 0, Math.PI * 2);
-    ctx.stroke();
+    // Ondas de interferón concéntricas (2) expandiéndose.
+    for (var wv = 0; wv < 2; wv++) {
+      var wp = ((time * (ifnActive ? 1.4 : 0.7) + wv * 0.5) % 1);
+      ctx.strokeStyle = "rgba(140, 90, 240, " + ((ifnActive ? 0.6 : 0.35) * (1 - wp)) + ")";
+      ctx.lineWidth = Math.max(1.4, 2 * U);
+      ctx.beginPath(); ctx.arc(0, 0, R * (1.0 + wp * 0.9), 0, Math.PI * 2); ctx.stroke();
+    }
 
-    // Cuerpo celular violeta
-    var gp = ctx.createRadialGradient(-R * 0.28, -R * 0.28, R * 0.08, 0, 0, R);
-    gp.addColorStop(0, "#b090ff");
-    gp.addColorStop(0.55, "#6a3dd4");
-    gp.addColorStop(1, "#3a1a80");
-    ctx.fillStyle = gp;
-    ctx.beginPath();
-    ctx.arc(0, 0, R, 0, Math.PI * 2);
-    ctx.fill();
-
-    // 5 dendritas IFN pulsantes
-    var numD = 5;
-    ctx.strokeStyle = ifnActive ? "rgba(200,160,255,0.85)" : "rgba(180,130,255,0.55)";
-    ctx.lineWidth = 1.1 * U;
-    for (var di2 = 0; di2 < numD; di2++) {
-      var da2 = (di2 / numD) * Math.PI * 2 + time * (ifnActive ? 1.2 : 0.4);
-      var dlen = R * (1.1 + 0.2 * Math.sin(time * 3 + di2));
+    // Dendritas cortas y GRUESAS (pocas, definidas), meciéndose.
+    ctx.strokeStyle = "#2a1266"; ctx.lineWidth = Math.max(2, 3 * U); ctx.lineCap = "round";
+    for (var di2 = 0; di2 < 5; di2++) {
+      var da2 = (di2 / 5) * Math.PI * 2 + w + Math.sin(time * 1.5 + di2) * 0.1;
+      var dlen = R * (0.5 + 0.15 * Math.sin(time * 3 + di2));
       ctx.beginPath();
-      ctx.moveTo(Math.cos(da2) * R * 0.85, Math.sin(da2) * R * 0.85);
+      ctx.moveTo(Math.cos(da2) * R * 0.9, Math.sin(da2) * R * 0.9);
       ctx.lineTo(Math.cos(da2) * (R + dlen), Math.sin(da2) * (R + dlen));
       ctx.stroke();
+    }
+
+    // Cuerpo con BORDE GRUESO.
+    var gp = ctx.createRadialGradient(-R * 0.28, -R * 0.28, R * 0.08, 0, 0, R);
+    gp.addColorStop(0, "#c4a6ff"); gp.addColorStop(0.55, "#6a3dd4"); gp.addColorStop(1, "#2e1466");
+    ctx.fillStyle = gp; ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = "#1a0b40"; ctx.lineWidth = Math.max(1.8, 2.4 * U); ctx.stroke();
+
+    // Núcleo excéntrico "en reloj" (grande, oscuro, a un costado) con cromatina.
+    ctx.save();
+    ctx.beginPath(); ctx.arc(0, 0, R * 0.92, 0, Math.PI * 2); ctx.clip();
+    ctx.fillStyle = "rgba(38, 18, 84, 0.78)";
+    ctx.beginPath(); ctx.arc(R * 0.34, R * 0.3, R * 0.5, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "rgba(18, 6, 46, 0.6)";
+    for (var ch = 0; ch < 6; ch++) {
+      var cha = (ch / 6) * Math.PI * 2;
+      ctx.beginPath(); ctx.arc(R * 0.34 + Math.cos(cha) * R * 0.36, R * 0.3 + Math.sin(cha) * R * 0.36, R * 0.07, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.restore();
+
+    // Paquetes de interferón emitiéndose (dots brillantes que salen).
+    ctx.fillStyle = ifnActive ? "rgba(210,180,255,0.95)" : "rgba(190,150,255,0.7)";
+    for (var pk = 0; pk < 4; pk++) {
+      var pka = (pk / 4) * Math.PI * 2 + time * 1.0, rel = (time * 0.8 + pk * 0.25) % 1;
+      ctx.beginPath(); ctx.arc(Math.cos(pka) * R * (1.0 + rel * 0.8), Math.sin(pka) * R * (1.0 + rel * 0.8), R * 0.11 * (1 - rel), 0, Math.PI * 2); ctx.fill();
     }
 
     towerFace(R, expression, blink, "focused", "angry");
@@ -15101,99 +15150,99 @@
   }
 
   function drawLinfocitoGD(t, pulse, expression, blink) {
-    // Linfocito γδ — linfocito sin MHC, verde brillante. Cuerpo esférico
-    // con receptor γδ caracterísico (2 astas curvadas) y halo IL-17.
-    var R = 15 * U * pulse;
-    var time = state.time;
+    // Linfocito γδ — linfocito tisular con receptor γδ (TCR) distintivo.
+    // Núcleo grande con fino reborde de citoplasma, receptores γδ en "Y" en
+    // la superficie, y gránulos de IL-17.
+    var R = 15 * U * pulse, time = state.time, w = (t.idlePhase || 0);
     var il17Active = (t.il17BuffT || 0) > 0;
     ctx.save();
     ctx.translate(t.x, t.y);
 
-    // Halo IL-17 cuando el buff está activo
+    // Halo IL-17.
     if (il17Active) {
-      var ilA = 0.35 + 0.2 * Math.sin(time * 5);
-      ctx.fillStyle = "rgba(139, 195, 74, " + ilA + ")";
-      ctx.beginPath();
-      ctx.arc(0, 0, R * 1.8, 0, Math.PI * 2);
-      ctx.fill();
+      var ilA = 0.3 + 0.18 * Math.sin(time * 5);
+      var ilg = ctx.createRadialGradient(0, 0, R, 0, 0, R * 1.9);
+      ilg.addColorStop(0, "rgba(139,195,74," + ilA + ")"); ilg.addColorStop(1, "rgba(139,195,74,0)");
+      ctx.fillStyle = ilg; ctx.beginPath(); ctx.arc(0, 0, R * 1.9, 0, Math.PI * 2); ctx.fill();
     }
 
-    // Cuerpo celular verde
-    var gg = ctx.createRadialGradient(-R * 0.28, -R * 0.28, R * 0.08, 0, 0, R);
-    gg.addColorStop(0, "#c8ee80");
-    gg.addColorStop(0.55, "#8bc34a");
-    gg.addColorStop(1, "#4a6e18");
-    ctx.fillStyle = gg;
-    ctx.beginPath();
-    ctx.arc(0, 0, R, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Receptor γδ: 2 astas curvadas características
-    ctx.strokeStyle = il17Active ? "rgba(200,255,100,0.9)" : "rgba(160,230,80,0.7)";
-    ctx.lineWidth = 1.3 * U;
-    ctx.lineCap = "round";
-    for (var ri = 0; ri < 2; ri++) {
-      var rBase = (ri === 0 ? -0.35 : 0.35) * Math.PI;
-      var rAngle = rBase + time * 0.5;
+    // Receptores γδ (TCR): horquillas en "Y" en la superficie, meciéndose.
+    ctx.strokeStyle = il17Active ? "#d4ff70" : "#9ad848"; ctx.lineWidth = Math.max(1.6, 2.2 * U); ctx.lineCap = "round";
+    for (var ri = 0; ri < 5; ri++) {
+      var ra = (ri / 5) * Math.PI * 2 + w + Math.sin(time * 2 + ri) * 0.08;
+      var bx = Math.cos(ra) * R * 0.95, by = Math.sin(ra) * R * 0.95;
+      var tx2 = Math.cos(ra) * R * 1.35, ty2 = Math.sin(ra) * R * 1.35;
+      ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(tx2, ty2); ctx.stroke();
       ctx.beginPath();
-      ctx.moveTo(Math.cos(rAngle) * R * 0.7, Math.sin(rAngle) * R * 0.7);
-      ctx.quadraticCurveTo(
-        Math.cos(rAngle + 0.5) * R * 1.4, Math.sin(rAngle + 0.5) * R * 1.4,
-        Math.cos(rAngle + 0.9) * R * 1.0, Math.sin(rAngle + 0.9) * R * 1.0
-      );
+      ctx.moveTo(tx2, ty2); ctx.lineTo(tx2 + Math.cos(ra + 0.5) * R * 0.2, ty2 + Math.sin(ra + 0.5) * R * 0.2);
+      ctx.moveTo(tx2, ty2); ctx.lineTo(tx2 + Math.cos(ra - 0.5) * R * 0.2, ty2 + Math.sin(ra - 0.5) * R * 0.2);
       ctx.stroke();
     }
     ctx.lineCap = "butt";
+
+    // Cuerpo con BORDE GRUESO.
+    var gg = ctx.createRadialGradient(-R * 0.28, -R * 0.28, R * 0.08, 0, 0, R);
+    gg.addColorStop(0, "#d4f28c"); gg.addColorStop(0.55, "#8bc34a"); gg.addColorStop(1, "#3a5610");
+    ctx.fillStyle = gg; ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = "#26380a"; ctx.lineWidth = Math.max(1.8, 2.4 * U); ctx.stroke();
+
+    // Núcleo grande (el linfocito es casi todo núcleo) con fino reborde.
+    ctx.save();
+    ctx.beginPath(); ctx.arc(0, 0, R * 0.92, 0, Math.PI * 2); ctx.clip();
+    ctx.fillStyle = "rgba(52, 82, 20, 0.7)";
+    ctx.beginPath(); ctx.arc(-R * 0.1, R * 0.12, R * 0.64, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "rgba(225,255,150,0.85)";   // gránulos IL-17 en el reborde
+    for (var gr = 0; gr < 3; gr++) {
+      var gra = w + gr * 2.1 - 1;
+      ctx.beginPath(); ctx.arc(Math.cos(gra) * R * 0.6, Math.sin(gra) * R * 0.6, R * 0.1, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.restore();
 
     towerFace(R, expression, blink, "angry", "angry");
     ctx.restore();
   }
 
   function drawILC2(t, pulse, expression, blink) {
-    // ILC2 Linfoide Innato 2 — célula amplificadora cian. Corpo pequeño
-    // con 4 antenas señalizadoras que apuntan a las torres aliadas.
-    var R = 14 * U * pulse;
-    var time = state.time;
+    // ILC2 — linfoide innato tipo 2. Amplificador: libera GRÁNULOS de
+    // citocinas (IL-5/IL-13) y emite antenas de señalización a las aliadas.
+    var R = 14 * U * pulse, time = state.time, w = (t.idlePhase || 0);
     ctx.save();
     ctx.translate(t.x, t.y);
 
-    // Pulso de señal exterior
-    var sigA = 0.25 + 0.15 * Math.sin(time * 2.5);
-    ctx.strokeStyle = "rgba(38, 198, 218, " + sigA + ")";
-    ctx.lineWidth = 1.2 * U;
-    ctx.beginPath();
-    ctx.arc(0, 0, R * 1.6, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.arc(0, 0, R * 2.0 + R * 0.1 * Math.sin(time * 4), 0, Math.PI * 2);
-    ctx.stroke();
+    // Pulsos de señal (2 anillos).
+    ctx.strokeStyle = "rgba(38, 198, 218, " + (0.25 + 0.15 * Math.sin(time * 2.5)) + ")";
+    ctx.lineWidth = Math.max(1.2, 1.6 * U);
+    ctx.beginPath(); ctx.arc(0, 0, R * 1.6, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(0, 0, R * 2.0 + R * 0.1 * Math.sin(time * 4), 0, Math.PI * 2); ctx.stroke();
 
-    // Cuerpo cian
-    var gc = ctx.createRadialGradient(-R * 0.25, -R * 0.25, R * 0.08, 0, 0, R);
-    gc.addColorStop(0, "#88eeff");
-    gc.addColorStop(0.55, "#26c6da");
-    gc.addColorStop(1, "#0e7a8a");
-    ctx.fillStyle = gc;
-    ctx.beginPath();
-    ctx.arc(0, 0, R, 0, Math.PI * 2);
-    ctx.fill();
-
-    // 4 antenas citocinéticas
-    ctx.strokeStyle = "rgba(38, 198, 218, 0.8)";
-    ctx.lineWidth = 1.0 * U;
+    // Antenas citocinéticas GRUESAS con bulbo en la punta, ondeando.
+    ctx.strokeStyle = "#0a5a68"; ctx.lineWidth = Math.max(2, 2.6 * U); ctx.lineCap = "round";
     for (var ai = 0; ai < 4; ai++) {
-      var aa = (ai / 4) * Math.PI * 2 + time * 0.6;
-      var aLen = R * (0.9 + 0.2 * Math.sin(time * 2.5 + ai));
-      ctx.beginPath();
-      ctx.moveTo(Math.cos(aa) * R * 0.75, Math.sin(aa) * R * 0.75);
-      ctx.lineTo(Math.cos(aa) * (R + aLen), Math.sin(aa) * (R + aLen));
-      ctx.stroke();
-      // pequeño dot en la punta
-      ctx.fillStyle = "rgba(200,255,255,0.7)";
-      ctx.beginPath();
-      ctx.arc(Math.cos(aa) * (R + aLen), Math.sin(aa) * (R + aLen), 1.5 * U, 0, Math.PI * 2);
-      ctx.fill();
+      var aa = (ai / 4) * Math.PI * 2 + w + Math.sin(time * 2 + ai) * 0.1;
+      var aLen = R * (0.85 + 0.25 * Math.sin(time * 2.5 + ai));
+      var ex = Math.cos(aa) * (R + aLen), ey2 = Math.sin(aa) * (R + aLen);
+      ctx.beginPath(); ctx.moveTo(Math.cos(aa) * R * 0.8, Math.sin(aa) * R * 0.8); ctx.lineTo(ex, ey2); ctx.stroke();
+      ctx.fillStyle = "rgba(180,255,255,0.9)"; ctx.beginPath(); ctx.arc(ex, ey2, R * 0.13, 0, Math.PI * 2); ctx.fill();
     }
+
+    // Cuerpo con BORDE GRUESO.
+    var gc = ctx.createRadialGradient(-R * 0.25, -R * 0.25, R * 0.08, 0, 0, R);
+    gc.addColorStop(0, "#9bf0ff"); gc.addColorStop(0.55, "#26c6da"); gc.addColorStop(1, "#0a5a68");
+    ctx.fillStyle = gc; ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = "#053640"; ctx.lineWidth = Math.max(1.8, 2.4 * U); ctx.stroke();
+
+    // Gránulos de citocina INTERNOS (secretorios), brillando y latiendo.
+    ctx.save();
+    ctx.beginPath(); ctx.arc(0, 0, R * 0.9, 0, Math.PI * 2); ctx.clip();
+    for (var gn = 0; gn < 6; gn++) {
+      var gna = gn * 1.25 + w, gnr = R * (0.28 + 0.32 * (((gn * 31) % 10) / 10));
+      var gx = Math.cos(gna) * gnr, gy = Math.sin(gna) * gnr;
+      var gnR = R * (0.14 + 0.05 * Math.sin(time * 3 + gn));
+      var gng = ctx.createRadialGradient(gx - gnR * 0.3, gy - gnR * 0.3, gnR * 0.1, gx, gy, gnR);
+      gng.addColorStop(0, "rgba(220,255,255,0.95)"); gng.addColorStop(1, "rgba(60,180,200,0.4)");
+      ctx.fillStyle = gng; ctx.beginPath(); ctx.arc(gx, gy, gnR, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.restore();
 
     towerFace(R, expression, blink, "happy", "happy");
     ctx.restore();

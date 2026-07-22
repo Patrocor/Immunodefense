@@ -5251,6 +5251,7 @@
         e.absorbAlpha = 1;
         var viralAdd = (e.def.viralAdd != null ? e.def.viralAdd : (VIRAL_BY_TYPE[e.def.id] || 5));
         state.viralLoad = Math.min(state.viralThreshold, state.viralLoad + viralAdd);
+        state.viralPulse = 1;   // #4 latido del medidor viral
         state.pathogensReached += 1;
         META.totalPathogensInfiltrated += 1;
         triggerShake(0.25, e.def.isBoss ? 7 : 4);
@@ -20372,6 +20373,19 @@
       roundRect(bx + 2, by + 2, Math.max(barH - 4, innerW), barH - 4, (barH - 4) / 2);
       ctx.fill();
     }
+    // #4 Latido: destello rojo expansivo cuando un germen se cuela (sube el
+    // viralLoad) — hace legible la tensión de "estás perdiendo terreno".
+    if ((state.viralPulse || 0) > 0) {
+      var vp = state.viralPulse;
+      ctx.save();
+      ctx.globalAlpha = vp * 0.6;
+      ctx.strokeStyle = "#ff5b5b";
+      ctx.lineWidth = (2 + vp * 3) * (VW > 0 ? 1 : 1);
+      var vpe = vp * 3;
+      roundRect(bx - vpe, by - vpe, barW + vpe * 2, barH + vpe * 2, (barH + vpe * 2) / 2);
+      ctx.stroke();
+      ctx.restore();
+    }
     // Inline text
     var label = getViralLabel(ratio) + "  " + Math.floor(state.viralLoad) + " / " + state.viralThreshold;
     ctx.font = "bold " + Math.max(10, Math.min(12, barH * 0.85)) + "px Fredoka, sans-serif";
@@ -20391,6 +20405,7 @@
     if (Math.abs(diff) < 0.5) state.displayAtp = state.atp;
     else state.displayAtp += diff * Math.min(1, dt * 12);   // count-up ease-out
     if ((state.atpBump || 0) > 0) state.atpBump = Math.max(0, state.atpBump - dt * 3.5);
+    if ((state.viralPulse || 0) > 0) state.viralPulse = Math.max(0, state.viralPulse - dt * 2.5);
   }
 
   function drawHUD() {

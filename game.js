@@ -1029,10 +1029,10 @@
     complemento: {
       id: "complemento", name: "Cañón del Complemento", shortName: "Cañón MAC",
       color: "#FFD24A", colorDark: "#b8860b", cost: 5, currency: "complement",
-      desc: "Dispara una MALLA de complemento amarilla que ATRAPA y DETIENE a todos los gérmenes en el radio por 3 segundos, dañándolos, e ignora escudos. Solo se coloca en los LATERALES (no en el camino).",
+      desc: "Tanque que dispara una MALLA de complemento amarilla que ATRAPA y DETIENE a todos los gérmenes en el radio por 3 segundos, dañándolos, e ignora escudos. Se coloca en el CENTRO y patrulla de lado a lado solo.",
       ignoreShield: true,
       manualFire: true,             // el jugador apunta y dispara
-      lateralOnly: true,            // solo se coloca en los márgenes laterales
+      mobile: true,                 // tanque: patrulla horizontal automática; se coloca en el centro
       immuneToAura: true,           // el aura de contacto no le hace daño
       lifetimeDecay: 2.5,           // HP perdidos por segundo (se consume solo)
       // El "tiro" es una mancha de ácido en el campo: fireRate como cadencia mínima
@@ -6952,6 +6952,19 @@
       specialReady: false,
       specialAnim: 0           // > 0 cuando el ultimate está animando
     });
+    // Tanque MAC: define el recorrido horizontal de patrulla.
+    if (def.mobile) {
+      var mt = state.towers[state.towers.length - 1];
+      if (state.dissemination && PATH.laneXs && PATH.laneXs.length) {
+        var hl = (FIELD_W * laneGapFrac()) / 2;
+        mt.patrolMinX = FIELD_LEFT + PATH.laneXs[0] * FIELD_W - hl;
+        mt.patrolMaxX = FIELD_LEFT + PATH.laneXs[PATH.laneXs.length - 1] * FIELD_W + hl;
+      } else {
+        mt.patrolMinX = FIELD_LEFT + FIELD_W * 0.14;
+        mt.patrolMaxX = FIELD_RIGHT - FIELD_W * 0.14;
+      }
+      mt.patrolDir = (x < (mt.patrolMinX + mt.patrolMaxX) / 2) ? 1 : -1;
+    }
     pushEffect({ kind: "place", x: x, y: y, life: 0.6, max: 0.6, color: def.color });
     pushEffect({ kind: "placeFlash", x: x, y: y, life: 0.25, max: 0.25 });
     sfx("place");
@@ -7234,6 +7247,13 @@
       if (t.attackAnim > 0) t.attackAnim -= dt;
       if (t.levelupAnim > 0) t.levelupAnim -= dt;
       if (t.cooldown > 0) t.cooldown -= dt;
+      // Tanque MAC móvil: patrulla horizontal automática (de lado a lado).
+      if (t.def.mobile && t.patrolMinX != null && (t.stunTimer || 0) <= 0) {
+        t.x += (t.patrolDir || 1) * 42 * U * dt;
+        if (t.x <= t.patrolMinX) { t.x = t.patrolMinX; t.patrolDir = 1; }
+        else if (t.x >= t.patrolMaxX) { t.x = t.patrolMaxX; t.patrolDir = -1; }
+        t.nx = FIELD_W > 0 ? (t.x - FIELD_LEFT) / FIELD_W : t.nx;
+      }
       if ((t.tempBoostTimer || 0) > 0) t.tempBoostTimer -= dt;
       if (t.muzzleFlash > 0) t.muzzleFlash -= dt;
       if ((t.apoptosisFlash || 0) > 0) t.apoptosisFlash -= dt;
@@ -9294,24 +9314,26 @@
     var sel = state.selectedToBuild;
     if (!sel) return;
     var def = TOWER_DEFS[sel];
-    if (!def || !def.lateralOnly) return;
+    if (!def || !def.mobile) return;
     var blink = (Math.floor(state.time * 2.6) % 2) === 0;
-    var top = FIELD_TOP + FIELD_H * 0.10, bot = FIELD_BOTTOM - FIELD_H * 0.10;
-    var leftMax = FIELD_LEFT + FIELD_W * 0.20;
-    var rightMin = FIELD_RIGHT - FIELD_W * 0.20;
+    var b = macCentralBounds();
     ctx.save();
-    ctx.fillStyle = "rgba(255,226,58," + (blink ? 0.22 : 0.09) + ")";
-    ctx.fillRect(FIELD_LEFT, top, leftMax - FIELD_LEFT, bot - top);
-    ctx.fillRect(rightMin, top, FIELD_RIGHT - rightMin, bot - top);
+    ctx.fillStyle = "rgba(255,226,58," + (blink ? 0.20 : 0.08) + ")";
+    ctx.fillRect(b.cL, b.top, b.cR - b.cL, b.bot - b.top);
     if (blink) {
       ctx.strokeStyle = "rgba(255,226,58,0.85)"; ctx.lineWidth = 2.5 * U; ctx.setLineDash([8 * U, 6 * U]);
-      ctx.strokeRect(FIELD_LEFT + 2 * U, top, leftMax - FIELD_LEFT - 4 * U, bot - top);
-      ctx.strokeRect(rightMin + 2 * U, top, FIELD_RIGHT - rightMin - 4 * U, bot - top);
+      ctx.strokeRect(b.cL, b.top, b.cR - b.cL, b.bot - b.top);
       ctx.setLineDash([]);
+      // flechas ◄ ► indicando que patrulla de lado a lado
+      ctx.fillStyle = "rgba(255,240,120,0.9)";
+      ctx.font = "bold " + Math.floor(20 * U) + "px Fredoka, sans-serif";
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      var midY = (b.top + b.bot) / 2;
+      ctx.fillText("◄        ►", (b.cL + b.cR) / 2, midY);
     }
     ctx.fillStyle = "#fff2a0"; ctx.font = "bold " + Math.floor(11 * U) + "px Fredoka, sans-serif";
     ctx.textAlign = "center"; ctx.textBaseline = "top";
-    ctx.fillText("Cañón MAC: colócalo en los LATERALES", VW / 2, FIELD_TOP + 6 * U);
+    ctx.fillText("Cañón MAC: colócalo en el CENTRO (patrulla de lado a lado)", VW / 2, FIELD_TOP + 6 * U);
     ctx.restore();
   }
 
@@ -13053,16 +13075,16 @@
     }
   }
 
-  // Bandas laterales (márgenes izq/der) donde SOLO puede ir el Cañón MAC.
-  function inLateralBand(x) {
-    return x < FIELD_LEFT + FIELD_W * 0.20 || x > FIELD_RIGHT - FIELD_W * 0.20;
+  // Banda CENTRAL donde se coloca el Cañón MAC (tanque). Elige la ALTURA; el
+  // tanque patrulla en horizontal desde ahí. Márgenes centrales del campo.
+  function macCentralBounds() {
+    return { cL: FIELD_LEFT + FIELD_W * 0.30, cR: FIELD_RIGHT - FIELD_W * 0.30,
+             top: FIELD_TOP + FIELD_H * 0.12, bot: FIELD_BOTTOM - FIELD_H * 0.12 };
   }
-  function canPlaceLateral(x, y) {
-    var pad = 18 * U;
-    var top = FIELD_TOP + FIELD_H * 0.10, bot = FIELD_BOTTOM - FIELD_H * 0.10;
-    if (y < top || y > bot) return false;
-    if (!inLateralBand(x)) return false;               // debe estar en un margen lateral
-    if (x < FIELD_LEFT + pad || x > FIELD_RIGHT - pad) return false;
+  function canPlaceMAC(x, y) {
+    var b = macCentralBounds();
+    if (y < b.top || y > b.bot) return false;
+    if (x < b.cL || x > b.cR) return false;
     for (var i = 0; i < state.towers.length; i++) {
       if (Math.hypot(state.towers[i].x - x, state.towers[i].y - y) < 34 * U) return false;
     }
@@ -13071,13 +13093,14 @@
     if (state.megakaryocyte && Math.hypot(x - state.megakaryocyte.x, y - state.megakaryocyte.y) < 40 * U) return false;
     if (state.ganglio && Math.hypot(x - state.ganglio.x, y - state.ganglio.y) < 48 * U) return false;
     if (state.megaFactory && state.dissemination && Math.hypot(x - state.megaFactory.x, y - state.megaFactory.y) < 48 * U) return false;
-    if (!state.dissemination && distPointToPath(x, y) < 22 * U) return false;   // no rozar el camino
+    // Fase 1: el punto de colocación no debe estar sobre el camino (aunque luego patrulle sobre él).
+    if (!state.dissemination && distPointToPath(x, y) < 20 * U) return false;
     return true;
   }
 
   function canPlaceTowerAt(x, y) {
     var selDef = state.selectedToBuild ? TOWER_DEFS[state.selectedToBuild] : null;
-    if (selDef && selDef.lateralOnly) return canPlaceLateral(x, y);
+    if (selDef && selDef.mobile) return canPlaceMAC(x, y);
     if (state.dissemination) return canPlaceTowerAtDissemination(x, y);
     var pad = 24 * U;
     // Restrict to body interior zone (15%-85% of field height).
@@ -16442,12 +16465,11 @@
   function drawComplementCannon(t, pulse, expression, blink) {
     var R = 19 * U * pulse, x = t.x, y = t.y;
     ctx.save(); ctx.translate(x, y);
-    // Sombra bajo el arma.
+    // Sombra bajo el tanque.
     ctx.fillStyle = "rgba(0,0,0,0.30)";
-    ctx.beginPath(); ctx.ellipse(0, R * 0.55, R * 1.3, R * 0.45, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(0, R * 0.62, R * 1.55, R * 0.42, 0, 0, Math.PI * 2); ctx.fill();
 
-    // Orientación hacia el último objetivo real, SUAVIZADA — gira como
-    // una torreta de verdad, no un teletransporte al cambiar de blanco.
+    // Ángulo de puntería del cañón (torreta suave hacia el objetivo).
     var targetAng = -Math.PI / 2;
     if (t.lastTargetX != null) targetAng = Math.atan2(t.lastTargetY - y, t.lastTargetX - x);
     if (t._aimAngle == null) t._aimAngle = targetAng;
@@ -16455,122 +16477,78 @@
     while (diffA > Math.PI) diffA -= Math.PI * 2;
     while (diffA < -Math.PI) diffA += Math.PI * 2;
     t._aimAngle += diffA * 0.18;
-    ctx.rotate(t._aimAngle);   // +x = "adelante" (hacia el objetivo)
 
-    var L = R * 2.4, W = R * 0.9;
-
-    // ── CUREÑA DE MADERA con 2 ruedas — base fija que NO retrocede ──
-    var cw = W * 1.30;
-    ctx.fillStyle = "#5a3a1e";
-    roundRect(-L * 0.34, -cw * 0.42, L * 0.58, cw * 0.84, cw * 0.16); ctx.fill();
-    ctx.strokeStyle = "#2e1d0f"; ctx.lineWidth = 1.4;
-    roundRect(-L * 0.34, -cw * 0.42, L * 0.58, cw * 0.84, cw * 0.16); ctx.stroke();
-    ctx.strokeStyle = "rgba(0,0,0,0.18)"; ctx.lineWidth = 1;
-    for (var wv = -1; wv <= 1; wv += 2) {
-      ctx.beginPath();
-      ctx.moveTo(-L * 0.30, wv * cw * 0.22);
-      ctx.lineTo(L * 0.20, wv * cw * 0.22);
-      ctx.stroke();
-    }
-    function drawWheel() {
-      ctx.fillStyle = "#3d2814";
-      ctx.beginPath(); ctx.arc(0, 0, W * 0.46, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = "#1f1408"; ctx.lineWidth = 1.6; ctx.stroke();
-      ctx.lineWidth = 1.1;
-      for (var sp = 0; sp < 6; sp++) {
-        var spa = sp * Math.PI * 2 / 6;
-        ctx.beginPath();
-        ctx.moveTo(0, 0);
-        ctx.lineTo(Math.cos(spa) * W * 0.40, Math.sin(spa) * W * 0.40);
-        ctx.stroke();
-      }
-      ctx.fillStyle = "#8a6a3a";
-      ctx.beginPath(); ctx.arc(0, 0, W * 0.12, 0, Math.PI * 2); ctx.fill();
-    }
-    ctx.save(); ctx.translate(-L * 0.10, cw * 0.55); drawWheel(); ctx.restore();
-    ctx.save(); ctx.translate(-L * 0.10, -cw * 0.55); drawWheel(); ctx.restore();
-
-    // Recarga real (t.cooldown, no decorativa) — alimenta el brillo del
-    // núcleo del MAC y la brasa de la mecha más abajo.
     var fireRate = towerStats(t).fireRate || 1;
     var maxCd = (1 / fireRate) * ((t.slowFireTimer || 0) > 0 ? 2 : 1);
     var reloadFrac = maxCd > 0 ? Math.max(0, Math.min(1, 1 - (t.cooldown || 0) / maxCd)) : 1;
 
-    // ── TUBO — retrocede de verdad al disparar (derivado de t.muzzleFlash,
-    // sin estado nuevo) ──
-    var recoil = (t.muzzleFlash || 0) > 0 ? (t.muzzleFlash / 0.18) : 0;
-    ctx.save();
-    ctx.translate(-recoil * 5 * U, 0);
+    var W = R * 2.7, H = R * 1.05;
+    var face = (t.patrolDir || 1) >= 0 ? 1 : -1;
+    t._wheelSpin = (t._wheelSpin || 0) + (t.patrolDir || 0) * 0.14;   // rodado visual
 
-    // Tubo ABOCINADO tipo cañón medieval: angosto en la recámara, se abre
-    // en campana hacia la boca — no un rectángulo uniforme de bazuca.
-    var breechHW = W * 0.40, muzzleHW = W * 0.66, bellStart = L * 0.30;
-    var grad = ctx.createLinearGradient(0, -muzzleHW, 0, muzzleHW);
-    grad.addColorStop(0, "#8a7048"); grad.addColorStop(0.45, "#5c4a2e"); grad.addColorStop(1, "#2b2318");
-    ctx.fillStyle = grad;
-    ctx.beginPath();
-    ctx.moveTo(-L * 0.50, -breechHW);
-    ctx.lineTo(bellStart, -breechHW);
-    ctx.quadraticCurveTo(L * 0.46, -breechHW * 1.05, L * 0.50, -muzzleHW);
-    ctx.lineTo(L * 0.50, muzzleHW);
-    ctx.quadraticCurveTo(L * 0.46, breechHW * 1.05, bellStart, breechHW);
-    ctx.lineTo(-L * 0.50, breechHW);
-    ctx.closePath();
-    ctx.fill();
-    ctx.strokeStyle = "#1c160c"; ctx.lineWidth = 1.5; ctx.stroke();
-
-    // Aros de refuerzo en bronce, sobresalientes (no líneas planas).
-    var ringXs = [-L * 0.30, -L * 0.06, L * 0.16];
-    var ringGrad = ctx.createLinearGradient(0, -muzzleHW, 0, muzzleHW);
-    ringGrad.addColorStop(0, "#d8b35a"); ringGrad.addColorStop(0.5, "#8a6a2e"); ringGrad.addColorStop(1, "#4a3814");
-    for (var rgI = 0; rgI < ringXs.length; rgI++) {
-      var rx = ringXs[rgI];
-      var localHW = rx < bellStart ? breechHW : breechHW + (muzzleHW - breechHW) * ((rx - bellStart) / (L * 0.5 - bellStart));
-      var ringHW = localHW * 1.18;
-      ctx.fillStyle = ringGrad;
-      roundRect(rx - L * 0.025, -ringHW, L * 0.05, ringHW * 2, L * 0.02); ctx.fill();
-      ctx.strokeStyle = "#3a2c10"; ctx.lineWidth = 1;
-      roundRect(rx - L * 0.025, -ringHW, L * 0.05, ringHW * 2, L * 0.02); ctx.stroke();
+    // ── CHASIS + 4 RUEDAS (mira hacia la dirección de patrulla) ──
+    ctx.save(); ctx.scale(face, 1);
+    var wy = H * 0.44, wr = R * 0.30;
+    for (var wi = 0; wi < 4; wi++) {
+      var wx = -W * 0.36 + wi * (W * 0.72 / 3);
+      ctx.fillStyle = "#26261e";
+      ctx.beginPath(); ctx.arc(wx, wy, wr, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = "#0f0f0a"; ctx.lineWidth = 1.6; ctx.stroke();
+      ctx.strokeStyle = "#6a6a52"; ctx.lineWidth = 1.2;
+      for (var sp = 0; sp < 4; sp++) {
+        var spa = sp * Math.PI / 2 + (t._wheelSpin || 0);
+        ctx.beginPath(); ctx.moveTo(wx, wy); ctx.lineTo(wx + Math.cos(spa) * wr * 0.7, wy + Math.sin(spa) * wr * 0.7); ctx.stroke();
+      }
+      ctx.fillStyle = "#8a8a66"; ctx.beginPath(); ctx.arc(wx, wy, wr * 0.28, 0, Math.PI * 2); ctx.fill();
     }
+    // casco/hull olivo
+    var hg = ctx.createLinearGradient(0, -H * 0.5, 0, H * 0.5);
+    hg.addColorStop(0, "#7a8a4e"); hg.addColorStop(0.5, "#556230"); hg.addColorStop(1, "#39441f");
+    ctx.fillStyle = hg;
+    roundRect(-W * 0.5, -H * 0.36, W * 0.98, H * 0.74, R * 0.22); ctx.fill();
+    ctx.strokeStyle = "#232a12"; ctx.lineWidth = 2; roundRect(-W * 0.5, -H * 0.36, W * 0.98, H * 0.74, R * 0.22); ctx.stroke();
+    // nariz inclinada (glacis)
+    ctx.fillStyle = "#4a5628";
+    ctx.beginPath(); ctx.moveTo(W * 0.48, -H * 0.30); ctx.lineTo(W * 0.66, H * 0.06); ctx.lineTo(W * 0.48, H * 0.32); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = "#232a12"; ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.strokeStyle = "rgba(0,0,0,0.20)"; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(-W * 0.44, -H * 0.05); ctx.lineTo(W * 0.42, -H * 0.05); ctx.stroke();
+    ctx.restore();  // fin chasis
 
-    // Agujero de mecha trasero (reemplaza el respiradero militar) + mecha
-    // con brasa que brilla con la recarga real.
-    ctx.fillStyle = "#1c160c";
-    ctx.beginPath(); ctx.arc(-L * 0.46, -breechHW * 0.55, W * 0.10, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = "#4a3a1a"; ctx.lineWidth = 1.6; ctx.lineCap = "round";
-    ctx.beginPath();
-    ctx.moveTo(-L * 0.46, -breechHW * 0.55);
-    ctx.quadraticCurveTo(-L * 0.50, -breechHW * 1.0, -L * 0.44, -breechHW * 1.25);
-    ctx.stroke();
-    ctx.fillStyle = "rgba(255, 160, 60, " + (0.4 + reloadFrac * 0.6) + ")";
-    ctx.beginPath(); ctx.arc(-L * 0.44, -breechHW * 1.25, (1.2 + reloadFrac * 0.8) * U, 0, Math.PI * 2); ctx.fill();
+    // ── TORRETA + escotilla ──
+    var ty2 = -H * 0.34;
+    ctx.fillStyle = "#5c6a34";
+    ctx.beginPath(); ctx.arc(0, ty2, R * 0.66, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = "#2a3212"; ctx.lineWidth = 2; ctx.stroke();
+    ctx.fillStyle = "#43501f";
+    ctx.beginPath(); ctx.arc(-R * 0.18, ty2 - R * 0.12, R * 0.20, 0, Math.PI * 2); ctx.fill();
 
-    // Perno decorativo arriba del tubo (reemplaza la mira militar).
-    ctx.fillStyle = "#d8b35a";
-    ctx.beginPath(); ctx.arc(L * 0.05, -breechHW * 1.15, W * 0.10, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = "#4a3814"; ctx.lineWidth = 1; ctx.stroke();
-
-    // Anillo dorado del MAC en la boca y núcleo brillante — el glow real
-    // sigue la recarga real (t.cooldown), no un reloj decorativo.
-    var glow = 0.35 + reloadFrac * 0.65;
-    ctx.fillStyle = "#FFD24A"; ctx.strokeStyle = "#b8860b"; ctx.lineWidth = 2.2;
-    ctx.beginPath(); ctx.arc(L * 0.52, 0, muzzleHW * 0.85, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-    var gg = ctx.createRadialGradient(L * 0.52, 0, 1, L * 0.52, 0, muzzleHW * 0.62);
-    gg.addColorStop(0, "rgba(255,255,255," + (0.5 + 0.5 * glow) + ")"); gg.addColorStop(0.6, "#FFE27A"); gg.addColorStop(1, "rgba(184,134,11,0.3)");
-    ctx.fillStyle = gg; ctx.beginPath(); ctx.arc(L * 0.52, 0, muzzleHW * 0.62, 0, Math.PI * 2); ctx.fill();
-
-    // Muzzle flash al disparar.
+    // ── CAÑÓN (apunta al objetivo) desde la torreta ──
+    ctx.save();
+    ctx.translate(0, ty2);
+    ctx.rotate(t._aimAngle);
+    var recoil = (t.muzzleFlash || 0) > 0 ? (t.muzzleFlash / 0.18) : 0;
+    ctx.translate(-recoil * 4 * U, 0);
+    var barL = R * 2.1, barW = R * 0.36;
+    var bg = ctx.createLinearGradient(0, -barW, 0, barW);
+    bg.addColorStop(0, "#7a8a50"); bg.addColorStop(0.5, "#4a5628"); bg.addColorStop(1, "#2c3418");
+    ctx.fillStyle = bg;
+    roundRect(0, -barW / 2, barL, barW, barW * 0.3); ctx.fill();
+    ctx.strokeStyle = "#232a12"; ctx.lineWidth = 1.5; roundRect(0, -barW / 2, barL, barW, barW * 0.3); ctx.stroke();
+    ctx.fillStyle = "#3a4420"; roundRect(barL * 0.5 - barW * 0.15, -barW * 0.62, barW * 0.3, barW * 1.24, barW * 0.2); ctx.fill();
+    // boca AMARILLA (dispara mallas amarillas de complemento), brillo con recarga
+    var glow = 0.4 + reloadFrac * 0.6;
+    ctx.fillStyle = "#FFD24A"; ctx.strokeStyle = "#b8860b"; ctx.lineWidth = 2;
+    roundRect(barL - barW * 0.5, -barW * 0.75, barW * 0.95, barW * 1.5, barW * 0.3); ctx.fill(); ctx.stroke();
+    var gg = ctx.createRadialGradient(barL, 0, 1, barL, 0, barW * 0.8);
+    gg.addColorStop(0, "rgba(255,255,200," + (0.5 + 0.5 * glow) + ")"); gg.addColorStop(1, "rgba(255,210,74,0.15)");
+    ctx.fillStyle = gg; ctx.beginPath(); ctx.arc(barL, 0, barW * 0.7, 0, Math.PI * 2); ctx.fill();
     if ((t.muzzleFlash || 0) > 0) {
       var mf = t.muzzleFlash / 0.18;
-      ctx.fillStyle = "rgba(255, 248, 200, " + (0.85 * mf) + ")";
-      ctx.beginPath(); ctx.arc(L * 0.55 + muzzleHW * 0.8 * (1 - mf), 0, muzzleHW * (0.85 + 0.7 * mf), 0, Math.PI * 2); ctx.fill();
-      for (var fr = 0; fr < 6; fr++) {
-        var fa = (fr / 6) * Math.PI - Math.PI / 2;
-        ctx.fillStyle = "rgba(255, 215, 90, " + (0.55 * mf) + ")";
-        ctx.beginPath(); ctx.arc(L * 0.65 + Math.cos(fa) * muzzleHW * 1.6, Math.sin(fa) * muzzleHW * 0.8, muzzleHW * 0.22, 0, Math.PI * 2); ctx.fill();
-      }
+      ctx.fillStyle = "rgba(255,240,120," + (0.8 * mf) + ")";
+      ctx.beginPath(); ctx.arc(barL + barW * 0.5, 0, barW * 1.5 * mf, 0, Math.PI * 2); ctx.fill();
     }
-    ctx.restore(); // fin tubo con retroceso
+    ctx.restore(); // fin cañón
     ctx.restore(); // fin transform principal
     // HP bar sin rotación — se dibuja en coordenadas mundo después de restaurar
     ctx.save();

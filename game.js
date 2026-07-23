@@ -955,8 +955,9 @@
     },
     langerhans: {
       id: "langerhans", name: "Cel. de Langerhans", shortName: "Langer",
-      color: "#3FC1C9", colorDark: "#26797f", cost: 70, desc: "Captura antígenos en la epidermis y activa células T helper en los ganglios. Ultimate: Presentación Antigénica Masiva — marca y bufa aliados.",
+      color: "#3FC1C9", colorDark: "#26797f", cost: 70, desc: "Captura antígenos y activa la respuesta: MARCA a los gérmenes (+daño) y AMPLIFICA a Eosinófilos y Mastocitos cercanos (IL-4/5/13). Ultimate: Presentación Antigénica Masiva — marca y bufa aliados.",
       support: "mark",
+      amplifies: true,   // fusionado de ILC2: bufa Eosinófilo/Mastocito cercanos
       // Ultimate: PRESENTACIÓN ANTIGÉNICA MASIVA + COORDINACIÓN INMUNE.
       // Las 9 dendritas se extienden enormemente y disparan flags MHC-II
       // a TODOS los enemies en rango (marca +30% damage por 6s) y al mismo
@@ -973,8 +974,9 @@
     },
     nk: {
       id: "nk", name: "Celula NK", shortName: "NK",
-      color: "#E84393", colorDark: "#a82d6a", cost: 95, desc: "Detecta ausencia de MHC-I y libera perforina y granzimas. Rompe escudos y bonus ×2.3 vs virus. Ultimate: Frenesí citotóxico.",
+      color: "#E84393", colorDark: "#a82d6a", cost: 95, desc: "Detecta ausencia de MHC-I y libera perforina y granzimas. Rompe escudos, bonus ×2.3 vs virus, PRIORIZA virus y los RALENTIZA con IFN en su rango. Ultimate: Frenesí citotóxico.",
       bonusVs: { kind: "virus", mult: 2.3 }, breakShield: true,
+      antiviralAura: true, virusPriority: true,   // fusionado de pDC: frena y prioriza virus
       // Ultimate: FRENESÍ CITOTÓXICO — rota como tornado fucsia y
       // dispara una tormenta de perforinas penetrantes que ignoran
       // escudos. 26s de carga.
@@ -1158,7 +1160,7 @@
     }
   };
   var MAC_COST = 5;   // fragmentos de complemento para ensamblar el cañón
-  var TOWER_LIST = ["neutrofilo", "linfocitoB", "linfocitoT", "langerhans", "nk", "eosinofilo", "mastocito", "complemento", "plaqueta", "trombo", "centinela", "queratinocito", "pdc", "linfocitogd", "ilc2"];
+  var TOWER_LIST = ["neutrofilo", "linfocitoB", "linfocitoT", "langerhans", "nk", "eosinofilo", "mastocito", "complemento", "centinela", "queratinocito", "linfocitogd"];
   // Cartilla por grupos desplegables (categorías de defensa).
   // 3 grupos principales + 1 "otras estructuras":
   //  · Defensas: torres que atacan directamente
@@ -1167,9 +1169,8 @@
   //  · Otras estructuras: el resto (Fibrina solo en diseminación)
   var TOWER_GROUPS = [
     { id: "defensas",      label: "Defensas",      towers: ["neutrofilo", "linfocitoB", "linfocitoT", "nk", "eosinofilo", "linfocitogd"] },
-    { id: "potenciadores", label: "Potenciadores", towers: ["langerhans", "mastocito", "queratinocito", "pdc", "ilc2"] },
-    { id: "tanques",       label: "Tanques",       towers: ["complemento", "trombo", "centinela"] },
-    { id: "otras",         label: "Otras estructuras", towers: ["plaqueta"] }
+    { id: "potenciadores", label: "Potenciadores", towers: ["langerhans", "mastocito", "queratinocito"] },
+    { id: "tanques",       label: "Tanques",       towers: ["complemento", "centinela"] }
   ];
 
   // === LOADOUT: jugador elige 5 torres + 2 tanques + 1 barrera para el dock ===
@@ -1509,65 +1510,33 @@
     2: "langerhans",
     3: "nk",
     4: "queratinocito",
-    6: "pdc",
-    8: "linfocitogd"
+    7: "linfocitogd"
   };
   // Catch-up: si el jugador llega a Diseminación sin haber conseguido
   // alguna de estas (perdió el pickup por ola, o no llegó a matar al boss
   // correspondiente), se le vuelve a ofrecer ahí — ninguna torre queda
   // inalcanzable. Eosinófilo/Mastocito NO están acá porque su unlock
   // primario YA es en Diseminación (no necesitan catch-up dentro de ella).
-  var PHASE1_CATCHUP_TOWERS = ["langerhans", "nk", "complemento", "trombo", "centinela", "queratinocito", "pdc", "linfocitogd"];
+  var PHASE1_CATCHUP_TOWERS = ["langerhans", "nk", "complemento", "centinela", "queratinocito", "linfocitogd"];
   // TANQUES: se ganan matando a un boss específico, no por ola. El drop
   // real ocurre en updateEnemies cuando el boss termina su animación de
   // muerte (dyingTimer<=0) — ver BOSS_TANK_DROPS ahí.
-  var BOSS_TANK_DROPS = { bossPyogenes: "complemento", bossClostridium: "trombo", bossMRSA: "centinela" };
+  var BOSS_TANK_DROPS = { bossPyogenes: "complemento", bossMRSA: "centinela" };
   // Diseminación: su propio schedule por ola (disseminationWaveIdx 0..5,
   // 6 olas), ver startNextDisseminationWave().
   var DISSEM_UNLOCK_SCHEDULE = {
     0: "eosinofilo",
-    1: "mastocito",
-    2: "ilc2"
+    1: "mastocito"
   };
 
   // === MEGACARIOCITO: produce plaquetas maduras periódicamente ===
   function updateMegakaryocyte(dt) {
     var mk = state.megakaryocyte;
     if (!mk || !state.dissemination) return;
-    // Carga del Super Megacariocito (independiente de las plaquetas). Cuando
-    // llega a 1, el cuerpo brilla y el jugador lo TOCA para lanzar la caza.
+    // Carga del Super Megacariocito. Al llegar a 1, el cuerpo brilla y el
+    // jugador lo TOCA para lanzar la caza. La Plaqueta/Trombo se fusionaron en
+    // el enjambre, así que el Megacariocito ya NO produce pickups de plaqueta.
     if ((mk.superCharge || 0) < 1) mk.superCharge = Math.min(1, (mk.superCharge || 0) + dt / (mk.superPeriod || 32));
-    if (!state.plaquetaPickups) state.plaquetaPickups = [];
-    if (state.plaquetaPickups.length >= mk.max) return; // pausa si lleno
-    mk.maturing += dt / mk.period;
-    if (mk.maturing >= 1) {
-      mk.maturing = 0;
-      // Posición orbital alrededor del megacariocito
-      var n = state.plaquetaPickups.length;
-      var angle = -Math.PI / 2 + (n - 1.5) * 0.55;
-      var orbit = 36 * U;
-      state.plaquetaPickups.push({
-        x: mk.x + Math.cos(angle) * orbit,
-        y: mk.y + Math.sin(angle) * orbit,
-        baseX: mk.x + Math.cos(angle) * orbit,
-        baseY: mk.y + Math.sin(angle) * orbit,
-        phase: Math.random() * Math.PI * 2,
-        bornAt: state.time
-      });
-      sfx("upgrade");
-    }
-    // Reorganiza orbitales para que se vean ordenados
-    for (var i = 0; i < state.plaquetaPickups.length; i++) {
-      var p = state.plaquetaPickups[i];
-      var a = -Math.PI / 2 + (i - (state.plaquetaPickups.length - 1) / 2) * 0.55;
-      var or = 36 * U;
-      p.baseX = mk.x + Math.cos(a) * or;
-      p.baseY = mk.y + Math.sin(a) * or;
-      // Pequeño bobbing
-      p.phase += dt * 1.5;
-      p.x = p.baseX + Math.sin(p.phase) * 2 * U;
-      p.y = p.baseY + Math.cos(p.phase * 0.8) * 2 * U;
-    }
   }
 
   // ============ SUPER MEGACARIOCITO — ENJAMBRE DE COÁGULO ============
@@ -1588,8 +1557,9 @@
   // Vida más alta de cualquier torre (máximo nivel), para escalar el enjambre.
   function computeMaxTowerHp() {
     var mx = 0;
-    for (var id in TOWER_DEFS) {
-      var d = TOWER_DEFS[id];
+    // Solo torres VIGENTES (TOWER_LIST) — excluye defs legacy fusionadas.
+    for (var i = 0; i < TOWER_LIST.length; i++) {
+      var d = TOWER_DEFS[TOWER_LIST[i]];
       if (!d || !d.levels) continue;
       for (var l = 0; l < d.levels.length; l++) if ((d.levels[l].hp || 0) > mx) mx = d.levels[l].hp;
     }
@@ -1875,21 +1845,13 @@
       ctx.fill();
       ctx.stroke();
     }
-    // Anillo de maduración (progreso) — alrededor del cuerpo
-    var prog = Math.min(1, state.megakaryocyte.maturing);
+    // Anillo base (pista) — backdrop del anillo de carga del Super.
     var ringR = R + 5 * U;
     ctx.strokeStyle = "rgba(60, 30, 20, 0.45)";
     ctx.lineWidth = Math.max(2, 3 * U);
     ctx.beginPath();
     ctx.arc(0, 0, ringR, 0, Math.PI * 2);
     ctx.stroke();
-    if (state.plaquetaPickups && state.plaquetaPickups.length < state.megakaryocyte.max) {
-      ctx.strokeStyle = "#E8A020";
-      ctx.lineWidth = Math.max(2, 3 * U);
-      ctx.beginPath();
-      ctx.arc(0, 0, ringR, -Math.PI / 2, -Math.PI / 2 + prog * Math.PI * 2);
-      ctx.stroke();
-    }
     // Super Megacariocito LISTO: halo pulsante rojo + aviso "¡TOCA!"
     if ((state.megakaryocyte.superCharge || 0) >= 1) {
       var sp = 0.5 + 0.5 * Math.sin(state.time * 5);
@@ -4700,16 +4662,9 @@
     // Todas las torres conseguidas son permanentes — ya no se filtra/pierde
     // nada al cambiar de fase (2026-06-22). state.unlockedTowers sigue igual.
     if (!state.unlockedTowers) state.unlockedTowers = BASIC_TOWERS.slice();
-    // Auto-unlock de torres disseminationOnly (Plaqueta) — no requieren
-    // pickup, son específicas del torrente.
-    if (state.unlockedTowers.indexOf("plaqueta") === -1) {
-      state.unlockedTowers.push("plaqueta");
-      markDexNew("plaqueta");
-    }
-    // Garantiza que el grupo "Sangre" se abra al entrar al puente — antes
-    // openGroups podía no tener la key 'sangre' y la plaqueta quedaba bajo
-    // un header colapsado. Resetea openGroups para destacar lo relevante.
-    state.openGroups = { defensas: true, potenciadores: true, tanques: true, otras: true };
+    // La Plaqueta/Trombo se fusionaron en el Super Megacariocito (enjambre de
+    // coágulo) — ya no son torres colocables. El Megacariocito genera el Super.
+    state.openGroups = { defensas: true, potenciadores: true, tanques: true };
     state.unlockScheduleNotified = {};
     state.unlockPickups = [];
     state.medReinforcePicker = null;
@@ -4726,7 +4681,7 @@
     state.pendingPhaseUnlocks = [];
     state.medulaQueue = [];
     state.medulaEmitTimer = 8;   // primera recompensa a los ~8s
-    var DISSEM_NATIVE = ["eosinofilo", "mastocito", "ilc2"];
+    var DISSEM_NATIVE = ["eosinofilo", "mastocito"];
     for (var ni = 0; ni < DISSEM_NATIVE.length; ni++) {
       if (state.unlockedTowers.indexOf(DISSEM_NATIVE[ni]) === -1) state.medulaQueue.push(DISSEM_NATIVE[ni]);
     }
@@ -7069,6 +7024,17 @@
           } else if (t.def.support === "slow") {
             se.slowTimer = Math.max(se.slowTimer || 0, stats.slowDur);
             if ((stats.dotPerSec || 0) > 0) damageEnemy(se, stats.dotPerSec * 0.4, t.def.id);
+          }
+        }
+        // ILC2 fusionado en Langerhans: AMPLIFICA a Eosinófilo/Mastocito
+        // cercanos (IL-4/5/13). La marca a gérmenes ya se aplicó arriba.
+        if (t.def.amplifies) {
+          for (var ampI = 0; ampI < state.towers.length; ampI++) {
+            var ampAlly = state.towers[ampI];
+            if (ampAlly === t) continue;
+            if (Math.hypot(ampAlly.x - t.x, ampAlly.y - t.y) > rangePx) continue;
+            if (ampAlly.def.id === "eosinofilo") { ampAlly.ilc2EosinT = 5; acted = true; }
+            if (ampAlly.def.id === "mastocito")  { ampAlly.ilc2MastoT = 6; acted = true; }
           }
         }
         if (acted) { t.attackAnim = 0.2; t.muzzleFlash = 0.06; }

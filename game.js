@@ -371,8 +371,8 @@
     // Dock un poco más amplio para mostrar más torres y dar espacio
     // al card strip hasta tocar (apenas) la cartilla de NETosis.
     SIDE_INNER = isPortrait
-      ? Math.round(Math.max(78, Math.min(96, VW * 0.21)))
-      : Math.round(Math.max(72, Math.min(98, VW * 0.10)));
+      ? Math.round(0.85 * Math.max(78, Math.min(96, VW * 0.21)))
+      : Math.round(0.85 * Math.max(72, Math.min(98, VW * 0.10)));
     SIDE_W = SIDE_INNER + safeRight;
     HUD_H = Math.round(hudBase + safeTop);
     PANEL_H = 0;  // legacy: ya no hay franja inferior
@@ -1597,7 +1597,7 @@
   function spawnMegaUnit(tier, x, y, vx, vy, laneIdx, walkTo) {
     if (!state.megaSwarm) state.megaSwarm = [];
     var cfg = MEGA_TIERS[tier];
-    var base = state.megaBaseHp || Math.round(1.5 * computeMaxTowerHp());
+    var base = state.megaBaseHp || Math.round(0.75 * computeMaxTowerHp());
     var hp = Math.max(1, Math.round(base * cfg.hpFrac));
     state.megaSwarm.push({
       tier: tier, x: x, y: y, vx: vx || 0, vy: vy || 0,
@@ -1639,15 +1639,16 @@
   function deployMegaSuper(laneIdx) {
     var f = state.megaFactory;
     if (!f || f.mode !== "ready") return;
-    state.megaBaseHp = Math.round(1.5 * computeMaxTowerHp());
+    state.megaBaseHp = Math.round(0.75 * computeMaxTowerHp());   // HP al 50% del anterior (1.5→0.75)
     var laneX = FIELD_LEFT + (PATH.laneXs ? PATH.laneXs[laneIdx] : 0.5) * FIELD_W;
-    var walkTo = { x: laneX, y: FIELD_TOP + FIELD_H * 0.32 };
-    spawnMegaUnit(0, f.x, f.y, 0, 0, laneIdx, walkTo);
+    var laneY = FIELD_TOP + FIELD_H * 0.45;
+    // Aparece DIRECTO en el CENTRO del carril (sin caminar desde el borde).
+    spawnMegaUnit(0, laneX, laneY, 0, 0, laneIdx, null);
     f.progress = 0; f.mode = "dormant"; f.callPhase = 0;   // queda DORMIDA hasta el próximo tap
     state.megaPlacing = false;
     triggerShake(0.12, 3);
-    pushEffect({ kind: "place", x: f.x, y: f.y, life: 0.6, max: 0.6, color: "#E8B888" });
-    showMsg("¡Super Megacariocito en marcha!");
+    pushEffect({ kind: "place", x: laneX, y: laneY, life: 0.6, max: 0.6, color: "#E8B888" });
+    showMsg("¡Super Megacariocito en el carril!");
     sfx("upgrade");
   }
 
@@ -23960,6 +23961,14 @@
         var w = PATH.wounds[k];
         var d = PATH.organDoors[k];
         drawDisseminationCrack(w.x, w.y);
+        // Título del órgano DEBAJO de la entrada (grieta), para saber a qué
+        // órgano defiende cada carril desde arriba.
+        ctx.save();
+        ctx.font = "bold " + Math.floor(11 * U) + "px Fredoka, sans-serif";
+        ctx.fillStyle = colorAlpha(d.organ.color, 0.95);
+        ctx.textAlign = "center"; ctx.textBaseline = "top";
+        ctx.fillText(d.organ.label, w.x, w.y + 16 * U);
+        ctx.restore();
         var load = (state.spreadOrganLoad && state.spreadOrganLoad[k]) || 0;
         var flash = (state.spreadFlash && state.spreadFlash[k]) || 0;
         var hp = (state.disseminationBarrierHP && state.disseminationBarrierHP[k]) || 0;
@@ -24190,10 +24199,8 @@
     var loadColor = pct >= 0.7 ? "#ff7a7a" : (pct >= 0.4 ? "#ffd24a" : "rgba(240, 220, 200, 0.95)");
     ctx.fillStyle = loadColor;
     ctx.fillText(load + " / 10", x, y - ry - 8 * U);
-    // Etiqueta del órgano más arriba.
-    ctx.font = "bold " + Math.floor(10 * U) + "px Fredoka, sans-serif";
-    ctx.fillStyle = "rgba(240, 220, 200, 0.80)";
-    ctx.fillText(organ.label, x, y - ry - 20 * U);
+    // (El título del órgano ahora se dibuja debajo de la ENTRADA, arriba —
+    // ver drawDisseminationField.)
     ctx.restore();
   }
 

@@ -4912,9 +4912,8 @@
           }
         }
       }
-      // Sprint 8A: lateral tooltip — first encounter goes to a queue. The
-      // El glow del enemigo (drawEnemy) y el aviso "Toca al nuevo enemigo"
-      // (chequeado reactivamente en render) ya cubren el caso. Mantengo
+      // Sprint 8A: lateral tooltip — first encounter goes to a queue. El
+      // glow del enemigo (drawEnemy) ya destaca al germen nuevo. Mantengo
       // e.tooltipShown como flag por compatibilidad con código legado.
       if (!e.tooltipShown && e.state === "walking"
           && !state.vistos[e.def.id] && !state.showIntro && !state.cinematicEnd) {
@@ -11865,8 +11864,6 @@
         state.vistos[defE.id] = true;
         markDexNew(defE.id);
         saveVistos(state.vistos);
-        // El aviso "Toca al nuevo enemigo" se chequea reactivamente en
-        // render, así que se autocorrige cuando este tipo entra a vistos.
         openCompendium(defE.id, "germs");
         return;
       }

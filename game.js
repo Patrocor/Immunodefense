@@ -447,6 +447,18 @@
       desc: "La próxima torre caída se reconstruye (×3 usos)",
       dur: 0 }
   ];
+  // Combos PERMANENTES de Diseminación: la médula los emite espaciados (uno a
+  // la vez), y suman +10% acumulativo por stack a TODAS las torres.
+  var COMBO_BUFFS = [
+    { id: "atk", name: "Potencia", icon: "⚔", color: "#ff5252", desc: "+10% daño de todas las torres" },
+    { id: "spd", name: "Cadencia", icon: "⚡", color: "#ffca28", desc: "+10% velocidad de ataque" },
+    { id: "rng", name: "Alcance",  icon: "◎", color: "#66bb6a", desc: "+10% rango de todas las torres" },
+    { id: "def", name: "Blindaje", icon: "🛡", color: "#42a5f5", desc: "+10% vida de las torres" }
+  ];
+  function comboMult(kind) {
+    if (!state || !state.combo) return 1;
+    return 1 + 0.10 * (state.combo[kind] || 0);
+  }
   // Radio del aura de daño por germen: escala con su ataque, así los gérmenes
   // más peligrosos (S. aureus, Pseudomonas, jefes) tienen MAYOR rango y se
   // distinguen de los débiles. En px diseño; multiplicar por U al usar.
@@ -1724,6 +1736,11 @@
       if (p.collecting) {
         p.collectT += dt;
         if (p.collectT >= 0.5) {
+          if (p.kind === "combo") {
+            openComboPicker();
+            arr.splice(i, 1);
+            continue;
+          }
           if (p.kind === "buff") {
             openMedReinforcePicker();
             arr.splice(i, 1);
@@ -1844,6 +1861,14 @@
     if ((state.medPrimaTimer   || 0) > 0) activeBonuses.push({ icon: "💰", color: "#ff9800" });
     if ((state.medCitoTimer    || 0) > 0) activeBonuses.push({ icon: "⬆", color: "#e91e63" });
     if ((state.medCelulaReserva|| 0) > 0) activeBonuses.push({ icon: "🛡", color: "#7c4dff" });
+    // Combos permanentes: badge con contador de stacks.
+    if (state.combo) {
+      for (var cbI = 0; cbI < COMBO_BUFFS.length; cbI++) {
+        var cbo = COMBO_BUFFS[cbI];
+        var st = state.combo[cbo.id] || 0;
+        if (st > 0) activeBonuses.push({ icon: cbo.icon, color: cbo.color, count: st });
+      }
+    }
     if (activeBonuses.length > 0) {
       var bR = 7 * s;
       var bSpan = activeBonuses.length * (bR * 2 + 2 * s) - 2 * s;
@@ -1858,6 +1883,13 @@
         ctx.fillStyle = "#fff";
         ctx.textAlign = "center";
         ctx.fillText(activeBonuses[ab].icon, bx, bY);
+        if (activeBonuses[ab].count) {
+          ctx.font = "bold " + Math.floor(6.5 * s) + "px Fredoka, sans-serif";
+          ctx.fillStyle = "#fff"; ctx.strokeStyle = activeBonuses[ab].color; ctx.lineWidth = 2 * s;
+          ctx.strokeText("×" + activeBonuses[ab].count, bx + bR * 0.9, bY + bR * 0.9);
+          ctx.fillText("×" + activeBonuses[ab].count, bx + bR * 0.9, bY + bR * 0.9);
+          ctx.font = Math.floor(8 * s) + "px Fredoka, sans-serif";
+        }
       }
     }
     ctx.restore();
@@ -1869,8 +1901,9 @@
     for (var i = 0; i < arr.length; i++) {
       var p = arr[i];
       var isBuff = p.kind === "buff";
-      var def = isBuff ? null : TOWER_DEFS[p.typeId];
-      if (!isBuff && !def) continue;
+      var isCombo = p.kind === "combo";
+      var def = (isBuff || isCombo) ? null : TOWER_DEFS[p.typeId];
+      if (!isBuff && !isCombo && !def) continue;
       var scale = 1;
       var alpha = 1;
       if (p.collecting) {
@@ -1879,9 +1912,9 @@
         alpha = 1 - t;
       }
       var pulse = 0.5 + 0.5 * Math.sin(state.time * 4 + i);
-      var haloColor = isBuff ? "rgba(110, 220, 220, " : "rgba(255, 210, 100, ";
-      var capFill = isBuff ? "#5BC8E8" : "#f5d76e";
-      var capStroke = isBuff ? "#1a6b80" : "#8a6020";
+      var haloColor = isCombo ? "rgba(255, 150, 90, " : (isBuff ? "rgba(110, 220, 220, " : "rgba(255, 210, 100, ");
+      var capFill = isCombo ? "#ff8a50" : (isBuff ? "#5BC8E8" : "#f5d76e");
+      var capStroke = isCombo ? "#a04010" : (isBuff ? "#1a6b80" : "#8a6020");
       ctx.save();
       ctx.translate(p.x, p.y);
       ctx.globalAlpha = alpha;
@@ -1909,7 +1942,13 @@
       ctx.closePath();
       ctx.fill();
       ctx.stroke();
-      if (isBuff) {
+      if (isCombo) {
+        // Estrella de combo.
+        ctx.fillStyle = "#ffffff";
+        ctx.font = "bold " + Math.floor(20 * U) + "px Fredoka, sans-serif";
+        ctx.textAlign = "center"; ctx.textBaseline = "middle";
+        ctx.fillText("★", 0, 0);
+      } else if (isBuff) {
         // Cruz médica (refuerzo) en vez del ícono de torre.
         ctx.fillStyle = "#ffffff";
         var armW = 5 * U, armL = 13 * U;
@@ -1919,7 +1958,7 @@
         drawCardIcon(p.typeId, 0, 0, 11 * U, true);
       }
       // "+" arriba
-      ctx.fillStyle = isBuff ? "#5BC8E8" : "#ffd24a";
+      ctx.fillStyle = isCombo ? "#ff8a50" : (isBuff ? "#5BC8E8" : "#ffd24a");
       ctx.font = "bold " + Math.floor(11 * U) + "px Fredoka, sans-serif";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
@@ -1932,7 +1971,7 @@
         ctx.font = "bold " + Math.floor(10 * U) + "px Fredoka, sans-serif";
         ctx.textAlign = "center";
         ctx.textBaseline = "top";
-        var nameTxt = isBuff ? "Refuerzo Médico" : (def.shortName || def.name);
+        var nameTxt = isCombo ? "Combo +10%" : (isBuff ? "Refuerzo Médico" : (def.shortName || def.name));
         var pad = 4 * U;
         var tw = ctx.measureText(nameTxt).width;
         ctx.fillRect(p.x - tw / 2 - pad, p.y + 24 * U, tw + pad * 2, 16 * U);
@@ -2020,6 +2059,106 @@
     }
     // Tap fuera de opciones → cerrar picker
     state.medReinforcePicker = null;
+  }
+
+  // ============ COMBOS PERMANENTES (Diseminación) ============
+  function spawnComboPickup(originX, originY) {
+    if (!state.unlockPickups) state.unlockPickups = [];
+    if (originX == null && !state.medulaOsea) return;
+    state.unlockPickups.push({
+      kind: "combo",
+      x: originX != null ? originX : state.medulaOsea.x,
+      y: originY != null ? originY : state.medulaOsea.y,
+      vx: (Math.random() - 0.5) * 8 * U, vy: -22 * U,
+      age: 0, bornAt: state.time, collecting: false, collectT: 0
+    });
+    showMsg("¡Combo de refuerzo disponible!");
+    sfx("upgrade");
+  }
+
+  function openComboPicker() {
+    // Ofrece 3 combos al azar (barajados) para elegir uno.
+    var pool = COMBO_BUFFS.slice();
+    for (var i = pool.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1));
+      var tmp = pool[i]; pool[i] = pool[j]; pool[j] = tmp;
+    }
+    state.comboPicker = { options: pool.slice(0, 3) };
+  }
+
+  function applyCombo(comboId) {
+    state.comboPicker = null;
+    if (!state.combo) state.combo = { atk: 0, def: 0, rng: 0, spd: 0 };
+    state.combo[comboId] = (state.combo[comboId] || 0) + 1;
+    if (comboId === "def") {
+      // Blindaje: aplica retroactivamente a las torres ya en campo.
+      for (var i = 0; i < state.towers.length; i++) {
+        var tw = state.towers[i];
+        var nm = Math.round(tw.def.levels[tw.level].hp * comboMult("def"));
+        tw.hp += (nm - tw.maxHp); tw.maxHp = nm;
+      }
+    }
+    var cb = null;
+    for (var k = 0; k < COMBO_BUFFS.length; k++) if (COMBO_BUFFS[k].id === comboId) cb = COMBO_BUFFS[k];
+    if (cb) showMsg("¡" + cb.name + " +10%! (x" + state.combo[comboId] + ")");
+    sfx("upgrade");
+  }
+
+  function handleComboPickerTap(x, y) {
+    var opts = UI.comboOptions || [];
+    for (var i = 0; i < opts.length; i++) {
+      if (inRect(x, y, opts[i])) { applyCombo(opts[i].comboId); return; }
+    }
+    state.comboPicker = null;   // tap fuera → cerrar
+  }
+
+  function drawComboPicker() {
+    var picker = state.comboPicker;
+    if (!picker) { UI.comboOptions = null; return; }
+    ctx.save();
+    ctx.fillStyle = "rgba(10, 14, 24, 0.82)";
+    ctx.fillRect(0, 0, VW, VH);
+    var centerX = VW / 2, cy = VH * 0.44;
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillStyle = "#ffd24a";
+    ctx.font = "bold " + Math.floor(15 * U) + "px Fredoka, sans-serif";
+    ctx.fillText("COMBO DE REFUERZO", centerX, cy - 92 * U);
+    ctx.fillStyle = "rgba(255,255,255,0.6)";
+    ctx.font = Math.floor(10 * U) + "px Fredoka, sans-serif";
+    ctx.fillText("Elige un potenciador permanente", centerX, cy - 74 * U);
+    var opts = picker.options;
+    var cardW = 82 * U, cardH = 104 * U, gap = 12 * U;
+    var totalW = opts.length * cardW + (opts.length - 1) * gap;
+    var startX = centerX - totalW / 2;
+    var cards = [];
+    for (var i = 0; i < opts.length; i++) {
+      var cb = opts[i];
+      var x = startX + i * (cardW + gap);
+      var pulse = 0.5 + 0.5 * Math.sin(state.time * 3 + i);
+      var stack = (state.combo && state.combo[cb.id]) || 0;
+      roundRect(x, cy - cardH / 2, cardW, cardH, 7 * U);
+      ctx.fillStyle = "rgba(20,26,40,0.96)"; ctx.fill();
+      ctx.fillStyle = colorAlpha(cb.color, 0.10 + pulse * 0.12); ctx.fill();
+      ctx.strokeStyle = cb.color; ctx.lineWidth = 2 * U; ctx.stroke();
+      ctx.fillStyle = cb.color;
+      ctx.font = Math.floor(30 * U) + "px Fredoka, sans-serif";
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText(cb.icon, x + cardW / 2, cy - cardH * 0.24);
+      ctx.fillStyle = "#fff";
+      ctx.font = "bold " + Math.floor(12 * U) + "px Fredoka, sans-serif";
+      ctx.fillText(cb.name, x + cardW / 2, cy + cardH * 0.02);
+      ctx.fillStyle = cb.color;
+      ctx.font = "bold " + Math.floor(14 * U) + "px Fredoka, sans-serif";
+      ctx.fillText("+10%", x + cardW / 2, cy + cardH * 0.20);
+      if (stack > 0) {
+        ctx.fillStyle = "rgba(255,255,255,0.5)";
+        ctx.font = Math.floor(8 * U) + "px Fredoka, sans-serif";
+        ctx.fillText("actual x" + stack, x + cardW / 2, cy + cardH * 0.37);
+      }
+      cards.push({ x: x, y: cy - cardH / 2, w: cardW, h: cardH, comboId: cb.id });
+    }
+    UI.comboOptions = cards;
+    ctx.restore();
   }
 
   function drawMedReinforcePicker() {
@@ -3615,6 +3754,10 @@
       medPrimaTimer: 0,                 // +2 ATP por kill mientras > 0
       medCitoTimer: 0,                  // Todas torres +35% daño mientras > 0
       medCelulaReserva: 0,              // N torres caídas se reconstruyen
+      combo: { atk: 0, def: 0, rng: 0, spd: 0 },  // combos permanentes (Diseminación)
+      medulaQueue: [],                  // cola de recompensas de médula, una a la vez
+      medulaEmitTimer: 0,               // espaciado entre recompensas de médula
+      comboPicker: null,                // selector de combo abierto
       bodyMap: null,                    // {from, to, heroFrom, heroTo, t, duration, phase}
       secondEntryOpen: false,
       surgeAnnounced: false,
@@ -4299,19 +4442,24 @@
     state.medReinforcePicker = null;
     state.medRegenTimer = 0; state.medChargeBoostTimer = 0;
     state.medPrimaTimer = 0; state.medCitoTimer = 0; state.medCelulaReserva = 0;
-    // Catch-up: lo que se haya perdido en Fase 1 (pickup de ola no
-    // recogido, boss no derrotado) se ofrece acá, en cadena. Eosinófilo/
-    // Mastocito NO entran porque su unlock primario ya es de Diseminación
-    // (DISSEM_UNLOCK_SCHEDULE, disparado por ola desde startNextDisseminationWave).
+    // Combos permanentes: arrancan en 0 en cada entrada a Diseminación.
+    state.combo = { atk: 0, def: 0, rng: 0, spd: 0 };
+    state.comboPicker = null;
+    // Cola de médula: la médula entrega UNA recompensa a la vez, espaciada,
+    // para no soltar "varias torres de golpe". Primero las torres nativas de
+    // Diseminación (Eosinófilo/Mastocito/ILC2), luego el catch-up de lo que se
+    // haya perdido en Fase 1. Cuando la cola se agota, la médula pasa a emitir
+    // COMBOS permanentes (+10% ataque/defensa/rango/cadencia) de forma infinita.
     state.pendingPhaseUnlocks = [];
-    var firstUnlockAt = state.time + 6;
-    var nUnlocked = 0;
+    state.medulaQueue = [];
+    state.medulaEmitTimer = 8;   // primera recompensa a los ~8s
+    var DISSEM_NATIVE = ["eosinofilo", "mastocito", "ilc2"];
+    for (var ni = 0; ni < DISSEM_NATIVE.length; ni++) {
+      if (state.unlockedTowers.indexOf(DISSEM_NATIVE[ni]) === -1) state.medulaQueue.push(DISSEM_NATIVE[ni]);
+    }
     for (var ci = 0; ci < PHASE1_CATCHUP_TOWERS.length; ci++) {
       var cType = PHASE1_CATCHUP_TOWERS[ci];
-      if (state.unlockedTowers.indexOf(cType) === -1) {
-        state.pendingPhaseUnlocks.push({ typeId: cType, spawnAt: firstUnlockAt + nUnlocked * 10 });
-        nUnlocked++;
-      }
+      if (state.unlockedTowers.indexOf(cType) === -1) state.medulaQueue.push(cType);
     }
     // Recalcular layout completo: el navegador móvil puede haber mostrado/
     // ocultado la barra de URL durante la transición, dejando FIELD_W/FIELD_H
@@ -4385,20 +4533,10 @@
       return;
     }
     var idx = state.disseminationWaveIdx++;
-    // Schedule de desbloqueos propio de Diseminación (Eosinófilo/Mastocito,
-    // ver DISSEM_UNLOCK_SCHEDULE) — mismo patrón que UNLOCK_SCHEDULE en
-    // startNextWave(), con clave separada en unlockScheduleNotified para
-    // no chocar con las claves numéricas de Fase 1.
-    var dissemUnlockType = DISSEM_UNLOCK_SCHEDULE[idx];
-    if (dissemUnlockType && !state.unlockScheduleNotified["d" + idx]) {
-      state.unlockScheduleNotified["d" + idx] = true;
-      spawnUnlockPickup(dissemUnlockType);
-    } else if (!dissemUnlockType && (idx === 3 || idx === 5) && !state.unlockScheduleNotified["d" + idx]) {
-      // Olas sin torre nueva (6 olas, 2 con torre en idx 0/1): Refuerzo
-      // Médico en idx 3 y 5 — pacing similar al de Fase 1 (cada ~3 olas).
-      state.unlockScheduleNotified["d" + idx] = true;
-      spawnReinforcePickup();
-    }
+    // Los desbloqueos de Diseminación (torres nativas + catch-up) y los combos
+    // ya NO se disparan por-ola: los entrega la cola de médula (state.medulaQueue)
+    // de a UNA recompensa a la vez, espaciada — ver el bloque de emisión en el
+    // update. Así se evita el aluvión de "varias torres de golpe".
     // Regenerar +1 HP en barreras NO rotas antes de empezar la oleada.
     if (state.disseminationBarrierHP) {
       for (var brI = 0; brI < state.disseminationBarrierHP.length; brI++) {
@@ -6064,8 +6202,8 @@
       blinkTimer: 0,
       nextBlink: state.time + 2 + Math.random() * 3,
       placedAt: state.time,
-      maxHp: def.levels[0].hp,
-      hp: def.levels[0].hp,
+      maxHp: Math.round(def.levels[0].hp * comboMult("def")),
+      hp: Math.round(def.levels[0].hp * comboMult("def")),
       hitFlash: 0,
       dmgAccum: 0,
       dmgNumTimer: 0,
@@ -6197,7 +6335,8 @@
     var hasIlc2Eosin = (t.def.id === "eosinofilo") && ((t.ilc2EosinT || 0) > 0);
     var hasIlc2Lang  = (t.def.id === "langerhans") && ((t.ilc2LangT  || 0) > 0);
     var hasCitoBuff = (state && (state.medCitoTimer || 0) > 0);
-    if (!t.synBuff && !hasLangerBuff && !hasKcBuff && !hasIfnBuff && !hasIl17Buff && !hasIlc2Eosin && !hasIlc2Lang && !hasCitoBuff) return base;
+    var hasCombo = state && state.combo && ((state.combo.atk || 0) || (state.combo.rng || 0) || (state.combo.spd || 0));
+    if (!t.synBuff && !hasLangerBuff && !hasKcBuff && !hasIfnBuff && !hasIl17Buff && !hasIlc2Eosin && !hasIlc2Lang && !hasCitoBuff && !hasCombo) return base;
     // Devuelve una copia con multiplicadores aplicados.
     var out = {};
     for (var k in base) { if (base.hasOwnProperty(k)) out[k] = base[k]; }
@@ -6220,6 +6359,12 @@
     if (hasIlc2Lang && out.markDur != null) out.markDur = out.markDur * 1.40;
     // Médula: Red de Citoquinas — +35% daño a todas las torres
     if (hasCitoBuff && out.damage != null) out.damage = out.damage * 1.35;
+    // Combos permanentes de Diseminación (+10% acumulativo por stack).
+    if (hasCombo) {
+      if (out.damage != null)   out.damage   = out.damage   * comboMult("atk");
+      if (out.range != null)    out.range    = out.range    * comboMult("rng");
+      if (out.fireRate != null) out.fireRate = out.fireRate * comboMult("spd");
+    }
     return out;
   }
 
@@ -12105,7 +12250,7 @@
     t.levelupAnim = 0.5;
     // Mejorar sube la vida máxima y suma esa diferencia a la vida actual,
     // pero NO cura el daño ya recibido (sin recuperación).
-    var newMax = t.def.levels[t.level].hp;
+    var newMax = Math.round(t.def.levels[t.level].hp * comboMult("def"));
     t.hp += (newMax - t.maxHp);
     t.maxHp = newMax;
     sfx("upgrade");
@@ -12155,6 +12300,11 @@
         return;
       }
       handleClick(p.x, p.y);
+      return;
+    }
+    // Combo picker: selector simple, atrapa el tap completo.
+    if (state.comboPicker) {
+      handleComboPickerTap(p.x, p.y);
       return;
     }
     // Refuerzo Médico: selector simple, atrapa el tap completo (sin
@@ -22829,34 +22979,6 @@
         drawImmuneResponsePanel();
       }
     }
-    // Mini aviso de nuevo germen: reactivo en tiempo real — se chequea cada
-    // frame si HAY al menos un germen vivo en el campo cuyo tipo no esté
-    // en vistos. Antes el aviso quedaba colgado cuando los gérmenes morían.
-    if (!state.showTitle && !state.showIntro && !state.compendiumOpen) {
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      var hasUnseenAlive = false;
-      for (var nAi = 0; nAi < state.enemies.length; nAi++) {
-        var nAe = state.enemies[nAi];
-        if (nAe.dead || nAe.dying) continue;
-        if (!nAe.def || !nAe.def.id) continue;
-        if (!state.vistos[nAe.def.id]) { hasUnseenAlive = true; break; }
-      }
-      if (hasUnseenAlive) {
-        var pulseA = 0.5 + 0.5 * Math.sin(state.time * 4);
-        var bw = Math.min(VW - 32, 260);
-        var bh = 30;
-        var bx = (VW - bw) / 2;
-        var by = FIELD_TOP + 16;
-        ctx.save();
-        ctx.fillStyle = "rgba(255, 210, 74, " + (0.85 + pulseA * 0.10) + ")";
-        ctx.fillRect(bx, by, bw, bh);
-        ctx.fillStyle = "#3a2008";
-        ctx.font = "bold 12px Fredoka, sans-serif";
-        ctx.textAlign = "center"; ctx.textBaseline = "middle";
-        ctx.fillText("¡Toca al nuevo enemigo!", bx + bw / 2, by + bh / 2);
-        ctx.restore();
-      }
-    }
     // Compendio: por encima de todo lo demás cuando está abierto.
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     drawCompendium();
@@ -22864,6 +22986,7 @@
     safeDraw("BodyMap", drawBodyMap);
     // Selector de Refuerzo Médico — modal simple, por encima de todo.
     safeDraw("MedReinforcePicker", drawMedReinforcePicker);
+    safeDraw("ComboPicker", drawComboPicker);
     // Transición de fase: fundido a negro suave con texto narrativo.
     if (state.phaseTransition) {
       var ph = state.phaseTransition;
@@ -23586,12 +23709,32 @@
       updateEnergyDrops(dt);
       updateNets(dt);
       updateUnlockPickups(dt);
-      // Spawneo retardado de pickups per-fase al cambiar de fase.
-      if (state.pendingPhaseUnlocks && state.pendingPhaseUnlocks.length > 0) {
-        for (var pui = state.pendingPhaseUnlocks.length - 1; pui >= 0; pui--) {
-          if (state.time >= state.pendingPhaseUnlocks[pui].spawnAt) {
-            spawnUnlockPickup(state.pendingPhaseUnlocks[pui].typeId);
-            state.pendingPhaseUnlocks.splice(pui, 1);
+      // Médula de Diseminación: entrega UNA recompensa a la vez, espaciada.
+      // Mientras haya una recompensa flotando (sin recoger) o un selector
+      // abierto, no emite la siguiente. Cuando se agota la cola de torres,
+      // pasa a emitir COMBOS permanentes de forma infinita.
+      if (state.dissemination && !state.disseminationOver) {
+        var floating = false;
+        if (state.unlockPickups) {
+          for (var fpi = 0; fpi < state.unlockPickups.length; fpi++) {
+            if (!state.unlockPickups[fpi].collecting) { floating = true; break; }
+          }
+        }
+        if (!floating && !state.comboPicker && !state.medReinforcePicker) {
+          state.medulaEmitTimer -= dt;
+          if (state.medulaEmitTimer <= 0) {
+            if (state.medulaQueue && state.medulaQueue.length > 0) {
+              var nextT = state.medulaQueue.shift();
+              if (state.unlockedTowers.indexOf(nextT) === -1) {
+                spawnUnlockPickup(nextT);
+                state.medulaEmitTimer = 22;
+              } else {
+                state.medulaEmitTimer = 0.1;   // ya la tenía → probar la siguiente pronto
+              }
+            } else {
+              spawnComboPickup();
+              state.medulaEmitTimer = 24;
+            }
           }
         }
       }

@@ -1081,18 +1081,20 @@
       upgradeCost: [60, 100]
     },
     queratinocito: {
-      id: "queratinocito", name: "Queratinocito activado", shortName: "Queratino",
-      color: "#d4a855", colorDark: "#7a5a18", cost: 65,
-      desc: "Produce defensinas α/β, IL-8 e IL-1β creando barrera física y química. Campo de defensinas ralentiza invasores; IL-8 recluta neutrófilos aumentando su cadencia.",
-      defensinField: true,
-      specialChargeSec: 30,
-      specialName: "Cornificación",
+      id: "queratinocito", name: "Nicho Epitelial", shortName: "Epitelio",
+      color: "#d4a855", colorDark: "#7a5a18", cost: 70,
+      desc: "Nicho de queratinocitos y sebocitos. NO dispara: SECRETA. Aura pasiva de defensinas ralentiza. Tócalo para activar un TURNO DE TRABAJO: vuelca parches antimicrobianos (defensinas → sebo) sobre el carril, que dañan y frenan a los gérmenes que los pisan. El sebo hace ×3 a C. acnes y dermatofitos.",
+      producer: true,
+      defensinField: true,             // aura pasiva leve de lentitud + buff a Neutrófilo
+      sebumSpecialist: ["cacnes", "dermatofito"],
+      specialChargeSec: 14,            // ciclo de producción rápido (turno de trabajo)
+      specialName: "Turno de secreción",
       levels: [
-        { range: 105, damage: 10, fireRate: 0.8, projectileSpeed: 270, splash: 0, hp: 100 },
-        { range: 120, damage: 16, fireRate: 1.0, projectileSpeed: 300, splash: 0, hp: 130 },
-        { range: 135, damage: 22, fireRate: 1.2, projectileSpeed: 330, splash: 0, hp: 165 }
+        { range: 130, damage: 0, fireRate: 0, projectileSpeed: 0, splash: 0, hp: 130, patch: { count: 2, r: 30, life: 5, dot: 14, slow: true, kind: "defensin" } },
+        { range: 150, damage: 0, fireRate: 0, projectileSpeed: 0, splash: 0, hp: 170, patch: { count: 3, r: 34, life: 6, dot: 20, slow: true, kind: "defensin" } },
+        { range: 175, damage: 0, fireRate: 0, projectileSpeed: 0, splash: 0, hp: 220, patch: { count: 3, r: 40, life: 7, dot: 34, slow: true, kind: "sebum" } }
       ],
-      upgradeCost: [70, 120]
+      upgradeCost: [80, 150]
     },
     sebocito: {
       id: "sebocito", name: "Sebocito", shortName: "Sebocito",
@@ -1156,7 +1158,7 @@
     }
   };
   var MAC_COST = 5;   // fragmentos de complemento para ensamblar el cañón
-  var TOWER_LIST = ["neutrofilo", "linfocitoB", "linfocitoT", "langerhans", "nk", "eosinofilo", "mastocito", "complemento", "plaqueta", "trombo", "centinela", "queratinocito", "sebocito", "pdc", "linfocitogd", "ilc2"];
+  var TOWER_LIST = ["neutrofilo", "linfocitoB", "linfocitoT", "langerhans", "nk", "eosinofilo", "mastocito", "complemento", "plaqueta", "trombo", "centinela", "queratinocito", "pdc", "linfocitogd", "ilc2"];
   // Cartilla por grupos desplegables (categorías de defensa).
   // 3 grupos principales + 1 "otras estructuras":
   //  · Defensas: torres que atacan directamente
@@ -1164,7 +1166,7 @@
   //  · Tanques: estructuras pesadas/persistentes (MAC, Trombo)
   //  · Otras estructuras: el resto (Fibrina solo en diseminación)
   var TOWER_GROUPS = [
-    { id: "defensas",      label: "Defensas",      towers: ["neutrofilo", "linfocitoB", "linfocitoT", "nk", "eosinofilo", "sebocito", "linfocitogd"] },
+    { id: "defensas",      label: "Defensas",      towers: ["neutrofilo", "linfocitoB", "linfocitoT", "nk", "eosinofilo", "linfocitogd"] },
     { id: "potenciadores", label: "Potenciadores", towers: ["langerhans", "mastocito", "queratinocito", "pdc", "ilc2"] },
     { id: "tanques",       label: "Tanques",       towers: ["complemento", "trombo", "centinela"] },
     { id: "otras",         label: "Otras estructuras", towers: ["plaqueta"] }
@@ -1507,7 +1509,6 @@
     2: "langerhans",
     3: "nk",
     4: "queratinocito",
-    5: "sebocito",
     6: "pdc",
     8: "linfocitogd"
   };
@@ -1516,7 +1517,7 @@
   // correspondiente), se le vuelve a ofrecer ahí — ninguna torre queda
   // inalcanzable. Eosinófilo/Mastocito NO están acá porque su unlock
   // primario YA es en Diseminación (no necesitan catch-up dentro de ella).
-  var PHASE1_CATCHUP_TOWERS = ["langerhans", "nk", "complemento", "trombo", "centinela", "queratinocito", "pdc", "sebocito", "linfocitogd"];
+  var PHASE1_CATCHUP_TOWERS = ["langerhans", "nk", "complemento", "trombo", "centinela", "queratinocito", "pdc", "linfocitogd"];
   // TANQUES: se ganan matando a un boss específico, no por ola. El drop
   // real ocurre en updateEnemies cuando el boss termina su animación de
   // muerte (dyingTimer<=0) — ver BOSS_TANK_DROPS ahí.
@@ -4875,7 +4876,11 @@
           if (ee.dead || ee.dying || ee.absorbing) continue;
           var ddx = ee.x - spd.x, ddy = ee.y - spd.y;
           if (ddx * ddx + ddy * ddy <= spd.r * spd.r) {
-            damageEnemy(ee, spd.dot * dt, "sebocito");
+            var pDot = spd.dot;
+            // Sebo: ×3 contra C. acnes y dermatofitos.
+            if (spd.kind === "sebum" && (ee.def.id === "cacnes" || ee.def.id === "dermatofito")) pDot *= 3;
+            damageEnemy(ee, pDot * dt, spd.srcId || "sebocito");
+            if (spd.slow) ee.slowTimer = Math.max(ee.slowTimer || 0, 0.4);
           }
         }
       }
@@ -5771,6 +5776,32 @@
   function triggerTowerSpecial(t) {
     if (!t || !t.specialReady) return;
     var def = t.def;
+    if (def.producer) {
+      // TURNO DE SECRECIÓN: el nicho vuelca parches antimicrobianos sobre el
+      // carril más cercano dentro de su rango. Cada parche daña + frena.
+      var stp = towerStats(t);
+      var patch = (t.def.levels[t.level] && t.def.levels[t.level].patch) || { count: 2, r: 32, life: 6, dot: 16, slow: true, kind: "defensin" };
+      var arc = nearestPathProgress(t.x, t.y);
+      if (!state.sebumPuddles) state.sebumPuddles = [];
+      var n = patch.count || 2;
+      for (var pk = 0; pk < n; pk++) {
+        var off = (pk - (n - 1) / 2) * 46 * U;
+        var pt = arc ? pathPos(arc.progress + off, arc.heridaIdx) : { x: t.x, y: t.y + (pk - (n - 1) / 2) * 40 * U };
+        state.sebumPuddles.push({
+          x: pt.x, y: pt.y, r: (patch.r || 32) * U, life: patch.life || 6, max: patch.life || 6,
+          dot: patch.dot || 16, slow: !!patch.slow, kind: patch.kind || "defensin",
+          srcId: t.def.id
+        });
+        pushEffect({ kind: "place", x: pt.x, y: pt.y, life: 0.5, max: 0.5, color: patch.kind === "sebum" ? "#c8980a" : "#cfeaff" });
+      }
+      t.specialAnim = 1.4;
+      t.specialReady = false;
+      t.specialCharge = 0;
+      pushEffect({ kind: "defensinWave", x: t.x, y: t.y, r: stp.range * U * 0.55, life: 0.7, max: 0.7 });
+      showMsg(patch.kind === "sebum" ? "¡Secreción de sebo!" : "¡Secreción de defensinas!");
+      sfx("upgrade");
+      return;
+    }
     if (def.id === "neutrofilo") {
       // BOMBARDEO DE DEFENSINAS: 7 gránulos caen escalonados sobre un
       // tramo ancho del camino (±70px de arco alrededor del punto que da
@@ -6719,8 +6750,11 @@
             qt.kcBuffT = 3.0;   // IL-8: Neutrófilo dispara 30% más rápido (ver towerStats)
           }
         }
-        // Queratinocito TAMBIÉN dispara proyectiles defensinas — cae al loop normal.
       }
+      // === PRODUCTOR (Nicho Epitelial): no dispara proyectiles. Su salida es
+      // el TURNO DE TRABAJO por tap (ver triggerTowerSpecial). La aura pasiva
+      // ya corrió arriba (defensinField). ===
+      if (t.def.producer) { t.cooldown = 0.5; continue; }
       // === pDC: aura antiviral — ralentiza virus en rango ===
       if (t.def.antiviralAura) {
         for (var pvj = 0; pvj < state.enemies.length; pvj++) {
@@ -8742,16 +8776,23 @@
     for (var i = 0; i < state.sebumPuddles.length; i++) {
       var sp = state.sebumPuddles[i];
       var a = Math.min(1, sp.life / sp.max);
+      var isDef = sp.kind === "defensin";
       var g = ctx.createRadialGradient(sp.x, sp.y, sp.r * 0.15, sp.x, sp.y, sp.r);
-      g.addColorStop(0, "rgba(200,152,10," + (0.45 * a) + ")");
-      g.addColorStop(0.65, "rgba(122,90,4," + (0.28 * a) + ")");
-      g.addColorStop(1, "rgba(122,90,4,0)");
+      if (isDef) {   // defensinas: parche pálido azulado-blanco
+        g.addColorStop(0, "rgba(190,225,245," + (0.42 * a) + ")");
+        g.addColorStop(0.65, "rgba(120,170,200," + (0.24 * a) + ")");
+        g.addColorStop(1, "rgba(120,170,200,0)");
+      } else {       // sebo: parche ámbar graso
+        g.addColorStop(0, "rgba(200,152,10," + (0.45 * a) + ")");
+        g.addColorStop(0.65, "rgba(122,90,4," + (0.28 * a) + ")");
+        g.addColorStop(1, "rgba(122,90,4,0)");
+      }
       ctx.fillStyle = g;
       ctx.beginPath();
       ctx.ellipse(sp.x, sp.y, sp.r, sp.r * 0.55, 0.3, 0, Math.PI * 2);
       ctx.fill();
-      // brillo graso blanco
-      ctx.fillStyle = "rgba(255,240,160," + (0.22 * a) + ")";
+      // brillo
+      ctx.fillStyle = isDef ? "rgba(230,248,255," + (0.24 * a) + ")" : "rgba(255,240,160," + (0.22 * a) + ")";
       ctx.beginPath();
       ctx.ellipse(sp.x - sp.r * 0.2, sp.y - sp.r * 0.1, sp.r * 0.28, sp.r * 0.1, -0.3, 0, Math.PI * 2);
       ctx.fill();

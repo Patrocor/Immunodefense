@@ -493,8 +493,8 @@
       }
       // Estación de ensamblaje del Super: derecha, ARRIBA de la mitocondria.
       if (state.megaFactory) {
-        state.megaFactory.x = FIELD_LEFT + FIELD_W * 0.935;
-        state.megaFactory.y = FIELD_TOP + FIELD_H * 0.22;
+        state.megaFactory.x = FIELD_LEFT + FIELD_W * 0.90;
+        state.megaFactory.y = FIELD_TOP + FIELD_H * 0.80;
       }
     } else {
       // Fase 1: una sola mitocondria a la derecha del campo.
@@ -1915,14 +1915,15 @@
       var ayp = f.y + Math.sin(aa) * a.r * U * 0.7 + 10 * U;
       drawAnt(axp, ayp, 7 * U, a.legPhase, f.ready, i * 3);
     }
-    // anillo de estado
+    // Aviso "LISTO": PARPADEO de color (destello rojo on/off sobre la base).
     if (f.ready) {
-      ctx.strokeStyle = "rgba(231,76,60," + (0.4 + glow * 0.4) + ")"; ctx.lineWidth = 3.5 * U;
-      ctx.beginPath(); ctx.arc(f.x, f.y, 42 * U, 0, Math.PI * 2); ctx.stroke();
-      ctx.fillStyle = "rgba(231,76,60," + (0.75 + glow * 0.25) + ")";
-      ctx.font = "bold " + Math.floor(11 * U) + "px Fredoka, sans-serif";
-      ctx.textAlign = "center"; ctx.textBaseline = "bottom";
-      ctx.fillText("¡TOCA: SUPER!", f.x, f.y - 42 * U);
+      var on = (Math.floor((f.callPhase || 0) * 2.6) % 2) === 0;   // ~0.38s on/off
+      if (on) {
+        ctx.fillStyle = "rgba(231,76,60,0.34)";
+        ctx.beginPath(); ctx.arc(f.x, f.y, 47 * U, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = "#ff5a48"; ctx.lineWidth = 5 * U;
+        ctx.beginPath(); ctx.arc(f.x, f.y, 44 * U, 0, Math.PI * 2); ctx.stroke();
+      }
     } else {
       ctx.strokeStyle = "rgba(80,40,20,0.4)"; ctx.lineWidth = 3.5 * U;
       ctx.beginPath(); ctx.arc(f.x, f.y, 42 * U, 0, Math.PI * 2); ctx.stroke();
@@ -1967,7 +1968,7 @@
   // ramas; el jugador lo toca y el T-blast sale a cazar (apoptosis por contacto).
   function makeGanglio() {
     return {
-      x: 0, y: 0, progress: 0.3, ready: false, callPhase: 0, superPeriod: 34,
+      x: 0, y: 0, progress: 0.3, ready: false, callPhase: 0, superPeriod: 68,
       dendrites: [
         { ang: 0.5, r: 30, wavePhase: 0 }, { ang: 2.6, r: 34, wavePhase: 1.1 },
         { ang: 4.5, r: 31, wavePhase: 2.2 }
@@ -2148,13 +2149,15 @@
       var dx = g.x + Math.cos(aa) * d.r * U, dy = g.y + Math.sin(aa) * d.r * U * 0.7 + 10 * U;
       drawDendriticCell(dx, dy, 7 * U, d.wavePhase, g.ready, i);
     }
+    // Aviso "LISTO": PARPADEO de color (destello violeta on/off sobre la base).
     if (g.ready) {
-      ctx.strokeStyle = "rgba(147,112,219," + (0.4 + glow * 0.4) + ")"; ctx.lineWidth = 3.5 * U;
-      ctx.beginPath(); ctx.arc(g.x, g.y, 42 * U, 0, Math.PI * 2); ctx.stroke();
-      ctx.fillStyle = "rgba(147,112,219," + (0.8 + glow * 0.2) + ")";
-      ctx.font = "bold " + Math.floor(11 * U) + "px Fredoka, sans-serif";
-      ctx.textAlign = "center"; ctx.textBaseline = "bottom";
-      ctx.fillText("¡TOCA: T-BLAST!", g.x, g.y - 42 * U);
+      var on = (Math.floor((g.callPhase || 0) * 2.6) % 2) === 0;   // ~0.38s on/off
+      if (on) {
+        ctx.fillStyle = "rgba(147,112,219,0.34)";
+        ctx.beginPath(); ctx.arc(g.x, g.y, 47 * U, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = "#b07cff"; ctx.lineWidth = 5 * U;
+        ctx.beginPath(); ctx.arc(g.x, g.y, 44 * U, 0, Math.PI * 2); ctx.stroke();
+      }
     } else {
       ctx.strokeStyle = "rgba(40,80,90,0.4)"; ctx.lineWidth = 3.5 * U;
       ctx.beginPath(); ctx.arc(g.x, g.y, 42 * U, 0, Math.PI * 2); ctx.stroke();
@@ -4942,8 +4945,8 @@
       // margen del tejido. Ensambla un Linfocito T blast héroe (ver updateGanglio).
       if (!state.dissemination) {
         if (!state.ganglio) state.ganglio = makeGanglio();
-        state.ganglio.x = FIELD_LEFT + FIELD_W * 0.12;
-        state.ganglio.y = FIELD_TOP + FIELD_H * 0.26;
+        state.ganglio.x = FIELD_LEFT + FIELD_W * 0.87;
+        state.ganglio.y = FIELD_TOP + FIELD_H * 0.80;
       }
     }
   }
@@ -5036,7 +5039,7 @@
     // derecha). 2-3 hormigas celulares lo arman; al estar listo, llaman y el
     // jugador lo coloca en un carril (ver updateMegaFactory / deployMegaSuper).
     state.megaFactory = {
-      x: 0, y: 0, progress: 0.35, ready: false, callPhase: 0, superPeriod: 30,
+      x: 0, y: 0, progress: 0.35, ready: false, callPhase: 0, superPeriod: 60,
       ants: [{ ang: 0.4, r: 30, legPhase: 0 }, { ang: 2.5, r: 34, legPhase: 1.2 }, { ang: 4.4, r: 31, legPhase: 2.4 }]
     };
     state.megaPlacing = false;

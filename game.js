@@ -1961,6 +1961,213 @@
     ctx.restore();
   }
 
+  // ============ GANGLIO LINFÁTICO (base de Fase 1) ============
+  // Células dendríticas presentan antígeno y ENSAMBLAN un Linfocito T blast
+  // héroe. Al estar listo, el ganglio brilla y las dendritas LLAMAN agitando sus
+  // ramas; el jugador lo toca y el T-blast sale a cazar (apoptosis por contacto).
+  function makeGanglio() {
+    return {
+      x: 0, y: 0, progress: 0.3, ready: false, callPhase: 0, superPeriod: 34,
+      dendrites: [
+        { ang: 0.5, r: 30, wavePhase: 0 }, { ang: 2.6, r: 34, wavePhase: 1.1 },
+        { ang: 4.5, r: 31, wavePhase: 2.2 }
+      ]
+    };
+  }
+
+  function updateGanglio(dt) {
+    var g = state.ganglio;
+    if (!g || state.dissemination) return;
+    if (!g.ready) {
+      g.progress = Math.min(1, (g.progress || 0) + dt / (g.superPeriod || 34));
+      if (g.progress >= 1) { g.ready = true; g.callPhase = 0; sfx("upgrade"); showMsg("¡Linfocito T blast listo! Tócalo para desplegarlo"); }
+    } else {
+      g.callPhase = (g.callPhase || 0) + dt;
+    }
+    for (var i = 0; i < g.dendrites.length; i++) g.dendrites[i].wavePhase += dt * (g.ready ? 7 : 3);
+  }
+
+  function tryTapGanglio(x, y) {
+    var g = state.ganglio;
+    if (!g || state.dissemination || !g.ready) return false;
+    if (Math.hypot(x - g.x, y - g.y) <= 44 * U) { deployTBlast(); return true; }
+    return false;
+  }
+
+  function deployTBlast() {
+    var g = state.ganglio;
+    if (!g || !g.ready) return;
+    if (!state.tblasts) state.tblasts = [];
+    var hp = Math.round(1.3 * computeMaxTowerHp());
+    state.tblasts.push({
+      x: g.x, y: g.y, vx: 0, vy: 0, hp: hp, maxHp: hp, life: 28,
+      attackCd: 0, crawlPhase: Math.random() * Math.PI * 2, hitFlash: 0,
+      facing: 1, dying: false, deathT: 0
+    });
+    g.progress = 0; g.ready = false; g.callPhase = 0;
+    triggerShake(0.12, 3);
+    pushEffect({ kind: "place", x: g.x, y: g.y, life: 0.6, max: 0.6, color: "#9370DB" });
+    showMsg("¡Linfocito T blast en caza!");
+    sfx("upgrade");
+  }
+
+  function updateTBlasts(dt) {
+    if (!state.tblasts || !state.tblasts.length) return;
+    var arr = state.tblasts;
+    for (var i = arr.length - 1; i >= 0; i--) {
+      var u = arr[i];
+      if (u.hitFlash > 0) u.hitFlash -= dt;
+      if (u.dying) { u.deathT += dt; if (u.deathT >= 0.5) arr.splice(i, 1); continue; }
+      u.life -= dt;
+      if (u.life <= 0 || u.hp <= 0) { u.dying = true; u.deathT = 0; pushEffect({ kind: "defensinWave", x: u.x, y: u.y, r: 32 * U, life: 0.5, max: 0.5 }); continue; }
+      var target = null, bestProg = -1;
+      for (var j = 0; j < state.enemies.length; j++) {
+        var e = state.enemies[j];
+        if (e.dead || e.dying || e.absorbing || e.beingEngulfed || e.state === "falling" || e.state === "entering") continue;
+        if (e.burrowed && !e.revealed) continue;
+        if (e.def.cloaked && !e.revealed) continue;
+        if (e.progress > bestProg) { bestProg = e.progress; target = e; }
+      }
+      var moving = false;
+      if (target) {
+        var tdx = target.x - u.x, tdy = target.y - u.y, tl = Math.hypot(tdx, tdy) || 1;
+        var speed = 48 * U;
+        u.vx = (tdx / tl) * speed; u.vy = (tdy / tl) * speed;
+        u.x += u.vx * dt; u.y += u.vy * dt; moving = true;
+        if (Math.abs(u.vx) > 2) u.facing = u.vx < 0 ? -1 : 1;
+        if (u.attackCd > 0) u.attackCd -= dt;
+        var reach = 24 * U + (target.radius || 14) * U;
+        if (tl <= reach && u.attackCd <= 0) {
+          var apop = Math.max(90, (target.maxHp || target.def.hp || 100) * 0.12);   // apoptosis: ejecuta un % de la vida
+          damageEnemy(target, apop, "linfocitoT");
+          u.attackCd = 1.0; u.hitFlash = 0.2;
+          pushEffect({ kind: "novaRing", x: target.x, y: target.y, r: 26 * U, color: "#9370DB", life: 0.45, max: 0.45 });
+          triggerShake(0.06, 2);
+        }
+      } else {
+        u.x += Math.cos(state.time * 0.8 + u.crawlPhase) * 8 * U * dt;
+        u.y += Math.sin(state.time * 0.7 + u.crawlPhase) * 8 * U * dt;
+      }
+      u.x = Math.max(FIELD_LEFT + 20 * U, Math.min(FIELD_RIGHT - 20 * U, u.x));
+      u.y = Math.max(FIELD_TOP + 20 * U, Math.min(FIELD_BOTTOM - 20 * U, u.y));
+      if (moving) u.crawlPhase += dt * 6;
+    }
+  }
+
+  // Célula dendrítica: cuerpo cian + ramas que se agitan (y LLAMAN al estar listo).
+  function drawDendriticCell(x, y, r, wavePhase, calling, seed) {
+    ctx.save();
+    ctx.strokeStyle = "#3FC1C9"; ctx.lineWidth = Math.max(1, r * 0.16); ctx.lineCap = "round";
+    var n = 7;
+    for (var i = 0; i < n; i++) {
+      var a = (i / n) * Math.PI * 2 + seed;
+      var wig = Math.sin(wavePhase + i) * 0.3;
+      var len = r * (1.4 + (calling ? 0.5 : 0)) * (0.85 + 0.15 * Math.sin(wavePhase * 1.3 + i));
+      var ex = x + Math.cos(a + wig) * len, ey = y + Math.sin(a + wig) * len;
+      ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(ex, ey); ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(ex, ey); ctx.lineTo(ex + Math.cos(a + wig + 0.5) * r * 0.3, ey + Math.sin(a + wig + 0.5) * r * 0.3);
+      ctx.moveTo(ex, ey); ctx.lineTo(ex + Math.cos(a + wig - 0.5) * r * 0.3, ey + Math.sin(a + wig - 0.5) * r * 0.3);
+      ctx.stroke();
+    }
+    var g = ctx.createRadialGradient(x - r * 0.3, y - r * 0.3, r * 0.2, x, y, r);
+    g.addColorStop(0, "#7fe0e6"); g.addColorStop(0.7, "#3FC1C9"); g.addColorStop(1, "#1e6b70");
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = "#1a5a60"; ctx.lineWidth = Math.max(1, r * 0.14); ctx.stroke();
+    ctx.fillStyle = "rgba(20,60,70,0.6)"; ctx.beginPath(); ctx.arc(x, y, r * 0.4, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  }
+
+  // Linfocito T blast: linfocito activado grande (violeta), ameboide, con
+  // gránulos de granzima y cara cazadora.
+  function drawTBlast(u) {
+    var R = 22 * U;
+    var die = u.dying ? Math.max(0, 1 - u.deathT / 0.5) : 1;
+    if (die <= 0) return;
+    var flash = (u.hitFlash || 0) > 0;
+    ctx.save(); ctx.translate(u.x, u.y); ctx.scale(die, die);
+    ctx.fillStyle = "rgba(0,0,0,0.25)"; ctx.beginPath(); ctx.ellipse(0, R * 0.9, R * 0.9, R * 0.3, 0, 0, Math.PI * 2); ctx.fill();
+    var g = ctx.createRadialGradient(-R * 0.3, -R * 0.3, R * 0.2, 0, 0, R * 1.05);
+    g.addColorStop(0, flash ? "#ffffff" : "#b9a0e8"); g.addColorStop(0.6, "#9370DB"); g.addColorStop(1, "#5d44a0");
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    var lobes = 9;
+    for (var i = 0; i <= lobes; i++) {
+      var a = (i / lobes) * Math.PI * 2;
+      var rr = R * (1 + Math.sin(a * 3 + u.crawlPhase) * 0.10);
+      var px = Math.cos(a) * rr, py = Math.sin(a) * rr;
+      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = "#4a3080"; ctx.lineWidth = Math.max(1.2, 2 * U); ctx.stroke();
+    ctx.fillStyle = "#3a2568"; ctx.beginPath(); ctx.arc(-R * 0.05, R * 0.12, R * 0.5, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "rgba(255,220,120,0.9)";
+    for (var gr = 0; gr < 5; gr++) { var ga = gr * 1.3 + u.crawlPhase; ctx.beginPath(); ctx.arc(Math.cos(ga) * R * 0.52, Math.sin(ga) * R * 0.52, R * 0.09, 0, Math.PI * 2); ctx.fill(); }
+    // cara cazadora
+    var fc = u.facing || 1;
+    ctx.save(); ctx.scale(fc, 1);
+    ctx.fillStyle = "#fff";
+    ctx.beginPath(); ctx.arc(R * 0.16, -R * 0.28, R * 0.2, 0, Math.PI * 2); ctx.arc(R * 0.56, -R * 0.28, R * 0.2, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "#201028";
+    ctx.beginPath(); ctx.arc(R * 0.22, -R * 0.26, R * 0.1, 0, Math.PI * 2); ctx.arc(R * 0.6, -R * 0.26, R * 0.1, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = "#2a1540"; ctx.lineWidth = Math.max(1, R * 0.08); ctx.lineCap = "round";
+    ctx.beginPath(); ctx.moveTo(-R * 0.02, -R * 0.46); ctx.lineTo(R * 0.3, -R * 0.34); ctx.moveTo(R * 0.72, -R * 0.46); ctx.lineTo(R * 0.44, -R * 0.34); ctx.stroke();
+    ctx.restore();
+    ctx.restore();
+    if (u.hp < u.maxHp && !u.dying) {
+      var hf = Math.max(0, u.hp / u.maxHp);
+      ctx.save(); ctx.translate(u.x, u.y);
+      ctx.fillStyle = "rgba(0,0,0,0.5)"; ctx.fillRect(-R * 0.8, -R * 1.55, R * 1.6, 3 * U);
+      ctx.fillStyle = "#9370DB"; ctx.fillRect(-R * 0.8, -R * 1.55, R * 1.6 * hf, 3 * U);
+      ctx.restore();
+    }
+  }
+
+  function drawTBlasts() {
+    if (!state.tblasts || !state.tblasts.length) return;
+    for (var i = 0; i < state.tblasts.length; i++) drawTBlast(state.tblasts[i]);
+  }
+
+  function drawGanglio() {
+    var g = state.ganglio;
+    if (!g || state.dissemination) return;
+    var glow = g.ready ? (0.5 + 0.5 * Math.sin((g.callPhase || 0) * 5)) : 0.3;
+    ctx.save();
+    ctx.fillStyle = "rgba(63,193,201," + (0.10 + glow * 0.12) + ")";
+    ctx.beginPath(); ctx.ellipse(g.x, g.y + 14 * U, 46 * U, 20 * U, 0, 0, Math.PI * 2); ctx.fill();
+    var prog = g.ready ? 1 : Math.max(0.18, g.progress || 0);
+    var fake = { x: g.x, y: g.y, crawlPhase: 0.5, hitFlash: 0, facing: 1, hp: 1, maxHp: 1 };
+    ctx.save();
+    ctx.translate(g.x, g.y); ctx.scale(prog, prog); ctx.translate(-g.x, -g.y);
+    ctx.globalAlpha = g.ready ? 1 : (0.4 + 0.5 * prog);
+    try { drawTBlast(fake); } catch (er) {}
+    ctx.restore();
+    for (var i = 0; i < g.dendrites.length; i++) {
+      var d = g.dendrites[i];
+      var aa = d.ang + (g.ready ? 0 : state.time * 0.4);
+      var dx = g.x + Math.cos(aa) * d.r * U, dy = g.y + Math.sin(aa) * d.r * U * 0.7 + 10 * U;
+      drawDendriticCell(dx, dy, 7 * U, d.wavePhase, g.ready, i);
+    }
+    if (g.ready) {
+      ctx.strokeStyle = "rgba(147,112,219," + (0.4 + glow * 0.4) + ")"; ctx.lineWidth = 3.5 * U;
+      ctx.beginPath(); ctx.arc(g.x, g.y, 42 * U, 0, Math.PI * 2); ctx.stroke();
+      ctx.fillStyle = "rgba(147,112,219," + (0.8 + glow * 0.2) + ")";
+      ctx.font = "bold " + Math.floor(11 * U) + "px Fredoka, sans-serif";
+      ctx.textAlign = "center"; ctx.textBaseline = "bottom";
+      ctx.fillText("¡TOCA: T-BLAST!", g.x, g.y - 42 * U);
+    } else {
+      ctx.strokeStyle = "rgba(40,80,90,0.4)"; ctx.lineWidth = 3.5 * U;
+      ctx.beginPath(); ctx.arc(g.x, g.y, 42 * U, 0, Math.PI * 2); ctx.stroke();
+      ctx.strokeStyle = "rgba(63,193,201,0.8)"; ctx.lineWidth = 3.5 * U;
+      ctx.beginPath(); ctx.arc(g.x, g.y, 42 * U, -Math.PI / 2, -Math.PI / 2 + (g.progress || 0) * Math.PI * 2); ctx.stroke();
+    }
+    ctx.fillStyle = "rgba(20,60,70,0.9)";
+    ctx.font = "bold " + Math.floor(8 * U) + "px Fredoka, sans-serif";
+    ctx.textAlign = "center"; ctx.textBaseline = "top";
+    ctx.fillText("GANGLIO", g.x, g.y + 30 * U);
+    ctx.restore();
+  }
+
   function tryTapPlaquetaPickup(x, y) {
     if (!state.plaquetaPickups) return false;
     var arr = state.plaquetaPickups;
@@ -4131,6 +4338,8 @@
       germShots: [],
       guardians: [],
       guardianTimer: 28,
+      ganglio: null,                    // Ganglio linfático (base Fase 1): ensambla un T-blast héroe
+      tblasts: [],                      // Linfocitos T blast héroes desplegados
       slicks: [],                       // charcos aceitosos de Malassezia
       complement: 0,                    // fragmentos de complemento recogidos
       fragments: [],                    // fragmentos C3b flotando en el campo
@@ -4729,6 +4938,13 @@
         x: FIELD_LEFT + Math.min(60 * U, FIELD_W * 0.10),
         y: FIELD_TOP + FIELD_H * 0.70
       };
+      // Ganglio linfático (base Fase 1): esquina superior izquierda, en el
+      // margen del tejido. Ensambla un Linfocito T blast héroe (ver updateGanglio).
+      if (!state.dissemination) {
+        if (!state.ganglio) state.ganglio = makeGanglio();
+        state.ganglio.x = FIELD_LEFT + FIELD_W * 0.12;
+        state.ganglio.y = FIELD_TOP + FIELD_H * 0.26;
+      }
     }
   }
 
@@ -12292,6 +12508,10 @@
     }
     // Pickup de desbloqueo de torre (cualquier fase): tap sobre la cápsula la consume.
     if (tryTapUnlockPickup(x, y)) {
+      return;
+    }
+    // Ganglio linfático (Fase 1) listo: tap despliega el T-blast héroe.
+    if (!state.dissemination && tryTapGanglio(x, y)) {
       return;
     }
     // Modo "elegir carril" del Super: el tap escoge la columna más cercana.
@@ -23407,6 +23627,8 @@
     safeDraw("SynergyLines", drawSynergyLines);
     safeDraw("LymphDrop", drawLymphDrop);
     safeDraw("MedulaOsea", drawMedulaOsea);
+    safeDraw("Ganglio", drawGanglio);
+    safeDraw("TBlasts", drawTBlasts);
     safeDraw("UnlockPickups", drawUnlockPickups);
     if (!state.dissemination) { safeDraw("MedVial", drawMedVial); safeDraw("Topical", drawTopical); safeDraw("MacrofagoBtn", drawMacrofagoBtn); }
     for (var k = 0; k < state.projectiles.length; k++) {
@@ -24163,6 +24385,8 @@
       updateEnemies(dt);
       updateTowers(dt);
       updateGuardians(dt);
+      updateGanglio(dt);
+      updateTBlasts(dt);
       updateGermShots(dt);
       updateProjectiles(dt);
       updateMed(dt);

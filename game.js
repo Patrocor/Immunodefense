@@ -486,10 +486,15 @@
       DRIP_R.h = 22 * U;
       DRIP_R.mouthY = DRIP_R.y + DRIP_R.h * 0.85;
       DRIP_R.active = true;
-      // Megacariocito: estructura productora de plaquetas, lateral izquierdo bajo.
+      // Megacariocito (generador de fibrina): lateral izquierdo bajo.
       if (state.megakaryocyte) {
         state.megakaryocyte.x = FIELD_LEFT + FIELD_W * 0.06;
         state.megakaryocyte.y = FIELD_TOP + FIELD_H * 0.85;
+      }
+      // Estación de ensamblaje del Super: derecha, ARRIBA de la mitocondria.
+      if (state.megaFactory) {
+        state.megaFactory.x = FIELD_LEFT + FIELD_W * 0.935;
+        state.megaFactory.y = FIELD_TOP + FIELD_H * 0.22;
       }
     } else {
       // Fase 1: una sola mitocondria a la derecha del campo.
@@ -1533,10 +1538,33 @@
   function updateMegakaryocyte(dt) {
     var mk = state.megakaryocyte;
     if (!mk || !state.dissemination) return;
-    // Carga del Super Megacariocito. Al llegar a 1, el cuerpo brilla y el
-    // jugador lo TOCA para lanzar la caza. La Plaqueta/Trombo se fusionaron en
-    // el enjambre, así que el Megacariocito ya NO produce pickups de plaqueta.
-    if ((mk.superCharge || 0) < 1) mk.superCharge = Math.min(1, (mk.superCharge || 0) + dt / (mk.superPeriod || 32));
+    // Generador de FIBRINA: madura muros de fibrina y los deja EN ESPERA
+    // (máx mk.max = 2). Cuando el jugador toca uno para colocarlo, se libera un
+    // hueco y vuelve a generar. El Super se ensambla aparte (megaFactory).
+    if (!state.plaquetaPickups) state.plaquetaPickups = [];
+    if (state.plaquetaPickups.length < mk.max) {
+      mk.maturing += dt / mk.period;
+      if (mk.maturing >= 1) {
+        mk.maturing = 0;
+        var n = state.plaquetaPickups.length;
+        var ang = -Math.PI / 2 + (n - 0.5) * 0.7;
+        var orbit = 34 * U;
+        state.plaquetaPickups.push({
+          x: mk.x + Math.cos(ang) * orbit, y: mk.y + Math.sin(ang) * orbit,
+          baseX: 0, baseY: 0, phase: Math.random() * Math.PI * 2, bornAt: state.time
+        });
+        sfx("upgrade");
+      }
+    }
+    for (var i = 0; i < state.plaquetaPickups.length; i++) {
+      var p = state.plaquetaPickups[i];
+      var a = -Math.PI / 2 + (i - (state.plaquetaPickups.length - 1) / 2) * 0.7;
+      var or = 34 * U;
+      p.baseX = mk.x + Math.cos(a) * or; p.baseY = mk.y + Math.sin(a) * or;
+      p.phase += dt * 1.5;
+      p.x = p.baseX + Math.sin(p.phase) * 2 * U;
+      p.y = p.baseY + Math.cos(p.phase * 0.8) * 2 * U;
+    }
   }
 
   // ============ SUPER MEGACARIOCITO — ENJAMBRE DE COÁGULO ============
@@ -1566,7 +1594,7 @@
     return mx;
   }
 
-  function spawnMegaUnit(tier, x, y, vx, vy) {
+  function spawnMegaUnit(tier, x, y, vx, vy, laneIdx, walkTo) {
     if (!state.megaSwarm) state.megaSwarm = [];
     var cfg = MEGA_TIERS[tier];
     var base = state.megaBaseHp || Math.round(1.5 * computeMaxTowerHp());
@@ -1575,29 +1603,55 @@
       tier: tier, x: x, y: y, vx: vx || 0, vy: vy || 0,
       hp: hp, maxHp: hp, r: cfg.r * U, life: cfg.life,
       attackCd: 0, lobePhase: Math.random() * Math.PI * 2,
-      hitFlash: 0, dying: false, deathT: 0
+      hitFlash: 0, dying: false, deathT: 0,
+      laneIdx: (laneIdx == null ? -1 : laneIdx),
+      walkTX: walkTo ? walkTo.x : null, walkTY: walkTo ? walkTo.y : null,
+      arrived: walkTo ? false : true,
+      walkPhase: Math.random() * Math.PI * 2, facing: 1, moving: false
     });
   }
 
-  function launchSuperMegacariocito() {
-    var mk = state.megakaryocyte;
-    if (!mk || (mk.superCharge || 0) < 1) return false;
-    // Fija la vida base = 1.5× la torre más resistente en el momento del lanzamiento.
-    state.megaBaseHp = Math.round(1.5 * computeMaxTowerHp());
-    spawnMegaUnit(0, mk.x, mk.y - 6 * U, (Math.random() - 0.5) * 20 * U, -30 * U);
-    mk.superCharge = 0;
-    triggerShake(0.15, 3);
-    pushEffect({ kind: "place", x: mk.x, y: mk.y, life: 0.6, max: 0.6, color: "#E8B888" });
-    showMsg("¡Super Megacariocito en caza!");
-    sfx("upgrade");
-    return true;
+  // === ESTACIÓN DE ENSAMBLAJE DEL SUPER (hormigas celulares lo arman) ===
+  function updateMegaFactory(dt) {
+    var f = state.megaFactory;
+    if (!f || !state.dissemination) return;
+    if (!f.ready) {
+      f.progress = Math.min(1, (f.progress || 0) + dt / (f.superPeriod || 30));
+      if (f.progress >= 1) {
+        f.ready = true; f.callPhase = 0;
+        sfx("upgrade"); showMsg("¡Super Megacariocito listo! Tócalo y elige un carril");
+      }
+    } else {
+      f.callPhase = (f.callPhase || 0) + dt;
+    }
+    for (var i = 0; i < f.ants.length; i++) f.ants[i].legPhase += dt * (f.ready ? 9 : 5);
   }
 
-  function tryTapMegacariocitoBody(x, y) {
-    var mk = state.megakaryocyte;
-    if (!mk || !state.dissemination || (mk.superCharge || 0) < 1) return false;
-    if (Math.hypot(x - mk.x, y - mk.y) <= 30 * U) return launchSuperMegacariocito();
+  function tryTapMegaFactory(x, y) {
+    var f = state.megaFactory;
+    if (!f || !state.dissemination || !f.ready) return false;
+    if (Math.hypot(x - f.x, y - f.y) <= 44 * U) {
+      state.megaPlacing = true;   // entra en modo elegir carril
+      sfx("tap");
+      showMsg("Elige el carril donde entra el Super");
+      return true;
+    }
     return false;
+  }
+
+  function deployMegaSuper(laneIdx) {
+    var f = state.megaFactory;
+    if (!f || !f.ready) return;
+    state.megaBaseHp = Math.round(1.5 * computeMaxTowerHp());
+    var laneX = FIELD_LEFT + (PATH.laneXs ? PATH.laneXs[laneIdx] : 0.5) * FIELD_W;
+    var walkTo = { x: laneX, y: FIELD_TOP + FIELD_H * 0.32 };
+    spawnMegaUnit(0, f.x, f.y, 0, 0, laneIdx, walkTo);
+    f.progress = 0; f.ready = false; f.callPhase = 0;
+    state.megaPlacing = false;
+    triggerShake(0.12, 3);
+    pushEffect({ kind: "place", x: f.x, y: f.y, life: 0.6, max: 0.6, color: "#E8B888" });
+    showMsg("¡Super Megacariocito en marcha!");
+    sfx("upgrade");
   }
 
   function splitMegaUnit(u) {
@@ -1606,7 +1660,7 @@
     for (var c = 0; c < cfg.children; c++) {
       var ang = (c / cfg.children) * Math.PI * 2 + Math.random() * 0.6;
       var sp = 60 * U;
-      spawnMegaUnit(cfg.childTier, u.x, u.y, Math.cos(ang) * sp, Math.sin(ang) * sp);
+      spawnMegaUnit(cfg.childTier, u.x, u.y, Math.cos(ang) * sp, Math.sin(ang) * sp, u.laneIdx, null);
     }
     pushEffect({ kind: "defensinWave", x: u.x, y: u.y, r: u.r * 2.4, life: 0.5, max: 0.5 });
   }
@@ -1614,9 +1668,7 @@
   function updateMegaSwarm(dt) {
     if (!state.megaSwarm || !state.megaSwarm.length) return;
     var arr = state.megaSwarm;
-    var cx = 0, cy = 0;
-    for (var ci = 0; ci < arr.length; ci++) { cx += arr[ci].x; cy += arr[ci].y; }
-    cx /= arr.length; cy /= arr.length;
+    var halfLane = (FIELD_W * laneGapFrac()) * 0.55;
     for (var i = arr.length - 1; i >= 0; i--) {
       var u = arr[i];
       if (u.hitFlash > 0) u.hitFlash -= dt;
@@ -1628,42 +1680,59 @@
       u.life -= dt;
       if (u.hp <= 0 || u.life <= 0) { u.dying = true; u.deathT = 0; continue; }
       var cfg = MEGA_TIERS[u.tier];
-      // Objetivo: super caza al MÁS AVANZADO; crías al MÁS CERCANO.
-      var target = null, bestD = Infinity, bestProg = -1;
-      for (var j = 0; j < state.enemies.length; j++) {
-        var e = state.enemies[j];
-        if (e.dead || e.dying || e.absorbing || e.state === "falling" || e.state === "entering") continue;
-        if (e.burrowed && !e.revealed) continue;
-        if (e.def.cloaked && !e.revealed) continue;
-        if (u.tier === 0) { if (e.progress > bestProg) { bestProg = e.progress; target = e; } }
-        else { var dd = Math.hypot(e.x - u.x, e.y - u.y); if (dd < bestD) { bestD = dd; target = e; } }
+      var laneX = (u.laneIdx >= 0 && PATH.laneXs) ? FIELD_LEFT + PATH.laneXs[u.laneIdx] * FIELD_W : null;
+      u.moving = false;
+      if (!u.arrived && u.walkTX != null) {
+        // FASE 1: CAMINAR hasta el carril elegido (aún no caza).
+        var wdx = u.walkTX - u.x, wdy = u.walkTY - u.y, wl = Math.hypot(wdx, wdy) || 1;
+        if (wl < 8 * U) { u.arrived = true; }
+        else {
+          u.vx = (wdx / wl) * cfg.speed * U; u.vy = (wdy / wl) * cfg.speed * U;
+          u.x += u.vx * dt; u.y += u.vy * dt; u.moving = true;
+        }
+      } else {
+        // FASE 2: cazar SOLO en su carril (germen más avanzado del carril).
+        var target = null, bestProg = -1, bestD = Infinity;
+        for (var j = 0; j < state.enemies.length; j++) {
+          var e = state.enemies[j];
+          if (e.dead || e.dying || e.absorbing || e.state === "falling" || e.state === "entering") continue;
+          if (e.burrowed && !e.revealed) continue;
+          if (e.def.cloaked && !e.revealed) continue;
+          if (u.laneIdx >= 0 && (e.heridaIdx | 0) !== u.laneIdx) continue;   // carril-lock
+          if (u.tier === 0) { if (e.progress > bestProg) { bestProg = e.progress; target = e; } }
+          else { var dd = Math.hypot(e.x - u.x, e.y - u.y); if (dd < bestD) { bestD = dd; target = e; } }
+        }
+        var ax = 0, ay = 0;
+        if (target) { var tdx = target.x - u.x, tdy = target.y - u.y, tl = Math.hypot(tdx, tdy) || 1; ax += tdx / tl; ay += tdy / tl; }
+        else { ay += Math.sin(state.time * 1.2 + u.lobePhase) * 0.6; }   // patrulla vertical si no hay presa
+        if (laneX != null) ax += Math.max(-1, Math.min(1, (laneX - u.x) / (40 * U))) * 0.9;   // volver a la columna
+        ax += Math.cos(state.time * 2 + u.lobePhase) * 0.12;
+        var al = Math.hypot(ax, ay) || 1;
+        u.vx = (ax / al) * cfg.speed * U; u.vy = (ay / al) * cfg.speed * U;
+        u.x += u.vx * dt; u.y += u.vy * dt; u.moving = true;
       }
-      // Steering: hacia el germen + cohesión de enjambre (hormigas) + wander.
-      var ax = 0, ay = 0;
-      if (target) { var tdx = target.x - u.x, tdy = target.y - u.y, tl = Math.hypot(tdx, tdy) || 1; ax += tdx / tl; ay += tdy / tl; }
-      var gdx = cx - u.x, gdy = cy - u.y, gl = Math.hypot(gdx, gdy) || 1;
-      ax += (gdx / gl) * 0.25; ay += (gdy / gl) * 0.25;
-      ax += Math.cos(state.time * 2 + u.lobePhase) * 0.15;
-      ay += Math.sin(state.time * 2.3 + u.lobePhase) * 0.15;
-      var al = Math.hypot(ax, ay) || 1;
-      u.vx = (ax / al) * cfg.speed * U; u.vy = (ay / al) * cfg.speed * U;
-      u.x += u.vx * dt; u.y += u.vy * dt;
+      // clamp al campo (+ a la columna del carril si aplica)
+      if (laneX != null) u.x = Math.max(laneX - halfLane, Math.min(laneX + halfLane, u.x));
       u.x = Math.max(FIELD_LEFT + u.r, Math.min(FIELD_RIGHT - u.r, u.x));
       u.y = Math.max(FIELD_TOP + u.r, Math.min(FIELD_BOTTOM - u.r, u.y));
-      // Contacto: empuje (knockback) + adhesión (frena) + desgaste propio.
+      if (u.moving) { u.walkPhase += dt * 9; if (Math.abs(u.vx) > 2) u.facing = u.vx < 0 ? -1 : 1; }
+      // Contacto (solo tras llegar): empuje + adhesión + desgaste. Carril-lock.
       if (u.attackCd > 0) u.attackCd -= dt;
-      for (var k = 0; k < state.enemies.length; k++) {
-        var ge = state.enemies[k];
-        if (ge.dead || ge.dying || ge.absorbing) continue;
-        var reach = u.r + (ge.radius || 14) * U;
-        if (Math.hypot(ge.x - u.x, ge.y - u.y) <= reach * 1.15) {
-          ge.slowTimer = Math.max(ge.slowTimer || 0, 0.25);   // obstrucción/adhesión
-          if (u.attackCd <= 0) {
-            damageEnemy(ge, cfg.dmg, "trombo");
-            ge.progress = Math.max(0, ge.progress - cfg.knock * U);   // empuje
-            u.attackCd = 0.5;
-            u.hp -= cfg.wear;   // el choque lo desgasta → "va muriendo"
-            u.hitFlash = 0.15;
+      if (u.arrived) {
+        for (var k = 0; k < state.enemies.length; k++) {
+          var ge = state.enemies[k];
+          if (ge.dead || ge.dying || ge.absorbing) continue;
+          if (u.laneIdx >= 0 && (ge.heridaIdx | 0) !== u.laneIdx) continue;
+          var reach = u.r + (ge.radius || 14) * U;
+          if (Math.hypot(ge.x - u.x, ge.y - u.y) <= reach * 1.15) {
+            ge.slowTimer = Math.max(ge.slowTimer || 0, 0.25);   // obstrucción/adhesión
+            if (u.attackCd <= 0) {
+              damageEnemy(ge, cfg.dmg, "trombo");
+              ge.progress = Math.max(0, ge.progress - cfg.knock * U);   // empuje
+              u.attackCd = 0.5;
+              u.hp -= cfg.wear;   // el choque lo desgasta → "va muriendo"
+              u.hitFlash = 0.15;
+            }
           }
         }
       }
@@ -1730,17 +1799,23 @@
       return;
     }
     var body = tier <= 1 ? MEGA_BODY : MEGA_BODY_SMALL;
-    var facing = (u.vx || 0) < -2 ? -1 : 1;
+    var facing = u.facing || ((u.vx || 0) < -2 ? -1 : 1);
     var s = R * (tier === 0 ? 0.68 : tier === 1 ? 0.60 : 0.72);   // escala del layout
     var breathe = 1 + Math.sin(state.time * 3 + u.lobePhase) * 0.03;
     var pump = (u.hitFlash || 0) > 0 ? 0.14 : 0;  // bíceps se contraen al golpear
     var flash = (u.hitFlash || 0) > 0;
+    // CAMINATA: al moverse, rebote del cuerpo + piernas alternando.
+    var mv = u.moving ? 1 : 0;
+    var walk = u.walkPhase || 0;
+    var bodyBob = Math.sin(walk * 2) * 0.06 * mv;
     ctx.save();
-    ctx.translate(0, -R * 0.15);
+    ctx.translate(0, (-0.15 + bodyBob) * R);
     ctx.scale(facing, 1);
     for (var c = 0; c < body.length; c++) {
       var cell = body[c];
-      var cxp = cell[0], cyp = cell[1] * breathe, cr = cell[2] * s;
+      var legSwing = 0;
+      if (mv && cell[1] > 0.9) legSwing = Math.sin(walk + (cell[0] < 0 ? 0 : Math.PI)) * 0.22;
+      var cxp = cell[0], cyp = (cell[1] + legSwing) * breathe, cr = cell[2] * s;
       if (cell[3]) cxp -= Math.sign(cell[0]) * pump;   // brazos se recogen al golpear
       drawCariocitoCell(cxp * s, cyp * s, cr, flash, u.lobePhase + c);
     }
@@ -1786,6 +1861,103 @@
       }
       ctx.restore();
     }
+    ctx.restore();
+  }
+
+  // Hormiga celular: 3 segmentos de cariocito + 6 patas animadas. Cuando
+  // "waving" (Super listo), las patas delanteras se levantan LLAMANDO.
+  function drawAnt(x, y, r, legPhase, waving, seed) {
+    ctx.save();
+    ctx.strokeStyle = "#5A3010"; ctx.lineWidth = Math.max(1, r * 0.20); ctx.lineCap = "round";
+    for (var sgn = -1; sgn <= 1; sgn += 2) {
+      for (var lg = 0; lg < 3; lg++) {
+        var baseY = y - r * 0.4 + lg * r * 0.55;
+        var sw = Math.sin(legPhase + lg * 0.8 + (sgn > 0 ? Math.PI : 0)) * r * 0.5;
+        var tipX = x + sgn * (r * 1.25);
+        var tipY = baseY + r * 0.55 + sw * 0.4;
+        if (waving && lg === 0) { tipY = baseY - r * 1.1 - Math.abs(sw); }   // patas alzadas: ¡llamando!
+        ctx.beginPath();
+        ctx.moveTo(x + sgn * r * 0.5, baseY);
+        ctx.lineTo(tipX, tipY);
+        ctx.stroke();
+      }
+    }
+    drawCariocitoCell(x, y - r * 0.75, r * 0.5, false, seed);
+    drawCariocitoCell(x, y, r * 0.62, false, seed + 1);
+    drawCariocitoCell(x, y + r * 0.8, r * 0.72, false, seed + 2);
+    ctx.restore();
+  }
+
+  // Estación de ensamblaje: el Super se arma con el progreso mientras 2-3
+  // hormigas trabajan; al estar listo, brilla y las hormigas llaman con patas.
+  function drawMegaFactory() {
+    var f = state.megaFactory;
+    if (!f || !state.dissemination) return;
+    var glow = f.ready ? (0.5 + 0.5 * Math.sin((f.callPhase || 0) * 5)) : 0.3;
+    ctx.save();
+    // nido/plataforma
+    ctx.fillStyle = "rgba(232,184,136," + (0.10 + glow * 0.12) + ")";
+    ctx.beginPath(); ctx.ellipse(f.x, f.y + 14 * U, 46 * U, 20 * U, 0, 0, Math.PI * 2); ctx.fill();
+    // Super en ensamblaje (crece con el progreso)
+    var prog = f.ready ? 1 : Math.max(0.18, f.progress || 0);
+    var fake = { tier: 0, x: f.x, y: f.y, vx: 0, vy: 0, hitFlash: 0, lobePhase: 0.7, walkPhase: 0, moving: false, facing: 1 };
+    ctx.save();
+    ctx.translate(f.x, f.y); ctx.scale(prog, prog); ctx.translate(-f.x, -f.y);
+    ctx.globalAlpha = f.ready ? 1 : (0.4 + 0.5 * prog);
+    ctx.translate(f.x, f.y);
+    try { drawMegaHumanoid(fake, 24 * U); } catch (er) {}
+    ctx.restore();
+    // hormigas
+    for (var i = 0; i < f.ants.length; i++) {
+      var a = f.ants[i];
+      var aa = a.ang + (f.ready ? 0 : state.time * 0.5);
+      var axp = f.x + Math.cos(aa) * a.r * U;
+      var ayp = f.y + Math.sin(aa) * a.r * U * 0.7 + 10 * U;
+      drawAnt(axp, ayp, 7 * U, a.legPhase, f.ready, i * 3);
+    }
+    // anillo de estado
+    if (f.ready) {
+      ctx.strokeStyle = "rgba(231,76,60," + (0.4 + glow * 0.4) + ")"; ctx.lineWidth = 3.5 * U;
+      ctx.beginPath(); ctx.arc(f.x, f.y, 42 * U, 0, Math.PI * 2); ctx.stroke();
+      ctx.fillStyle = "rgba(231,76,60," + (0.75 + glow * 0.25) + ")";
+      ctx.font = "bold " + Math.floor(11 * U) + "px Fredoka, sans-serif";
+      ctx.textAlign = "center"; ctx.textBaseline = "bottom";
+      ctx.fillText("¡TOCA: SUPER!", f.x, f.y - 42 * U);
+    } else {
+      ctx.strokeStyle = "rgba(80,40,20,0.4)"; ctx.lineWidth = 3.5 * U;
+      ctx.beginPath(); ctx.arc(f.x, f.y, 42 * U, 0, Math.PI * 2); ctx.stroke();
+      ctx.strokeStyle = "rgba(210,160,70,0.8)"; ctx.lineWidth = 3.5 * U;
+      ctx.beginPath(); ctx.arc(f.x, f.y, 42 * U, -Math.PI / 2, -Math.PI / 2 + (f.progress || 0) * Math.PI * 2); ctx.stroke();
+    }
+    ctx.fillStyle = "rgba(60,30,20,0.85)";
+    ctx.font = "bold " + Math.floor(8 * U) + "px Fredoka, sans-serif";
+    ctx.textAlign = "center"; ctx.textBaseline = "top";
+    ctx.fillText("ENSAMBLAJE", f.x, f.y + 30 * U);
+    ctx.restore();
+  }
+
+  // Modo "elegir carril": resalta las 3 columnas para colocar el Super.
+  function drawMegaPlacing() {
+    if (!state.megaPlacing || !state.dissemination || !PATH.laneXs) return;
+    var pulse = 0.5 + 0.5 * Math.sin(state.time * 4);
+    var hw = (FIELD_W * laneGapFrac()) * 0.5;
+    ctx.save();
+    ctx.fillStyle = "rgba(10,6,10,0.42)"; ctx.fillRect(FIELD_LEFT, FIELD_TOP, FIELD_W, FIELD_H);
+    for (var i = 0; i < PATH.laneXs.length; i++) {
+      var lx = FIELD_LEFT + PATH.laneXs[i] * FIELD_W;
+      ctx.fillStyle = "rgba(232,184,136," + (0.10 + pulse * 0.10) + ")";
+      ctx.fillRect(lx - hw, FIELD_TOP, hw * 2, FIELD_H);
+      ctx.strokeStyle = "rgba(232,184,136," + (0.5 + pulse * 0.4) + ")";
+      ctx.lineWidth = 2.5 * U; ctx.setLineDash([9 * U, 6 * U]);
+      ctx.strokeRect(lx - hw, FIELD_TOP + 4 * U, hw * 2, FIELD_H - 8 * U);
+      ctx.setLineDash([]);
+      ctx.fillStyle = "#ffe8d0"; ctx.font = "bold " + Math.floor(16 * U) + "px Fredoka, sans-serif";
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText("▼", lx, FIELD_TOP + 22 * U);
+    }
+    ctx.fillStyle = "#ffe8d0"; ctx.font = "bold " + Math.floor(14 * U) + "px Fredoka, sans-serif";
+    ctx.textAlign = "center"; ctx.textBaseline = "top";
+    ctx.fillText("Elige el carril del Super Megacariocito", VW / 2, FIELD_TOP + 6 * U);
     ctx.restore();
   }
 
@@ -1845,36 +2017,28 @@
       ctx.fill();
       ctx.stroke();
     }
-    // Anillo base (pista) — backdrop del anillo de carga del Super.
+    // Anillo de maduración de FIBRINA (amber) — progreso del próximo muro,
+    // solo mientras hay hueco (menos de mk.max=2 en espera).
     var ringR = R + 5 * U;
     ctx.strokeStyle = "rgba(60, 30, 20, 0.45)";
     ctx.lineWidth = Math.max(2, 3 * U);
     ctx.beginPath();
     ctx.arc(0, 0, ringR, 0, Math.PI * 2);
     ctx.stroke();
-    // Super Megacariocito LISTO: halo pulsante rojo + aviso "¡TOCA!"
-    if ((state.megakaryocyte.superCharge || 0) >= 1) {
-      var sp = 0.5 + 0.5 * Math.sin(state.time * 5);
-      ctx.strokeStyle = "rgba(231,76,60," + (0.5 + sp * 0.4) + ")";
-      ctx.lineWidth = Math.max(2.5, 4 * U);
-      ctx.beginPath(); ctx.arc(0, 0, ringR + 4 * U, 0, Math.PI * 2); ctx.stroke();
-      ctx.fillStyle = "rgba(231,76,60," + (0.7 + sp * 0.3) + ")";
-      ctx.font = "bold " + Math.floor(9 * U) + "px Fredoka, sans-serif";
-      ctx.textAlign = "center"; ctx.textBaseline = "bottom";
-      ctx.fillText("¡TOCA: SUPER!", 0, -R - 8 * U);
-    } else {
-      // Anillo de carga del Super (rojo tenue) mientras se prepara.
-      var scp = Math.min(1, state.megakaryocyte.superCharge || 0);
-      ctx.strokeStyle = "rgba(200,70,60,0.55)";
-      ctx.lineWidth = Math.max(1.5, 2 * U);
-      ctx.beginPath(); ctx.arc(0, 0, ringR + 4 * U, -Math.PI / 2, -Math.PI / 2 + scp * Math.PI * 2); ctx.stroke();
+    if (state.plaquetaPickups && state.plaquetaPickups.length < state.megakaryocyte.max) {
+      var prog = Math.min(1, state.megakaryocyte.maturing || 0);
+      ctx.strokeStyle = "#E8A020";
+      ctx.lineWidth = Math.max(2, 3 * U);
+      ctx.beginPath();
+      ctx.arc(0, 0, ringR, -Math.PI / 2, -Math.PI / 2 + prog * Math.PI * 2);
+      ctx.stroke();
     }
     // Etiqueta
     ctx.fillStyle = "rgba(60, 30, 20, 0.85)";
     ctx.font = "bold " + Math.floor(9 * U) + "px Fredoka, sans-serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "top";
-    ctx.fillText("MEGACARIOCITO", 0, R + 14 * U);
+    ctx.fillText("FIBRINA", 0, R + 14 * U);
     ctx.restore();
   }
 
@@ -4647,13 +4811,19 @@
     state.megakaryocyte = {
       x: 0, y: 0,
       maturing: 0.5,    // arranca medio cargado
-      period: 21.0,     // 21s entre plaquetas maduras (+50% sobre los 14 originales)
-      max: 4,
-      superCharge: 0.55,   // 0..1 — carga del Super Megacariocito (tap en el cuerpo)
-      superPeriod: 32      // segundos para cargar un Super
+      period: 16.0,     // ~16s por muro de fibrina
+      max: 2            // máx 2 muros de fibrina EN ESPERA, luego pausa hasta usar uno
     };
     state.megaSwarm = [];
     state.plaquetaPickups = [];
+    // Estación de ensamblaje del Super Megacariocito (arriba de la mitocondria
+    // derecha). 2-3 hormigas celulares lo arman; al estar listo, llaman y el
+    // jugador lo coloca en un carril (ver updateMegaFactory / deployMegaSuper).
+    state.megaFactory = {
+      x: 0, y: 0, progress: 0.35, ready: false, callPhase: 0, superPeriod: 30,
+      ants: [{ ang: 0.4, r: 30, legPhase: 0 }, { ang: 2.5, r: 34, legPhase: 1.2 }, { ang: 4.4, r: 31, legPhase: 2.4 }]
+    };
+    state.megaPlacing = false;
     state.armedResponse = null;
     state.medCharge = 0;
     state.topicalCharge = 0;
@@ -12124,11 +12294,26 @@
     if (tryTapUnlockPickup(x, y)) {
       return;
     }
-    // Super Megacariocito listo: tap en el cuerpo lo lanza a cazar.
-    if (state.dissemination && tryTapMegacariocitoBody(x, y)) {
+    // Modo "elegir carril" del Super: el tap escoge la columna más cercana.
+    if (state.dissemination && state.megaPlacing) {
+      if (y >= FIELD_TOP && y <= FIELD_BOTTOM && PATH.laneXs) {
+        var bestLane = 0, bd = Infinity;
+        for (var li = 0; li < PATH.laneXs.length; li++) {
+          var lxp = FIELD_LEFT + PATH.laneXs[li] * FIELD_W;
+          var dd = Math.abs(x - lxp);
+          if (dd < bd) { bd = dd; bestLane = li; }
+        }
+        deployMegaSuper(bestLane);
+      } else {
+        state.megaPlacing = false;   // tap fuera del campo cancela
+      }
       return;
     }
-    // Plaqueta madura del megacariocito: tap entra en modo colocar.
+    // Estación de ensamblaje lista: tap → entra en modo elegir carril.
+    if (state.dissemination && tryTapMegaFactory(x, y)) {
+      return;
+    }
+    // Muro de fibrina maduro del megacariocito: tap entra en modo colocar.
     if (state.dissemination && tryTapPlaquetaPickup(x, y)) {
       return;
     }
@@ -23189,7 +23374,9 @@
     safeDraw("PendingBombs", drawPendingBombs);
     safeDraw("AcidSplats", drawAcidSplats);
     safeDraw("Megakaryocyte", drawMegakaryocyte);
+    safeDraw("MegaFactory", drawMegaFactory);
     safeDraw("MegaSwarm", drawMegaSwarm);
+    safeDraw("MegaPlacing", drawMegaPlacing);
     safeDraw("PlaquetaPickups", drawPlaquetaPickups);
     safeDraw("RangeHint", drawRangeHint);
     // Loops de entidades: cada una en su propio try.
@@ -23986,6 +24173,7 @@
       updateNecroticPatches(dt);
       updatePendingBombs(dt);
       updateMegakaryocyte(dt);
+      updateMegaFactory(dt);
       updateMegaSwarm(dt);
       updateAntigenDrops(dt);
       updateEnergyDrops(dt);

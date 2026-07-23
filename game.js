@@ -1612,41 +1612,38 @@
   }
 
   // === ESTACIÓN DE ENSAMBLAJE DEL SUPER (hormigas celulares lo arman) ===
+  // Ciclo: "dormant" (esperando tap) → "assembling" (progreso) → "ready"
+  // (parpadea) → tap → coloca → vuelve a "dormant". NO ensambla solo.
   function updateMegaFactory(dt) {
     var f = state.megaFactory;
     if (!f || !state.dissemination) return;
-    if (!f.ready) {
-      f.progress = Math.min(1, (f.progress || 0) + dt / (f.superPeriod || 30));
-      if (f.progress >= 1) {
-        f.ready = true; f.callPhase = 0;
-        sfx("upgrade"); showMsg("¡Super Megacariocito listo! Tócalo y elige un carril");
-      }
-    } else {
+    if (f.mode === "assembling") {
+      f.progress = Math.min(1, (f.progress || 0) + dt / (f.superPeriod || 60));
+      if (f.progress >= 1) { f.mode = "ready"; f.callPhase = 0; sfx("upgrade"); showMsg("¡Super listo! Tócalo y elige un carril"); }
+    } else if (f.mode === "ready") {
       f.callPhase = (f.callPhase || 0) + dt;
     }
-    for (var i = 0; i < f.ants.length; i++) f.ants[i].legPhase += dt * (f.ready ? 9 : 5);
+    var antSpd = f.mode === "ready" ? 9 : (f.mode === "assembling" ? 5 : 1.5);
+    for (var i = 0; i < f.ants.length; i++) f.ants[i].legPhase += dt * antSpd;
   }
 
   function tryTapMegaFactory(x, y) {
     var f = state.megaFactory;
-    if (!f || !state.dissemination || !f.ready) return false;
-    if (Math.hypot(x - f.x, y - f.y) <= 44 * U) {
-      state.megaPlacing = true;   // entra en modo elegir carril
-      sfx("tap");
-      showMsg("Elige el carril donde entra el Super");
-      return true;
-    }
-    return false;
+    if (!f || !state.dissemination) return false;
+    if (Math.hypot(x - f.x, y - f.y) > 46 * U) return false;
+    if (f.mode === "dormant") { f.mode = "assembling"; f.progress = 0; sfx("tap"); showMsg("Ensamblando Super Megacariocito…"); return true; }
+    if (f.mode === "ready") { state.megaPlacing = true; sfx("tap"); showMsg("Elige el carril donde entra el Super"); return true; }
+    return true;   // assembling: consume el tap sin hacer nada (evita colocar torres encima)
   }
 
   function deployMegaSuper(laneIdx) {
     var f = state.megaFactory;
-    if (!f || !f.ready) return;
+    if (!f || f.mode !== "ready") return;
     state.megaBaseHp = Math.round(1.5 * computeMaxTowerHp());
     var laneX = FIELD_LEFT + (PATH.laneXs ? PATH.laneXs[laneIdx] : 0.5) * FIELD_W;
     var walkTo = { x: laneX, y: FIELD_TOP + FIELD_H * 0.32 };
     spawnMegaUnit(0, f.x, f.y, 0, 0, laneIdx, walkTo);
-    f.progress = 0; f.ready = false; f.callPhase = 0;
+    f.progress = 0; f.mode = "dormant"; f.callPhase = 0;   // queda DORMIDA hasta el próximo tap
     state.megaPlacing = false;
     triggerShake(0.12, 3);
     pushEffect({ kind: "place", x: f.x, y: f.y, life: 0.6, max: 0.6, color: "#E8B888" });
@@ -1668,7 +1665,7 @@
   function updateMegaSwarm(dt) {
     if (!state.megaSwarm || !state.megaSwarm.length) return;
     var arr = state.megaSwarm;
-    var halfLane = (FIELD_W * laneGapFrac()) * 0.55;
+    var halfLane = (FIELD_W * laneGapFrac()) * 0.32;   // columna estrecha = CENTRADO
     for (var i = arr.length - 1; i >= 0; i--) {
       var u = arr[i];
       if (u.hitFlash > 0) u.hitFlash -= dt;
@@ -1677,13 +1674,11 @@
         if (u.deathT >= 0.35) { splitMegaUnit(u); arr.splice(i, 1); }
         continue;
       }
-      u.life -= dt;
-      if (u.hp <= 0 || u.life <= 0) { u.dying = true; u.deathT = 0; continue; }
       var cfg = MEGA_TIERS[u.tier];
       var laneX = (u.laneIdx >= 0 && PATH.laneXs) ? FIELD_LEFT + PATH.laneXs[u.laneIdx] * FIELD_W : null;
       u.moving = false;
       if (!u.arrived && u.walkTX != null) {
-        // FASE 1: CAMINAR hasta el carril elegido (aún no caza).
+        // CAMINAR hasta el CENTRO del carril elegido (aún no caza).
         var wdx = u.walkTX - u.x, wdy = u.walkTY - u.y, wl = Math.hypot(wdx, wdy) || 1;
         if (wl < 8 * U) { u.arrived = true; }
         else {
@@ -1691,7 +1686,7 @@
           u.x += u.vx * dt; u.y += u.vy * dt; u.moving = true;
         }
       } else {
-        // FASE 2: cazar SOLO en su carril (germen más avanzado del carril).
+        // Cazar SOLO en su carril (germen más avanzado del carril).
         var target = null, bestProg = -1, bestD = Infinity;
         for (var j = 0; j < state.enemies.length; j++) {
           var e = state.enemies[j];
@@ -1702,39 +1697,46 @@
           if (u.tier === 0) { if (e.progress > bestProg) { bestProg = e.progress; target = e; } }
           else { var dd = Math.hypot(e.x - u.x, e.y - u.y); if (dd < bestD) { bestD = dd; target = e; } }
         }
-        var ax = 0, ay = 0;
-        if (target) { var tdx = target.x - u.x, tdy = target.y - u.y, tl = Math.hypot(tdx, tdy) || 1; ax += tdx / tl; ay += tdy / tl; }
-        else { ay += Math.sin(state.time * 1.2 + u.lobePhase) * 0.6; }   // patrulla vertical si no hay presa
-        if (laneX != null) ax += Math.max(-1, Math.min(1, (laneX - u.x) / (40 * U))) * 0.9;   // volver a la columna
-        ax += Math.cos(state.time * 2 + u.lobePhase) * 0.12;
+        // Persigue en Y; en X se mantiene CENTRADO en la columna del carril.
+        var ay = 0;
+        if (target) { ay += Math.sign(target.y - u.y); }
+        else { ay += Math.sin(state.time * 1.2 + u.lobePhase) * 0.5; }
+        var ax = laneX != null ? Math.max(-1, Math.min(1, (laneX - u.x) / (18 * U))) : 0;   // fuerte centrado
         var al = Math.hypot(ax, ay) || 1;
         u.vx = (ax / al) * cfg.speed * U; u.vy = (ay / al) * cfg.speed * U;
         u.x += u.vx * dt; u.y += u.vy * dt; u.moving = true;
       }
-      // clamp al campo (+ a la columna del carril si aplica)
+      // clamp al campo (+ a la columna estrecha del carril si aplica)
       if (laneX != null) u.x = Math.max(laneX - halfLane, Math.min(laneX + halfLane, u.x));
       u.x = Math.max(FIELD_LEFT + u.r, Math.min(FIELD_RIGHT - u.r, u.x));
       u.y = Math.max(FIELD_TOP + u.r, Math.min(FIELD_BOTTOM - u.r, u.y));
       if (u.moving) { u.walkPhase += dt * 9; if (Math.abs(u.vx) > 2) u.facing = u.vx < 0 ? -1 : 1; }
-      // Contacto (solo tras llegar): empuje + adhesión + desgaste. Carril-lock.
       if (u.attackCd > 0) u.attackCd -= dt;
+      // DAÑO DE HALOS: solo los gérmenes atacantes en su aura desgastan al Super.
+      // (Ya NO se desgasta solo ni muere por tiempo — solo se subdivide por daño.)
       if (u.arrived) {
         for (var k = 0; k < state.enemies.length; k++) {
           var ge = state.enemies[k];
           if (ge.dead || ge.dying || ge.absorbing) continue;
           if (u.laneIdx >= 0 && (ge.heridaIdx | 0) !== u.laneIdx) continue;
+          var d2 = Math.hypot(ge.x - u.x, ge.y - u.y);
+          // recibir daño del halo del germen
+          if ((ge.def.attack || 0) > 0 && d2 < enemyAuraRadiusPx(ge.def) + u.r) {
+            u.hp -= ge.def.attack * ATTACK_MULT * dt;
+            u.hitFlash = 0.15;
+          }
+          // devolver golpe: empuje + adhesión al contacto
           var reach = u.r + (ge.radius || 14) * U;
-          if (Math.hypot(ge.x - u.x, ge.y - u.y) <= reach * 1.15) {
-            ge.slowTimer = Math.max(ge.slowTimer || 0, 0.25);   // obstrucción/adhesión
+          if (d2 <= reach * 1.15) {
+            ge.slowTimer = Math.max(ge.slowTimer || 0, 0.25);
             if (u.attackCd <= 0) {
               damageEnemy(ge, cfg.dmg, "trombo");
-              ge.progress = Math.max(0, ge.progress - cfg.knock * U);   // empuje
+              ge.progress = Math.max(0, ge.progress - cfg.knock * U);
               u.attackCd = 0.5;
-              u.hp -= cfg.wear;   // el choque lo desgasta → "va muriendo"
-              u.hitFlash = 0.15;
             }
           }
         }
+        if (u.hp <= 0) { u.dying = true; u.deathT = 0; }   // muere → SE SUBDIVIDE
       }
     }
   }
@@ -1893,42 +1895,56 @@
   function drawMegaFactory() {
     var f = state.megaFactory;
     if (!f || !state.dissemination) return;
-    var glow = f.ready ? (0.5 + 0.5 * Math.sin((f.callPhase || 0) * 5)) : 0.3;
+    var isReady = f.mode === "ready";
+    var glow = isReady ? (0.5 + 0.5 * Math.sin((f.callPhase || 0) * 5)) : 0.3;
     ctx.save();
     // nido/plataforma
     ctx.fillStyle = "rgba(232,184,136," + (0.10 + glow * 0.12) + ")";
     ctx.beginPath(); ctx.ellipse(f.x, f.y + 14 * U, 46 * U, 20 * U, 0, 0, Math.PI * 2); ctx.fill();
-    // Super en ensamblaje (crece con el progreso)
-    var prog = f.ready ? 1 : Math.max(0.18, f.progress || 0);
-    var fake = { tier: 0, x: f.x, y: f.y, vx: 0, vy: 0, hitFlash: 0, lobePhase: 0.7, walkPhase: 0, moving: false, facing: 1 };
-    ctx.save();
-    ctx.translate(f.x, f.y); ctx.scale(prog, prog); ctx.translate(-f.x, -f.y);
-    ctx.globalAlpha = f.ready ? 1 : (0.4 + 0.5 * prog);
-    ctx.translate(f.x, f.y);
-    try { drawMegaHumanoid(fake, 24 * U); } catch (er) {}
-    ctx.restore();
-    // hormigas
+    // Super en ensamblaje (crece con el progreso). Dormido: no se muestra.
+    if (f.mode !== "dormant") {
+      var prog = isReady ? 1 : Math.max(0.18, f.progress || 0);
+      var fake = { tier: 0, x: f.x, y: f.y, vx: 0, vy: 0, hitFlash: 0, lobePhase: 0.7, walkPhase: 0, moving: false, facing: 1 };
+      ctx.save();
+      ctx.translate(f.x, f.y); ctx.scale(prog, prog); ctx.translate(-f.x, -f.y);
+      ctx.globalAlpha = isReady ? 1 : (0.4 + 0.5 * prog);
+      ctx.translate(f.x, f.y);
+      try { drawMegaHumanoid(fake, 24 * U); } catch (er) {}
+      ctx.restore();
+    }
+    // hormigas (siempre presentes, más lentas si dormido)
     for (var i = 0; i < f.ants.length; i++) {
       var a = f.ants[i];
-      var aa = a.ang + (f.ready ? 0 : state.time * 0.5);
+      var aa = a.ang + (isReady ? 0 : state.time * 0.5);
       var axp = f.x + Math.cos(aa) * a.r * U;
       var ayp = f.y + Math.sin(aa) * a.r * U * 0.7 + 10 * U;
-      drawAnt(axp, ayp, 7 * U, a.legPhase, f.ready, i * 3);
+      drawAnt(axp, ayp, 7 * U, a.legPhase, isReady, i * 3);
     }
-    // Aviso "LISTO": PARPADEO de color (destello rojo on/off sobre la base).
-    if (f.ready) {
-      var on = (Math.floor((f.callPhase || 0) * 2.6) % 2) === 0;   // ~0.38s on/off
+    if (isReady) {
+      // Aviso LISTO: PARPADEO de color (destello rojo on/off sobre la base).
+      var on = (Math.floor((f.callPhase || 0) * 2.6) % 2) === 0;
       if (on) {
         ctx.fillStyle = "rgba(231,76,60,0.34)";
         ctx.beginPath(); ctx.arc(f.x, f.y, 47 * U, 0, Math.PI * 2); ctx.fill();
         ctx.strokeStyle = "#ff5a48"; ctx.lineWidth = 5 * U;
         ctx.beginPath(); ctx.arc(f.x, f.y, 44 * U, 0, Math.PI * 2); ctx.stroke();
       }
-    } else {
+    } else if (f.mode === "assembling") {
       ctx.strokeStyle = "rgba(80,40,20,0.4)"; ctx.lineWidth = 3.5 * U;
       ctx.beginPath(); ctx.arc(f.x, f.y, 42 * U, 0, Math.PI * 2); ctx.stroke();
       ctx.strokeStyle = "rgba(210,160,70,0.8)"; ctx.lineWidth = 3.5 * U;
       ctx.beginPath(); ctx.arc(f.x, f.y, 42 * U, -Math.PI / 2, -Math.PI / 2 + (f.progress || 0) * Math.PI * 2); ctx.stroke();
+    } else {
+      // DORMIDO: anillo tenue pulsante = "tócame para ensamblar".
+      var dp = 0.4 + 0.3 * Math.sin(state.time * 2.5);
+      ctx.strokeStyle = "rgba(210,160,70," + dp + ")"; ctx.lineWidth = 2.5 * U;
+      ctx.setLineDash([6 * U, 5 * U]);
+      ctx.beginPath(); ctx.arc(f.x, f.y, 40 * U, 0, Math.PI * 2); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = "rgba(232,200,150," + (0.6 + dp * 0.3) + ")";
+      ctx.font = "bold " + Math.floor(9 * U) + "px Fredoka, sans-serif";
+      ctx.textAlign = "center"; ctx.textBaseline = "bottom";
+      ctx.fillText("TOCA PARA ARMAR", f.x, f.y - 40 * U);
     }
     ctx.fillStyle = "rgba(60,30,20,0.85)";
     ctx.font = "bold " + Math.floor(8 * U) + "px Fredoka, sans-serif";
@@ -1968,7 +1984,7 @@
   // ramas; el jugador lo toca y el T-blast sale a cazar (apoptosis por contacto).
   function makeGanglio() {
     return {
-      x: 0, y: 0, progress: 0.3, ready: false, callPhase: 0, superPeriod: 68,
+      x: 0, y: 0, progress: 0, mode: "dormant", callPhase: 0, superPeriod: 68,
       dendrites: [
         { ang: 0.5, r: 30, wavePhase: 0 }, { ang: 2.6, r: 34, wavePhase: 1.1 },
         { ang: 4.5, r: 31, wavePhase: 2.2 }
@@ -1976,39 +1992,48 @@
     };
   }
 
+  // Ciclo: "dormant" → tap → "assembling" → "ready" (parpadea) → tap → elegir
+  // punto del CAMINO → aparece el T-blast. NO ensambla solo.
   function updateGanglio(dt) {
     var g = state.ganglio;
     if (!g || state.dissemination) return;
-    if (!g.ready) {
-      g.progress = Math.min(1, (g.progress || 0) + dt / (g.superPeriod || 34));
-      if (g.progress >= 1) { g.ready = true; g.callPhase = 0; sfx("upgrade"); showMsg("¡Linfocito T blast listo! Tócalo para desplegarlo"); }
-    } else {
+    if (g.mode === "assembling") {
+      g.progress = Math.min(1, (g.progress || 0) + dt / (g.superPeriod || 68));
+      if (g.progress >= 1) { g.mode = "ready"; g.callPhase = 0; sfx("upgrade"); showMsg("¡T-blast listo! Tócalo y elige un punto del camino"); }
+    } else if (g.mode === "ready") {
       g.callPhase = (g.callPhase || 0) + dt;
     }
-    for (var i = 0; i < g.dendrites.length; i++) g.dendrites[i].wavePhase += dt * (g.ready ? 7 : 3);
+    var dspd = g.mode === "ready" ? 7 : (g.mode === "assembling" ? 3 : 1);
+    for (var i = 0; i < g.dendrites.length; i++) g.dendrites[i].wavePhase += dt * dspd;
   }
 
   function tryTapGanglio(x, y) {
     var g = state.ganglio;
-    if (!g || state.dissemination || !g.ready) return false;
-    if (Math.hypot(x - g.x, y - g.y) <= 44 * U) { deployTBlast(); return true; }
-    return false;
+    if (!g || state.dissemination) return false;
+    if (Math.hypot(x - g.x, y - g.y) > 46 * U) return false;
+    if (g.mode === "dormant") { g.mode = "assembling"; g.progress = 0; sfx("tap"); showMsg("Ensamblando Linfocito T blast…"); return true; }
+    if (g.mode === "ready") { state.tblastPlacing = true; sfx("tap"); showMsg("Toca el CAMINO donde aparece el T-blast"); return true; }
+    return true;
   }
 
-  function deployTBlast() {
+  function deployTBlast(px, py) {
     var g = state.ganglio;
-    if (!g || !g.ready) return;
+    if (!g || g.mode !== "ready") return;
     if (!state.tblasts) state.tblasts = [];
+    var np = nearestPathProgress(px, py) || { heridaIdx: 0, progress: 0 };
+    var pos = pathPos(np.progress, np.heridaIdx);
     var hp = Math.round(1.3 * computeMaxTowerHp());
     state.tblasts.push({
-      x: g.x, y: g.y, vx: 0, vy: 0, hp: hp, maxHp: hp, life: 28,
-      attackCd: 0, crawlPhase: Math.random() * Math.PI * 2, hitFlash: 0,
-      facing: 1, dying: false, deathT: 0
+      x: pos.x, y: pos.y, heridaIdx: np.heridaIdx | 0, progress: np.progress,
+      hp: hp, maxHp: hp, life: 28, attackCd: 0,
+      crawlPhase: Math.random() * Math.PI * 2, hitFlash: 0, facing: 1,
+      dying: false, deathT: 0, spawnT: 0
     });
-    g.progress = 0; g.ready = false; g.callPhase = 0;
-    triggerShake(0.12, 3);
-    pushEffect({ kind: "place", x: g.x, y: g.y, life: 0.6, max: 0.6, color: "#9370DB" });
-    showMsg("¡Linfocito T blast en caza!");
+    g.progress = 0; g.mode = "dormant"; g.callPhase = 0;   // dormida hasta el próximo tap
+    state.tblastPlacing = false;
+    triggerShake(0.10, 2);
+    pushEffect({ kind: "place", x: pos.x, y: pos.y, life: 0.6, max: 0.6, color: "#9370DB" });
+    showMsg("¡Linfocito T blast en el camino!");
     sfx("upgrade");
   }
 
@@ -2019,8 +2044,10 @@
       var u = arr[i];
       if (u.hitFlash > 0) u.hitFlash -= dt;
       if (u.dying) { u.deathT += dt; if (u.deathT >= 0.5) arr.splice(i, 1); continue; }
+      if ((u.spawnT || 0) < 1) { u.spawnT = Math.min(1, (u.spawnT || 0) + dt / 0.4); u.crawlPhase += dt * 4; continue; }   // aparición pequeño→grande, quieto
       u.life -= dt;
       if (u.life <= 0 || u.hp <= 0) { u.dying = true; u.deathT = 0; pushEffect({ kind: "defensinWave", x: u.x, y: u.y, r: 32 * U, life: 0.5, max: 0.5 }); continue; }
+      // Objetivo: germen más avanzado.
       var target = null, bestProg = -1;
       for (var j = 0; j < state.enemies.length; j++) {
         var e = state.enemies[j];
@@ -2029,29 +2056,29 @@
         if (e.def.cloaked && !e.revealed) continue;
         if (e.progress > bestProg) { bestProg = e.progress; target = e; }
       }
-      var moving = false;
       if (target) {
-        var tdx = target.x - u.x, tdy = target.y - u.y, tl = Math.hypot(tdx, tdy) || 1;
-        var speed = 48 * U;
-        u.vx = (tdx / tl) * speed; u.vy = (tdy / tl) * speed;
-        u.x += u.vx * dt; u.y += u.vy * dt; moving = true;
-        if (Math.abs(u.vx) > 2) u.facing = u.vx < 0 ? -1 : 1;
+        // RECORRE EL CAMINO: mueve su progress a lo largo de la rama hacia el
+        // germen (no flota en línea recta como el macrófago).
+        if ((target.heridaIdx | 0) !== (u.heridaIdx | 0)) u.heridaIdx = target.heridaIdx | 0;
+        var oldX = u.x;
+        var movePx = 100 * U * dt;
+        if (Math.abs(target.progress - u.progress) <= movePx) u.progress = target.progress;
+        else u.progress += (target.progress > u.progress ? 1 : -1) * movePx;
+        var pos = pathPos(u.progress, u.heridaIdx);
+        u.x = pos.x; u.y = pos.y;
+        if (u.x < oldX - 0.5) u.facing = -1; else if (u.x > oldX + 0.5) u.facing = 1;
+        u.crawlPhase += dt * 6;
         if (u.attackCd > 0) u.attackCd -= dt;
-        var reach = 24 * U + (target.radius || 14) * U;
-        if (tl <= reach && u.attackCd <= 0) {
+        var reach = 28 * U + (target.radius || 14) * U;
+        if (Math.hypot(target.x - u.x, target.y - u.y) <= reach && u.attackCd <= 0) {
           var apop = Math.max(90, (target.maxHp || target.def.hp || 100) * 0.12);   // apoptosis: ejecuta un % de la vida
           damageEnemy(target, apop, "linfocitoT");
           u.attackCd = 1.0; u.hitFlash = 0.2;
           pushEffect({ kind: "novaRing", x: target.x, y: target.y, r: 26 * U, color: "#9370DB", life: 0.45, max: 0.45 });
           triggerShake(0.06, 2);
         }
-      } else {
-        u.x += Math.cos(state.time * 0.8 + u.crawlPhase) * 8 * U * dt;
-        u.y += Math.sin(state.time * 0.7 + u.crawlPhase) * 8 * U * dt;
       }
-      u.x = Math.max(FIELD_LEFT + 20 * U, Math.min(FIELD_RIGHT - 20 * U, u.x));
-      u.y = Math.max(FIELD_TOP + 20 * U, Math.min(FIELD_BOTTOM - 20 * U, u.y));
-      if (moving) u.crawlPhase += dt * 6;
+      // Sin presa: se queda quieto EN el camino (no deriva).
     }
   }
 
@@ -2085,8 +2112,10 @@
     var R = 22 * U;
     var die = u.dying ? Math.max(0, 1 - u.deathT / 0.5) : 1;
     if (die <= 0) return;
+    // aparición pequeño→grande (ease-out con leve overshoot)
+    var sp = u.spawnT != null && u.spawnT < 1 ? (0.2 + 0.8 * u.spawnT) * (1 + Math.sin(u.spawnT * Math.PI) * 0.12) : 1;
     var flash = (u.hitFlash || 0) > 0;
-    ctx.save(); ctx.translate(u.x, u.y); ctx.scale(die, die);
+    ctx.save(); ctx.translate(u.x, u.y); ctx.scale(die * sp, die * sp);
     ctx.fillStyle = "rgba(0,0,0,0.25)"; ctx.beginPath(); ctx.ellipse(0, R * 0.9, R * 0.9, R * 0.3, 0, 0, Math.PI * 2); ctx.fill();
     var g = ctx.createRadialGradient(-R * 0.3, -R * 0.3, R * 0.2, 0, 0, R * 1.05);
     g.addColorStop(0, flash ? "#ffffff" : "#b9a0e8"); g.addColorStop(0.6, "#9370DB"); g.addColorStop(1, "#5d44a0");
@@ -2132,37 +2161,52 @@
   function drawGanglio() {
     var g = state.ganglio;
     if (!g || state.dissemination) return;
-    var glow = g.ready ? (0.5 + 0.5 * Math.sin((g.callPhase || 0) * 5)) : 0.3;
+    var isReady = g.mode === "ready";
+    var glow = isReady ? (0.5 + 0.5 * Math.sin((g.callPhase || 0) * 5)) : 0.3;
     ctx.save();
     ctx.fillStyle = "rgba(63,193,201," + (0.10 + glow * 0.12) + ")";
     ctx.beginPath(); ctx.ellipse(g.x, g.y + 14 * U, 46 * U, 20 * U, 0, 0, Math.PI * 2); ctx.fill();
-    var prog = g.ready ? 1 : Math.max(0.18, g.progress || 0);
-    var fake = { x: g.x, y: g.y, crawlPhase: 0.5, hitFlash: 0, facing: 1, hp: 1, maxHp: 1 };
-    ctx.save();
-    ctx.translate(g.x, g.y); ctx.scale(prog, prog); ctx.translate(-g.x, -g.y);
-    ctx.globalAlpha = g.ready ? 1 : (0.4 + 0.5 * prog);
-    try { drawTBlast(fake); } catch (er) {}
-    ctx.restore();
+    // T-blast en ensamblaje (crece con el progreso). Dormido: no se muestra.
+    if (g.mode !== "dormant") {
+      var prog = isReady ? 1 : Math.max(0.18, g.progress || 0);
+      var fake = { x: g.x, y: g.y, crawlPhase: 0.5, hitFlash: 0, facing: 1, hp: 1, maxHp: 1 };
+      ctx.save();
+      ctx.translate(g.x, g.y); ctx.scale(prog, prog); ctx.translate(-g.x, -g.y);
+      ctx.globalAlpha = isReady ? 1 : (0.4 + 0.5 * prog);
+      try { drawTBlast(fake); } catch (er) {}
+      ctx.restore();
+    }
     for (var i = 0; i < g.dendrites.length; i++) {
       var d = g.dendrites[i];
-      var aa = d.ang + (g.ready ? 0 : state.time * 0.4);
+      var aa = d.ang + (isReady ? 0 : state.time * 0.4);
       var dx = g.x + Math.cos(aa) * d.r * U, dy = g.y + Math.sin(aa) * d.r * U * 0.7 + 10 * U;
-      drawDendriticCell(dx, dy, 7 * U, d.wavePhase, g.ready, i);
+      drawDendriticCell(dx, dy, 7 * U, d.wavePhase, isReady, i);
     }
-    // Aviso "LISTO": PARPADEO de color (destello violeta on/off sobre la base).
-    if (g.ready) {
-      var on = (Math.floor((g.callPhase || 0) * 2.6) % 2) === 0;   // ~0.38s on/off
+    if (isReady) {
+      // Aviso LISTO: PARPADEO de color (destello violeta on/off sobre la base).
+      var on = (Math.floor((g.callPhase || 0) * 2.6) % 2) === 0;
       if (on) {
         ctx.fillStyle = "rgba(147,112,219,0.34)";
         ctx.beginPath(); ctx.arc(g.x, g.y, 47 * U, 0, Math.PI * 2); ctx.fill();
         ctx.strokeStyle = "#b07cff"; ctx.lineWidth = 5 * U;
         ctx.beginPath(); ctx.arc(g.x, g.y, 44 * U, 0, Math.PI * 2); ctx.stroke();
       }
-    } else {
+    } else if (g.mode === "assembling") {
       ctx.strokeStyle = "rgba(40,80,90,0.4)"; ctx.lineWidth = 3.5 * U;
       ctx.beginPath(); ctx.arc(g.x, g.y, 42 * U, 0, Math.PI * 2); ctx.stroke();
       ctx.strokeStyle = "rgba(63,193,201,0.8)"; ctx.lineWidth = 3.5 * U;
       ctx.beginPath(); ctx.arc(g.x, g.y, 42 * U, -Math.PI / 2, -Math.PI / 2 + (g.progress || 0) * Math.PI * 2); ctx.stroke();
+    } else {
+      // DORMIDO: anillo tenue pulsante = "tócame para ensamblar".
+      var dp = 0.4 + 0.3 * Math.sin(state.time * 2.5);
+      ctx.strokeStyle = "rgba(63,193,201," + dp + ")"; ctx.lineWidth = 2.5 * U;
+      ctx.setLineDash([6 * U, 5 * U]);
+      ctx.beginPath(); ctx.arc(g.x, g.y, 40 * U, 0, Math.PI * 2); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = "rgba(180,230,235," + (0.6 + dp * 0.3) + ")";
+      ctx.font = "bold " + Math.floor(9 * U) + "px Fredoka, sans-serif";
+      ctx.textAlign = "center"; ctx.textBaseline = "bottom";
+      ctx.fillText("TOCA PARA ARMAR", g.x, g.y - 40 * U);
     }
     ctx.fillStyle = "rgba(20,60,70,0.9)";
     ctx.font = "bold " + Math.floor(8 * U) + "px Fredoka, sans-serif";
@@ -2171,20 +2215,51 @@
     ctx.restore();
   }
 
-  function tryTapPlaquetaPickup(x, y) {
-    if (!state.plaquetaPickups) return false;
-    var arr = state.plaquetaPickups;
-    for (var i = 0; i < arr.length; i++) {
-      var p = arr[i];
-      var dx = x - p.x, dy = y - p.y;
-      var R = 18 * U;
-      if (dx * dx + dy * dy <= R * R) {
-        // Entrar en modo colocar (consumirá una al colocar exitosamente)
-        state.selectedToBuild = "plaqueta";
-        state.selectedTower = null;
-        sfx("tap");
-        return true;
+  // Modo "colocar en el camino": oscurece el campo y RESALTA el camino para
+  // indicar dónde puede aparecer el T-blast.
+  function drawTBlastPlacing() {
+    if (state.dissemination || !state.tblastPlacing || !PATH.branches) return;
+    var pulse = 0.5 + 0.5 * Math.sin(state.time * 4);
+    ctx.save();
+    ctx.fillStyle = "rgba(10,6,14,0.32)"; ctx.fillRect(FIELD_LEFT, FIELD_TOP, FIELD_W, FIELD_H);
+    ctx.strokeStyle = "rgba(147,112,219," + (0.45 + pulse * 0.4) + ")";
+    ctx.lineWidth = 12 * U; ctx.lineCap = "round"; ctx.lineJoin = "round";
+    for (var b = 0; b < PATH.branches.length; b++) {
+      var blen = PATH.branches[b].length || 0;
+      if (blen <= 0) continue;
+      ctx.beginPath();
+      for (var s = 0; s <= 24; s++) {
+        var pp = pathPos(blen * s / 24, b);
+        if (s === 0) ctx.moveTo(pp.x, pp.y); else ctx.lineTo(pp.x, pp.y);
       }
+      ctx.stroke();
+    }
+    ctx.fillStyle = "#e8d8ff"; ctx.font = "bold " + Math.floor(13 * U) + "px Fredoka, sans-serif";
+    ctx.textAlign = "center"; ctx.textBaseline = "top";
+    ctx.fillText("Toca el camino donde aparece el T-blast", VW / 2, FIELD_TOP + 6 * U);
+    ctx.restore();
+  }
+
+  function tryTapPlaquetaPickup(x, y) {
+    if (!state.plaquetaPickups || !state.plaquetaPickups.length) return false;
+    var arr = state.plaquetaPickups;
+    // Objetivo generoso: cualquier muro de fibrina en espera (radio amplio) O el
+    // cuerpo del megacariocito. Evita el "no responde" por target chico.
+    var hit = false;
+    for (var i = 0; i < arr.length; i++) {
+      var dx = x - arr[i].x, dy = y - arr[i].y, R = 30 * U;
+      if (dx * dx + dy * dy <= R * R) { hit = true; break; }
+    }
+    if (!hit && state.megakaryocyte) {
+      var mdx = x - state.megakaryocyte.x, mdy = y - state.megakaryocyte.y;
+      if (mdx * mdx + mdy * mdy <= (40 * U) * (40 * U)) hit = true;
+    }
+    if (hit) {
+      state.selectedToBuild = "plaqueta";
+      state.selectedTower = null;
+      sfx("tap");
+      showMsg("Coloca la fibrina en un carril");
+      return true;
     }
     return false;
   }
@@ -4343,6 +4418,7 @@
       guardianTimer: 28,
       ganglio: null,                    // Ganglio linfático (base Fase 1): ensambla un T-blast héroe
       tblasts: [],                      // Linfocitos T blast héroes desplegados
+      tblastPlacing: false,             // modo "colocar en el camino" activo
       slicks: [],                       // charcos aceitosos de Malassezia
       complement: 0,                    // fragmentos de complemento recogidos
       fragments: [],                    // fragmentos C3b flotando en el campo
@@ -4945,8 +5021,8 @@
       // margen del tejido. Ensambla un Linfocito T blast héroe (ver updateGanglio).
       if (!state.dissemination) {
         if (!state.ganglio) state.ganglio = makeGanglio();
-        state.ganglio.x = FIELD_LEFT + FIELD_W * 0.87;
-        state.ganglio.y = FIELD_TOP + FIELD_H * 0.80;
+        state.ganglio.x = FIELD_LEFT + FIELD_W * 0.80;
+        state.ganglio.y = FIELD_TOP + FIELD_H * 0.88;
       }
     }
   }
@@ -5039,7 +5115,7 @@
     // derecha). 2-3 hormigas celulares lo arman; al estar listo, llaman y el
     // jugador lo coloca en un carril (ver updateMegaFactory / deployMegaSuper).
     state.megaFactory = {
-      x: 0, y: 0, progress: 0.35, ready: false, callPhase: 0, superPeriod: 60,
+      x: 0, y: 0, progress: 0, mode: "dormant", callPhase: 0, superPeriod: 60,
       ants: [{ ang: 0.4, r: 30, legPhase: 0 }, { ang: 2.5, r: 34, legPhase: 1.2 }, { ang: 4.4, r: 31, legPhase: 2.4 }]
     };
     state.megaPlacing = false;
@@ -11429,6 +11505,17 @@
     if (!state.energyDrops) return;
     for (var i = 0; i < state.energyDrops.length; i++) {
       var d = state.energyDrops[i];
+      // ATP AUTOMÁTICO: la microgota se cobra sola al fagocitar (ya no hace
+      // falta tocarla). Otorga el ATP una vez y sigue como visual que sube.
+      if (!d.granted) {
+        d.granted = true;
+        state.atp += MACROFAGO_DROP_REWARD;
+        pushEffect({
+          kind: "atpText", x: d.x, y: d.y - 6 * U, vy: -36 * U,
+          text: "+" + MACROFAGO_DROP_REWARD + " ATP", life: 0.85, max: 0.85,
+          color: "#FFD93D"
+        });
+      }
       if (d.collected) { d.collectAnim += dt; continue; }
       d.life -= dt;
       d.vy += d.ay * dt;
@@ -12513,7 +12600,16 @@
     if (tryTapUnlockPickup(x, y)) {
       return;
     }
-    // Ganglio linfático (Fase 1) listo: tap despliega el T-blast héroe.
+    // Modo "colocar en el camino" del T-blast: el tap lo hace aparecer ahí.
+    if (!state.dissemination && state.tblastPlacing) {
+      if (y >= FIELD_TOP && y <= FIELD_BOTTOM && x < FIELD_RIGHT) {
+        deployTBlast(x, y);
+      } else {
+        state.tblastPlacing = false;   // tap fuera del campo cancela
+      }
+      return;
+    }
+    // Ganglio linfático (Fase 1): tap dormido→ensambla, listo→modo colocar.
     if (!state.dissemination && tryTapGanglio(x, y)) {
       return;
     }
@@ -23632,6 +23728,7 @@
     safeDraw("MedulaOsea", drawMedulaOsea);
     safeDraw("Ganglio", drawGanglio);
     safeDraw("TBlasts", drawTBlasts);
+    safeDraw("TBlastPlacing", drawTBlastPlacing);
     safeDraw("UnlockPickups", drawUnlockPickups);
     if (!state.dissemination) { safeDraw("MedVial", drawMedVial); safeDraw("Topical", drawTopical); safeDraw("MacrofagoBtn", drawMacrofagoBtn); }
     for (var k = 0; k < state.projectiles.length; k++) {

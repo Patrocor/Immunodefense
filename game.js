@@ -1576,19 +1576,34 @@
   // y lo FRENA por adhesión (obstrucción). Al ir muriendo se DESINTEGRA en
   // crías más chicas que lo siguen como hormigas y siguen cazando —
   // Super → 3 medianos → 6 pequeños → 6 plaquetas — hasta que todas mueren.
+  // hpFrac = fracción de la vida base del enjambre (state.megaBaseHp). El Super
+  // (frac 1.0) tiene 1.5× la torre más resistente; las crías escalan de ahí.
   var MEGA_TIERS = [
-    { name: "Super",    r: 22, hp: 160, speed: 40, life: 20, dmg: 20, knock: 26, wear: 6, children: 3, childTier: 1 },
-    { name: "Mediano",  r: 15, hp: 74,  speed: 56, life: 14, dmg: 11, knock: 18, wear: 5, children: 2, childTier: 2 },
-    { name: "Pequeño",  r: 10, hp: 34,  speed: 72, life: 10, dmg: 6,  knock: 12, wear: 4, children: 1, childTier: 3 },
-    { name: "Plaqueta", r: 6,  hp: 16,  speed: 88, life: 7,  dmg: 3,  knock: 7,  wear: 3, children: 0, childTier: -1 }
+    { name: "Super",    r: 30, hpFrac: 1.00, speed: 38, life: 22, dmg: 26, knock: 30, wear: 6, children: 3, childTier: 1 },
+    { name: "Mediano",  r: 20, hpFrac: 0.46, speed: 54, life: 15, dmg: 13, knock: 20, wear: 5, children: 2, childTier: 2 },
+    { name: "Pequeño",  r: 13, hpFrac: 0.21, speed: 70, life: 11, dmg: 7,  knock: 13, wear: 4, children: 1, childTier: 3 },
+    { name: "Plaqueta", r: 8,  hpFrac: 0.10, speed: 86, life: 8,  dmg: 4,  knock: 8,  wear: 3, children: 0, childTier: -1 }
   ];
+
+  // Vida más alta de cualquier torre (máximo nivel), para escalar el enjambre.
+  function computeMaxTowerHp() {
+    var mx = 0;
+    for (var id in TOWER_DEFS) {
+      var d = TOWER_DEFS[id];
+      if (!d || !d.levels) continue;
+      for (var l = 0; l < d.levels.length; l++) if ((d.levels[l].hp || 0) > mx) mx = d.levels[l].hp;
+    }
+    return mx;
+  }
 
   function spawnMegaUnit(tier, x, y, vx, vy) {
     if (!state.megaSwarm) state.megaSwarm = [];
     var cfg = MEGA_TIERS[tier];
+    var base = state.megaBaseHp || Math.round(1.5 * computeMaxTowerHp());
+    var hp = Math.max(1, Math.round(base * cfg.hpFrac));
     state.megaSwarm.push({
       tier: tier, x: x, y: y, vx: vx || 0, vy: vy || 0,
-      hp: cfg.hp, maxHp: cfg.hp, r: cfg.r * U, life: cfg.life,
+      hp: hp, maxHp: hp, r: cfg.r * U, life: cfg.life,
       attackCd: 0, lobePhase: Math.random() * Math.PI * 2,
       hitFlash: 0, dying: false, deathT: 0
     });
@@ -1597,6 +1612,8 @@
   function launchSuperMegacariocito() {
     var mk = state.megakaryocyte;
     if (!mk || (mk.superCharge || 0) < 1) return false;
+    // Fija la vida base = 1.5× la torre más resistente en el momento del lanzamiento.
+    state.megaBaseHp = Math.round(1.5 * computeMaxTowerHp());
     spawnMegaUnit(0, mk.x, mk.y - 6 * U, (Math.random() - 0.5) * 20 * U, -30 * U);
     mk.superCharge = 0;
     triggerShake(0.15, 3);
@@ -1705,22 +1722,22 @@
   // torso, y hacia abajo). Orden = z (piernas → brazos → torso → cabeza).
   // Cada celda: [x, y, r]. flexX marca celdas de brazo (se bombean al golpear).
   var MEGA_BODY = [
-    // piernas: stance ancho, muslos gruesos
-    [-0.64, 2.60, 0.34], [0.64, 2.60, 0.34],   // pies
-    [-0.62, 2.05, 0.46], [0.62, 2.05, 0.46],   // pantorrillas
-    [-0.60, 1.28, 0.60], [0.60, 1.28, 0.60],   // muslos enormes
-    // brazos en pose de FLEX (bíceps arriba)
-    [-1.46, -0.30, 0.34, 1], [1.46, -0.30, 0.34, 1],  // puños (arriba)
-    [-1.52, -0.98, 0.42, 1], [1.52, -0.98, 0.42, 1],  // antebrazos verticales
-    [-1.22, -1.34, 0.60, 1], [1.22, -1.34, 0.60, 1],  // BÍCEPS gigantes
-    // torso en V: cintura estrecha, pecho ancho
-    [0.00, 0.78, 0.44],                        // cintura estrecha
-    [-0.30, 0.22, 0.42], [0.30, 0.22, 0.42],   // abdomen bajo
-    [-0.30, -0.34, 0.42], [0.30, -0.34, 0.42], // abdomen alto
-    [-0.56, -1.05, 0.62], [0.56, -1.05, 0.62], // pectorales anchos
-    [-1.06, -1.56, 0.58], [1.06, -1.56, 0.58], // hombros ENORMES
-    [0.00, -1.72, 0.34],                       // cuello grueso
-    [0.00, -2.36, 0.56]                        // cabeza (encima)
+    // piernas: stance MUY ancho, muslos masivos (Hulk)
+    [-0.78, 2.50, 0.42], [0.78, 2.50, 0.42],   // pies
+    [-0.72, 1.95, 0.54], [0.72, 1.95, 0.54],   // pantorrillas
+    [-0.66, 1.15, 0.72], [0.66, 1.15, 0.72],   // muslos masivos
+    // brazos en flex, bíceps HULK gigantes
+    [-1.66, -0.18, 0.42, 1], [1.66, -0.18, 0.42, 1],  // puños
+    [-1.76, -0.92, 0.50, 1], [1.76, -0.92, 0.50, 1],  // antebrazos
+    [-1.36, -1.30, 0.74, 1], [1.36, -1.30, 0.74, 1],  // BÍCEPS HULK
+    // torso V extremo: cintura estrecha, pecho/hombros masivos
+    [0.00, 0.82, 0.46],                        // cintura estrecha
+    [-0.32, 0.24, 0.44], [0.32, 0.24, 0.44],   // abdomen bajo
+    [-0.32, -0.36, 0.44], [0.32, -0.36, 0.44], // abdomen alto
+    [-0.64, -1.10, 0.72], [0.64, -1.10, 0.72], // pectorales masivos
+    [-1.22, -1.62, 0.70], [1.22, -1.62, 0.70], // hombros HULK
+    [0.00, -1.80, 0.30],                       // cuello corto (hundido)
+    [0.00, -2.28, 0.46]                        // cabeza PEQUEÑA (look Hulk)
   ];
   var MEGA_BODY_SMALL = [
     [-0.46, 2.05, 0.44], [0.46, 2.05, 0.44],   // piernas
@@ -1744,7 +1761,7 @@
     }
     var body = tier <= 1 ? MEGA_BODY : MEGA_BODY_SMALL;
     var facing = (u.vx || 0) < -2 ? -1 : 1;
-    var s = R * (tier === 0 ? 0.66 : tier === 1 ? 0.58 : 0.70);   // escala del layout
+    var s = R * (tier === 0 ? 0.68 : tier === 1 ? 0.60 : 0.72);   // escala del layout
     var breathe = 1 + Math.sin(state.time * 3 + u.lobePhase) * 0.03;
     var pump = (u.hitFlash || 0) > 0 ? 0.14 : 0;  // bíceps se contraen al golpear
     var flash = (u.hitFlash || 0) > 0;
@@ -1794,8 +1811,8 @@
       // barra de vida (solo super/mediano), sobre la cabeza.
       if (u.tier <= 1 && u.hp < u.maxHp) {
         var hf = Math.max(0, u.hp / u.maxHp);
-        ctx.fillStyle = "rgba(0,0,0,0.5)"; ctx.fillRect(-R * 0.8, -R * 1.75, R * 1.6, 3 * U);
-        ctx.fillStyle = "#e74c3c"; ctx.fillRect(-R * 0.8, -R * 1.75, R * 1.6 * hf, 3 * U);
+        ctx.fillStyle = "rgba(0,0,0,0.5)"; ctx.fillRect(-R * 0.9, -R * 2.15, R * 1.8, 3.5 * U);
+        ctx.fillStyle = "#e74c3c"; ctx.fillRect(-R * 0.9, -R * 2.15, R * 1.8 * hf, 3.5 * U);
       }
       ctx.restore();
     }

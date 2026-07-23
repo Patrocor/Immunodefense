@@ -1337,28 +1337,28 @@
     // ---- Bosses --------------------------------------------------------
     bossPyogenes: {
       id: "bossPyogenes", name: "Streptococcus pyogenes", baseKind: "bacteria",
-      color: "#C62828", colorDark: "#5a0d0d", radius: 32,
+      color: "#C62828", colorDark: "#5a0d0d", radius: 40,
       speedMult: 0.8, hp: 1155, reward: 50, viralAdd: 15, attack: 25, power: { type: "burst", range: 165, cooldown: 3, dmg: 24, slowFire: 3 }, isBoss: true,
       shield: { type: "capsula", maxHP: 6, regenRate: 6 / 8, regenDelay: 0 },
       tooltip: "Streptococcus pyogenes utiliza su estreptolisina O/S para destruir membranas celulares y su hialuronidasa para disolver el ácido hialurónico, avanzando por los tejidos y dejando un rastro de necrosis. Su proteína M antifagocítica le permite evadir a los neutrófilos — requiere respuesta completa del sistema inmune."
     },
     bossMRSA: {
       id: "bossMRSA", name: "MRSA", baseKind: "bacteria",
-      color: "#424242", colorDark: "#1a1a1a", radius: 38,
+      color: "#424242", colorDark: "#1a1a1a", radius: 48,
       speedMult: 0.6, hp: 2970, reward: 150, viralAdd: 35, attack: 35, power: { type: "spray", range: 165, cooldown: 3, stun: 3, dmg: 28 }, isBoss: true,
       shield: { type: "capsula", maxHP: 10, regenRate: 2 / 6, regenDelay: 0, doubleRing: true, mrsaHalo: true },
       tooltip: "MRSA porta el gen mecA en el cassette SCCmec, lo que le permite esquivar los antibióticos β-lactámicos y resistir la mayoría de los tratamientos convencionales. Combina cápsula, biofilm y resistencia genética — el jefe final de la Fase 1 requiere todo el arsenal inmune disponible."
     },
     bossPseudomonas: {
       id: "bossPseudomonas", name: "Pseudomonas aeruginosa", baseKind: "bacteria",
-      color: "#00ACC1", colorDark: "#00606e", colorLight: "#4DD0E1", radius: 30,
+      color: "#00ACC1", colorDark: "#00606e", colorLight: "#4DD0E1", radius: 38,
       speedMult: 0.9, hp: 1540, reward: 65, viralAdd: 18, attack: 22, power: { type: "devour", range: 130, cooldown: 11, pull: 1.5 }, isBoss: true,
       shield: { type: "wall", maxHP: 6, regenRate: 6 / 8, regenDelay: 0 },
       tooltip: "Pseudomonas aeruginosa hipervirulenta usa su sistema de secreción tipo III para inyectar exoenzimas directamente en las células huésped, mientras la piocianina bloquea la fagocitosis y su biofilm regenera el escudo continuamente. JEFE de ectima gangrenoso — atrae y devora torres cercanas con su campo de captación."
     },
     bossClostridium: {
       id: "bossClostridium", name: "Clostridium perfringens", baseKind: "bacteria",
-      color: "#546E7A", colorDark: "#263238", radius: 32,
+      color: "#546E7A", colorDark: "#263238", radius: 40,
       speedMult: 0.55, hp: 1815, reward: 80, viralAdd: 22, attack: 28, power: { type: "devour", range: 120, cooldown: 13, pull: 1.8 }, isBoss: true,
       shield: { type: "wall", maxHP: 5, regenRate: 0, regenDelay: 0 },
       tooltip: "Clostridium perfringens produce la letal α-toxina fosfolipasa C que destruye membranas celulares, causando gangrena gaseosa al producir gas en los tejidos. Avanza lento e implacable — los neutrófilos son los candidatos más eficaces para combatir a este formidable jefe."
@@ -15821,11 +15821,54 @@
     ctx.restore();
   }
 
+  // Atmósfera de amenaza DRAMÁTICA de los JEFES (sin tocar su dibujo):
+  // aura que respira + parche de corrupción + brasas/esporas que suben como
+  // fuego + onda de amenaza que emana periódicamente. En el color del jefe.
+  function drawBossMenace(e, rad) {
+    var t = state.time, w = e.wobble || 0;
+    var col = e.def.colorLight || e.def.color || "#ff6a2a";
+    ctx.save();
+
+    // Aura de amenaza que respira (glow amplio en el color del jefe).
+    var pulse = 0.5 + 0.5 * Math.sin(t * 2.2 + w);
+    var auraR = rad * (1.75 + 0.18 * pulse);
+    var ag = ctx.createRadialGradient(e.x, e.y, rad * 0.7, e.x, e.y, auraR);
+    ag.addColorStop(0, colorAlpha(col, 0));
+    ag.addColorStop(0.65, colorAlpha(col, 0.16 + 0.10 * pulse));
+    ag.addColorStop(1, colorAlpha(col, 0));
+    ctx.fillStyle = ag;
+    ctx.beginPath(); ctx.arc(e.x, e.y, auraR, 0, Math.PI * 2); ctx.fill();
+
+    // Parche de corrupción bajo el jefe (tejido oscurecido).
+    ctx.fillStyle = "rgba(18, 3, 8, 0.4)";
+    ctx.beginPath(); ctx.ellipse(e.x, e.y + rad * 0.95, rad * 1.35, rad * 0.42, 0, 0, Math.PI * 2); ctx.fill();
+
+    // Onda de amenaza que emana periódicamente (poder saliendo del jefe).
+    var ringP = (t * 0.5 + w * 0.3) % 1;
+    ctx.strokeStyle = colorAlpha(col, 0.45 * (1 - ringP));
+    ctx.lineWidth = Math.max(1.5, 3 * U * (1 - ringP));
+    ctx.beginPath(); ctx.arc(e.x, e.y, rad * (1.0 + ringP * 1.4), 0, Math.PI * 2); ctx.stroke();
+
+    // Brasas / esporas SUBIENDO como fuego (más y más grandes, con vida).
+    for (var i = 0; i < 16; i++) {
+      var seed = i * 0.618;
+      var cycle = (t * 0.55 + seed) % 1;                    // 0..1 sube y reaparece
+      var baseA = (i / 16) * Math.PI * 2 + w;
+      var ex = e.x + Math.cos(baseA) * rad * (0.55 + 0.55 * Math.sin(seed * 6)) + Math.sin(t * 2 + i) * rad * 0.12;
+      var ey = e.y + rad * 0.9 - cycle * rad * 2.4;         // sube ~2.4R
+      var life = 1 - cycle;
+      ctx.fillStyle = colorAlpha(col, 0.6 * life);
+      ctx.beginPath(); ctx.arc(ex, ey, rad * (0.045 + 0.05 * life) + 0.5 * U, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.restore();
+  }
+
   function drawEnemy(e) {
     var def = e.def;
     var rad = def.radius * U * (e.radiusScale || 1);
     if (e.swallowAnim > 0) rad *= 1 + 0.35 * (e.swallowAnim / 0.45);   // se hincha al tragar
     if (e.engulfScale != null) rad *= e.engulfScale;                    // encogido al ser fagocitado
+    if (def.isBoss && !e.dying && !e.absorbing) drawBossMenace(e, rad);
     // (Splat de Langerhans se dibuja DESPUÉS del cuerpo del germen — ver más abajo.)
     // Glow para gérmenes NO vistos aún: pulso amarillo invitando al tap
     // que abre el compendio. Se quita en cuanto state.vistos[id] se set.

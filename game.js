@@ -1683,6 +1683,98 @@
     }
   }
 
+  // Una célula-cariocito (cuerpo crema + núcleo multilobulado). Ladrillo del
+  // humanoide muscular del Super Megacariocito.
+  function drawCariocitoCell(x, y, r, flash, seed) {
+    var g = ctx.createRadialGradient(x - r * 0.32, y - r * 0.32, r * 0.18, x, y, r);
+    g.addColorStop(0, flash ? "#ffffff" : "#FFE8D0");
+    g.addColorStop(0.6, "#E8B888");
+    g.addColorStop(1, "#8A5030");
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = "#5A3010"; ctx.lineWidth = Math.max(0.7, r * 0.13); ctx.stroke();
+    // núcleo multilobulado mini
+    ctx.fillStyle = "#7A3050";
+    for (var l = 0; l < 3; l++) {
+      var a = (l / 3) * Math.PI * 2 + (seed || 0);
+      ctx.beginPath(); ctx.arc(x + Math.cos(a) * r * 0.30, y + Math.sin(a) * r * 0.30, r * 0.25, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+
+  // Layout del cuerpo humanoide MUSCULOSO, en unidades de R (origen en el
+  // torso, y hacia abajo). Orden = z (piernas → brazos → torso → cabeza).
+  // Cada celda: [x, y, r]. flexX marca celdas de brazo (se bombean al golpear).
+  var MEGA_BODY = [
+    // piernas: stance ancho, muslos gruesos
+    [-0.64, 2.60, 0.34], [0.64, 2.60, 0.34],   // pies
+    [-0.62, 2.05, 0.46], [0.62, 2.05, 0.46],   // pantorrillas
+    [-0.60, 1.28, 0.60], [0.60, 1.28, 0.60],   // muslos enormes
+    // brazos en pose de FLEX (bíceps arriba)
+    [-1.46, -0.30, 0.34, 1], [1.46, -0.30, 0.34, 1],  // puños (arriba)
+    [-1.52, -0.98, 0.42, 1], [1.52, -0.98, 0.42, 1],  // antebrazos verticales
+    [-1.22, -1.34, 0.60, 1], [1.22, -1.34, 0.60, 1],  // BÍCEPS gigantes
+    // torso en V: cintura estrecha, pecho ancho
+    [0.00, 0.78, 0.44],                        // cintura estrecha
+    [-0.30, 0.22, 0.42], [0.30, 0.22, 0.42],   // abdomen bajo
+    [-0.30, -0.34, 0.42], [0.30, -0.34, 0.42], // abdomen alto
+    [-0.56, -1.05, 0.62], [0.56, -1.05, 0.62], // pectorales anchos
+    [-1.06, -1.56, 0.58], [1.06, -1.56, 0.58], // hombros ENORMES
+    [0.00, -1.72, 0.34],                       // cuello grueso
+    [0.00, -2.36, 0.56]                        // cabeza (encima)
+  ];
+  var MEGA_BODY_SMALL = [
+    [-0.46, 2.05, 0.44], [0.46, 2.05, 0.44],   // piernas
+    [-1.18, -0.85, 0.46, 1], [1.18, -0.85, 0.46, 1], // brazos flex
+    [0.00, 0.58, 0.46],                        // cintura
+    [-0.42, -0.55, 0.56], [0.42, -0.55, 0.56], // pecho ancho
+    [-0.72, -1.0, 0.44], [0.72, -1.0, 0.44],   // hombros
+    [0.00, -1.85, 0.54]                        // cabeza
+  ];
+
+  // Dibuja el Super/crías como HUMANOIDE muscular hecho de cariocitos.
+  function drawMegaHumanoid(u, R) {
+    var tier = u.tier;
+    if (tier === 3) {   // plaqueta: mini racimo de 4 células (no humanoide)
+      var pr = R * 0.62;
+      drawCariocitoCell(-pr * 0.5, pr * 0.3, pr * 0.6, u.hitFlash > 0, u.lobePhase);
+      drawCariocitoCell(pr * 0.5, pr * 0.3, pr * 0.55, u.hitFlash > 0, u.lobePhase + 1);
+      drawCariocitoCell(0, -pr * 0.35, pr * 0.62, u.hitFlash > 0, u.lobePhase + 2);
+      drawCariocitoCell(pr * 0.1, pr * 0.05, pr * 0.45, u.hitFlash > 0, u.lobePhase + 3);
+      return;
+    }
+    var body = tier <= 1 ? MEGA_BODY : MEGA_BODY_SMALL;
+    var facing = (u.vx || 0) < -2 ? -1 : 1;
+    var s = R * (tier === 0 ? 0.66 : tier === 1 ? 0.58 : 0.70);   // escala del layout
+    var breathe = 1 + Math.sin(state.time * 3 + u.lobePhase) * 0.03;
+    var pump = (u.hitFlash || 0) > 0 ? 0.14 : 0;  // bíceps se contraen al golpear
+    var flash = (u.hitFlash || 0) > 0;
+    ctx.save();
+    ctx.translate(0, -R * 0.15);
+    ctx.scale(facing, 1);
+    for (var c = 0; c < body.length; c++) {
+      var cell = body[c];
+      var cxp = cell[0], cyp = cell[1] * breathe, cr = cell[2] * s;
+      if (cell[3]) cxp -= Math.sign(cell[0]) * pump;   // brazos se recogen al golpear
+      drawCariocitoCell(cxp * s, cyp * s, cr, flash, u.lobePhase + c);
+    }
+    // Ojos cazadores + ceño en la cabeza (última celda del layout).
+    var head = body[body.length - 1];
+    var hx = head[0] * s, hy = head[1] * breathe * s, hr = head[2] * s;
+    var lookx = (u.vx || 0) * facing, ll = Math.abs(lookx) + Math.abs(u.vy || 0) || 1;
+    var ex = ((u.vx || 0) * facing / ll) * hr * 0.14, ey = ((u.vy || 0) / ll) * hr * 0.12;
+    ctx.fillStyle = "#fff";
+    ctx.beginPath(); ctx.arc(hx - hr * 0.34, hy - hr * 0.05, hr * 0.26, 0, Math.PI * 2); ctx.arc(hx + hr * 0.34, hy - hr * 0.05, hr * 0.26, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "#201018";
+    ctx.beginPath(); ctx.arc(hx - hr * 0.34 + ex, hy - hr * 0.03 + ey, hr * 0.13, 0, Math.PI * 2); ctx.arc(hx + hr * 0.34 + ex, hy - hr * 0.03 + ey, hr * 0.13, 0, Math.PI * 2); ctx.fill();
+    // ceño fruncido (menaza)
+    ctx.strokeStyle = "#3a1420"; ctx.lineWidth = Math.max(1, hr * 0.14); ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(hx - hr * 0.55, hy - hr * 0.42); ctx.lineTo(hx - hr * 0.14, hy - hr * 0.26);
+    ctx.moveTo(hx + hr * 0.55, hy - hr * 0.42); ctx.lineTo(hx + hr * 0.14, hy - hr * 0.26);
+    ctx.stroke();
+    ctx.restore();
+  }
+
   function drawMegaSwarm() {
     if (!state.megaSwarm || !state.megaSwarm.length || !state.dissemination) return;
     ctx.save();
@@ -1694,37 +1786,16 @@
       ctx.save();
       ctx.translate(u.x, u.y);
       ctx.scale(dieScale, dieScale);
-      // sombra
-      ctx.fillStyle = "rgba(0,0,0,0.25)";
-      ctx.beginPath(); ctx.ellipse(0, R * 0.7, R * 0.9, R * 0.32, 0, 0, Math.PI * 2); ctx.fill();
-      // cuerpo
-      var g = ctx.createRadialGradient(-R * 0.3, -R * 0.3, R * 0.2, 0, 0, R);
-      g.addColorStop(0, u.hitFlash > 0 ? "#ffffff" : "#FFE8D0");
-      g.addColorStop(0.6, "#E8B888"); g.addColorStop(1, "#8A5030");
-      ctx.fillStyle = g;
-      ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = "#5A3010"; ctx.lineWidth = Math.max(1, 1.4 * U); ctx.stroke();
-      // núcleo multilobulado (característico)
-      var lobes = u.tier === 0 ? 5 : (u.tier === 1 ? 4 : 3);
-      ctx.fillStyle = "#7A3050"; ctx.strokeStyle = "#4A1830"; ctx.lineWidth = Math.max(0.8, 1 * U);
-      for (var l = 0; l < lobes; l++) {
-        var la = (l / lobes) * Math.PI * 2 + state.time * 0.4 + u.lobePhase;
-        ctx.beginPath(); ctx.arc(Math.cos(la) * R * 0.36, Math.sin(la) * R * 0.36, R * 0.27, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-      }
-      // ojitos cazadores (super/mediano)
-      if (u.tier <= 1) {
-        ctx.fillStyle = "#fff";
-        ctx.beginPath(); ctx.arc(-R * 0.24, -R * 0.12, R * 0.17, 0, Math.PI * 2); ctx.arc(R * 0.24, -R * 0.12, R * 0.17, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = "#221018";
-        var lookx = u.vx || 0, looky = u.vy || 0, ll = Math.hypot(lookx, looky) || 1;
-        var ex = (lookx / ll) * R * 0.06, ey = (looky / ll) * R * 0.06;
-        ctx.beginPath(); ctx.arc(-R * 0.24 + ex, -R * 0.1 + ey, R * 0.08, 0, Math.PI * 2); ctx.arc(R * 0.24 + ex, -R * 0.1 + ey, R * 0.08, 0, Math.PI * 2); ctx.fill();
-      }
-      // barra de vida (solo super/mediano)
+      // sombra (base humanoide: más ancha abajo)
+      ctx.fillStyle = "rgba(0,0,0,0.28)";
+      ctx.beginPath(); ctx.ellipse(0, R * 1.5, R * 1.0, R * 0.30, 0, 0, Math.PI * 2); ctx.fill();
+      // Cuerpo: humanoide muscular hecho de cariocitos agrupados.
+      drawMegaHumanoid(u, R);
+      // barra de vida (solo super/mediano), sobre la cabeza.
       if (u.tier <= 1 && u.hp < u.maxHp) {
         var hf = Math.max(0, u.hp / u.maxHp);
-        ctx.fillStyle = "rgba(0,0,0,0.5)"; ctx.fillRect(-R * 0.8, -R * 1.35, R * 1.6, 3 * U);
-        ctx.fillStyle = "#e74c3c"; ctx.fillRect(-R * 0.8, -R * 1.35, R * 1.6 * hf, 3 * U);
+        ctx.fillStyle = "rgba(0,0,0,0.5)"; ctx.fillRect(-R * 0.8, -R * 1.75, R * 1.6, 3 * U);
+        ctx.fillStyle = "#e74c3c"; ctx.fillRect(-R * 0.8, -R * 1.75, R * 1.6 * hf, 3 * U);
       }
       ctx.restore();
     }

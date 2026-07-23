@@ -23183,6 +23183,57 @@
     ctx.restore();
   }
 
+  // Ilustración del órgano (corazón / hueso / articulación), animada.
+  function drawOrganShape(x, y, organ, s, t) {
+    ctx.save();
+    ctx.translate(x, y);
+    if (organ.id === "corazon") {
+      var beat = 1 + Math.max(0, Math.sin(t * 3.6)) * 0.10;   // latido bombeo
+      ctx.scale(beat, beat);
+      ctx.strokeStyle = "#9a3050"; ctx.lineWidth = s * 0.24; ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.moveTo(-s * 0.18, -s * 0.5); ctx.lineTo(-s * 0.34, -s * 1.0);
+      ctx.moveTo(s * 0.16, -s * 0.55); ctx.lineTo(s * 0.3, -s * 1.0);
+      ctx.stroke();
+      var hg = ctx.createRadialGradient(-s * 0.25, -s * 0.25, s * 0.1, 0, 0, s * 1.15);
+      hg.addColorStop(0, "#ef8299"); hg.addColorStop(0.6, "#c1416a"); hg.addColorStop(1, "#731a35");
+      ctx.fillStyle = hg;
+      ctx.beginPath();
+      ctx.moveTo(0, s * 0.85);
+      ctx.bezierCurveTo(-s * 1.15, -s * 0.1, -s * 0.55, -s * 0.95, 0, -s * 0.3);
+      ctx.bezierCurveTo(s * 0.55, -s * 0.95, s * 1.15, -s * 0.1, 0, s * 0.85);
+      ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = "#731a35"; ctx.lineWidth = s * 0.09; ctx.stroke();
+      ctx.fillStyle = "rgba(255,255,255,0.4)";
+      ctx.beginPath(); ctx.ellipse(-s * 0.32, -s * 0.15, s * 0.22, s * 0.12, -0.6, 0, Math.PI * 2); ctx.fill();
+    } else if (organ.id === "hueso") {
+      ctx.rotate(-0.5);
+      var bg = ctx.createLinearGradient(-s, 0, s, 0);
+      bg.addColorStop(0, "#f2e8c8"); bg.addColorStop(0.5, "#d8c89a"); bg.addColorStop(1, "#a89860");
+      ctx.fillStyle = bg; ctx.strokeStyle = "#8a7a50"; ctx.lineWidth = s * 0.06;
+      function bknob(cx2, cy2) { ctx.beginPath(); ctx.arc(cx2, cy2, s * 0.27, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); }
+      bknob(-s * 0.26, -s * 0.72); bknob(s * 0.26, -s * 0.72);
+      bknob(-s * 0.26, s * 0.72); bknob(s * 0.26, s * 0.72);
+      ctx.beginPath(); ctx.rect(-s * 0.2, -s * 0.8, s * 0.4, s * 1.6); ctx.fill();   // shaft tapa el centro de los bulbos
+      ctx.strokeStyle = "rgba(138,122,80,0.5)"; ctx.lineWidth = s * 0.05;
+      ctx.beginPath(); ctx.moveTo(-s * 0.2, -s * 0.8); ctx.lineTo(-s * 0.2, s * 0.8);
+      ctx.moveTo(s * 0.2, -s * 0.8); ctx.lineTo(s * 0.2, s * 0.8); ctx.stroke();
+    } else if (organ.id === "articulacion") {
+      var jg = ctx.createLinearGradient(0, -s, 0, s);
+      jg.addColorStop(0, "#e8f4f6"); jg.addColorStop(0.5, "#8ec5d0"); jg.addColorStop(1, "#4a868e");
+      ctx.fillStyle = jg; ctx.strokeStyle = "#3e767e"; ctx.lineWidth = s * 0.07;
+      ctx.beginPath(); ctx.ellipse(0, -s * 0.55, s * 0.55, s * 0.46, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      ctx.beginPath(); ctx.ellipse(0, s * 0.55, s * 0.55, s * 0.46, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      var shim = 0.5 + 0.5 * Math.sin(t * 3);   // líquido sinovial que brilla
+      ctx.fillStyle = "rgba(224,246,250," + (0.5 + shim * 0.35) + ")";
+      ctx.beginPath(); ctx.ellipse(0, 0, s * 0.52, s * 0.17, 0, 0, Math.PI * 2); ctx.fill();
+    } else {
+      ctx.fillStyle = organ.color;
+      ctx.beginPath(); ctx.arc(0, 0, s * 0.7, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.restore();
+  }
+
   function drawOrganDoor(x, y, organ, load, flash) {
     load = load || 0;
     flash = flash || 0;
@@ -23219,17 +23270,8 @@
     ctx.beginPath();
     ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2);
     ctx.stroke();
-    // Ícono central.
-    ctx.fillStyle = organ.color;
-    ctx.font = "bold " + Math.floor(16 * U) + "px Fredoka, sans-serif";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    var icon = organ.id === "corazon" ? "♥"
-             : organ.id === "pulmon" ? "🫁"
-             : organ.id === "sangre" ? "●"
-             : organ.id === "hueso" ? "▌"
-             : "◯";
-    ctx.fillText(icon, x, y - 1);
+    // Ícono central: ILUSTRACIÓN del órgano (reemplaza el emoji), animada.
+    drawOrganShape(x, y, organ, 14 * U, state.time);
     // Contador X/10 sobre la puerta.
     ctx.font = "bold " + Math.floor(11 * U) + "px Fredoka, sans-serif";
     var loadColor = pct >= 0.7 ? "#ff7a7a" : (pct >= 0.4 ? "#ffd24a" : "rgba(240, 220, 200, 0.95)");

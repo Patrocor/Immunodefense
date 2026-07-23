@@ -1029,9 +1029,10 @@
     complemento: {
       id: "complemento", name: "Cañón del Complemento", shortName: "Cañón MAC",
       color: "#FFD24A", colorDark: "#b8860b", cost: 5, currency: "complement",
-      desc: "El complejo C5b-9 perfora membranas de bacterias gram-negativas causando su lisis. Disparo manual concentrado que ignora todos los escudos.",
+      desc: "Dispara una MALLA de complemento amarilla que ATRAPA y DETIENE a todos los gérmenes en el radio por 3 segundos, dañándolos, e ignora escudos. Solo se coloca en los LATERALES (no en el camino).",
       ignoreShield: true,
       manualFire: true,             // el jugador apunta y dispara
+      lateralOnly: true,            // solo se coloca en los márgenes laterales
       immuneToAura: true,           // el aura de contacto no le hace daño
       lifetimeDecay: 2.5,           // HP perdidos por segundo (se consume solo)
       // El "tiro" es una mancha de ácido en el campo: fireRate como cadencia mínima
@@ -1636,13 +1637,15 @@
     return true;   // assembling: consume el tap sin hacer nada (evita colocar torres encima)
   }
 
-  function deployMegaSuper(laneIdx) {
+  function deployMegaSuper(laneIdx, tapY) {
     var f = state.megaFactory;
     if (!f || f.mode !== "ready") return;
     state.megaBaseHp = Math.round(0.75 * computeMaxTowerHp());   // HP al 50% del anterior (1.5→0.75)
     var laneX = FIELD_LEFT + (PATH.laneXs ? PATH.laneXs[laneIdx] : 0.5) * FIELD_W;
-    var laneY = FIELD_TOP + FIELD_H * 0.45;
-    // Aparece DIRECTO en el CENTRO del carril (sin caminar desde el borde).
+    // Aparece centrado en X del carril, a la ALTURA (Y) donde tocó el jugador.
+    var laneY = (tapY != null)
+      ? Math.max(FIELD_TOP + FIELD_H * 0.12, Math.min(FIELD_TOP + FIELD_H * 0.88, tapY))
+      : FIELD_TOP + FIELD_H * 0.45;
     spawnMegaUnit(0, laneX, laneY, 0, 0, laneIdx, null);
     f.progress = 0; f.mode = "dormant"; f.callPhase = 0;   // queda DORMIDA hasta el próximo tap
     state.megaPlacing = false;
@@ -2023,7 +2026,7 @@
     if (!state.tblasts) state.tblasts = [];
     var np = nearestPathProgress(px, py) || { heridaIdx: 0, progress: 0 };
     var pos = pathPos(np.progress, np.heridaIdx);
-    var hp = Math.round(1.3 * computeMaxTowerHp());
+    var hp = Math.round(0.65 * computeMaxTowerHp());   // HP al 50% del anterior (1.3→0.65)
     state.tblasts.push({
       x: pos.x, y: pos.y, heridaIdx: np.heridaIdx | 0, progress: np.progress,
       hp: hp, maxHp: hp, life: 28, attackCd: 0,
@@ -2165,6 +2168,14 @@
     var isReady = g.mode === "ready";
     var glow = isReady ? (0.5 + 0.5 * Math.sin((g.callPhase || 0) * 5)) : 0.3;
     ctx.save();
+    // Fondo tenue frío (azul-verdoso) para DESTACAR el ganglio sobre el tejido
+    // cálido de la Fase 1 (contraste de color).
+    var bgGrad = ctx.createRadialGradient(g.x, g.y, 6 * U, g.x, g.y, 50 * U);
+    bgGrad.addColorStop(0, "rgba(18,52,60,0.72)");
+    bgGrad.addColorStop(0.7, "rgba(14,40,48,0.50)");
+    bgGrad.addColorStop(1, "rgba(14,40,48,0)");
+    ctx.fillStyle = bgGrad;
+    ctx.beginPath(); ctx.arc(g.x, g.y, 50 * U, 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = "rgba(63,193,201," + (0.10 + glow * 0.12) + ")";
     ctx.beginPath(); ctx.ellipse(g.x, g.y + 14 * U, 46 * U, 20 * U, 0, 0, Math.PI * 2); ctx.fill();
     // T-blast en ensamblaje (crece con el progreso). Dormido: no se muestra.
@@ -4424,7 +4435,8 @@
       complement: 0,                    // fragmentos de complemento recogidos
       fragments: [],                    // fragmentos C3b flotando en el campo
       cannonShots: [],                  // disparos del cañón MAC (en vuelo, arco)
-      acidSplats: [],                   // charcos de ácido del cañón MAC
+      acidSplats: [],                   // charcos de ácido del cañón MAC (legacy)
+      cannonNets: [],                   // mallas fosforescentes del cañón MAC
       seekers: [],                      // esporas buscadoras (Pseudomonas)
       necroticPatches: [],              // parches necróticos de bossPyogenes
       pendingBombs: [],                 // {x,y,dmg,radius,timer,max} — death-bomb del Trombo
@@ -5170,6 +5182,7 @@
     state.fragments.length = 0;
     state.cannonShots.length = 0;
     state.acidSplats.length = 0;
+    if (state.cannonNets) state.cannonNets.length = 0;
     state.seekers.length = 0;
     state.slicks.length = 0;
     state.restos.length = 0;
@@ -9221,8 +9234,10 @@
       var s = state.cannonShots[i];
       s.t += dt;
       if (s.t >= s.max) {
-        state.acidSplats.push({ x: s.tx, y: s.ty, r: s.splash, dps: s.dmg, life: s.dur, max: s.dur });
-        pushEffect({ kind: "shock", x: s.tx, y: s.ty, r: s.splash, life: 0.5, max: 0.5, color: "#9be000" });
+        // Malla amarilla fosforescente: atrapa+DETIENE+daña por 3s, luego se va.
+        if (!state.cannonNets) state.cannonNets = [];
+        state.cannonNets.push({ x: s.tx, y: s.ty, r: s.splash, dps: s.dmg, life: 3.0, max: 3.0, seed: Math.random() * 100 });
+        pushEffect({ kind: "shock", x: s.tx, y: s.ty, r: s.splash, life: 0.5, max: 0.5, color: "#ffe23a" });
         sfx("tick");
         state.cannonShots.splice(i, 1);
       }
@@ -9252,6 +9267,91 @@
       ctx.strokeStyle = "rgba(255,255,255,0.7)"; ctx.lineWidth = 1.5;
       ctx.beginPath(); ctx.arc(x, y, 13 * U, 0, Math.PI * 2); ctx.stroke();
     }
+  }
+
+  // Malla del Cañón MAC: mientras vive (3s) DETIENE (stun) y DAÑA a todos los
+  // gérmenes dentro del radio; al expirar, desaparece y se liberan.
+  function updateCannonNets(dt) {
+    if (!state.cannonNets) return;
+    for (var i = state.cannonNets.length - 1; i >= 0; i--) {
+      var n = state.cannonNets[i];
+      n.life -= dt;
+      for (var ei = 0; ei < state.enemies.length; ei++) {
+        var en = state.enemies[ei];
+        if (en.dead || en.dying || en.absorbing) continue;
+        if (en.state !== "walking" && en.state !== "blocked") continue;
+        if (Math.hypot(en.x - n.x, en.y - n.y) < n.r) {
+          en.stunTimer = Math.max(en.stunTimer || 0, 0.2);   // DETENIDO mientras la malla viva
+          damageEnemy(en, n.dps * dt, "complemento");        // daño coherente durante 3s
+        }
+      }
+      if (n.life <= 0) state.cannonNets.splice(i, 1);
+    }
+  }
+  // Al seleccionar el Cañón MAC para colocar: PARPADEO de las bandas laterales
+  // válidas (no se puede en el camino).
+  function drawMacPlacing() {
+    var sel = state.selectedToBuild;
+    if (!sel) return;
+    var def = TOWER_DEFS[sel];
+    if (!def || !def.lateralOnly) return;
+    var blink = (Math.floor(state.time * 2.6) % 2) === 0;
+    var top = FIELD_TOP + FIELD_H * 0.10, bot = FIELD_BOTTOM - FIELD_H * 0.10;
+    var leftMax = FIELD_LEFT + FIELD_W * 0.20;
+    var rightMin = FIELD_RIGHT - FIELD_W * 0.20;
+    ctx.save();
+    ctx.fillStyle = "rgba(255,226,58," + (blink ? 0.22 : 0.09) + ")";
+    ctx.fillRect(FIELD_LEFT, top, leftMax - FIELD_LEFT, bot - top);
+    ctx.fillRect(rightMin, top, FIELD_RIGHT - rightMin, bot - top);
+    if (blink) {
+      ctx.strokeStyle = "rgba(255,226,58,0.85)"; ctx.lineWidth = 2.5 * U; ctx.setLineDash([8 * U, 6 * U]);
+      ctx.strokeRect(FIELD_LEFT + 2 * U, top, leftMax - FIELD_LEFT - 4 * U, bot - top);
+      ctx.strokeRect(rightMin + 2 * U, top, FIELD_RIGHT - rightMin - 4 * U, bot - top);
+      ctx.setLineDash([]);
+    }
+    ctx.fillStyle = "#fff2a0"; ctx.font = "bold " + Math.floor(11 * U) + "px Fredoka, sans-serif";
+    ctx.textAlign = "center"; ctx.textBaseline = "top";
+    ctx.fillText("Cañón MAC: colócalo en los LATERALES", VW / 2, FIELD_TOP + 6 * U);
+    ctx.restore();
+  }
+
+  function drawCannonNets() {
+    if (!state.cannonNets || !state.cannonNets.length) return;
+    ctx.save();
+    for (var i = 0; i < state.cannonNets.length; i++) {
+      var n = state.cannonNets[i];
+      var a = Math.min(1, n.life / 0.6);   // fade-out en el último 0.6s
+      var pulse = 0.85 + 0.15 * Math.sin(state.time * 8 + n.seed);
+      var R = n.r * pulse;
+      // Disco fosforescente amarillo tenue.
+      var g = ctx.createRadialGradient(n.x, n.y, R * 0.1, n.x, n.y, R);
+      g.addColorStop(0, "rgba(255,240,90," + (0.30 * a) + ")");
+      g.addColorStop(0.7, "rgba(230,200,20," + (0.18 * a) + ")");
+      g.addColorStop(1, "rgba(200,170,10,0)");
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(n.x, n.y, R, 0, Math.PI * 2); ctx.fill();
+      // MALLA: retícula de hilos brillantes (clip al círculo).
+      ctx.save();
+      ctx.beginPath(); ctx.arc(n.x, n.y, R, 0, Math.PI * 2); ctx.clip();
+      ctx.strokeStyle = "rgba(255,246,120," + (0.75 * a) + ")";
+      ctx.lineWidth = Math.max(1, 1.6 * U);
+      var step = R / 3.2;
+      for (var gx = -R; gx <= R; gx += step) {
+        ctx.beginPath(); ctx.moveTo(n.x + gx, n.y - R); ctx.lineTo(n.x + gx + R * 0.28, n.y + R); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(n.x - R, n.y + gx); ctx.lineTo(n.x + R, n.y + gx + R * 0.28); ctx.stroke();
+      }
+      // nodos de la malla
+      ctx.fillStyle = "rgba(255,255,180," + (0.9 * a) + ")";
+      for (var nn = 0; nn < 8; nn++) {
+        var na = (nn / 8) * Math.PI * 2 + state.time * 0.6, nr = R * (0.35 + 0.5 * ((nn % 3) / 2));
+        ctx.beginPath(); ctx.arc(n.x + Math.cos(na) * nr, n.y + Math.sin(na) * nr, 2.6 * U, 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.restore();
+      // borde brillante
+      ctx.strokeStyle = "rgba(255,246,120," + (0.85 * a) + ")"; ctx.lineWidth = Math.max(1.5, 2.2 * U);
+      ctx.beginPath(); ctx.arc(n.x, n.y, R, 0, Math.PI * 2); ctx.stroke();
+    }
+    ctx.restore();
   }
 
   function updateAcidSplats(dt) {
@@ -12623,7 +12723,7 @@
           var dd = Math.abs(x - lxp);
           if (dd < bd) { bd = dd; bestLane = li; }
         }
-        deployMegaSuper(bestLane);
+        deployMegaSuper(bestLane, y);
       } else {
         state.megaPlacing = false;   // tap fuera del campo cancela
       }
@@ -12953,7 +13053,31 @@
     }
   }
 
+  // Bandas laterales (márgenes izq/der) donde SOLO puede ir el Cañón MAC.
+  function inLateralBand(x) {
+    return x < FIELD_LEFT + FIELD_W * 0.20 || x > FIELD_RIGHT - FIELD_W * 0.20;
+  }
+  function canPlaceLateral(x, y) {
+    var pad = 18 * U;
+    var top = FIELD_TOP + FIELD_H * 0.10, bot = FIELD_BOTTOM - FIELD_H * 0.10;
+    if (y < top || y > bot) return false;
+    if (!inLateralBand(x)) return false;               // debe estar en un margen lateral
+    if (x < FIELD_LEFT + pad || x > FIELD_RIGHT - pad) return false;
+    for (var i = 0; i < state.towers.length; i++) {
+      if (Math.hypot(state.towers[i].x - x, state.towers[i].y - y) < 34 * U) return false;
+    }
+    if (Math.abs(x - DRIP.x) < DRIP.w + 12 * U && Math.abs(y - DRIP.y) < DRIP.h + 12 * U) return false;
+    if (DRIP_R && DRIP_R.active && Math.abs(x - DRIP_R.x) < DRIP_R.w + 12 * U && Math.abs(y - DRIP_R.y) < DRIP_R.h + 12 * U) return false;
+    if (state.megakaryocyte && Math.hypot(x - state.megakaryocyte.x, y - state.megakaryocyte.y) < 40 * U) return false;
+    if (state.ganglio && Math.hypot(x - state.ganglio.x, y - state.ganglio.y) < 48 * U) return false;
+    if (state.megaFactory && state.dissemination && Math.hypot(x - state.megaFactory.x, y - state.megaFactory.y) < 48 * U) return false;
+    if (!state.dissemination && distPointToPath(x, y) < 22 * U) return false;   // no rozar el camino
+    return true;
+  }
+
   function canPlaceTowerAt(x, y) {
+    var selDef = state.selectedToBuild ? TOWER_DEFS[state.selectedToBuild] : null;
+    if (selDef && selDef.lateralOnly) return canPlaceLateral(x, y);
     if (state.dissemination) return canPlaceTowerAtDissemination(x, y);
     var pad = 24 * U;
     // Restrict to body interior zone (15%-85% of field height).
@@ -23693,6 +23817,8 @@
     safeDraw("NecroticPatches", drawNecroticPatches);
     safeDraw("PendingBombs", drawPendingBombs);
     safeDraw("AcidSplats", drawAcidSplats);
+    safeDraw("CannonNets", drawCannonNets);
+    safeDraw("MacPlacing", drawMacPlacing);
     safeDraw("Megakaryocyte", drawMegakaryocyte);
     safeDraw("MegaFactory", drawMegaFactory);
     safeDraw("MegaSwarm", drawMegaSwarm);
@@ -24194,13 +24320,18 @@
     ctx.stroke();
     // Ícono central: ILUSTRACIÓN del órgano (reemplaza el emoji), animada.
     drawOrganShape(x, y, organ, 14 * U, state.time);
-    // Contador X/10 sobre la puerta.
+    // Contador X/10 sobre la puerta — pill oscuro FIJO (posición y contraste
+    // estables) para que el número NO parpadee sobre el halo pulsante.
+    var cntTxt = load + " / 10";
     ctx.font = "bold " + Math.floor(11 * U) + "px Fredoka, sans-serif";
-    var loadColor = pct >= 0.7 ? "#ff7a7a" : (pct >= 0.4 ? "#ffd24a" : "rgba(240, 220, 200, 0.95)");
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    var cntY = y - ry - 11 * U;
+    var cntW = ctx.measureText(cntTxt).width + 12 * U;
+    ctx.fillStyle = "rgba(12, 6, 10, 0.85)";
+    roundRect(x - cntW / 2, cntY - 8 * U, cntW, 16 * U, 5 * U); ctx.fill();
+    var loadColor = pct >= 0.7 ? "#ff7a7a" : (pct >= 0.4 ? "#ffd24a" : "#f0dcc8");
     ctx.fillStyle = loadColor;
-    ctx.fillText(load + " / 10", x, y - ry - 8 * U);
-    // (El título del órgano ahora se dibuja debajo de la ENTRADA, arriba —
-    // ver drawDisseminationField.)
+    ctx.fillText(cntTxt, x, cntY);
     ctx.restore();
   }
 
@@ -24500,6 +24631,7 @@
       updateFragments(dt);
       updateCannonShots(dt);
       updateAcidSplats(dt);
+      updateCannonNets(dt);
       updateSeekers(dt);
       updateNecroticPatches(dt);
       updatePendingBombs(dt);

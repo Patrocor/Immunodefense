@@ -6960,8 +6960,10 @@
         mt.patrolMinX = FIELD_LEFT + PATH.laneXs[0] * FIELD_W - hl;
         mt.patrolMaxX = FIELD_LEFT + PATH.laneXs[PATH.laneXs.length - 1] * FIELD_W + hl;
       } else {
-        mt.patrolMinX = FIELD_LEFT + FIELD_W * 0.14;
-        mt.patrolMaxX = FIELD_RIGHT - FIELD_W * 0.14;
+        // Fase 1: patrulla dentro del corredor donde se colocó.
+        var z = macZoneAt(x, y);
+        if (z) { mt.patrolMinX = z.x0 + 26 * U; mt.patrolMaxX = z.x1 - 26 * U; }
+        else { mt.patrolMinX = FIELD_LEFT + FIELD_W * 0.16; mt.patrolMaxX = FIELD_RIGHT - FIELD_W * 0.16; }
       }
       mt.patrolDir = (x < (mt.patrolMinX + mt.patrolMaxX) / 2) ? 1 : -1;
     }
@@ -7248,10 +7250,18 @@
       if (t.levelupAnim > 0) t.levelupAnim -= dt;
       if (t.cooldown > 0) t.cooldown -= dt;
       // Tanque MAC móvil: patrulla horizontal automática (de lado a lado).
+      // Gira al llegar al borde del corredor O antes de tocar el CAMINO (Fase 1),
+      // para no interponerse nunca en él.
       if (t.def.mobile && t.patrolMinX != null && (t.stunTimer || 0) <= 0) {
-        t.x += (t.patrolDir || 1) * 42 * U * dt;
-        if (t.x <= t.patrolMinX) { t.x = t.patrolMinX; t.patrolDir = 1; }
-        else if (t.x >= t.patrolMaxX) { t.x = t.patrolMaxX; t.patrolDir = -1; }
+        var nxp = t.x + (t.patrolDir || 1) * 42 * U * dt;
+        var hitEdge = nxp <= t.patrolMinX || nxp >= t.patrolMaxX;
+        var hitPath = !state.dissemination && distPointToPath(nxp, t.y) < 28 * U;
+        if (hitEdge || hitPath) {
+          t.patrolDir = -(t.patrolDir || 1);
+          t.x = Math.max(t.patrolMinX, Math.min(t.patrolMaxX, t.x));
+        } else {
+          t.x = nxp;
+        }
         t.nx = FIELD_W > 0 ? (t.x - FIELD_LEFT) / FIELD_W : t.nx;
       }
       if ((t.tempBoostTimer || 0) > 0) t.tempBoostTimer -= dt;
@@ -9316,24 +9326,32 @@
     var def = TOWER_DEFS[sel];
     if (!def || !def.mobile) return;
     var blink = (Math.floor(state.time * 2.6) % 2) === 0;
-    var b = macCentralBounds();
     ctx.save();
-    ctx.fillStyle = "rgba(255,226,58," + (blink ? 0.20 : 0.08) + ")";
-    ctx.fillRect(b.cL, b.top, b.cR - b.cL, b.bot - b.top);
-    if (blink) {
-      ctx.strokeStyle = "rgba(255,226,58,0.85)"; ctx.lineWidth = 2.5 * U; ctx.setLineDash([8 * U, 6 * U]);
-      ctx.strokeRect(b.cL, b.top, b.cR - b.cL, b.bot - b.top);
-      ctx.setLineDash([]);
-      // flechas ◄ ► indicando que patrulla de lado a lado
-      ctx.fillStyle = "rgba(255,240,120,0.9)";
-      ctx.font = "bold " + Math.floor(20 * U) + "px Fredoka, sans-serif";
-      ctx.textAlign = "center"; ctx.textBaseline = "middle";
-      var midY = (b.top + b.bot) / 2;
-      ctx.fillText("◄        ►", (b.cL + b.cR) / 2, midY);
+    // Rectángulos válidos: Fase 1 = 2 corredores; Diseminación = banda central.
+    var rects;
+    if (state.dissemination) {
+      var b = macCentralBounds();
+      rects = [{ x0: b.cL, y0: b.top, x1: b.cR, y1: b.bot }];
+    } else {
+      rects = macZonesPx();
+    }
+    for (var i = 0; i < rects.length; i++) {
+      var r = rects[i], rw = r.x1 - r.x0, rh = r.y1 - r.y0;
+      ctx.fillStyle = "rgba(255,226,58," + (blink ? 0.20 : 0.08) + ")";
+      ctx.fillRect(r.x0, r.y0, rw, rh);
+      if (blink) {
+        ctx.strokeStyle = "rgba(255,226,58,0.85)"; ctx.lineWidth = 2.5 * U; ctx.setLineDash([8 * U, 6 * U]);
+        ctx.strokeRect(r.x0, r.y0, rw, rh);
+        ctx.setLineDash([]);
+        ctx.fillStyle = "rgba(255,240,120,0.9)";
+        ctx.font = "bold " + Math.floor(18 * U) + "px Fredoka, sans-serif";
+        ctx.textAlign = "center"; ctx.textBaseline = "middle";
+        ctx.fillText("◄      ►", (r.x0 + r.x1) / 2, (r.y0 + r.y1) / 2);
+      }
     }
     ctx.fillStyle = "#fff2a0"; ctx.font = "bold " + Math.floor(11 * U) + "px Fredoka, sans-serif";
     ctx.textAlign = "center"; ctx.textBaseline = "top";
-    ctx.fillText("Cañón MAC: colócalo en el CENTRO (patrulla de lado a lado)", VW / 2, FIELD_TOP + 6 * U);
+    ctx.fillText("Cañón MAC: colócalo en una zona resaltada", VW / 2, FIELD_TOP + 6 * U);
     ctx.restore();
   }
 
@@ -13075,16 +13093,35 @@
     }
   }
 
-  // Banda CENTRAL donde se coloca el Cañón MAC (tanque). Elige la ALTURA; el
-  // tanque patrulla en horizontal desde ahí. Márgenes centrales del campo.
+  // Banda CENTRAL para Diseminación (recorre a lo ancho de los 3 carriles).
   function macCentralBounds() {
     return { cL: FIELD_LEFT + FIELD_W * 0.30, cR: FIELD_RIGHT - FIELD_W * 0.30,
              top: FIELD_TOP + FIELD_H * 0.12, bot: FIELD_BOTTOM - FIELD_H * 0.12 };
   }
+  // Fase 1: DOS corredores horizontales (los bolsillos abiertos de la S del
+  // camino) donde va el tanque — ver imagen del usuario.
+  function macZonesPx() {
+    return [
+      { x0: FIELD_LEFT + FIELD_W * 0.15, x1: FIELD_LEFT + FIELD_W * 0.77, y0: FIELD_TOP + FIELD_H * 0.34, y1: FIELD_TOP + FIELD_H * 0.49 },
+      { x0: FIELD_LEFT + FIELD_W * 0.21, x1: FIELD_LEFT + FIELD_W * 0.86, y0: FIELD_TOP + FIELD_H * 0.58, y1: FIELD_TOP + FIELD_H * 0.73 }
+    ];
+  }
+  function macZoneAt(x, y) {
+    if (state.dissemination) return null;
+    var zones = macZonesPx();
+    for (var i = 0; i < zones.length; i++) {
+      var z = zones[i];
+      if (x >= z.x0 && x <= z.x1 && y >= z.y0 && y <= z.y1) return z;
+    }
+    return null;
+  }
   function canPlaceMAC(x, y) {
-    var b = macCentralBounds();
-    if (y < b.top || y > b.bot) return false;
-    if (x < b.cL || x > b.cR) return false;
+    if (state.dissemination) {
+      var b = macCentralBounds();
+      if (y < b.top || y > b.bot || x < b.cL || x > b.cR) return false;
+    } else {
+      if (!macZoneAt(x, y)) return false;   // Fase 1: solo dentro de los 2 corredores
+    }
     for (var i = 0; i < state.towers.length; i++) {
       if (Math.hypot(state.towers[i].x - x, state.towers[i].y - y) < 34 * U) return false;
     }
@@ -13093,8 +13130,8 @@
     if (state.megakaryocyte && Math.hypot(x - state.megakaryocyte.x, y - state.megakaryocyte.y) < 40 * U) return false;
     if (state.ganglio && Math.hypot(x - state.ganglio.x, y - state.ganglio.y) < 48 * U) return false;
     if (state.megaFactory && state.dissemination && Math.hypot(x - state.megaFactory.x, y - state.megaFactory.y) < 48 * U) return false;
-    // Fase 1: el punto de colocación no debe estar sobre el camino (aunque luego patrulle sobre él).
-    if (!state.dissemination && distPointToPath(x, y) < 20 * U) return false;
+    // Fase 1: NO puede quedar sobre el camino aunque esté dentro del corredor.
+    if (!state.dissemination && distPointToPath(x, y) < 30 * U) return false;
     return true;
   }
 

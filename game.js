@@ -7259,17 +7259,16 @@
         var pStep = (t.patrolDir || 1) * 42 * U * dt;
         if (t.patrolAxis === "y") {
           var nyp = t.y + pStep;
-          var hitEdgeY = nyp <= t.patrolMin || nyp >= t.patrolMax;
-          var hitPathY = distPointToPath(t.x, nyp) < 22 * U;
-          if (hitEdgeY || hitPathY) { t.patrolDir = -(t.patrolDir || 1); t.y = Math.max(t.patrolMin, Math.min(t.patrolMax, t.y)); }
-          else t.y = nyp;
+          // Gira al borde, al camino O a una estructura (médula / megacariocito / etc.).
+          if (nyp <= t.patrolMin || nyp >= t.patrolMax || distPointToPath(t.x, nyp) < 22 * U || macStructureBlocked(t.x, nyp)) {
+            t.patrolDir = -(t.patrolDir || 1); t.y = Math.max(t.patrolMin, Math.min(t.patrolMax, t.y));
+          } else t.y = nyp;
           t.ny = FIELD_H > 0 ? (t.y - FIELD_TOP) / FIELD_H : t.ny;
         } else {
           var nxp = t.x + pStep;
-          var hitEdgeX = nxp <= t.patrolMin || nxp >= t.patrolMax;
-          var hitPathX = distPointToPath(nxp, t.y) < 28 * U;
-          if (hitEdgeX || hitPathX) { t.patrolDir = -(t.patrolDir || 1); t.x = Math.max(t.patrolMin, Math.min(t.patrolMax, t.x)); }
-          else t.x = nxp;
+          if (nxp <= t.patrolMin || nxp >= t.patrolMax || distPointToPath(nxp, t.y) < 28 * U || macStructureBlocked(nxp, t.y)) {
+            t.patrolDir = -(t.patrolDir || 1); t.x = Math.max(t.patrolMin, Math.min(t.patrolMax, t.x));
+          } else t.x = nxp;
           t.nx = FIELD_W > 0 ? (t.x - FIELD_LEFT) / FIELD_W : t.nx;
         }
       }
@@ -13142,16 +13141,23 @@
     }
     return null;
   }
+  // El tanque MAC NO puede quedar sobre ninguna estructura fija (mitocondrias,
+  // médula, megacariocito/fibrina, estación de ensamblaje, ganglio).
+  function macStructureBlocked(x, y) {
+    if (Math.abs(x - DRIP.x) < DRIP.w + 12 * U && Math.abs(y - DRIP.y) < DRIP.h + 12 * U) return true;
+    if (DRIP_R && DRIP_R.active && Math.abs(x - DRIP_R.x) < DRIP_R.w + 12 * U && Math.abs(y - DRIP_R.y) < DRIP_R.h + 12 * U) return true;
+    if (state.medulaOsea && Math.hypot(x - state.medulaOsea.x, y - state.medulaOsea.y) < 46 * U) return true;
+    if (state.megakaryocyte && state.dissemination && Math.hypot(x - state.megakaryocyte.x, y - state.megakaryocyte.y) < 46 * U) return true;
+    if (state.megaFactory && state.dissemination && Math.hypot(x - state.megaFactory.x, y - state.megaFactory.y) < 52 * U) return true;
+    if (state.ganglio && !state.dissemination && Math.hypot(x - state.ganglio.x, y - state.ganglio.y) < 50 * U) return true;
+    return false;
+  }
   function canPlaceMAC(x, y) {
     if (!macZoneAt(x, y)) return false;   // solo dentro de las zonas válidas
     for (var i = 0; i < state.towers.length; i++) {
       if (Math.hypot(state.towers[i].x - x, state.towers[i].y - y) < 34 * U) return false;
     }
-    if (Math.abs(x - DRIP.x) < DRIP.w + 12 * U && Math.abs(y - DRIP.y) < DRIP.h + 12 * U) return false;
-    if (DRIP_R && DRIP_R.active && Math.abs(x - DRIP_R.x) < DRIP_R.w + 12 * U && Math.abs(y - DRIP_R.y) < DRIP_R.h + 12 * U) return false;
-    if (state.megakaryocyte && Math.hypot(x - state.megakaryocyte.x, y - state.megakaryocyte.y) < 40 * U) return false;
-    if (state.ganglio && Math.hypot(x - state.ganglio.x, y - state.ganglio.y) < 48 * U) return false;
-    if (state.megaFactory && state.dissemination && Math.hypot(x - state.megaFactory.x, y - state.megaFactory.y) < 48 * U) return false;
+    if (macStructureBlocked(x, y)) return false;
     // NO sobre el camino (aunque esté dentro de la zona).
     if (distPointToPath(x, y) < (state.dissemination ? 22 * U : 30 * U)) return false;
     return true;

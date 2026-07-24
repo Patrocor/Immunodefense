@@ -3956,11 +3956,12 @@
       // Línea superior: ícono + label en el color del poder
       ctx.fillStyle = def.color;
       ctx.font = "bold " + Math.floor(13 * U) + "px Fredoka, sans-serif";
-      ctx.fillText(def.icon + "  " + def.label, textX, cy + cardH * 0.35);
-      // Línea inferior: costo en antígenos
+      ctx.fillText(def.icon + "  " + def.label, textX, cy + cardH * 0.32);
+      // Línea inferior: ANTÍGENOS que tienes / costo (botón unificado).
+      var have = (state.antigens && state.antigens.count) || 0;
       ctx.fillStyle = "#ffd24a";
-      ctx.font = "bold " + Math.floor(12 * U) + "px Fredoka, sans-serif";
-      ctx.fillText("★ " + def.cost, textX, cy + cardH * 0.72);
+      ctx.font = "bold " + Math.floor(13 * U) + "px Fredoka, sans-serif";
+      ctx.fillText("★ " + have + " / " + def.cost + "  antígenos", textX, cy + cardH * 0.70);
 
       ctx.globalAlpha = 1;
     }
@@ -4326,7 +4327,21 @@
     [["saureus",7,1.05],["pseudomonas",4,1.20],["candida",3,1.30],["bossPyogenes",1,4.0]],
     // Wave 6: avalancha — bosses dobles, intervalos cortos, aglomeración
     // sostenida para defender los 3 carriles a la vez.
-    [["saureus",10,0.90],["pseudomonas",5,1.10],["candida",4,1.20],["bossMRSA",2,3.0],["bossPyogenes",1,4.0]]
+    [["saureus",10,0.90],["pseudomonas",5,1.10],["candida",4,1.20],["bossMRSA",2,3.0],["bossPyogenes",1,4.0]],
+    // Waves 7-12: segunda mitad — misma curva de escalada (más volumen, menos
+    // separación, más bosses hacia el final).
+    // Wave 7: respiro relativo con más volumen + boss de Pseudomonas.
+    [["saureus",11,0.85],["pseudomonas",6,1.05],["candida",5,1.15],["bossPseudomonas",1,4.0]],
+    // Wave 8: resistencia pura, sin boss.
+    [["saureus",12,0.80],["pseudomonas",7,1.00],["candida",5,1.10],["bossMRSA",2,3.5]],
+    // Wave 9: doble boss, presión sostenida.
+    [["saureus",13,0.75],["pseudomonas",7,0.95],["candida",6,1.05],["bossPyogenes",1,3.5],["bossPseudomonas",1,4.0]],
+    // Wave 10: volumen alto + MRSA dobles.
+    [["saureus",14,0.72],["pseudomonas",8,0.90],["candida",6,1.00],["bossMRSA",2,3.0]],
+    // Wave 11: triple presión de bosses antes del final.
+    [["saureus",15,0.68],["pseudomonas",9,0.85],["candida",7,0.95],["bossPyogenes",2,3.5],["bossPseudomonas",1,4.0]],
+    // Wave 12: AVALANCHA FINAL — tres tipos de boss, intervalos mínimos.
+    [["saureus",18,0.62],["pseudomonas",10,0.80],["candida",8,0.90],["bossMRSA",2,2.8],["bossPyogenes",1,3.5],["bossPseudomonas",1,4.0]]
   ];
 
   // Pesos de afinidad germen → carril [corazón, hueso, articulación] (3 carriles).
@@ -21826,7 +21841,8 @@
       ctx.fillRect(bcx - barW * 2.2, bcy - barH / 2, barW, barH);
       ctx.fillRect(bcx + barW * 1.2, bcy - barH / 2, barW, barH);
     }
-    if (state.dissemination) drawAntigenHud();
+    // (drawAntigenHud eliminado: el contador de antígenos ahora vive dentro del
+    //  botón unificado de NETosis en el dock — ver drawImmuneResponsePanel.)
     // (removido: el botón DEBUG "♥" para saltar a hero corazón ya no se
     // necesita — el flow real del juego pasa por el mapa-mundo después
     // de la diseminación. El corazón solo aparece si se activa

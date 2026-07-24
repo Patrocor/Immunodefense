@@ -305,6 +305,11 @@
   var FIELD_W = 0, FIELD_H = 0;
   var U = 1; // pixel scale unit (smaller of field width/height vs design 500)
   var isPortrait = false;
+  // Diseminación: el MUNDO mide 1.25× el alto del viewport (nivel más largo,
+  // con scroll vertical). Fuera de Diseminación = 1 (sin scroll).
+  var DS_STRETCH = 1.25;
+  function dsWorldH() { return FIELD_H * (state && state.dissemination ? DS_STRETCH : 1); }
+  function dsMaxScrollY() { return Math.max(0, dsWorldH() - FIELD_H); }
 
   function readSafeAreas() {
     var probe = document.getElementById("__safe_probe");
@@ -487,15 +492,16 @@
       DRIP_R.h = 22 * U;
       DRIP_R.mouthY = DRIP_R.y + DRIP_R.h * 0.85;
       DRIP_R.active = true;
-      // Megacariocito (generador de fibrina): lateral izquierdo bajo.
+      // Megacariocito (generador de fibrina): lateral izquierdo bajo (mundo estirado).
+      var wH = FIELD_H * DS_STRETCH;
       if (state.megakaryocyte) {
         state.megakaryocyte.x = FIELD_LEFT + FIELD_W * 0.06;
-        state.megakaryocyte.y = FIELD_TOP + FIELD_H * 0.85;
+        state.megakaryocyte.y = FIELD_TOP + wH * 0.85;
       }
-      // Estación de ensamblaje del Super: derecha, ARRIBA de la mitocondria.
+      // Estación de ensamblaje del Super: derecha, abajo (mundo estirado).
       if (state.megaFactory) {
         state.megaFactory.x = FIELD_LEFT + FIELD_W * 0.90;
-        state.megaFactory.y = FIELD_TOP + FIELD_H * 0.80;
+        state.megaFactory.y = FIELD_TOP + wH * 0.80;
       }
     } else {
       // Fase 1: una sola mitocondria a la derecha del campo.
@@ -682,10 +688,11 @@
     PATH.laneXs = laneXs;
     PATH.entryYn = entryYn;
     PATH.exitYn = exitYn;
+    var worldH = FIELD_H * DS_STRETCH;   // mundo estirado 25% (con scroll)
     for (var i = 0; i < 3; i++) {
       var xPx = FIELD_LEFT + laneXs[i] * FIELD_W;
-      var entry = { x: xPx, y: FIELD_TOP + entryYn * FIELD_H };
-      var exit = { x: xPx, y: FIELD_TOP + exitYn * FIELD_H };
+      var entry = { x: xPx, y: FIELD_TOP + entryYn * worldH };
+      var exit = { x: xPx, y: FIELD_TOP + exitYn * worldH };
       PATH.wounds.push({ x: entry.x, y: entry.y, phase: i * 0.4, active: true });
       PATH.organDoors.push({ x: exit.x, y: exit.y, organ: DISSEMINATION_ORGANS[i], laneX: xPx });
       // 3 anchors para una Bezier vertical suave (entry → medio → exit).
@@ -697,8 +704,8 @@
     }
     PATH.main = { length: 0, beziers: [] };
     PATH.confluence = null;
-    // PATH.exit apunta al centro inferior del campo (referencia para fx).
-    PATH.exit = { x: FIELD_LEFT + 0.5 * FIELD_W, y: FIELD_TOP + exitYn * FIELD_H };
+    // PATH.exit apunta al centro inferior del MUNDO (referencia para fx).
+    PATH.exit = { x: FIELD_LEFT + 0.5 * FIELD_W, y: FIELD_TOP + exitYn * (FIELD_H * DS_STRETCH) };
     PATH.beziers = [];
     PATH.total = PATH.totalForBranch[0];
     PATH.entry = PATH.wounds[2];     // sangre como referencia (centro)
@@ -3982,8 +3989,8 @@
   //   [0.80-9.00]  TRAMPA ACTIVA     - red estable cubriendo el carril
   //   [9.00-10.0]  DISIPACIÓN        - fade out
   function spawnNet(laneX, laneY) {
-    var topY = FIELD_TOP + FIELD_H * 0.06;
-    var bottomY = FIELD_TOP + FIELD_H * 0.92;
+    var topY = FIELD_TOP + (FIELD_H * DS_STRETCH) * 0.06;
+    var bottomY = FIELD_TOP + (FIELD_H * DS_STRETCH) * 0.92;
     var laneW = (FIELD_W * laneGapFrac()) * 0.78;
     // Hebras: mitad brotan hacia arriba, mitad hacia abajo desde el tap.
     var nUp = 5, nDown = 5;
@@ -5147,6 +5154,8 @@
       ants: [{ ang: 0.4, r: 30, legPhase: 0 }, { ang: 2.5, r: 34, legPhase: 1.2 }, { ang: 4.4, r: 31, legPhase: 2.4 }]
     };
     state.megaPlacing = false;
+    state.dsScrollY = 0;            // scroll vertical del mundo estirado (Diseminación)
+    state.dsScrollDrag = null;
     state.armedResponse = null;
     state.medCharge = 0;
     state.topicalCharge = 0;
@@ -13137,8 +13146,9 @@
     var halfLane = (FIELD_W * laneGapFrac()) / 2;
     var laneL = FIELD_LEFT + PATH.laneXs[0] * FIELD_W - halfLane;
     var laneR = FIELD_LEFT + PATH.laneXs[PATH.laneXs.length - 1] * FIELD_W + halfLane;
-    var top = FIELD_TOP + FIELD_H * 0.28;   // debajo de las mitocondrias (arriba)
-    var bot = FIELD_BOTTOM - FIELD_H * 0.05;
+    var wH = FIELD_H * DS_STRETCH;
+    var top = FIELD_TOP + wH * 0.22;   // debajo de las mitocondrias (arriba)
+    var bot = FIELD_TOP + wH * 0.95;   // hasta cerca del fondo del mundo
     return [
       { x0: FIELD_LEFT + 8 * U, x1: laneL - 8 * U, y0: top, y1: bot },
       { x0: laneR + 8 * U, x1: FIELD_RIGHT - 8 * U, y0: top, y1: bot }
@@ -13368,11 +13378,29 @@
       };
       return;
     }
+    // Diseminación: toque en el CAMPO → puede ser un arrastre de scroll o un
+    // tap. Se resuelve en pointerUp (tap = handleClick con Y de MUNDO).
+    if (state.dissemination && dsMaxScrollY() > 0 &&
+        p.x < FIELD_RIGHT && p.y >= FIELD_TOP && p.y <= FIELD_BOTTOM) {
+      state.dsScrollDrag = { startX: p.x, startY: p.y, startScrollY: state.dsScrollY || 0, dragged: false };
+      return;
+    }
     handleClick(p.x, p.y);
   }
   function onPointerMove(evt) {
     var p = canvasPosFromEvent(evt);
     state.pointer.x = p.x; state.pointer.y = p.y; state.pointer.isOver = true;
+    // Arrastre de scroll de Diseminación (vertical).
+    if (state.dsScrollDrag) {
+      var sd = state.dsScrollDrag;
+      var sdy = p.y - sd.startY;
+      if (!sd.dragged && Math.abs(sdy) > TAP_DRAG_THRESHOLD) sd.dragged = true;
+      if (sd.dragged) {
+        var mx = dsMaxScrollY();
+        state.dsScrollY = Math.max(0, Math.min(mx, sd.startScrollY - sdy));
+      }
+      return;
+    }
     // Drag scroll del world-map
     if (state.bodyMapDrag) {
       var bd = state.bodyMapDrag;
@@ -13448,6 +13476,14 @@
     }
   }
   function onPointerUp(evt) {
+    // Scroll de Diseminación: si no se arrastró, fue un TAP → handleClick con la
+    // coordenada de MUNDO (Y de pantalla + scroll).
+    if (state.dsScrollDrag) {
+      var dsd = state.dsScrollDrag;
+      state.dsScrollDrag = null;
+      if (!dsd.dragged) handleClick(dsd.startX, dsd.startY + (state.dsScrollY || 0));
+      return;
+    }
     // Drag del world-map: si no se movió suficiente, era un tap sobre el mapa
     // (puede haber tocado el botón Continuar fuera del viewport en realidad,
     // pero ese se procesa en pointer down). Solo cerramos el drag.
@@ -23840,6 +23876,18 @@
       ctx.scale(ioZoom, ioZoom);
       ctx.translate(-ioAnchorX, -ioAnchorY);
     }
+    // CÁMARA DE SCROLL de Diseminación: el mundo mide 1.25× el viewport; se
+    // desplaza en vertical (state.dsScrollY) y se recorta al viewport para que
+    // el contenido desplazado no invada el HUD.
+    var dsCam = !!state.dissemination;
+    if (dsCam) {
+      var dsMax = dsMaxScrollY();
+      if (state.dsScrollY == null) state.dsScrollY = 0;
+      state.dsScrollY = Math.max(0, Math.min(dsMax, state.dsScrollY));
+      ctx.save();
+      ctx.beginPath(); ctx.rect(FIELD_LEFT, FIELD_TOP, FIELD_W, FIELD_H); ctx.clip();
+      ctx.translate(0, -state.dsScrollY);
+    }
     if (state.dissemination) {
       safeDraw("DisseminationField", drawDisseminationField);
       safeDraw("AntigenDrops", drawAntigenDrops);
@@ -23936,6 +23984,22 @@
     safeDraw("DamageNumbers", drawDamageNumbers);
     safeDraw("GermIntroBanner", drawGermIntroBanner);
     safeDraw("Atmosphere", drawAtmosphere);
+    if (dsCam) {
+      ctx.restore();   // cierra la cámara de scroll (clip + translate)
+      // Barra de scroll a la derecha del campo (indicador).
+      if (dsMaxScrollY() > 0) {
+        var trackX = FIELD_RIGHT - 5 * U, trackY = FIELD_TOP + 6 * U, trackH = FIELD_H - 12 * U;
+        ctx.save();
+        ctx.fillStyle = "rgba(255,255,255,0.10)";
+        ctx.fillRect(trackX, trackY, 3 * U, trackH);
+        var frac = FIELD_H / (FIELD_H * DS_STRETCH);
+        var thumbH = trackH * frac;
+        var thumbY = trackY + (trackH - thumbH) * (state.dsScrollY / dsMaxScrollY());
+        ctx.fillStyle = "rgba(255,226,120,0.55)";
+        ctx.fillRect(trackX, thumbY, 3 * U, thumbH);
+        ctx.restore();
+      }
+    }
     if (introOutroActive) { ctx.restore(); }
     // HUD y panel SIEMPRE visibles (excepto en title/intro, que tienen su
     // propio overlay). La cinemática vieja ya no se usa (era el placeholder
@@ -24094,12 +24158,13 @@
 
   // -------- NIVEL PUENTE: RENDER -------------------------------------------
   function drawDisseminationField() {
+    var worldH = FIELD_H * DS_STRETCH;   // el fondo cubre TODO el mundo estirado
     // Fondo gradiente cálido (tejido profundo del cuerpo).
-    var g = ctx.createLinearGradient(0, FIELD_TOP, 0, FIELD_TOP + FIELD_H);
+    var g = ctx.createLinearGradient(0, FIELD_TOP, 0, FIELD_TOP + worldH);
     g.addColorStop(0, "#3a1d24");
     g.addColorStop(1, "#1f0e16");
     ctx.fillStyle = g;
-    ctx.fillRect(0, FIELD_TOP, VW, FIELD_H);
+    ctx.fillRect(0, FIELD_TOP, VW, worldH);
     if (!PATH.laneXs) return;
     // Ancho de banda EXACTAMENTE igual a la separación entre carriles
     // vecinos: las bandas se tocan borde a borde, sin huecos y sin
@@ -24112,8 +24177,8 @@
     var laneBandMargin = 6 * U;
     var bridgeLeft = FIELD_LEFT + PATH.laneXs[0] * FIELD_W - laneW / 2 - laneBandMargin;
     var bridgeRight = FIELD_LEFT + PATH.laneXs[PATH.laneXs.length - 1] * FIELD_W + laneW / 2 + laneBandMargin;
-    var bridgeTop = FIELD_TOP + FIELD_H * 0.045;
-    var bridgeBottom = FIELD_TOP + FIELD_H * 0.955;
+    var bridgeTop = FIELD_TOP + worldH * 0.045;
+    var bridgeBottom = FIELD_TOP + worldH * 0.955;
     // Tintes verticales por carril.
     for (var i = 0; i < PATH.laneXs.length; i++) {
       var organ = DISSEMINATION_ORGANS[i];

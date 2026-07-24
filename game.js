@@ -474,14 +474,15 @@
 
   function layoutDrip() {
     if (typeof state !== "undefined" && state && state.dissemination) {
-      // Dos mitocondrias laterales (en los márgenes, fuera del rect de carriles).
+      // Dos mitocondrias laterales ARRIBA (liberan las franjas laterales para
+      // el Cañón MAC), fuera del rect de carriles.
       DRIP.x = FIELD_LEFT + FIELD_W * 0.065;
-      DRIP.y = FIELD_TOP + FIELD_H * 0.50;
+      DRIP.y = FIELD_TOP + FIELD_H * 0.12;
       DRIP.w = 32 * U;
       DRIP.h = 22 * U;
       DRIP.mouthY = DRIP.y + DRIP.h * 0.85;
       DRIP_R.x = FIELD_LEFT + FIELD_W * 0.935;
-      DRIP_R.y = FIELD_TOP + FIELD_H * 0.50;
+      DRIP_R.y = FIELD_TOP + FIELD_H * 0.12;
       DRIP_R.w = 32 * U;
       DRIP_R.h = 22 * U;
       DRIP_R.mouthY = DRIP_R.y + DRIP_R.h * 0.85;
@@ -988,9 +989,9 @@
       specialChargeSec: 26 * 1.15,  // +15%: poderes tardan un poco más en cargar
       specialName: "Frenesí",
       levels: [
-        { range: 170, damage: 22, fireRate: 1.2, projectileSpeed: 430, splash: 0, hp: 95 },
-        { range: 195, damage: 34, fireRate: 1.4, projectileSpeed: 470, splash: 0, hp: 120 },
-        { range: 220, damage: 52, fireRate: 1.7, projectileSpeed: 510, splash: 0, hp: 150 }
+        { range: 170, damage: 18, fireRate: 1.2, projectileSpeed: 430, splash: 0, hp: 95 },
+        { range: 195, damage: 27, fireRate: 1.4, projectileSpeed: 470, splash: 0, hp: 120 },
+        { range: 220, damage: 42, fireRate: 1.7, projectileSpeed: 510, splash: 0, hp: 150 }
       ],
       upgradeCost: [100, 165]
     },
@@ -1032,16 +1033,15 @@
       desc: "Tanque que dispara una MALLA de complemento amarilla que ATRAPA y DETIENE a todos los gérmenes en el radio por 3 segundos, dañándolos, e ignora escudos. Se coloca en el CENTRO y patrulla de lado a lado solo.",
       ignoreShield: true,
       manualFire: true,             // el jugador apunta y dispara
-      mobile: true,                 // tanque: patrulla horizontal automática; se coloca en el centro
+      mobile: true,                 // tanque: patrulla automática; se coloca en zonas libres
       immuneToAura: true,           // el aura de contacto no le hace daño
-      lifetimeDecay: 2.5,           // HP perdidos por segundo (se consume solo)
-      // El "tiro" es una mancha de ácido en el campo: fireRate como cadencia mínima
-      // entre tiros manuales; splash define el radio del charco; damage es el DoT/s.
-      // fireRate /1.15: +15% de tiempo entre disparos (cooldown = 1/fireRate).
+      maxShots: 8,                  // vida = 8 disparos de malla, luego se consume
+      // Carga de 30s por disparo (cooldown = 1/fireRate = 30s). damage = DoT/s de
+      // la malla; splash = radio; la malla dura 3s (fija). Sin decaimiento por tiempo.
       levels: [
-        { range: 400, damage: 28, fireRate: 0.7 / 1.15, projectileSpeed: 0, splash: 42, hp: 100, acidDur: 4.0, travelTime: 1.1 },
-        { range: 460, damage: 40, fireRate: 0.9 / 1.15, projectileSpeed: 0, splash: 50, hp: 130, acidDur: 4.5, travelTime: 1.0 },
-        { range: 520, damage: 56, fireRate: 1.1 / 1.15, projectileSpeed: 0, splash: 58, hp: 160, acidDur: 5.0, travelTime: 0.95 }
+        { range: 400, damage: 28, fireRate: 1 / 30, projectileSpeed: 0, splash: 42, hp: 100, travelTime: 1.1 },
+        { range: 460, damage: 40, fireRate: 1 / 30, projectileSpeed: 0, splash: 50, hp: 130, travelTime: 1.0 },
+        { range: 520, damage: 56, fireRate: 1 / 30, projectileSpeed: 0, splash: 58, hp: 160, travelTime: 0.95 }
       ],
       upgradeCost: [120, 200]
     },
@@ -5293,8 +5293,8 @@
       state.germIntroQueue.push(typeId);
     }
     var diff = getDifficulty();
-    // Buff global de HP: +5% para gérmenes regulares, +10% para bosses.
-    var globalHpBuff = def.isBoss ? 1.10 : 1.05;
+    // Buff global de HP: +5% regulares / +10% bosses, y +10% adicional a TODOS.
+    var globalHpBuff = (def.isBoss ? 1.10 : 1.05) * 1.10;
     var hp = def.hp * hpMult * diff.hp * globalHpBuff;
     if (def.isBoss) state.bossActive = null;  // reset; will be set after push
     var heridaIdx;
@@ -6903,7 +6903,7 @@
     var bdirX = nx * cosS - ny * sinS;
     var bdirY = nx * sinS + ny * cosS;
     var stats = towerStats(t);
-    var dmg = stats.damage * 2.0;
+    var dmg = stats.damage * 1.5;   // ultimate al 75% (antes ×2.0)
     // Bonus de especialista vs virus (mismo que fireTower aplica en el
     // disparo normal) — se evalúa por enemigo golpeado en el update del
     // efecto, ya que una sola perforina perfora varios gérmenes distintos.
@@ -6955,17 +6955,20 @@
     // Tanque MAC: define el recorrido horizontal de patrulla.
     if (def.mobile) {
       var mt = state.towers[state.towers.length - 1];
-      if (state.dissemination && PATH.laneXs && PATH.laneXs.length) {
-        var hl = (FIELD_W * laneGapFrac()) / 2;
-        mt.patrolMinX = FIELD_LEFT + PATH.laneXs[0] * FIELD_W - hl;
-        mt.patrolMaxX = FIELD_LEFT + PATH.laneXs[PATH.laneXs.length - 1] * FIELD_W + hl;
+      var z = macZoneAt(x, y);
+      if (state.dissemination) {
+        // Diseminación: patrulla VERTICAL dentro de la franja lateral.
+        mt.patrolAxis = "y";
+        if (z) { mt.patrolMin = z.y0 + 22 * U; mt.patrolMax = z.y1 - 22 * U; }
+        else { mt.patrolMin = FIELD_TOP + FIELD_H * 0.30; mt.patrolMax = FIELD_BOTTOM - FIELD_H * 0.08; }
+        mt.patrolDir = (y < (mt.patrolMin + mt.patrolMax) / 2) ? 1 : -1;
       } else {
-        // Fase 1: patrulla dentro del corredor donde se colocó.
-        var z = macZoneAt(x, y);
-        if (z) { mt.patrolMinX = z.x0 + 26 * U; mt.patrolMaxX = z.x1 - 26 * U; }
-        else { mt.patrolMinX = FIELD_LEFT + FIELD_W * 0.16; mt.patrolMaxX = FIELD_RIGHT - FIELD_W * 0.16; }
+        // Fase 1: patrulla HORIZONTAL dentro del corredor.
+        mt.patrolAxis = "x";
+        if (z) { mt.patrolMin = z.x0 + 26 * U; mt.patrolMax = z.x1 - 26 * U; }
+        else { mt.patrolMin = FIELD_LEFT + FIELD_W * 0.16; mt.patrolMax = FIELD_RIGHT - FIELD_W * 0.16; }
+        mt.patrolDir = (x < (mt.patrolMin + mt.patrolMax) / 2) ? 1 : -1;
       }
-      mt.patrolDir = (x < (mt.patrolMinX + mt.patrolMaxX) / 2) ? 1 : -1;
     }
     pushEffect({ kind: "place", x: x, y: y, life: 0.6, max: 0.6, color: def.color });
     pushEffect({ kind: "placeFlash", x: x, y: y, life: 0.25, max: 0.25 });
@@ -7249,20 +7252,26 @@
       if (t.attackAnim > 0) t.attackAnim -= dt;
       if (t.levelupAnim > 0) t.levelupAnim -= dt;
       if (t.cooldown > 0) t.cooldown -= dt;
-      // Tanque MAC móvil: patrulla horizontal automática (de lado a lado).
-      // Gira al llegar al borde del corredor O antes de tocar el CAMINO (Fase 1),
-      // para no interponerse nunca en él.
-      if (t.def.mobile && t.patrolMinX != null && (t.stunTimer || 0) <= 0) {
-        var nxp = t.x + (t.patrolDir || 1) * 42 * U * dt;
-        var hitEdge = nxp <= t.patrolMinX || nxp >= t.patrolMaxX;
-        var hitPath = !state.dissemination && distPointToPath(nxp, t.y) < 28 * U;
-        if (hitEdge || hitPath) {
-          t.patrolDir = -(t.patrolDir || 1);
-          t.x = Math.max(t.patrolMinX, Math.min(t.patrolMaxX, t.x));
+      // Tanque MAC móvil: patrulla automática por su eje (horizontal en Fase 1,
+      // vertical en Diseminación). Gira al borde de la zona O antes de tocar el
+      // camino, para no interponerse nunca en él.
+      if (t.def.mobile && t.patrolMin != null && (t.stunTimer || 0) <= 0) {
+        var pStep = (t.patrolDir || 1) * 42 * U * dt;
+        if (t.patrolAxis === "y") {
+          var nyp = t.y + pStep;
+          var hitEdgeY = nyp <= t.patrolMin || nyp >= t.patrolMax;
+          var hitPathY = distPointToPath(t.x, nyp) < 22 * U;
+          if (hitEdgeY || hitPathY) { t.patrolDir = -(t.patrolDir || 1); t.y = Math.max(t.patrolMin, Math.min(t.patrolMax, t.y)); }
+          else t.y = nyp;
+          t.ny = FIELD_H > 0 ? (t.y - FIELD_TOP) / FIELD_H : t.ny;
         } else {
-          t.x = nxp;
+          var nxp = t.x + pStep;
+          var hitEdgeX = nxp <= t.patrolMin || nxp >= t.patrolMax;
+          var hitPathX = distPointToPath(nxp, t.y) < 28 * U;
+          if (hitEdgeX || hitPathX) { t.patrolDir = -(t.patrolDir || 1); t.x = Math.max(t.patrolMin, Math.min(t.patrolMax, t.x)); }
+          else t.x = nxp;
+          t.nx = FIELD_W > 0 ? (t.x - FIELD_LEFT) / FIELD_W : t.nx;
         }
-        t.nx = FIELD_W > 0 ? (t.x - FIELD_LEFT) / FIELD_W : t.nx;
       }
       if ((t.tempBoostTimer || 0) > 0) t.tempBoostTimer -= dt;
       if (t.muzzleFlash > 0) t.muzzleFlash -= dt;
@@ -9257,6 +9266,17 @@
     t.attackAnim = 0.28;
     t.lastTargetX = tx; t.lastTargetY = ty;
     sfx("place");
+    // Vida por disparos: al agotar los 8, el tanque se consume y desaparece.
+    if (t.def.maxShots) {
+      t.shotsFired = (t.shotsFired || 0) + 1;
+      if (t.shotsFired >= t.def.maxShots) {
+        var idx = state.towers.indexOf(t);
+        if (idx >= 0) state.towers.splice(idx, 1);
+        if (state.selectedTower === t) { state.selectedTower = null; clearRangeHint(); }
+        pushEffect({ kind: "place", x: t.x, y: t.y, life: 0.6, max: 0.6, color: "#FFD24A" });
+        showMsg("Cañón MAC agotado (8 disparos)");
+      }
+    }
   }
   function updateCannonShots(dt) {
     if (!state.cannonShots) return;
@@ -9326,15 +9346,9 @@
     var def = TOWER_DEFS[sel];
     if (!def || !def.mobile) return;
     var blink = (Math.floor(state.time * 2.6) % 2) === 0;
+    var vert = !!state.dissemination;   // Diseminación: patrulla vertical
     ctx.save();
-    // Rectángulos válidos: Fase 1 = 2 corredores; Diseminación = banda central.
-    var rects;
-    if (state.dissemination) {
-      var b = macCentralBounds();
-      rects = [{ x0: b.cL, y0: b.top, x1: b.cR, y1: b.bot }];
-    } else {
-      rects = macZonesPx();
-    }
+    var rects = macZonesForPhase();
     for (var i = 0; i < rects.length; i++) {
       var r = rects[i], rw = r.x1 - r.x0, rh = r.y1 - r.y0;
       ctx.fillStyle = "rgba(255,226,58," + (blink ? 0.20 : 0.08) + ")";
@@ -9346,7 +9360,9 @@
         ctx.fillStyle = "rgba(255,240,120,0.9)";
         ctx.font = "bold " + Math.floor(18 * U) + "px Fredoka, sans-serif";
         ctx.textAlign = "center"; ctx.textBaseline = "middle";
-        ctx.fillText("◄      ►", (r.x0 + r.x1) / 2, (r.y0 + r.y1) / 2);
+        var cxA = (r.x0 + r.x1) / 2, cyA = (r.y0 + r.y1) / 2;
+        if (vert) { ctx.fillText("▲", cxA, cyA - 16 * U); ctx.fillText("▼", cxA, cyA + 16 * U); }
+        else ctx.fillText("◄      ►", cxA, cyA);
       }
     }
     ctx.fillStyle = "#fff2a0"; ctx.font = "bold " + Math.floor(11 * U) + "px Fredoka, sans-serif";
@@ -13093,11 +13109,6 @@
     }
   }
 
-  // Banda CENTRAL para Diseminación (recorre a lo ancho de los 3 carriles).
-  function macCentralBounds() {
-    return { cL: FIELD_LEFT + FIELD_W * 0.30, cR: FIELD_RIGHT - FIELD_W * 0.30,
-             top: FIELD_TOP + FIELD_H * 0.12, bot: FIELD_BOTTOM - FIELD_H * 0.12 };
-  }
   // Fase 1: DOS corredores horizontales (los bolsillos abiertos de la S del
   // camino) donde va el tanque — ver imagen del usuario.
   function macZonesPx() {
@@ -13106,9 +13117,25 @@
       { x0: FIELD_LEFT + FIELD_W * 0.21, x1: FIELD_LEFT + FIELD_W * 0.86, y0: FIELD_TOP + FIELD_H * 0.58, y1: FIELD_TOP + FIELD_H * 0.73 }
     ];
   }
+  // Diseminación: DOS franjas laterales verticales (márgenes, fuera de los
+  // carriles y debajo de las mitocondrias, que ahora están arriba).
+  function macDissemStripsPx() {
+    var halfLane = (FIELD_W * laneGapFrac()) / 2;
+    var laneL = FIELD_LEFT + PATH.laneXs[0] * FIELD_W - halfLane;
+    var laneR = FIELD_LEFT + PATH.laneXs[PATH.laneXs.length - 1] * FIELD_W + halfLane;
+    var top = FIELD_TOP + FIELD_H * 0.28;   // debajo de las mitocondrias (arriba)
+    var bot = FIELD_BOTTOM - FIELD_H * 0.05;
+    return [
+      { x0: FIELD_LEFT + 8 * U, x1: laneL - 8 * U, y0: top, y1: bot },
+      { x0: laneR + 8 * U, x1: FIELD_RIGHT - 8 * U, y0: top, y1: bot }
+    ];
+  }
+  function macZonesForPhase() {
+    if (state.dissemination) return (PATH.laneXs ? macDissemStripsPx() : []);
+    return macZonesPx();
+  }
   function macZoneAt(x, y) {
-    if (state.dissemination) return null;
-    var zones = macZonesPx();
+    var zones = macZonesForPhase();
     for (var i = 0; i < zones.length; i++) {
       var z = zones[i];
       if (x >= z.x0 && x <= z.x1 && y >= z.y0 && y <= z.y1) return z;
@@ -13116,12 +13143,7 @@
     return null;
   }
   function canPlaceMAC(x, y) {
-    if (state.dissemination) {
-      var b = macCentralBounds();
-      if (y < b.top || y > b.bot || x < b.cL || x > b.cR) return false;
-    } else {
-      if (!macZoneAt(x, y)) return false;   // Fase 1: solo dentro de los 2 corredores
-    }
+    if (!macZoneAt(x, y)) return false;   // solo dentro de las zonas válidas
     for (var i = 0; i < state.towers.length; i++) {
       if (Math.hypot(state.towers[i].x - x, state.towers[i].y - y) < 34 * U) return false;
     }
@@ -13130,8 +13152,8 @@
     if (state.megakaryocyte && Math.hypot(x - state.megakaryocyte.x, y - state.megakaryocyte.y) < 40 * U) return false;
     if (state.ganglio && Math.hypot(x - state.ganglio.x, y - state.ganglio.y) < 48 * U) return false;
     if (state.megaFactory && state.dissemination && Math.hypot(x - state.megaFactory.x, y - state.megaFactory.y) < 48 * U) return false;
-    // Fase 1: NO puede quedar sobre el camino aunque esté dentro del corredor.
-    if (!state.dissemination && distPointToPath(x, y) < 30 * U) return false;
+    // NO sobre el camino (aunque esté dentro de la zona).
+    if (distPointToPath(x, y) < (state.dissemination ? 22 * U : 30 * U)) return false;
     return true;
   }
 
@@ -16520,7 +16542,10 @@
     var reloadFrac = maxCd > 0 ? Math.max(0, Math.min(1, 1 - (t.cooldown || 0) / maxCd)) : 1;
 
     var W = R * 2.7, H = R * 1.05;
-    var face = (t.patrolDir || 1) >= 0 ? 1 : -1;
+    // Fase 1 mira hacia donde avanza; Diseminación (patrulla vertical) mira al centro.
+    var face = (t.patrolAxis === "y")
+      ? ((t.x < FIELD_LEFT + FIELD_W * 0.5) ? 1 : -1)
+      : ((t.patrolDir || 1) >= 0 ? 1 : -1);
     t._wheelSpin = (t._wheelSpin || 0) + (t.patrolDir || 0) * 0.14;   // rodado visual
 
     // ── CHASIS + 4 RUEDAS (mira hacia la dirección de patrulla) ──

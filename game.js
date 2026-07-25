@@ -9310,7 +9310,7 @@
         // Malla amarilla fosforescente: atrapa+DETIENE+daña por 3s, luego se va.
         if (!state.cannonNets) state.cannonNets = [];
         state.cannonNets.push({ x: s.tx, y: s.ty, r: s.splash, dps: s.dmg, life: 3.0, max: 3.0, seed: Math.random() * 100 });
-        pushEffect({ kind: "shock", x: s.tx, y: s.ty, r: s.splash, life: 0.5, max: 0.5, color: "#ffe23a" });
+        pushEffect({ kind: "shock", x: s.tx, y: s.ty, r: s.splash, life: 0.5, max: 0.5, color: "#ff3d78" });
         sfx("tick");
         state.cannonShots.splice(i, 1);
       }
@@ -9400,34 +9400,54 @@
     for (var i = 0; i < state.cannonNets.length; i++) {
       var n = state.cannonNets[i];
       var a = Math.min(1, n.life / 0.6);   // fade-out en el último 0.6s
-      var pulse = 0.85 + 0.15 * Math.sin(state.time * 8 + n.seed);
-      var R = n.r * pulse;
-      // Disco fosforescente amarillo tenue.
+      var shim = 0.75 + 0.25 * Math.sin(state.time * 6 + n.seed);   // fosforescencia
+      var R = n.r;
+      // 1. Resplandor fosforescente GUINDA (crimson-magenta que brilla).
       var g = ctx.createRadialGradient(n.x, n.y, R * 0.1, n.x, n.y, R);
-      g.addColorStop(0, "rgba(255,240,90," + (0.30 * a) + ")");
-      g.addColorStop(0.7, "rgba(230,200,20," + (0.18 * a) + ")");
-      g.addColorStop(1, "rgba(200,170,10,0)");
+      g.addColorStop(0, "rgba(255,70,130," + (0.34 * a * shim) + ")");
+      g.addColorStop(0.55, "rgba(190,25,80," + (0.22 * a) + ")");
+      g.addColorStop(1, "rgba(120,10,55,0)");
       ctx.fillStyle = g;
       ctx.beginPath(); ctx.arc(n.x, n.y, R, 0, Math.PI * 2); ctx.fill();
-      // MALLA: retícula de hilos brillantes (clip al círculo).
+      // 2. MALLA DE RED: rejilla en diamante (rotada 45°) con hilos combados,
+      // recortada al círculo. Se ve como una red real.
       ctx.save();
       ctx.beginPath(); ctx.arc(n.x, n.y, R, 0, Math.PI * 2); ctx.clip();
-      ctx.strokeStyle = "rgba(255,246,120," + (0.75 * a) + ")";
-      ctx.lineWidth = Math.max(1, 1.6 * U);
-      var step = R / 3.2;
-      for (var gx = -R; gx <= R; gx += step) {
-        ctx.beginPath(); ctx.moveTo(n.x + gx, n.y - R); ctx.lineTo(n.x + gx + R * 0.28, n.y + R); ctx.stroke();
-        ctx.beginPath(); ctx.moveTo(n.x - R, n.y + gx); ctx.lineTo(n.x + R, n.y + gx + R * 0.28); ctx.stroke();
+      ctx.translate(n.x, n.y);
+      ctx.rotate(Math.PI / 4);
+      var ext = R * 1.5;
+      var step = ext * 2 / 8;                 // 8 celdas por eje
+      var sag = R * 0.05 * Math.sin(state.time * 3 + n.seed);
+      ctx.lineCap = "round"; ctx.lineJoin = "round";
+      // hebras horizontales y verticales (en el frame rotado = diamantes)
+      for (var pass = 0; pass < 2; pass++) {
+        ctx.strokeStyle = pass === 0
+          ? "rgba(255,60,120," + (0.62 * a * shim) + ")"
+          : "rgba(255,110,160," + (0.45 * a * shim) + ")";
+        ctx.lineWidth = Math.max(1, (pass === 0 ? 1.9 : 1.4) * U);
+        for (var c = -ext; c <= ext + 1; c += step) {
+          ctx.beginPath();
+          for (var s = 0; s <= 8; s++) {
+            var tt = -ext + (2 * ext) * (s / 8);
+            var comb = Math.sin((s / 8) * Math.PI) * sag;
+            if (pass === 0) ctx.lineTo(tt, c + comb);      // horizontales
+            else ctx.lineTo(c + comb, tt);                 // verticales
+          }
+          ctx.stroke();
+        }
       }
-      // nodos de la malla
-      ctx.fillStyle = "rgba(255,255,180," + (0.9 * a) + ")";
-      for (var nn = 0; nn < 8; nn++) {
-        var na = (nn / 8) * Math.PI * 2 + state.time * 0.6, nr = R * (0.35 + 0.5 * ((nn % 3) / 2));
-        ctx.beginPath(); ctx.arc(n.x + Math.cos(na) * nr, n.y + Math.sin(na) * nr, 2.6 * U, 0, Math.PI * 2); ctx.fill();
+      // 3. Nodos brillantes en las intersecciones de la rejilla.
+      for (var gx = -ext; gx <= ext + 1; gx += step) {
+        for (var gy = -ext; gy <= ext + 1; gy += step) {
+          if (gx * gx + gy * gy < R * R * 0.92) {
+            ctx.fillStyle = "rgba(255,190,215," + (0.9 * a * shim) + ")";
+            ctx.beginPath(); ctx.arc(gx, gy, 2.0 * U, 0, Math.PI * 2); ctx.fill();
+          }
+        }
       }
       ctx.restore();
-      // borde brillante
-      ctx.strokeStyle = "rgba(255,246,120," + (0.85 * a) + ")"; ctx.lineWidth = Math.max(1.5, 2.2 * U);
+      // 4. Aro fosforescente del borde.
+      ctx.strokeStyle = "rgba(255,80,140," + (0.9 * a * shim) + ")"; ctx.lineWidth = Math.max(1.6, 2.6 * U);
       ctx.beginPath(); ctx.arc(n.x, n.y, R, 0, Math.PI * 2); ctx.stroke();
     }
     ctx.restore();
@@ -13226,7 +13246,10 @@
   // abajo y las propias torres.
   function canPlaceTowerAtDissemination(x, y) {
     var pad = 12 * U;
-    if (y < FIELD_TOP + pad || y > FIELD_BOTTOM - pad) return false;
+    // El mundo está estirado 25% (con scroll): validar contra el fondo del MUNDO,
+    // no del viewport, para poder colocar torres en el espacio de abajo.
+    var worldBot = FIELD_TOP + dsWorldH();
+    if (y < FIELD_TOP + pad || y > worldBot - pad) return false;
     if (PATH.laneXs && PATH.laneXs.length) {
       var halfLaneW = (FIELD_W * laneGapFrac()) / 2;
       var laneBandLeft = FIELD_LEFT + PATH.laneXs[0] * FIELD_W - halfLaneW;

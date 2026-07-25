@@ -15567,11 +15567,12 @@
     // Carga real del ultimate (t.specialCharge: 0→1) — intensifica el
     // aura, los gránulos y el cierre de la mira ANTES del Frenesí real.
     var chargeFrac = doingUlt ? 0 : Math.max(0, Math.min(1, t.specialCharge || 0));
+    var attackingNK = (expression === "attacking") || doingUlt;   // hachazo
     ctx.save(); ctx.translate(t.x, t.y);
 
     // ── AURA FUCSIA PERMANENTE (sutil, crece con la carga real, intensa
     // en ultimate) ──
-    var auraStrength = doingUlt ? 0.55 : (0.16 + chargeFrac * 0.22);   // menos lavado del cuerpo
+    var auraStrength = doingUlt ? 0.50 : (0.07 + chargeFrac * 0.16);   // no lavar la silueta angular
     var auraR = R * (doingUlt ? 2.6 : (1.85 + chargeFrac * 0.5));
     var auraG = ctx.createRadialGradient(0, 0, R * 0.6, 0, 0, auraR);
     auraG.addColorStop(0, "rgba(232, 67, 147, " + auraStrength + ")");
@@ -15596,42 +15597,90 @@
     // ── Anillo crosshair rotando (mira de cazadora) — gira más rápido y
     // se cierra sobre el objetivo a medida que la carga real avanza,
     // telegrafiando el Frenesí antes de que dispare. ──
-    var crosshairR = R * (1.30 - chargeFrac * 0.18);
-    ctx.strokeStyle = colorAlpha(t.def.color, 0.45 + chargeFrac * 0.35);
-    ctx.lineWidth = Math.max(1, 1.3 * U) * (1 + chargeFrac * 0.5);
-    ctx.save(); ctx.rotate(time * (0.8 + chargeFrac * 2.4));
-    ctx.beginPath(); ctx.arc(0, 0, crosshairR, 0, Math.PI * 2); ctx.stroke();
-    for (var k = 0; k < 4; k++) {
-      var ka = k * Math.PI / 2;
+    // CORCHETES angulares (no un aro: el aro hacía leer el cuerpo como
+    // circular). Se cierran sobre la presa al cargar el Frenesí.
+    var brk = R * (1.55 - chargeFrac * 0.22);
+    var brLen = R * 0.42;
+    ctx.strokeStyle = colorAlpha(t.def.color, 0.50 + chargeFrac * 0.35);
+    ctx.lineWidth = Math.max(1.4, 2 * U) * (1 + chargeFrac * 0.4);
+    ctx.lineCap = "round";
+    for (var kq = 0; kq < 4; kq++) {
+      var sx2 = (kq === 0 || kq === 3) ? -1 : 1;   // izquierda/derecha
+      var sy2 = (kq < 2) ? -1 : 1;                 // arriba/abajo
       ctx.beginPath();
-      ctx.moveTo(Math.cos(ka) * R * (1.08 - chargeFrac * 0.10), Math.sin(ka) * R * (1.08 - chargeFrac * 0.10));
-      ctx.lineTo(Math.cos(ka) * crosshairR * 1.15, Math.sin(ka) * crosshairR * 1.15);
+      ctx.moveTo(sx2 * brk, sy2 * brk - sy2 * brLen);
+      ctx.lineTo(sx2 * brk, sy2 * brk);
+      ctx.lineTo(sx2 * brk - sx2 * brLen, sy2 * brk);
       ctx.stroke();
     }
-    ctx.restore();
 
-    // ── CUERPO LGL: oval-irregular tipo gota (16 puntos con jitter) ──
+    // ── BRAZOS CON HACHAS DE PERFORINA (se dibujan DETRÁS del cuerpo para
+    // que el hombro quede tapado y el hacha sobresalga) ──
+    var chop = attackingNK ? Math.sin(time * 22) * 0.55 : Math.sin(time * 1.5 + phase) * 0.12;
+    for (var sgn = -1; sgn <= 1; sgn += 2) {
+      ctx.save();
+      ctx.translate(sgn * R * 0.80, -R * 0.02);
+      ctx.rotate(sgn * (0.62 + chop));
+      // mango (más largo y grueso)
+      ctx.strokeStyle = "#5a2a18"; ctx.lineWidth = Math.max(2.5, 3.6 * U); ctx.lineCap = "round";
+      ctx.beginPath(); ctx.moveTo(0, R * 0.20); ctx.lineTo(0, -R * 1.20); ctx.stroke();
+      ctx.strokeStyle = "#8a4a2c"; ctx.lineWidth = Math.max(1, 1.5 * U);
+      ctx.beginPath(); ctx.moveTo(0, R * 0.10); ctx.lineTo(0, -R * 1.05); ctx.stroke();
+      // cabeza del hacha (hoja metálica con filo claro) — MÁS GRANDE
+      var hy = -R * 1.18, hw = R * 0.78, hh = R * 0.56;
+      var axeG = ctx.createLinearGradient(-hw, hy - hh, hw, hy + hh);
+      axeG.addColorStop(0, "#ffe9f4"); axeG.addColorStop(0.45, "#d8b8c8"); axeG.addColorStop(1, "#7a5668");
+      ctx.fillStyle = axeG; ctx.strokeStyle = "#2b1420"; ctx.lineWidth = Math.max(1.8, 2.4 * U);
+      ctx.lineJoin = "round";
+      // Hoja de HACHA real: cuello angosto en el mango que se abre en un filo
+      // ancho y curvo (media luna), con talón recto arriba y abajo.
+      ctx.beginPath();
+      ctx.moveTo(-sgn * hw * 0.10, hy - hh * 0.70);              // talón superior (cruza el mango)
+      ctx.lineTo(sgn * hw * 0.42, hy - hh * 1.05);               // hombro superior de la hoja
+      ctx.quadraticCurveTo(sgn * hw * 1.30, hy, sgn * hw * 0.42, hy + hh * 1.05);  // FILO curvo
+      ctx.lineTo(-sgn * hw * 0.10, hy + hh * 0.70);              // talón inferior
+      ctx.quadraticCurveTo(sgn * hw * 0.05, hy, -sgn * hw * 0.10, hy - hh * 0.70);
+      ctx.closePath(); ctx.fill(); ctx.stroke();
+      // filo brillante (perforina)
+      ctx.strokeStyle = "rgba(255,240,252,0.95)"; ctx.lineWidth = Math.max(1.2, 1.8 * U);
+      ctx.beginPath();
+      ctx.moveTo(sgn * hw * 0.40, hy - hh * 0.95);
+      ctx.quadraticCurveTo(sgn * hw * 1.18, hy, sgn * hw * 0.40, hy + hh * 0.95);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // ── CUERPO ANGULAR (no circular): silueta de escudo/punta de flecha,
+    // facetada, coherente con su rol de cazadora ──
     var bodyGrad = ctx.createRadialGradient(-R * 0.3, -R * 0.4, R * 0.2, 0, 0, R);
     bodyGrad.addColorStop(0, "#ffd9ec");
     bodyGrad.addColorStop(0.55, t.def.color);
     bodyGrad.addColorStop(1, t.def.colorDark);
     ctx.fillStyle = bodyGrad;
+    var breath = 1 + Math.sin(time * 1.6 + phase) * 0.03;
+    // Vértices en unidades de R: hombros anchos arriba, punta abajo.
+    var shape = [
+      [0.00, -0.92],                    // vértice superior
+      [0.80, -0.58], [0.98,  0.12],     // hombro y flanco derecho
+      [0.00,  1.18],                    // PUNTA inferior (daga)
+      [-0.98, 0.12], [-0.80, -0.58]     // flanco y hombro izquierdo
+    ];
     ctx.beginPath();
-    var pts = 16;
-    for (var p = 0; p < pts; p++) {
-      var pa = p * (Math.PI * 2 / pts);
-      // Ligero estiramiento vertical para forma de gota.
-      var radMul = 1 + Math.sin(pa - Math.PI / 2) * 0.06;
-      // Wobble sutil orgánico.
-      var wob = 1 + Math.sin(time * 1.6 + p * 0.9 + phase) * 0.035;
-      var rx = Math.cos(pa) * R * radMul * wob;
-      var ry = Math.sin(pa) * R * radMul * wob;
-      if (p === 0) ctx.moveTo(rx, ry); else ctx.lineTo(rx, ry);
+    for (var sp2 = 0; sp2 < shape.length; sp2++) {
+      var vx = shape[sp2][0] * R * breath, vy = shape[sp2][1] * R * breath;
+      if (sp2 === 0) ctx.moveTo(vx, vy); else ctx.lineTo(vx, vy);
     }
     ctx.closePath();
     ctx.fill();
     ctx.strokeStyle = "#6b1440";                 // contorno oscuro grueso
     ctx.lineWidth = Math.max(2, 2.6 * U);
+    ctx.lineJoin = "round";
+    ctx.stroke();
+    // Facetas internas (dan volumen angular, no de blob).
+    ctx.strokeStyle = "rgba(255,255,255,0.22)"; ctx.lineWidth = Math.max(1, 1.2 * U);
+    ctx.beginPath();
+    ctx.moveTo(0, -R * 1.0 * breath); ctx.lineTo(-R * 0.84 * breath, -R * 0.10 * breath);
+    ctx.moveTo(0, -R * 1.0 * breath); ctx.lineTo(R * 0.84 * breath, -R * 0.10 * breath);
     ctx.stroke();
 
     // ── NÚCLEO RIÑÓN ECCENTRIC ──

@@ -7825,6 +7825,15 @@
             // Langerhans hacia el germen y dejarle un "splat" cian fijo.
             var wasMarked = (se.markTimer || 0) > 0;
             se.markTimer = stats.markDur; se.markBonus = stats.markBonus; se.revealed = true;
+            // DESGASTE DE ESCUDO: cada marca NUEVA le quita 1 punto de escudo.
+            // La Langerhans no hace daño, pero ABRE a los encapsulados para
+            // que el resto del equipo pueda matarlos.
+            if (!wasMarked && se.def.shield && (se.shieldHP || 0) > 0) {
+              se.shieldHP -= 1;
+              se.shieldHitTimer = 0.25;
+              if (se.shieldHP <= 0) { se.shieldHP = 0; se.shieldShatterTimer = 0.45; se.noShieldRegen = true; }
+              pushEffect({ kind: "particle", x: se.x, y: se.y, vx: 0, vy: -30 * U, life: 0.4, max: 0.4, color: "#3FC1C9" });
+            }
             if (!wasMarked) {
               // Posición del splat sobre el cuerpo del germen (ángulo + radio).
               se.markSplatAngle = Math.random() * Math.PI * 2;
@@ -7903,6 +7912,103 @@
     if (t.def.bonusVsKinds && t.def.bonusVsKinds.indexOf(target.def.baseKind) >= 0) dmg *= t.def.bonusVsMult;
     // Sebocito: ×3 vs acné y dermatofito
     if (t.def.sebumSpecialist && t.def.sebumSpecialist.indexOf(target.def.id) >= 0) dmg *= 3;
+
+    // ══ NK — HACHAZO EN ARCO + EJECUCIÓN ══
+    // Corta a todos los gérmenes en un cono hacia el objetivo (sus hachas) y
+    // remata al instante a los que estén por debajo del 15% de vida (la NK
+    // induce apoptosis en cuanto detecta la célula sin MHC-I).
+    if (t.def.id === "nk") {
+      var nkAng = Math.atan2(target.y - t.y, target.x - t.x);
+      var nkReach = stats.range * U * 0.75;
+      var hitN = 0;
+      for (var nki = 0; nki < state.enemies.length; nki++) {
+        var nke = state.enemies[nki];
+        if (nke.dead || nke.dying || nke.absorbing) continue;
+        if (nke.burrowed && !nke.revealed) continue;
+        if (nke.def.cloaked && !nke.revealed) continue;
+        var ndx = nke.x - t.x, ndy = nke.y - t.y;
+        var nd = Math.hypot(ndx, ndy);
+        if (nd > nkReach) continue;
+        var dAng = Math.atan2(ndy, ndx) - nkAng;
+        while (dAng > Math.PI) dAng -= Math.PI * 2;
+        while (dAng < -Math.PI) dAng += Math.PI * 2;
+        if (Math.abs(dAng) > 0.62) continue;             // cono de ~70°
+        if (hitN >= 3) break;                            // hasta 3 por hachazo
+        var nkDmg = dmg * (nke === target ? 1 : 0.7);    // secundarios algo menos
+        if (t.def.bonusVs && nke.def.baseKind === t.def.bonusVs.kind && nke !== target) nkDmg *= t.def.bonusVs.mult;
+        // EJECUCIÓN: por debajo del 15% de vida, muere de una.
+        var nkFrac = nke.hp / (nke.maxHp || nke.def.hp || 1);
+        if (nkFrac <= 0.15) nkDmg = Math.max(nkDmg, nke.hp + 1);
+        damageEnemy(nke, nkDmg, "nk");
+        hitN++;
+      }
+      // Estela del arco (visual del hachazo).
+      pushEffect({ kind: "novaRing", x: t.x, y: t.y, r: nkReach, color: "#ffd0e6", life: 0.22, max: 0.22 });
+      pushEffect({ kind: "melee", x1: t.x, y1: t.y, x2: target.x, y2: target.y, life: 0.22, max: 0.22, color: "#ffe6f2", towerId: "nk" });
+      return;
+    }
+
+    // ══ EOSINÓFILO — DESCARGA DE PERDIGONES ══
+    // 3 gránulos MBP en abanico. Contra parásitos, además deja charco corrosivo.
+    if (t.def.id === "eosinofilo") {
+      // Los perdigones se reparten entre hasta 3 gérmenes distintos cerca del
+      // objetivo (dispersión real de la descarga de gránulos).
+      var eoTargets = [target];
+      var eoRange = stats.range * U;
+      for (var eoi = 0; eoi < state.enemies.length && eoTargets.length < 3; eoi++) {
+        var eoe = state.enemies[eoi];
+        if (eoe === target || eoe.dead || eoe.dying || eoe.absorbing) continue;
+        if (eoe.burrowed && !eoe.revealed) continue;
+        if (eoe.def.cloaked && !eoe.revealed) continue;
+        if (Math.hypot(eoe.x - t.x, eoe.y - t.y) > eoRange) continue;
+        if (Math.hypot(eoe.x - target.x, eoe.y - target.y) > 95 * U) continue;
+        eoTargets.push(eoe);
+      }
+      for (var sh = 0; sh < 3; sh++) {
+        var shT = eoTargets[Math.min(sh, eoTargets.length - 1)];
+        var shDmg = dmg * (sh === 0 ? 0.62 : 0.44);
+        if (sh > 0 && shT === target) shDmg *= 0.55;   // si repite blanco, aporta menos
+        state.projectiles.push({
+          x: t.x + (Math.random() - 0.5) * 10 * U, y: t.y + (Math.random() - 0.5) * 10 * U,
+          target: shT,
+          damage: shDmg,
+          speedDesign: stats.projectileSpeed * (0.92 + Math.random() * 0.16),
+          splashDesign: stats.splash * (sh === 0 ? 1 : 0.7),
+          color: t.def.color, towerId: t.def.id, attackerType: t.def.id,
+          slowOnHit: null, isSebumShot: false, sebumPuddle: null, rot: 0, dead: false
+        });
+      }
+      if (target.def.baseKind === "parasito") {
+        if (!state.sebumPuddles) state.sebumPuddles = [];
+        state.sebumPuddles.push({
+          x: target.x, y: target.y, r: 26 * U, life: 3.5, max: 3.5,
+          dot: dmg * 0.35, slow: false, kind: "sebum", srcId: "eosinofilo"
+        });
+      }
+      return;
+    }
+
+    // ══ LINFOCITO γδ — CASCADA IL-17 ══
+    // El daño SALTA a 2 gérmenes cercanos, y escala cuanto más herido esté el
+    // blanco (caza rematadores).
+    if (t.def.id === "linfocitogd") {
+      var gdFrac = target.hp / (target.maxHp || target.def.hp || 1);
+      dmg *= (1 + (1 - gdFrac) * 0.6);      // hasta +60% contra los más heridos
+      damageEnemy(target, dmg, "linfocitogd");
+      pushEffect({ kind: "melee", x1: t.x, y1: t.y, x2: target.x, y2: target.y, life: 0.24, max: 0.24, color: t.def.color, towerId: t.def.id });
+      var jumps = 0, lastX = target.x, lastY = target.y;
+      for (var gj = 0; gj < state.enemies.length && jumps < 2; gj++) {
+        var gje = state.enemies[gj];
+        if (gje === target || gje.dead || gje.dying || gje.absorbing) continue;
+        if (gje.burrowed && !gje.revealed) continue;
+        if (Math.hypot(gje.x - lastX, gje.y - lastY) > 80 * U) continue;
+        damageEnemy(gje, dmg * 0.5, "linfocitogd");
+        pushEffect({ kind: "melee", x1: lastX, y1: lastY, x2: gje.x, y2: gje.y, life: 0.22, max: 0.22, color: "#c8f078", towerId: t.def.id });
+        lastX = gje.x; lastY = gje.y; jumps++;
+      }
+      return;
+    }
+
     if (stats.projectileSpeed === 0) {
       damageEnemy(target, dmg, t.def.id);
       // Empuje (Trombo de Respuesta): resta progreso real en el camino —

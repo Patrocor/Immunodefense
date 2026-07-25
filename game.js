@@ -1173,7 +1173,7 @@
     }
   };
   var MAC_COST = 5;   // fragmentos de complemento para ensamblar el cañón
-  var TOWER_LIST = ["neutrofilo", "linfocitoB", "linfocitoT", "langerhans", "nk", "eosinofilo", "mastocito", "complemento", "centinela", "queratinocito", "linfocitogd"];
+  var TOWER_LIST = ["neutrofilo", "queratinocito", "mastocito", "langerhans", "nk", "eosinofilo", "complemento", "centinela", "linfocitogd"];
   // Cartilla por grupos desplegables (categorías de defensa).
   // 3 grupos principales + 1 "otras estructuras":
   //  · Defensas: torres que atacan directamente
@@ -1181,8 +1181,8 @@
   //  · Tanques: estructuras pesadas/persistentes (MAC, Trombo)
   //  · Otras estructuras: el resto (Fibrina solo en diseminación)
   var TOWER_GROUPS = [
-    { id: "defensas",      label: "Defensas",      towers: ["neutrofilo", "linfocitoB", "linfocitoT", "nk", "eosinofilo", "linfocitogd"] },
-    { id: "potenciadores", label: "Potenciadores", towers: ["langerhans", "mastocito", "queratinocito"] },
+    { id: "defensas",      label: "Defensas",      towers: ["neutrofilo", "nk", "eosinofilo", "linfocitogd"] },
+    { id: "potenciadores", label: "Potenciadores", towers: ["queratinocito", "mastocito", "langerhans"] },
     { id: "tanques",       label: "Tanques",       towers: ["complemento", "centinela"] }
   ];
 
@@ -1520,19 +1520,21 @@
   //  · Fase 1 (boss-kill, ver BOSS_TANK_DROPS): Complemento/Centinela.
   //  · Diseminación: la médula ya no da "torre nueva" (todas se obtienen en
   //    Fase 1); solo catch-up de lo perdido + combos permanentes.
-  var BASIC_TOWERS = ["neutrofilo", "linfocitoB", "linfocitoT"];
+  // PRIMERA LÍNEA REAL de la piel (presentes desde el segundo 0): la barrera
+  // epitelial (Nicho), el mastocito residente que desgranula en minutos, y el
+  // neutrófilo, primer leucocito reclutado. Los linfocitos B/T son ADAPTATIVOS
+  // (día 4-7, nacen en el ganglio) → no son torres: los produce el Ganglio.
+  var BASIC_TOWERS = ["neutrofilo", "queratinocito", "mastocito"];
   var UNLOCK_SCHEDULE = {
     2: "langerhans",
-    3: "mastocito",
-    4: "nk",
-    5: "eosinofilo",
-    6: "queratinocito",
-    8: "linfocitogd"
+    3: "nk",
+    4: "eosinofilo",
+    6: "linfocitogd"
   };
   // Catch-up: si el jugador llega a Diseminación sin haber conseguido alguna
   // torre de Fase 1 (perdió el pickup por ola, o no mató al boss), se le vuelve
   // a ofrecer ahí — ninguna torre queda inalcanzable.
-  var PHASE1_CATCHUP_TOWERS = ["langerhans", "mastocito", "nk", "eosinofilo", "complemento", "centinela", "queratinocito", "linfocitogd"];
+  var PHASE1_CATCHUP_TOWERS = ["langerhans", "nk", "eosinofilo", "complemento", "centinela", "linfocitogd"];
   // TANQUES: se ganan matando a un boss específico, no por ola. El drop
   // real ocurre en updateEnemies cuando el boss termina su animación de
   // muerte (dyingTimer<=0) — ver BOSS_TANK_DROPS ahí.
@@ -2010,7 +2012,7 @@
     if (!g || state.dissemination) return;
     if (g.mode === "assembling") {
       g.progress = Math.min(1, (g.progress || 0) + dt / (g.superPeriod || 68));
-      if (g.progress >= 1) { g.mode = "ready"; g.callPhase = 0; sfx("upgrade"); showMsg("¡T-blast listo! Tócalo y elige un punto del camino"); }
+      if (g.progress >= 1) { g.mode = "ready"; g.callPhase = 0; sfx("upgrade"); showMsg((state.ganglio && state.ganglio.nextKind === "b") ? "¡Plasmocito listo! Tócalo y elige un punto del camino" : "¡T-blast listo! Tócalo y elige un punto del camino"); }
     } else if (g.mode === "ready") {
       g.callPhase = (g.callPhase || 0) + dt;
     }
@@ -2022,8 +2024,8 @@
     var g = state.ganglio;
     if (!g || state.dissemination) return false;
     if (Math.hypot(x - g.x, y - g.y) > 46 * U) return false;
-    if (g.mode === "dormant") { g.mode = "assembling"; g.progress = 0; sfx("tap"); showMsg("Ensamblando Linfocito T blast…"); return true; }
-    if (g.mode === "ready") { state.tblastPlacing = true; sfx("tap"); showMsg("Toca el CAMINO donde aparece el T-blast"); return true; }
+    if (g.mode === "dormant") { g.mode = "assembling"; g.progress = 0; sfx("tap"); showMsg((g.nextKind === "b") ? "Ensamblando Plasmocito (anticuerpos)…" : "Ensamblando Linfocito T blast…"); return true; }
+    if (g.mode === "ready") { state.tblastPlacing = true; sfx("tap"); showMsg("Toca el CAMINO donde aparece el efector"); return true; }
     return true;
   }
 
@@ -2033,18 +2035,24 @@
     if (!state.tblasts) state.tblasts = [];
     var np = nearestPathProgress(px, py) || { heridaIdx: 0, progress: 0 };
     var pos = pathPos(np.progress, np.heridaIdx);
-    var hp = Math.round(0.65 * computeMaxTowerHp());   // HP al 50% del anterior (1.3→0.65)
+    // El ganglio ALTERNA los dos efectores adaptativos que nacen en él:
+    // Linfocito T blast (citotóxico, ejecuta por apoptosis) y PLASMOCITO
+    // (linfocito B diferenciado: ráfagas de anticuerpos a distancia).
+    var kind = (g.nextKind === "b") ? "b" : "t";
+    g.nextKind = (kind === "t") ? "b" : "t";
+    var hp = Math.round((kind === "b" ? 0.45 : 0.65) * computeMaxTowerHp());
     state.tblasts.push({
+      kind: kind,
       x: pos.x, y: pos.y, heridaIdx: np.heridaIdx | 0, progress: np.progress,
-      hp: hp, maxHp: hp, life: 28, attackCd: 0,
+      hp: hp, maxHp: hp, life: kind === "b" ? 32 : 28, attackCd: 0,
       crawlPhase: Math.random() * Math.PI * 2, hitFlash: 0, facing: 1,
       dying: false, deathT: 0, spawnT: 0
     });
     g.progress = 0; g.mode = "dormant"; g.callPhase = 0;   // dormida hasta el próximo tap
     state.tblastPlacing = false;
     triggerShake(0.10, 2);
-    pushEffect({ kind: "place", x: pos.x, y: pos.y, life: 0.6, max: 0.6, color: "#9370DB" });
-    showMsg("¡Linfocito T blast en el camino!");
+    pushEffect({ kind: "place", x: pos.x, y: pos.y, life: 0.6, max: 0.6, color: kind === "b" ? "#50C878" : "#9370DB" });
+    showMsg(kind === "b" ? "¡Plasmocito: anticuerpos en el camino!" : "¡Linfocito T blast en el camino!");
     sfx("upgrade");
   }
 
@@ -2067,9 +2075,25 @@
         if (e.def.cloaked && !e.revealed) continue;
         if (e.progress > bestProg) { bestProg = e.progress; target = e; }
       }
-      if (target) {
-        // RECORRE EL CAMINO: mueve su progress a lo largo de la rama hacia el
-        // germen (no flota en línea recta como el macrófago).
+      if (target && u.kind === "b") {
+        // PLASMOCITO: no persigue. Se queda fijo en el camino y dispara
+        // ANTICUERPOS a distancia (opsoniza: marca al germen para que las
+        // demás torres le hagan más daño, como hacía el viejo Linfocito B).
+        u.crawlPhase += dt * 2;
+        if (u.attackCd > 0) u.attackCd -= dt;
+        var bRange = 190 * U;
+        if (Math.hypot(target.x - u.x, target.y - u.y) <= bRange && u.attackCd <= 0) {
+          damageEnemy(target, 26, "linfocitoB");
+          target.markTimer = Math.max(target.markTimer || 0, 3.0);   // opsonización
+          target.markBonus = Math.max(target.markBonus || 0, 0.35);
+          target.revealed = true;
+          u.attackCd = 0.22; u.hitFlash = 0.12;
+          pushEffect({ kind: "markDart", x: u.x, y: u.y, tx: target.x, ty: target.y,
+            travel: 0.18, life: 0.18, max: 0.18, color: "#50C878" });
+        }
+      } else if (target) {
+        // T-BLAST: RECORRE EL CAMINO hacia el germen (no flota en línea recta
+        // como el macrófago).
         if ((target.heridaIdx | 0) !== (u.heridaIdx | 0)) u.heridaIdx = target.heridaIdx | 0;
         var oldX = u.x;
         var movePx = 100 * U * dt;
@@ -2128,8 +2152,10 @@
     var flash = (u.hitFlash || 0) > 0;
     ctx.save(); ctx.translate(u.x, u.y); ctx.scale(die * sp, die * sp);
     ctx.fillStyle = "rgba(0,0,0,0.25)"; ctx.beginPath(); ctx.ellipse(0, R * 0.9, R * 0.9, R * 0.3, 0, 0, Math.PI * 2); ctx.fill();
+    var isB = u.kind === "b";   // Plasmocito (verde) vs T-blast (violeta)
     var g = ctx.createRadialGradient(-R * 0.3, -R * 0.3, R * 0.2, 0, 0, R * 1.05);
-    g.addColorStop(0, flash ? "#ffffff" : "#b9a0e8"); g.addColorStop(0.6, "#9370DB"); g.addColorStop(1, "#5d44a0");
+    if (isB) { g.addColorStop(0, flash ? "#ffffff" : "#9de8b4"); g.addColorStop(0.6, "#50C878"); g.addColorStop(1, "#2c8049"); }
+    else { g.addColorStop(0, flash ? "#ffffff" : "#b9a0e8"); g.addColorStop(0.6, "#9370DB"); g.addColorStop(1, "#5d44a0"); }
     ctx.fillStyle = g;
     ctx.beginPath();
     var lobes = 9;
@@ -2140,10 +2166,29 @@
       if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
     }
     ctx.closePath(); ctx.fill();
-    ctx.strokeStyle = "#4a3080"; ctx.lineWidth = Math.max(1.2, 2 * U); ctx.stroke();
-    ctx.fillStyle = "#3a2568"; ctx.beginPath(); ctx.arc(-R * 0.05, R * 0.12, R * 0.5, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = "rgba(255,220,120,0.9)";
-    for (var gr = 0; gr < 5; gr++) { var ga = gr * 1.3 + u.crawlPhase; ctx.beginPath(); ctx.arc(Math.cos(ga) * R * 0.52, Math.sin(ga) * R * 0.52, R * 0.09, 0, Math.PI * 2); ctx.fill(); }
+    ctx.strokeStyle = isB ? "#2c8049" : "#4a3080"; ctx.lineWidth = Math.max(1.2, 2 * U); ctx.stroke();
+    // Núcleo: excéntrico "en rueda de carro" en el plasmocito (característico).
+    ctx.fillStyle = isB ? "#1f6b3a" : "#3a2568";
+    ctx.beginPath(); ctx.arc(isB ? -R * 0.34 : -R * 0.05, R * 0.12, isB ? R * 0.40 : R * 0.5, 0, Math.PI * 2); ctx.fill();
+    if (isB) {
+      // RER abundante (fábrica de anticuerpos) + anticuerpos "Y" orbitando.
+      ctx.strokeStyle = "rgba(220,255,225,0.55)"; ctx.lineWidth = Math.max(1, R * 0.07);
+      for (var rr2 = 0; rr2 < 3; rr2++) {
+        ctx.beginPath(); ctx.arc(R * 0.18, R * 0.05, R * (0.26 + rr2 * 0.14), -0.9, 1.4); ctx.stroke();
+      }
+      ctx.strokeStyle = "rgba(255,255,255,0.9)"; ctx.lineWidth = Math.max(1, R * 0.08); ctx.lineCap = "round";
+      for (var yb = 0; yb < 3; yb++) {
+        var ya = yb * 2.1 + u.crawlPhase, yx = Math.cos(ya) * R * 0.72, yy = Math.sin(ya) * R * 0.72;
+        ctx.beginPath();
+        ctx.moveTo(yx, yy + R * 0.10); ctx.lineTo(yx, yy);
+        ctx.moveTo(yx, yy); ctx.lineTo(yx - R * 0.09, yy - R * 0.10);
+        ctx.moveTo(yx, yy); ctx.lineTo(yx + R * 0.09, yy - R * 0.10);
+        ctx.stroke();
+      }
+    } else {
+      ctx.fillStyle = "rgba(255,220,120,0.9)";
+      for (var gr = 0; gr < 5; gr++) { var ga = gr * 1.3 + u.crawlPhase; ctx.beginPath(); ctx.arc(Math.cos(ga) * R * 0.52, Math.sin(ga) * R * 0.52, R * 0.09, 0, Math.PI * 2); ctx.fill(); }
+    }
     // cara cazadora
     var fc = u.facing || 1;
     ctx.save(); ctx.scale(fc, 1);
@@ -2159,7 +2204,7 @@
       var hf = Math.max(0, u.hp / u.maxHp);
       ctx.save(); ctx.translate(u.x, u.y);
       ctx.fillStyle = "rgba(0,0,0,0.5)"; ctx.fillRect(-R * 0.8, -R * 1.55, R * 1.6, 3 * U);
-      ctx.fillStyle = "#9370DB"; ctx.fillRect(-R * 0.8, -R * 1.55, R * 1.6 * hf, 3 * U);
+      ctx.fillStyle = isB ? "#50C878" : "#9370DB"; ctx.fillRect(-R * 0.8, -R * 1.55, R * 1.6 * hf, 3 * U);
       ctx.restore();
     }
   }
@@ -4497,7 +4542,7 @@
       circulatory: [],
       selectedToBuild: null,
       openGroups: { defensas: true, potenciadores: true, tanques: true, otras: true }, // todos abiertos por defecto
-      unlockedTowers: ["neutrofilo", "linfocitoB", "linfocitoT"], // resto se desbloquea con pickups
+      unlockedTowers: ["neutrofilo", "queratinocito", "mastocito"], // primera línea real; resto por pickups
       unlockPickups: [],                // píldoras flotantes en el campo
       medulaOsea: null,                 // posición de la médula ósea (se setea en layoutUI)
       unlockScheduleNotified: {},       // qué waves ya emitieron su pickup

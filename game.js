@@ -1650,9 +1650,10 @@
     state.megaBaseHp = Math.round(0.75 * computeMaxTowerHp());   // HP al 50% del anterior (1.5→0.75)
     var laneX = FIELD_LEFT + (PATH.laneXs ? PATH.laneXs[laneIdx] : 0.5) * FIELD_W;
     // Aparece centrado en X del carril, a la ALTURA (Y) donde tocó el jugador.
+    var wH = FIELD_H * DS_STRETCH;
     var laneY = (tapY != null)
-      ? Math.max(FIELD_TOP + FIELD_H * 0.12, Math.min(FIELD_TOP + FIELD_H * 0.88, tapY))
-      : FIELD_TOP + FIELD_H * 0.45;
+      ? Math.max(FIELD_TOP + wH * 0.10, Math.min(FIELD_TOP + wH * 0.90, tapY))
+      : FIELD_TOP + wH * 0.45;
     spawnMegaUnit(0, laneX, laneY, 0, 0, laneIdx, null);
     f.progress = 0; f.mode = "dormant"; f.callPhase = 0;   // queda DORMIDA hasta el próximo tap
     state.megaPlacing = false;
@@ -8205,10 +8206,12 @@
         e.dead = true;
         state.pathogensDefeated += 1;
         META.totalPathogensDefeated += 1;
-        // El ATP ya no se acredita solo: el macrófago expulsa una mini
-        // gota de energía que hay que tappear para cobrarla (residuo de
-        // la fagocitosis, ver MACROFAGO_DROP_REWARD).
-        spawnEnergyDrop(g.x, g.y - 10 * U);
+        // ATP AUTOMÁTICO: al fagocitar, se acredita al INSTANTE (sin microgota
+        // que tocar) + moneda dorada que vuela al HUD como feedback.
+        state.atp += MACROFAGO_DROP_REWARD;
+        pushEffect({ kind: "atpText", x: g.x, y: g.y - 12 * U, vy: -36 * U,
+          text: "+" + MACROFAGO_DROP_REWARD + " ATP", life: 0.85, max: 0.85, color: "#FFD93D" });
+        pushEffect({ kind: "atpCoin", x: g.x, y: g.y, x0: g.x, y0: g.y, life: 0.55, max: 0.55, delivered: false });
       }
       for (var pk = 0; pk < 10; pk++) {
         var pa = Math.random() * Math.PI * 2, ps = (15 + Math.random() * 30) * U;
@@ -12815,7 +12818,7 @@
     }
     // Modo "elegir carril" del Super: el tap escoge la columna más cercana.
     if (state.dissemination && state.megaPlacing) {
-      if (y >= FIELD_TOP && y <= FIELD_BOTTOM && PATH.laneXs) {
+      if (y >= FIELD_TOP && y <= FIELD_TOP + dsWorldH() && PATH.laneXs) {
         var bestLane = 0, bd = Infinity;
         for (var li = 0; li < PATH.laneXs.length; li++) {
           var lxp = FIELD_LEFT + PATH.laneXs[li] * FIELD_W;

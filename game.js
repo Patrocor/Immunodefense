@@ -2846,8 +2846,8 @@
       ctx.textAlign = "center"; ctx.textBaseline = "middle";
       ctx.fillText(cb.icon, x + cardW / 2, cy - cardH * 0.24);
       ctx.fillStyle = "#fff";
-      ctx.font = "bold " + Math.floor(12 * U) + "px Fredoka, sans-serif";
-      ctx.fillText(cb.name, x + cardW / 2, cy + cardH * 0.02);
+      fitFont(cb.name, cardW - 8 * U, 12 * U, 8 * U);
+      ctx.fillText(ellipsizeToWidth(cb.name, cardW - 8 * U), x + cardW / 2, cy + cardH * 0.02);
       ctx.fillStyle = cb.color;
       ctx.font = "bold " + Math.floor(14 * U) + "px Fredoka, sans-serif";
       ctx.fillText("+10%", x + cardW / 2, cy + cardH * 0.20);
@@ -2902,9 +2902,10 @@
         drawCardIcon(typeId, 0, 0, iconR * 0.60, true);
         ctx.restore();
         ctx.fillStyle = "#fff";
-        ctx.font = "bold " + Math.floor(8 * U) + "px Fredoka, sans-serif";
+        var tMaxW = iconR * 2 + gap - 2 * U, tName = def.shortName || def.name;
+        fitFont(tName, tMaxW, 8 * U, 6 * U);
         ctx.textAlign = "center"; ctx.textBaseline = "top";
-        ctx.fillText(def.shortName || def.name, cx, row1Y + iconR + 4 * U);
+        ctx.fillText(ellipsizeToWidth(tName, tMaxW), cx, row1Y + iconR + 4 * U);
         towerCards.push({ x: cx - iconR, y: row1Y - iconR, w: iconR * 2, h: iconR * 2, typeId: typeId });
       }
     } else {
@@ -2953,13 +2954,14 @@
       ctx.textAlign = "center"; ctx.textBaseline = "middle";
       ctx.fillText(bns.icon, 0, 0);
       ctx.restore();
+      var bMaxW = bIconR * 2 + bGap - 2 * U;
       ctx.fillStyle = "#fff";
-      ctx.font = "bold " + Math.floor(8 * U) + "px Fredoka, sans-serif";
+      fitFont(bns.name, bMaxW, 8 * U, 6 * U);
       ctx.textAlign = "center"; ctx.textBaseline = "top";
-      ctx.fillText(bns.name, bcx, row2Y + bIconR + 4 * U);
+      ctx.fillText(ellipsizeToWidth(bns.name, bMaxW), bcx, row2Y + bIconR + 4 * U);
       ctx.fillStyle = "rgba(255,255,255,0.55)";
       ctx.font = Math.floor(7 * U) + "px Fredoka, sans-serif";
-      ctx.fillText(bns.desc, bcx, row2Y + bIconR + 14 * U);
+      ctx.fillText(ellipsizeToWidth(bns.desc, bMaxW), bcx, row2Y + bIconR + 14 * U);
       bonusCards.push({ x: bcx - bIconR, y: row2Y - bIconR, w: bIconR * 2, h: bIconR * 2, bonusId: bns.id });
     }
     UI.medBonusOptions = bonusCards;
@@ -3491,13 +3493,10 @@
       } else {
         ctx.fillStyle = def.color || "#fff";
       }
-      ctx.font = "bold " + Math.max(8, Math.min(11, cardW * 0.14)) + "px Fredoka, sans-serif";
+      var dexMaxW = cardW - 6, dName = locked ? "???" : (def.shortName || def.name);
+      fitFont(dName, dexMaxW, Math.max(8, Math.min(11, cardW * 0.14)), 7);
       ctx.textAlign = "center"; ctx.textBaseline = "middle";
-      var name = locked ? "???" : (def.shortName || def.name);
-      while (ctx.measureText(name).width > cardW - 6 && name.length > 4) {
-        name = name.slice(0, -2);
-      }
-      ctx.fillText(name, cx + cardW / 2, cy + cardH - 10);
+      ctx.fillText(ellipsizeToWidth(dName, dexMaxW), cx + cardW / 2, cy + cardH - 10);
       // Badge rojo de "nuevo" en esquina sup. derecha (solo si está desbloqueado)
       if (!locked && state.dexNew && state.dexNew[typeId]) {
         var dotPulse = 0.5 + 0.5 * Math.sin(state.time * 5);
@@ -3961,15 +3960,17 @@
       var textX = cx + 10 * U;
       ctx.textAlign = "left";
       ctx.textBaseline = "middle";
-      // Línea superior: ícono + label en el color del poder
+      // Línea superior: ícono + label en el color del poder (ajustado al ancho).
+      var respMaxW = cardW - 14 * U, lblTxt = def.icon + "  " + def.label;
       ctx.fillStyle = def.color;
-      ctx.font = "bold " + Math.floor(13 * U) + "px Fredoka, sans-serif";
-      ctx.fillText(def.icon + "  " + def.label, textX, cy + cardH * 0.32);
+      fitFont(lblTxt, respMaxW, 13 * U, 9 * U);
+      ctx.fillText(ellipsizeToWidth(lblTxt, respMaxW), textX, cy + cardH * 0.32);
       // Línea inferior: ANTÍGENOS que tienes / costo (botón unificado).
       var have = (state.antigens && state.antigens.count) || 0;
+      var antTxt = "★ " + have + "/" + def.cost + " antíg.";
       ctx.fillStyle = "#ffd24a";
-      ctx.font = "bold " + Math.floor(13 * U) + "px Fredoka, sans-serif";
-      ctx.fillText("★ " + have + " / " + def.cost + "  antígenos", textX, cy + cardH * 0.70);
+      fitFont(antTxt, respMaxW, 13 * U, 8 * U);
+      ctx.fillText(ellipsizeToWidth(antTxt, respMaxW), textX, cy + cardH * 0.70);
 
       ctx.globalAlpha = 1;
     }
@@ -14418,6 +14419,26 @@
     return "rgba(" + r + "," + g + "," + b + "," + a + ")";
   }
 
+  // Ajusta el tamaño de fuente (bold Fredoka) para que `text` quepa en maxW.
+  // Deja ctx.font seteado y devuelve el px usado. Si aun al mínimo no entra,
+  // el llamador puede recortar con ellipsizeToWidth.
+  function fitFont(text, maxW, basePx, minPx) {
+    var px = basePx; minPx = minPx || basePx * 0.6;
+    ctx.font = "bold " + Math.floor(px) + "px Fredoka, sans-serif";
+    while (px > minPx && ctx.measureText("" + text).width > maxW) {
+      px *= 0.93;
+      ctx.font = "bold " + Math.max(1, Math.floor(px)) + "px Fredoka, sans-serif";
+    }
+    return Math.floor(px);
+  }
+  // Recorta con "…" para que quepa en maxW (usa el ctx.font actual).
+  function ellipsizeToWidth(text, maxW) {
+    text = "" + text;
+    if (ctx.measureText(text).width <= maxW) return text;
+    while (text.length > 1 && ctx.measureText(text + "…").width > maxW) text = text.slice(0, -1);
+    return text + "…";
+  }
+
   function drawTower(t) {
     var disseminationScaled = !!state.dissemination;
     if (disseminationScaled) {
@@ -22143,15 +22164,12 @@
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
 
-        // 1. NOMBRE (top)
+        // 1. NOMBRE (top) — encoge la fuente y, si aún no entra, recorta con "…"
         ctx.fillStyle = canAfford ? "#fff" : "rgba(255,255,255,0.45)";
         var fs1 = Math.max(10, Math.min(12, cw * 0.18));
-        ctx.font = "bold " + fs1 + "px Fredoka, sans-serif";
-        var nameStr = def.shortName || def.name;
-        while (ctx.measureText(nameStr).width > (cw - 8) && nameStr.length > 3) {
-          nameStr = nameStr.slice(0, -2);
-        }
-        ctx.fillText(nameStr, cardCenterX, cardY + ch * 0.18);
+        var nMaxW = cw - 8, nameStr = def.shortName || def.name;
+        fitFont(nameStr, nMaxW, fs1, Math.max(8, fs1 * 0.72));
+        ctx.fillText(ellipsizeToWidth(nameStr, nMaxW), cardCenterX, cardY + ch * 0.18);
 
         // 2. ÍCONO (centro) — preview de la TORRE REAL (snowman
         // neutrofilo, LGL nk, etc) en lugar del ícono simple.
@@ -22199,9 +22217,9 @@
       var t = state.selectedTower;
       var stats = towerStats(t);
       ctx.fillStyle = t.def.color;
-      ctx.font = "bold 13px Fredoka, sans-serif";
       var nm = (t.def.shortName || t.def.name);
-      ctx.fillText(nm, infoX, infoY + 2);
+      fitFont(nm, infoW - 2, 13, 8);
+      ctx.fillText(ellipsizeToWidth(nm, infoW - 2), infoX, infoY + 2);
       ctx.fillStyle = "rgba(255,255,255,0.7)";
       ctx.font = "11px Fredoka, sans-serif";
       ctx.fillText("Nivel " + (t.level + 1) + "/3", infoX, infoY + 18);
@@ -22242,8 +22260,9 @@
     } else if (state.selectedToBuild) {
       var def2 = TOWER_DEFS[state.selectedToBuild];
       ctx.fillStyle = def2.color;
-      ctx.font = "bold 12px Fredoka, sans-serif";
-      ctx.fillText((def2.shortName || def2.name), infoX, infoY + 2);
+      var sbName = def2.shortName || def2.name;
+      fitFont(sbName, infoW - 2, 12, 8);
+      ctx.fillText(ellipsizeToWidth(sbName, infoW - 2), infoX, infoY + 2);
       ctx.font = "11px Fredoka, sans-serif";
       ctx.fillStyle = "rgba(255,255,255,0.8)";
       ctx.fillText("Toca el campo", infoX, infoY + 20);

@@ -918,9 +918,9 @@
       specialChargeSec: 24 * 1.15,  // +15%: poderes tardan un poco más en cargar
       specialName: "Bombardeo de Defensinas",
       levels: [
-        { range:  90, damage: 25, fireRate: 1.0, projectileSpeed:   0, splash:  0, hp: 120 },
-        { range: 100, damage: 45, fireRate: 1.2, projectileSpeed:   0, splash:  0, hp: 160 },
-        { range: 110, damage: 75, fireRate: 1.4, projectileSpeed:   0, splash:  0, hp: 210 }
+        { range: 108, damage: 25, fireRate: 1.0, projectileSpeed:   0, splash:  0, hp: 120 },
+        { range: 120, damage: 45, fireRate: 1.2, projectileSpeed:   0, splash:  0, hp: 160 },
+        { range: 132, damage: 75, fireRate: 1.4, projectileSpeed:   0, splash:  0, hp: 210 }
       ],
       upgradeCost: [60, 110]
     },
@@ -1004,7 +1004,7 @@
     },
     eosinofilo: {
       id: "eosinofilo", name: "Eosinofilo", shortName: "Eosin",
-      color: "#F2774E", colorDark: "#a8401f", cost: 88, desc: "Gránulos de MBP, ECP y EDN atacan parásitos con ADCC; IL-4 e IL-13 potencian la respuesta. Bonus ×2.6 vs parásitos. Ultimate: Descarga de gránulos.",
+      color: "#F2774E", colorDark: "#a8401f", cost: 75, desc: "Gránulos de MBP, ECP y EDN atacan parásitos con ADCC; IL-4 e IL-13 potencian la respuesta. Bonus ×2.6 vs parásitos. Ultimate: Descarga de gránulos.",
       bonusVs: { kind: "parasito", mult: 2.6 },
       // Ultimate: DESCARGA DE GRÁNULOS — daño instantáneo a TODOS los
       // enemigos en rango; a los parásitos además les queda un DoT
@@ -1085,13 +1085,13 @@
     },
     centinela: {
       id: "centinela", name: "Centinela de Alarma", shortName: "Centinela",
-      color: "#E8A33D", colorDark: "#8A5A12", cost: 50,
+      color: "#E8A33D", colorDark: "#8A5A12", cost: 35,
       desc: "Receptor PRR/TLR que detecta moléculas asociadas a patógenos y emite alarmas. Actúa como señuelo atrayendo los poderes especiales de los gérmenes hacia sí.",
       decoyAttraction: 2.5,
       levels: [
-        { range: 130, damage: 4, fireRate: 0.6, projectileSpeed: 0, splash: 0, hp: 140 },
-        { range: 130, damage: 6, fireRate: 0.7, projectileSpeed: 0, splash: 0, hp: 200 },
-        { range: 130, damage: 9, fireRate: 0.8, projectileSpeed: 0, splash: 0, hp: 280 }
+        { range: 130, damage: 10, fireRate: 0.6, projectileSpeed: 0, splash: 0, hp: 140 },
+        { range: 130, damage: 16, fireRate: 0.7, projectileSpeed: 0, splash: 0, hp: 200 },
+        { range: 130, damage: 24, fireRate: 0.8, projectileSpeed: 0, splash: 0, hp: 280 }
       ],
       upgradeCost: [60, 100]
     },
@@ -4504,6 +4504,7 @@
       germShots: [],
       guardians: [],
       guardianTimer: 28,
+      epiWalls: [],                     // muros de uniones estrechas (2 Nichos enfrentados)
       ganglio: null,                    // Ganglio linfático (base Fase 1): ensambla un T-blast héroe
       tblasts: [],                      // Linfocitos T blast héroes desplegados
       tblastPlacing: false,             // modo "colocar en el camino" activo
@@ -5258,6 +5259,7 @@
     if (state.cannonNets) state.cannonNets.length = 0;
     state.seekers.length = 0;
     state.slicks.length = 0;
+    if (state.epiWalls) state.epiWalls.length = 0;
     state.restos.length = 0;
     state.collectors.length = 0;
     state.pathInflammation.length = 0;
@@ -5892,6 +5894,29 @@
             ptw.hp -= 4 * dt;
             ptw.dmgAccum = (ptw.dmgAccum || 0) + 4 * dt;
             ptw.hitFlash = 0.10;
+            break;
+          }
+        }
+      }
+      // MURO DE UNIONES ESTRECHAS: si el germen toca la banda entre 2 Nichos,
+      // queda BLOQUEADO y debe romperla (daño recíproco).
+      if (state.epiWalls && state.epiWalls.length) {
+        for (var ewi = 0; ewi < state.epiWalls.length; ewi++) {
+          var ew = state.epiWalls[ewi];
+          if (ew.hp <= 0) continue;
+          var wax = ew.a.x, way = ew.a.y, wbx = ew.b.x, wby = ew.b.y;
+          var vx2 = wbx - wax, vy2 = wby - way;
+          var segLen2 = vx2 * vx2 + vy2 * vy2;
+          var tt = segLen2 > 0 ? ((e.x - wax) * vx2 + (e.y - way) * vy2) / segLen2 : 0;
+          tt = Math.max(0, Math.min(1, tt));
+          var cxw = wax + vx2 * tt, cyw = way + vy2 * tt;
+          if (Math.hypot(e.x - cxw, e.y - cyw) <= (e.def.radius || 14) * U + 10 * U) {
+            pxSpeed = 0;
+            e.state = "blocked";
+            var wdmg = (e.def.attack || 4) * ATTACK_MULT * dt;
+            ew.hp -= wdmg;
+            ew.flash = 0.2;
+            damageEnemy(e, 5 * dt, "queratinocito");   // la barrera también raspa
             break;
           }
         }
@@ -7163,7 +7188,10 @@
     var hasIlc2Lang  = (t.def.id === "langerhans") && ((t.ilc2LangT  || 0) > 0);
     var hasCitoBuff = (state && (state.medCitoTimer || 0) > 0);
     var hasCombo = state && state.combo && ((state.combo.atk || 0) || (state.combo.rng || 0) || (state.combo.spd || 0));
-    if (!t.synBuff && !hasLangerBuff && !hasKcBuff && !hasIfnBuff && !hasIl17Buff && !hasIlc2Eosin && !hasIlc2Lang && !hasCitoBuff && !hasCombo) return base;
+    var corneum = t.corneumStack || 0;          // estrato córneo (Nichos juntos)
+    var swarm = t.swarmStack || 0;              // enjambre de neutrófilos
+    var hasAlarm = (t.alarmBuffT || 0) > 0;     // alarmina del Centinela
+    if (!t.synBuff && !hasLangerBuff && !hasKcBuff && !hasIfnBuff && !hasIl17Buff && !hasIlc2Eosin && !hasIlc2Lang && !hasCitoBuff && !hasCombo && !corneum && !swarm && !hasAlarm) return base;
     // Devuelve una copia con multiplicadores aplicados.
     var out = {};
     for (var k in base) { if (base.hasOwnProperty(k)) out[k] = base[k]; }
@@ -7186,6 +7214,11 @@
     if (hasIlc2Lang && out.markDur != null) out.markDur = out.markDur * 1.40;
     // Médula: Red de Citoquinas — +35% daño a todas las torres
     if (hasCitoBuff && out.damage != null) out.damage = out.damage * 1.35;
+    // FORMACIONES: estrato córneo (+12% radio por nicho vecino), enjambre de
+    // neutrófilos (+25% cadencia) y alarmina del Centinela (+20% cadencia).
+    if (corneum && out.range != null) out.range = out.range * (1 + 0.12 * corneum);
+    if (swarm && out.fireRate != null) out.fireRate = out.fireRate * 1.25;
+    if (hasAlarm && out.fireRate != null) out.fireRate = out.fireRate * 1.20;
     // Combos permanentes de Diseminación (+10% acumulativo por stack).
     if (hasCombo) {
       if (out.damage != null)   out.damage   = out.damage   * comboMult("atk");
@@ -7310,6 +7343,134 @@
   }
   // ============ FIN SINERGIAS ============
 
+  // ============ FORMACIONES (sinergia por GEOMETRÍA, no solo cercanía) ============
+  // · MURO DE UNIONES ESTRECHAS: 2 Nichos Epiteliales enfrentados a los lados
+  //   del camino tienden una barrera que BLOQUEA el paso. HP compartido; si el
+  //   muro cae, mueren ambos nichos (uniones estrechas + desmosomas reales).
+  // · ESTRATO CÓRNEO: varios Nichos cercanos fusionan sus campos (más radio).
+  // · ENJAMBRE: neutrófilos adyacentes coordinan fuego (+cadencia).
+  function wallBetween(A, B) {
+    var ws = state.epiWalls || [];
+    for (var i = 0; i < ws.length; i++) {
+      if ((ws[i].a === A && ws[i].b === B) || (ws[i].a === B && ws[i].b === A)) return ws[i];
+    }
+    return null;
+  }
+  function updateFormations(dt) {
+    if (!state.epiWalls) state.epiWalls = [];
+    var walls = state.epiWalls;
+    // Purga muros cuyas torres ya no existen / murieron.
+    for (var w = walls.length - 1; w >= 0; w--) {
+      var wl = walls[w];
+      if (wl.flash > 0) wl.flash -= dt;
+      var aliveA = state.towers.indexOf(wl.a) !== -1 && wl.a.hp > 0;
+      var aliveB = state.towers.indexOf(wl.b) !== -1 && wl.b.hp > 0;
+      if (!aliveA || !aliveB) { walls.splice(w, 1); continue; }
+      if (wl.hp <= 0) {
+        // El muro cayó: se llevan a AMBOS nichos (mueren juntos).
+        wl.a.hp = 0; wl.b.hp = 0;
+        pushEffect({ kind: "shock", x: (wl.a.x + wl.b.x) / 2, y: (wl.a.y + wl.b.y) / 2, r: 40 * U, life: 0.5, max: 0.5, color: "#d4a855" });
+        triggerShake(0.2, 4);
+        showMsg("¡El muro epitelial se rompió!");
+        walls.splice(w, 1);
+      }
+    }
+    // Reúne nichos y neutrófilos vivos.
+    var nichos = [], neutros = [];
+    for (var i = 0; i < state.towers.length; i++) {
+      var t = state.towers[i];
+      if (t.hp <= 0) continue;
+      if (t.def.producer) nichos.push(t);
+      else if (t.def.id === "neutrofilo") neutros.push(t);
+    }
+    // MURO: detectar pares enfrentados (punto medio SOBRE el camino y las dos
+    // torres a los costados).
+    for (var a = 0; a < nichos.length; a++) {
+      for (var b = a + 1; b < nichos.length; b++) {
+        var A = nichos[a], B = nichos[b];
+        if (wallBetween(A, B)) continue;
+        var d = Math.hypot(A.x - B.x, A.y - B.y);
+        if (d > 200 * U || d < 46 * U) continue;
+        var mx = (A.x + B.x) / 2, my = (A.y + B.y) / 2;
+        if (distPointToPath(mx, my) > 28 * U) continue;              // el medio cruza el camino
+        if (distPointToPath(A.x, A.y) < 26 * U) continue;            // A está al costado
+        if (distPointToPath(B.x, B.y) < 26 * U) continue;            // B está al costado
+        var whp = Math.round((A.maxHp + B.maxHp) * 0.6);
+        walls.push({ a: A, b: B, hp: whp, maxHp: whp, flash: 0, born: state.time });
+        pushEffect({ kind: "placeFlash", x: mx, y: my, life: 0.35, max: 0.35 });
+        showMsg("¡Muro de uniones estrechas!");
+        sfx("upgrade");
+      }
+    }
+    // ESTRATO CÓRNEO: nichos cercanos fusionan campos (0..3 stacks).
+    for (var n1 = 0; n1 < nichos.length; n1++) {
+      var cnt = 0;
+      for (var n2 = 0; n2 < nichos.length; n2++) {
+        if (n1 === n2) continue;
+        if (Math.hypot(nichos[n1].x - nichos[n2].x, nichos[n1].y - nichos[n2].y) < 130 * U) cnt++;
+      }
+      nichos[n1].corneumStack = Math.min(3, cnt);
+    }
+    // ENJAMBRE: neutrófilos adyacentes (+cadencia).
+    for (var s1 = 0; s1 < neutros.length; s1++) {
+      var scnt = 0;
+      for (var s2 = 0; s2 < neutros.length; s2++) {
+        if (s1 === s2) continue;
+        if (Math.hypot(neutros[s1].x - neutros[s2].x, neutros[s1].y - neutros[s2].y) < 110 * U) scnt++;
+      }
+      neutros[s1].swarmStack = Math.min(3, scnt);
+    }
+  }
+
+  // Dibuja los muros epiteliales (banda de queratina entre los 2 nichos).
+  function drawEpiWalls() {
+    if (!state.epiWalls || !state.epiWalls.length) return;
+    ctx.save();
+    for (var i = 0; i < state.epiWalls.length; i++) {
+      var wl = state.epiWalls[i];
+      var ax = wl.a.x, ay = wl.a.y, bx = wl.b.x, by = wl.b.y;
+      var frac = Math.max(0, wl.hp / wl.maxHp);
+      var grow = Math.min(1, (state.time - wl.born) / 0.4);   // se tiende al formarse
+      var mx = ax + (bx - ax) * 0.5, my = ay + (by - ay) * 0.5;
+      var ex1 = mx + (ax - mx) * grow, ey1 = my + (ay - my) * grow;
+      var ex2 = mx + (bx - mx) * grow, ey2 = my + (by - my) * grow;
+      var ang = Math.atan2(ey2 - ey1, ex2 - ex1);
+      var len = Math.hypot(ex2 - ex1, ey2 - ey1);
+      ctx.save();
+      ctx.translate(ex1, ey1); ctx.rotate(ang);
+      var hgt = 13 * U;
+      // banda de queratina
+      var wg = ctx.createLinearGradient(0, -hgt, 0, hgt);
+      wg.addColorStop(0, "#e8c88a"); wg.addColorStop(0.5, "#c79a4e"); wg.addColorStop(1, "#7a5a18");
+      ctx.globalAlpha = 0.55 + frac * 0.45;
+      ctx.fillStyle = wg;
+      ctx.fillRect(0, -hgt / 2, len, hgt);
+      ctx.strokeStyle = "#4a3510"; ctx.lineWidth = Math.max(1.5, 2 * U);
+      ctx.strokeRect(0, -hgt / 2, len, hgt);
+      // placas hexagonales (queratinocitos unidos) + desmosomas
+      var cells = Math.max(2, Math.floor(len / (13 * U)));
+      ctx.strokeStyle = "rgba(74,53,16,0.75)"; ctx.lineWidth = Math.max(1, 1.2 * U);
+      for (var c = 1; c < cells; c++) {
+        var cx2 = (len / cells) * c;
+        ctx.beginPath(); ctx.moveTo(cx2, -hgt / 2); ctx.lineTo(cx2, hgt / 2); ctx.stroke();
+        ctx.fillStyle = "#5a4212";
+        ctx.beginPath(); ctx.arc(cx2, 0, 1.8 * U, 0, Math.PI * 2); ctx.fill();
+      }
+      // flash al recibir daño
+      if ((wl.flash || 0) > 0) {
+        ctx.fillStyle = "rgba(255,120,90," + Math.min(0.6, wl.flash * 2) + ")";
+        ctx.fillRect(0, -hgt / 2, len, hgt);
+      }
+      ctx.globalAlpha = 1;
+      // barra de HP compartida
+      ctx.fillStyle = "rgba(0,0,0,0.55)"; ctx.fillRect(0, -hgt / 2 - 6 * U, len, 3.5 * U);
+      ctx.fillStyle = frac > 0.5 ? "#8ed86a" : (frac > 0.25 ? "#e8c05a" : "#e05a4a");
+      ctx.fillRect(0, -hgt / 2 - 6 * U, len * frac, 3.5 * U);
+      ctx.restore();
+    }
+    ctx.restore();
+  }
+
   function updateTowers(dt) {
     // Recalcula sinergias por proximidad al inicio del frame (O(n²)
     // pero con n<20 es trivial).
@@ -7358,6 +7519,8 @@
       if ((t.ilc2EosinT|| 0) > 0) t.ilc2EosinT-= dt;
       if ((t.ilc2MastoT|| 0) > 0) t.ilc2MastoT-= dt;
       if ((t.ilc2LangT || 0) > 0) t.ilc2LangT -= dt;
+      if ((t.alarmBuffT|| 0) > 0) t.alarmBuffT-= dt;   // alarmina del Centinela
+      if ((t.histBuffT || 0) > 0) t.histBuffT -= dt;   // histamina del Mastocito
       // Médula: Regeneración celular pasiva
       if ((state.medRegenTimer || 0) > 0 && t.maxHp) {
         t.hp = Math.min(t.maxHp, t.hp + 2 * dt);
@@ -7369,6 +7532,8 @@
       if (t.def.id === "mastocito" && (t.ilc2MastoT || 0) > 0) specCharge *= 0.70;
       // Médula: Carga acelerada — ultimates cargan 2× mientras dure el buff.
       if ((state.medChargeBoostTimer || 0) > 0) specCharge *= 0.5;
+      // Mastocito (histamina): vecinas cargan su ultimate 30% más rápido.
+      if ((t.histBuffT || 0) > 0) specCharge *= 0.77;
       if (!t.specialReady && (t.specialAnim || 0) <= 0 && (t.stunTimer || 0) <= 0) {
         t.specialCharge = Math.min(1, (t.specialCharge || 0) + dt / specCharge);
         if (t.specialCharge >= 1) t.specialReady = true;
@@ -7477,6 +7642,17 @@
             life: 0.5, max: 0.6, color: t.def.color });
         }
         pushEffect({ kind: "placeFlash", x: t.x, y: t.y, life: 0.3, max: 0.3 });
+        // NEUTRÓFILO — NETosis: al morir se autoinmola lanzando una RED de
+        // cromatina que atrapa (detiene) y daña a los gérmenes 3.5s.
+        if (t.def.id === "neutrofilo") {
+          if (!state.cannonNets) state.cannonNets = [];
+          state.cannonNets.push({
+            x: t.x, y: t.y, r: 52 * U, dps: 14, life: 3.5, max: 3.5,
+            seed: Math.random() * 100, kind: "netosis"
+          });
+          pushEffect({ kind: "shock", x: t.x, y: t.y, r: 52 * U, life: 0.5, max: 0.5, color: "#e8dcff" });
+          showMsg("¡NETosis! El neutrófilo cayó lanzando su red");
+        }
         // Trombo de Respuesta: al romperse libera sus factores de
         // coagulación como una bomba retardada en el mismo lugar.
         if (t.def.deathBomb) {
@@ -7571,7 +7747,56 @@
       // === PRODUCTOR (Nicho Epitelial): no dispara proyectiles. Su salida es
       // el TURNO DE TRABAJO por tap (ver triggerTowerSpecial). La aura pasiva
       // ya corrió arriba (defensinField). ===
-      if (t.def.producer) { t.cooldown = 0.5; continue; }
+      if (t.def.producer) {
+        // SECRECIÓN AUTOMÁTICA de sebo: cada ~6s vuelca un charco al punto del
+        // camino más cercano — ralentiza y hace DoT mientras dura (además del
+        // Turno de secreción manual por tap).
+        t.sebumT = (t.sebumT || 0) - dt;
+        if (t.sebumT <= 0) {
+          t.sebumT = 6.0;
+          var sbStats2 = towerStats(t);
+          var arcS = nearestPathProgress(t.x, t.y);
+          var ptS = arcS ? pathPos(arcS.progress, arcS.heridaIdx) : null;
+          if (ptS && Math.hypot(ptS.x - t.x, ptS.y - t.y) <= sbStats2.range * U * 1.15) {
+            if (!state.sebumPuddles) state.sebumPuddles = [];
+            var lvS = (t.def.levels[t.level] && t.def.levels[t.level].patch) || { r: 30, life: 5, dot: 12 };
+            state.sebumPuddles.push({
+              x: ptS.x, y: ptS.y, r: lvS.r * 0.8 * U, life: 4.5, max: 4.5,
+              dot: (lvS.dot || 12) * 0.5, slow: true, kind: t.level >= 2 ? "sebum" : "defensin",
+              srcId: t.def.id
+            });
+            t.attackAnim = 0.2; t.muzzleFlash = 0.06;
+          }
+        }
+        t.cooldown = 0.5; continue;
+      }
+      // CENTINELA — ALARMINA: si detecta un germen en su rango, alerta a las
+      // torres cercanas (+20% cadencia mientras dure la señal).
+      if (t.def.decoyAttraction) {
+        var sawGerm = false;
+        for (var ce = 0; ce < state.enemies.length; ce++) {
+          var cen = state.enemies[ce];
+          if (cen.dead || cen.dying || cen.absorbing) continue;
+          if (Math.hypot(cen.x - t.x, cen.y - t.y) <= rangePx) { sawGerm = true; break; }
+        }
+        if (sawGerm) {
+          for (var ca = 0; ca < state.towers.length; ca++) {
+            var cal = state.towers[ca];
+            if (cal === t) continue;
+            if (Math.hypot(cal.x - t.x, cal.y - t.y) <= rangePx * 1.4) cal.alarmBuffT = 1.2;
+          }
+          t.attackAnim = 0.2;
+        }
+      }
+      // MASTOCITO — HISTAMINA: acelera la carga de ultimates de las torres
+      // vecinas (vasodilatación: llegan más rápido los refuerzos).
+      if (t.def.id === "mastocito") {
+        for (var hb = 0; hb < state.towers.length; hb++) {
+          var hbt = state.towers[hb];
+          if (hbt === t) continue;
+          if (Math.hypot(hbt.x - t.x, hbt.y - t.y) <= rangePx * 1.2) hbt.histBuffT = 1.0;
+        }
+      }
       // === pDC: aura antiviral — ralentiza virus en rango ===
       if (t.def.antiviralAura) {
         for (var pvj = 0; pvj < state.enemies.length; pvj++) {
@@ -9453,11 +9678,18 @@
       var a = Math.min(1, n.life / 0.6);   // fade-out en el último 0.6s
       var shim = 0.75 + 0.25 * Math.sin(state.time * 6 + n.seed);   // fosforescencia
       var R = n.r;
-      // 1. Resplandor fosforescente GUINDA (crimson-magenta que brilla).
+      var isNet = n.kind === "netosis";   // NETosis: cromatina blanca-violácea
+      // 1. Resplandor: GUINDA (malla MAC) o BLANCO-LILA (NETs del neutrófilo).
       var g = ctx.createRadialGradient(n.x, n.y, R * 0.1, n.x, n.y, R);
-      g.addColorStop(0, "rgba(255,70,130," + (0.34 * a * shim) + ")");
-      g.addColorStop(0.55, "rgba(190,25,80," + (0.22 * a) + ")");
-      g.addColorStop(1, "rgba(120,10,55,0)");
+      if (isNet) {
+        g.addColorStop(0, "rgba(235,225,255," + (0.30 * a * shim) + ")");
+        g.addColorStop(0.55, "rgba(170,150,220," + (0.20 * a) + ")");
+        g.addColorStop(1, "rgba(120,105,170,0)");
+      } else {
+        g.addColorStop(0, "rgba(255,70,130," + (0.34 * a * shim) + ")");
+        g.addColorStop(0.55, "rgba(190,25,80," + (0.22 * a) + ")");
+        g.addColorStop(1, "rgba(120,10,55,0)");
+      }
       ctx.fillStyle = g;
       ctx.beginPath(); ctx.arc(n.x, n.y, R, 0, Math.PI * 2); ctx.fill();
       // 2. MALLA DE RED: rejilla en diamante (rotada 45°) con hilos combados,
@@ -9472,9 +9704,9 @@
       ctx.lineCap = "round"; ctx.lineJoin = "round";
       // hebras horizontales y verticales (en el frame rotado = diamantes)
       for (var pass = 0; pass < 2; pass++) {
-        ctx.strokeStyle = pass === 0
-          ? "rgba(255,60,120," + (0.62 * a * shim) + ")"
-          : "rgba(255,110,160," + (0.45 * a * shim) + ")";
+        ctx.strokeStyle = isNet
+          ? (pass === 0 ? "rgba(240,235,255," + (0.72 * a * shim) + ")" : "rgba(200,190,240," + (0.5 * a * shim) + ")")
+          : (pass === 0 ? "rgba(255,60,120," + (0.62 * a * shim) + ")" : "rgba(255,110,160," + (0.45 * a * shim) + ")");
         ctx.lineWidth = Math.max(1, (pass === 0 ? 1.9 : 1.4) * U);
         for (var c = -ext; c <= ext + 1; c += step) {
           ctx.beginPath();
@@ -9491,14 +9723,14 @@
       for (var gx = -ext; gx <= ext + 1; gx += step) {
         for (var gy = -ext; gy <= ext + 1; gy += step) {
           if (gx * gx + gy * gy < R * R * 0.92) {
-            ctx.fillStyle = "rgba(255,190,215," + (0.9 * a * shim) + ")";
+            ctx.fillStyle = isNet ? "rgba(255,255,255," + (0.9 * a * shim) + ")" : "rgba(255,190,215," + (0.9 * a * shim) + ")";
             ctx.beginPath(); ctx.arc(gx, gy, 2.0 * U, 0, Math.PI * 2); ctx.fill();
           }
         }
       }
       ctx.restore();
       // 4. Aro fosforescente del borde.
-      ctx.strokeStyle = "rgba(255,80,140," + (0.9 * a * shim) + ")"; ctx.lineWidth = Math.max(1.6, 2.6 * U);
+      ctx.strokeStyle = isNet ? "rgba(225,215,255," + (0.85 * a * shim) + ")" : "rgba(255,80,140," + (0.9 * a * shim) + ")"; ctx.lineWidth = Math.max(1.6, 2.6 * U);
       ctx.beginPath(); ctx.arc(n.x, n.y, R, 0, Math.PI * 2); ctx.stroke();
     }
     ctx.restore();
@@ -24086,6 +24318,7 @@
     safeDraw("MegaSwarm", drawMegaSwarm);
     safeDraw("MegaPlacing", drawMegaPlacing);
     safeDraw("PlaquetaPickups", drawPlaquetaPickups);
+    safeDraw("EpiWalls", drawEpiWalls);
     safeDraw("RangeHint", drawRangeHint);
     // Loops de entidades: cada una en su propio try.
     for (var j = 0; j < state.enemies.length; j++) {
@@ -24900,6 +25133,7 @@
       updateWaveScheduler(dt);
       updateWave(dt);
       updateEnemies(dt);
+      updateFormations(dt);
       updateTowers(dt);
       updateGuardians(dt);
       updateGanglio(dt);

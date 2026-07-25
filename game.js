@@ -3552,11 +3552,13 @@
       var def2 = compendiumGetDef(sel);
       var lore = compendiumGetLore(sel);
       var isGerm = !!ENEMY_DEFS[sel];
-      // Nombre + sprite
+      // Nombre + sprite (ajustado: nombres largos como "Staphylococcus aureus"
+      // o "Célula Dendrítica Plasmocitoide" no deben salirse del recuadro).
       ctx.fillStyle = def2.color || "#fff";
-      ctx.font = "bold 16px Fredoka, sans-serif";
       ctx.textAlign = "left"; ctx.textBaseline = "top";
-      ctx.fillText(def2.name || sel, detailX + 60, detailY + 10);
+      var nameFull = def2.name || sel, nameMaxW = detailW - 60 - 10;
+      fitFont(nameFull, nameMaxW, 16, 11);
+      ctx.fillText(ellipsizeToWidth(nameFull, nameMaxW), detailX + 60, detailY + 10);
       // Sprite icon
       if (isGerm) {
         ctx.save();
@@ -3620,10 +3622,13 @@
         ctx.font = "10px Fredoka, sans-serif";
         var descTxt = def2.tooltip || def2.desc || "";
         var descLines = wrapText(descTxt, detailW - 22, 10);
-        for (var dli = 0; dli < Math.min(3, descLines.length); dli++) {
-          ctx.fillText(descLines[dli], detailX + 10, descY + dli * 14);
+        var dN = Math.min(3, descLines.length);
+        for (var dli = 0; dli < dN; dli++) {
+          var dTxt = descLines[dli];
+          if (dli === dN - 1 && descLines.length > dN) dTxt += " …";
+          ctx.fillText(ellipsizeToWidth(dTxt, detailW - 22), detailX + 10, descY + dli * 14);
         }
-        descY += Math.min(3, descLines.length) * 14 + 6;
+        descY += dN * 14 + 6;
       }
 
       // Strong / Weak / Sinergias / Potencia / Mejor medio / Afinidad
@@ -3642,7 +3647,9 @@
           var vw = wrapText(valueText, vMaxW, 9);
           var n = Math.min(2, vw.length);
           for (var vi = 0; vi < n; vi++) {
-            ctx.fillText(vw[vi], detailX + labelW, descY + vi * lineH);
+            var lineTxt = vw[vi];
+            if (vi === n - 1 && vw.length > n) lineTxt += " …";   // hay más: indica recorte
+            ctx.fillText(ellipsizeToWidth(lineTxt, vMaxW), detailX + labelW, descY + vi * lineH);
           }
           descY += Math.max(lineH, n * lineH) + 2;
         }

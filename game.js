@@ -1718,10 +1718,11 @@
         u.vx = (ax / al) * cfg.speed * U; u.vy = (ay / al) * cfg.speed * U;
         u.x += u.vx * dt; u.y += u.vy * dt; u.moving = true;
       }
-      // clamp al campo (+ a la columna estrecha del carril si aplica)
+      // clamp al MUNDO (estirado en Diseminación), no al viewport — si no, el
+      // Super colocado en el área con scroll se jalaría de vuelta arriba.
       if (laneX != null) u.x = Math.max(laneX - halfLane, Math.min(laneX + halfLane, u.x));
       u.x = Math.max(FIELD_LEFT + u.r, Math.min(FIELD_RIGHT - u.r, u.x));
-      u.y = Math.max(FIELD_TOP + u.r, Math.min(FIELD_BOTTOM - u.r, u.y));
+      u.y = Math.max(FIELD_TOP + u.r, Math.min(FIELD_TOP + dsWorldH() - u.r, u.y));
       if (u.moving) { u.walkPhase += dt * 9; if (Math.abs(u.vx) > 2) u.facing = u.vx < 0 ? -1 : 1; }
       if (u.attackCd > 0) u.attackCd -= dt;
       // DAÑO DE HALOS: solo los gérmenes atacantes en su aura desgastan al Super.
@@ -1970,23 +1971,22 @@
     if (!state.megaPlacing || !state.dissemination || !PATH.laneXs) return;
     var pulse = 0.5 + 0.5 * Math.sin(state.time * 4);
     var hw = (FIELD_W * laneGapFrac()) * 0.5;
+    var wH = dsWorldH();   // cubre TODO el mundo estirado (no solo el viewport)
     ctx.save();
-    ctx.fillStyle = "rgba(10,6,10,0.42)"; ctx.fillRect(FIELD_LEFT, FIELD_TOP, FIELD_W, FIELD_H);
+    ctx.fillStyle = "rgba(10,6,10,0.42)"; ctx.fillRect(FIELD_LEFT, FIELD_TOP, FIELD_W, wH);
     for (var i = 0; i < PATH.laneXs.length; i++) {
       var lx = FIELD_LEFT + PATH.laneXs[i] * FIELD_W;
       ctx.fillStyle = "rgba(232,184,136," + (0.10 + pulse * 0.10) + ")";
-      ctx.fillRect(lx - hw, FIELD_TOP, hw * 2, FIELD_H);
+      ctx.fillRect(lx - hw, FIELD_TOP, hw * 2, wH);
       ctx.strokeStyle = "rgba(232,184,136," + (0.5 + pulse * 0.4) + ")";
       ctx.lineWidth = 2.5 * U; ctx.setLineDash([9 * U, 6 * U]);
-      ctx.strokeRect(lx - hw, FIELD_TOP + 4 * U, hw * 2, FIELD_H - 8 * U);
+      ctx.strokeRect(lx - hw, FIELD_TOP + 4 * U, hw * 2, wH - 8 * U);
       ctx.setLineDash([]);
-      ctx.fillStyle = "#ffe8d0"; ctx.font = "bold " + Math.floor(16 * U) + "px Fredoka, sans-serif";
-      ctx.textAlign = "center"; ctx.textBaseline = "middle";
-      ctx.fillText("▼", lx, FIELD_TOP + 22 * U);
     }
+    // Etiqueta a la altura visible actual (sigue el scroll).
     ctx.fillStyle = "#ffe8d0"; ctx.font = "bold " + Math.floor(14 * U) + "px Fredoka, sans-serif";
     ctx.textAlign = "center"; ctx.textBaseline = "top";
-    ctx.fillText("Elige el carril del Super Megacariocito", VW / 2, FIELD_TOP + 6 * U);
+    ctx.fillText("Toca un carril donde aparece el Super", VW / 2, FIELD_TOP + (state.dsScrollY || 0) + 6 * U);
     ctx.restore();
   }
 

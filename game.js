@@ -14749,11 +14749,11 @@
     // Draw filled body with smooth corners (quadratic through each vertex)
     var bodyGrad = ctx.createRadialGradient(-R * 0.20, -R * 0.20, R * 0.10, 0, 0, R * 1.05);
     bodyGrad.addColorStop(0,    "#fffaf2");
-    bodyGrad.addColorStop(0.6,  "#f1e2da");
-    bodyGrad.addColorStop(1,    "#d9b09a");
+    bodyGrad.addColorStop(0.55, "#eddcd2");
+    bodyGrad.addColorStop(1,    "#c2917a");   // borde más profundo: separa del fondo
     ctx.fillStyle = bodyGrad;
-    ctx.strokeStyle = "rgba(130, 75, 55, 0.65)";
-    ctx.lineWidth = Math.max(1.2, 1.5 * U);
+    ctx.strokeStyle = "#6b3a28";              // contorno oscuro GRUESO (alto contraste)
+    ctx.lineWidth = Math.max(2, 2.6 * U);
     ctx.beginPath();
     var nC = contour.length;
     var mid0X = (contour[nC - 1].x + contour[0].x) / 2;
@@ -14772,19 +14772,22 @@
 
     // NÚCLEO MULTILOBULADO — 4 lóbulos conectados por filamentos de
     // cromatina. Posicionado en el cuerpo central (zona libre de la cara).
-    var nucColor = "rgba(126, 95, 176, 0.92)";
-    var nucEdge  = "rgba(80, 55, 130, 0.95)";
-    var nucCY = R * 0.10;       // centrado un poco hacia abajo (cara arriba)
-    var lobeR = R * 0.16;
+    // Lóbulos MÁS GRANDES y saturados, con filamentos gruesos: el rasgo
+    // icónico del PMN debe leerse de un vistazo.
+    var nucColor = "#7a4fb5";
+    var nucEdge  = "#3a2168";
+    var nucCY = R * 0.12;       // centrado un poco hacia abajo (cara arriba)
+    var lobeR = R * 0.22;
+    var nucPulse = 1 + Math.sin(time * 1.4 + phase) * 0.05;   // late suave
     var lobes = [
-      { x: -R * 0.22, y: nucCY - R * 0.08, r: lobeR * 1.05 },
-      { x:  R * 0.20, y: nucCY - R * 0.15, r: lobeR * 0.95 },
-      { x:  R * 0.24, y: nucCY + R * 0.18, r: lobeR * 0.95 },
-      { x: -R * 0.20, y: nucCY + R * 0.20, r: lobeR * 0.90 }
+      { x: -R * 0.27, y: nucCY - R * 0.10, r: lobeR * 1.05 * nucPulse },
+      { x:  R * 0.25, y: nucCY - R * 0.18, r: lobeR * 0.95 * nucPulse },
+      { x:  R * 0.29, y: nucCY + R * 0.20, r: lobeR * 0.95 * nucPulse },
+      { x: -R * 0.24, y: nucCY + R * 0.24, r: lobeR * 0.90 * nucPulse }
     ];
-    // Strands de cromatina entre lóbulos
+    // Strands de cromatina entre lóbulos (gruesos y oscuros).
     ctx.strokeStyle = nucEdge;
-    ctx.lineWidth = 1.6 * U;
+    ctx.lineWidth = Math.max(2, 3.2 * U);
     ctx.lineCap = "round";
     for (var lk = 0; lk < lobes.length - 1; lk++) {
       ctx.beginPath();
@@ -14792,15 +14795,17 @@
       ctx.lineTo(lobes[lk + 1].x, lobes[lk + 1].y);
       ctx.stroke();
     }
-    // Lóbulos
+    // Lóbulos con volumen (degradado) + contorno oscuro grueso.
     for (var lk2 = 0; lk2 < lobes.length; lk2++) {
       var lo = lobes[lk2];
-      ctx.fillStyle = nucColor;
+      var lg = ctx.createRadialGradient(lo.x - lo.r * 0.35, lo.y - lo.r * 0.35, lo.r * 0.15, lo.x, lo.y, lo.r);
+      lg.addColorStop(0, "#a97fd8"); lg.addColorStop(0.65, nucColor); lg.addColorStop(1, "#4a2a86");
+      ctx.fillStyle = lg;
       ctx.beginPath();
       ctx.arc(lo.x, lo.y, lo.r, 0, Math.PI * 2);
       ctx.fill();
       ctx.strokeStyle = nucEdge;
-      ctx.lineWidth = 1.0 * U;
+      ctx.lineWidth = Math.max(1.4, 1.8 * U);
       ctx.stroke();
     }
 
@@ -14816,10 +14821,15 @@
       var ggy = Math.sin(ga) * gd + (Math.random() - 0.5) * granJitterN;
       // Evitar superposición con el área de la cara (zona superior).
       if (ggy < cyTop + R * 0.20 && Math.abs(ggx) < R * 0.30) continue;
-      ctx.fillStyle = "rgba(" + Math.round(126 + chargeFrac * 90) + ", " + Math.round(65 + chargeFrac * 100) + ", 220, " + Math.min(1, 0.62 + chargeFrac * 0.30) + ")";
+      // Gránulos azurófilos MÁS GRANDES con rim oscuro (se leen como orgánulos).
+      var grR = (1.7 + Math.sin(time * 1.5 + gn) * (0.30 + chargeFrac * 0.25)) * U;
+      ctx.fillStyle = "rgba(" + Math.round(126 + chargeFrac * 90) + ", " + Math.round(65 + chargeFrac * 100) + ", 220, " + Math.min(1, 0.80 + chargeFrac * 0.20) + ")";
       ctx.beginPath();
-      ctx.arc(ggx, ggy, (0.9 + Math.sin(time * 1.5 + gn) * (0.20 + chargeFrac * 0.18)) * U, 0, Math.PI * 2);
+      ctx.arc(ggx, ggy, grR, 0, Math.PI * 2);
       ctx.fill();
+      ctx.strokeStyle = "rgba(60, 35, 105, 0.85)";
+      ctx.lineWidth = Math.max(0.8, 0.9 * U);
+      ctx.stroke();
     }
 
     // CARA centrada en la esfera SUPERIOR.
@@ -15551,7 +15561,7 @@
     // · Aura fucsia permanente sutil (siempre activa)
     var doingUlt = (t.def.id === "nk" && (t.specialAnim || 0) > 0);
     var ultBoost = doingUlt ? 1.18 : 1;
-    var R = 18 * U * pulse * ultBoost;
+    var R = 22 * U * pulse * ultBoost;   // 18→22: a la par del resto del roster
     var time = state.time;
     var phase = t.idlePhase || 0;
     // Carga real del ultimate (t.specialCharge: 0→1) — intensifica el
@@ -15561,7 +15571,7 @@
 
     // ── AURA FUCSIA PERMANENTE (sutil, crece con la carga real, intensa
     // en ultimate) ──
-    var auraStrength = doingUlt ? 0.55 : (0.25 + chargeFrac * 0.25);
+    var auraStrength = doingUlt ? 0.55 : (0.16 + chargeFrac * 0.22);   // menos lavado del cuerpo
     var auraR = R * (doingUlt ? 2.6 : (1.85 + chargeFrac * 0.5));
     var auraG = ctx.createRadialGradient(0, 0, R * 0.6, 0, 0, auraR);
     auraG.addColorStop(0, "rgba(232, 67, 147, " + auraStrength + ")");
@@ -15620,8 +15630,8 @@
     }
     ctx.closePath();
     ctx.fill();
-    ctx.strokeStyle = t.def.colorDark;
-    ctx.lineWidth = Math.max(1.4, 1.8 * U);
+    ctx.strokeStyle = "#6b1440";                 // contorno oscuro grueso
+    ctx.lineWidth = Math.max(2, 2.6 * U);
     ctx.stroke();
 
     // ── NÚCLEO RIÑÓN ECCENTRIC ──
@@ -15632,8 +15642,8 @@
     var nucRx = R * 0.42;
     var nucRy = R * 0.50;
     var nucGrad = ctx.createRadialGradient(nucX - nucRx * 0.3, nucY - nucRy * 0.3, nucRx * 0.15, nucX, nucY, nucRx);
-    nucGrad.addColorStop(0, "rgba(140, 40, 95, 0.95)");
-    nucGrad.addColorStop(1, "rgba(80, 20, 55, 0.95)");
+    nucGrad.addColorStop(0, "#8e2560");
+    nucGrad.addColorStop(1, "#3d0a27");   // núcleo mucho más oscuro: se despega del cuerpo
     ctx.fillStyle = nucGrad;
     ctx.beginPath();
     ctx.ellipse(nucX, nucY, nucRx, nucRy, 0, 0, Math.PI * 2);
@@ -15644,8 +15654,8 @@
     ctx.ellipse(nucX + nucRx * 0.50, nucY + nucRy * 0.15, nucRx * 0.42, nucRy * 0.55, 0, 0, Math.PI * 2);
     ctx.fill();
     // Outline del núcleo (refuerza forma)
-    ctx.strokeStyle = "rgba(60, 15, 40, 0.65)";
-    ctx.lineWidth = 1.0 * U;
+    ctx.strokeStyle = "#2e0a1e";
+    ctx.lineWidth = Math.max(1.4, 1.8 * U);
     ctx.beginPath();
     ctx.ellipse(nucX, nucY, nucRx, nucRy, 0, 0, Math.PI * 2);
     ctx.stroke();
@@ -15663,13 +15673,14 @@
       var gy = Math.sin(ga) * gr * 0.95 + (Math.random() - 0.5) * granJitterNK;
       // Excluir gránulos que caigan dentro del núcleo (zona top-left).
       if (Math.hypot(gx - nucX, gy - nucY) < nucRx * 0.85) continue;
-      // Granulo: núcleo blanco-rosa con outline fucsia.
+      // Gránulo lítico GRANDE con rim oscuro: es un "linfocito grande
+      // GRANULAR", los gránulos deben leerse como orgánulos, no como ruido.
       ctx.fillStyle = "#fff7fa";
       ctx.beginPath();
-      ctx.arc(gx, gy, 1.5 * U, 0, Math.PI * 2);
+      ctx.arc(gx, gy, 2.6 * U, 0, Math.PI * 2);
       ctx.fill();
-      ctx.strokeStyle = "rgba(180, 50, 120, 0.55)";
-      ctx.lineWidth = 0.7 * U;
+      ctx.strokeStyle = "#7d1a4c";
+      ctx.lineWidth = Math.max(0.9, 1.1 * U);
       ctx.stroke();
       // Mini halo del gránulo — brilla más fuerte con la carga real,
       // anticipando la liberación de perforinas del Frenesí.

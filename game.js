@@ -1513,34 +1513,33 @@
   // al cambiar de fase — toda torre conseguida queda en el repertorio).
   // El roster de 7 torres desbloqueables se repartió entre las 2 fases reales
   // para que ninguna fase agote todo el contenido de golpe:
-  //  · Fase 1 (médula, por ola): Langerhans@W2 (junto a bossPyogenes),
-  //    NK@W5 (cuando entran los hongos/dermatofito que necesitan su detección).
-  //  · Fase 1 (boss-kill, ver BOSS_TANK_DROPS): Complemento/Trombo/Centinela.
-  //  · Diseminación (médula, por ola de dissem): Eosinófilo@0, Mastocito@1
-  //    — ver DISSEM_UNLOCK_SCHEDULE más abajo.
+  //  · Fase 1 (médula, por ola): TODAS las células residentes/innatas de piel,
+  //    introducidas cuando aparece su objetivo. Langerhans@W2, Mastocito@W3,
+  //    NK@W4 (virus HSV/HPV), Eosinófilo@W5 (parásitos Demodex/Leishmania, que
+  //    SÍ están en Fase 1), Nicho Epitelial@W6, γδ T@W8.
+  //  · Fase 1 (boss-kill, ver BOSS_TANK_DROPS): Complemento/Centinela.
+  //  · Diseminación: la médula ya no da "torre nueva" (todas se obtienen en
+  //    Fase 1); solo catch-up de lo perdido + combos permanentes.
   var BASIC_TOWERS = ["neutrofilo", "linfocitoB", "linfocitoT"];
   var UNLOCK_SCHEDULE = {
     2: "langerhans",
-    3: "nk",
-    4: "queratinocito",
-    7: "linfocitogd"
+    3: "mastocito",
+    4: "nk",
+    5: "eosinofilo",
+    6: "queratinocito",
+    8: "linfocitogd"
   };
-  // Catch-up: si el jugador llega a Diseminación sin haber conseguido
-  // alguna de estas (perdió el pickup por ola, o no llegó a matar al boss
-  // correspondiente), se le vuelve a ofrecer ahí — ninguna torre queda
-  // inalcanzable. Eosinófilo/Mastocito NO están acá porque su unlock
-  // primario YA es en Diseminación (no necesitan catch-up dentro de ella).
-  var PHASE1_CATCHUP_TOWERS = ["langerhans", "nk", "complemento", "centinela", "queratinocito", "linfocitogd"];
+  // Catch-up: si el jugador llega a Diseminación sin haber conseguido alguna
+  // torre de Fase 1 (perdió el pickup por ola, o no mató al boss), se le vuelve
+  // a ofrecer ahí — ninguna torre queda inalcanzable.
+  var PHASE1_CATCHUP_TOWERS = ["langerhans", "mastocito", "nk", "eosinofilo", "complemento", "centinela", "queratinocito", "linfocitogd"];
   // TANQUES: se ganan matando a un boss específico, no por ola. El drop
   // real ocurre en updateEnemies cuando el boss termina su animación de
   // muerte (dyingTimer<=0) — ver BOSS_TANK_DROPS ahí.
   var BOSS_TANK_DROPS = { bossPyogenes: "complemento", bossMRSA: "centinela" };
-  // Diseminación: su propio schedule por ola (disseminationWaveIdx 0..5,
-  // 6 olas), ver startNextDisseminationWave().
-  var DISSEM_UNLOCK_SCHEDULE = {
-    0: "eosinofilo",
-    1: "mastocito"
-  };
+  // Diseminación: ya NO desbloquea torres nuevas (todas se obtienen en Fase 1).
+  // La médula de Diseminación solo da catch-up + combos (ver médulaQueue).
+  var DISSEM_UNLOCK_SCHEDULE = {};
 
   // === MEGACARIOCITO: produce plaquetas maduras periódicamente ===
   function updateMegakaryocyte(dt) {
@@ -5186,17 +5185,12 @@
     state.combo = { atk: 0, def: 0, rng: 0, spd: 0 };
     state.comboPicker = null;
     // Cola de médula: la médula entrega UNA recompensa a la vez, espaciada,
-    // para no soltar "varias torres de golpe". Primero las torres nativas de
-    // Diseminación (Eosinófilo/Mastocito/ILC2), luego el catch-up de lo que se
-    // haya perdido en Fase 1. Cuando la cola se agota, la médula pasa a emitir
-    // COMBOS permanentes (+10% ataque/defensa/rango/cadencia) de forma infinita.
+    // para no soltar "varias torres de golpe": solo el catch-up de lo que se
+    // haya perdido en Fase 1 (todas las torres son de Fase 1 ahora). Cuando la
+    // cola se agota, la médula emite COMBOS permanentes (+10% atk/def/rng/cad).
     state.pendingPhaseUnlocks = [];
     state.medulaQueue = [];
     state.medulaEmitTimer = 8;   // primera recompensa a los ~8s
-    var DISSEM_NATIVE = ["eosinofilo", "mastocito"];
-    for (var ni = 0; ni < DISSEM_NATIVE.length; ni++) {
-      if (state.unlockedTowers.indexOf(DISSEM_NATIVE[ni]) === -1) state.medulaQueue.push(DISSEM_NATIVE[ni]);
-    }
     for (var ci = 0; ci < PHASE1_CATCHUP_TOWERS.length; ci++) {
       var cType = PHASE1_CATCHUP_TOWERS[ci];
       if (state.unlockedTowers.indexOf(cType) === -1) state.medulaQueue.push(cType);

@@ -3607,8 +3607,8 @@
         if (lvl2.hp != null && lvl2.hp > 0) sparts.push("HP " + lvl2.hp);
       }
       ctx.fillStyle = "rgba(255,255,255,0.65)";
-      ctx.font = "10px Fredoka, sans-serif";
-      var sLines = wrapText(sparts.join("  ·  "), detailW - 16, 10);
+      ctx.font = "9px Fredoka, sans-serif";
+      var sLines = wrapText(sparts.join("  ·  "), detailW - 22, 9);
       for (var sli = 0; sli < Math.min(2, sLines.length); sli++) {
         ctx.fillText(sLines[sli], detailX + 10, detailY + 60 + sli * 14);
       }
@@ -3617,9 +3617,9 @@
       var descY = detailY + 92;
       if (def2.desc || def2.tooltip) {
         ctx.fillStyle = "rgba(255,255,255,0.85)";
-        ctx.font = "11px Fredoka, sans-serif";
+        ctx.font = "10px Fredoka, sans-serif";
         var descTxt = def2.tooltip || def2.desc || "";
-        var descLines = wrapText(descTxt, detailW - 16, 11);
+        var descLines = wrapText(descTxt, detailW - 22, 10);
         for (var dli = 0; dli < Math.min(3, descLines.length); dli++) {
           ctx.fillText(descLines[dli], detailX + 10, descY + dli * 14);
         }
@@ -3628,17 +3628,18 @@
 
       // Strong / Weak / Sinergias / Potencia / Mejor medio / Afinidad
       if (lore) {
-        var labelW = 78;        // ancho reservado para la etiqueta
-        var lineH = 13;         // alto de línea compacto
+        var labelW = 74;        // ancho reservado para la etiqueta
+        var lineH = 12;         // alto de línea compacto
         function drawLoreRow(emoji, label, labelColor, valueText) {
           if (!valueText) return;
           ctx.fillStyle = labelColor;
-          ctx.font = "bold 10px Fredoka, sans-serif";
+          ctx.font = "bold 9px Fredoka, sans-serif";
           ctx.textAlign = "left"; ctx.textBaseline = "top";
           ctx.fillText(emoji + " " + label, detailX + 10, descY);
           ctx.fillStyle = "rgba(255,255,255,0.85)";
-          ctx.font = "10px Fredoka, sans-serif";
-          var vw = wrapText(valueText, detailW - labelW - 8, 10);
+          ctx.font = "9px Fredoka, sans-serif";
+          var vMaxW = detailW - labelW - 14;   // gutter derecho para no tocar el borde
+          var vw = wrapText(valueText, vMaxW, 9);
           var n = Math.min(2, vw.length);
           for (var vi = 0; vi < n; vi++) {
             ctx.fillText(vw[vi], detailX + labelW, descY + vi * lineH);

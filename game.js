@@ -968,7 +968,7 @@
     },
     langerhans: {
       id: "langerhans", name: "Cel. de Langerhans", shortName: "Langer",
-      color: "#3FC1C9", colorDark: "#26797f", cost: 70, desc: "Captura antígenos y activa la respuesta: MARCA a los gérmenes (+daño) y AMPLIFICA a Eosinófilos y Mastocitos cercanos (IL-4/5/13). Ultimate: Presentación Antigénica Masiva — marca y bufa aliados.",
+      color: "#3FC1C9", colorDark: "#26797f", cost: 70, desc: "Captura antígenos y activa la respuesta: MARCA a los gérmenes (+daño, y le desgasta el escudo) y AMPLIFICA a Eosinófilos y Mastocitos cercanos. Ataca con dardos de antígeno (daño leve). Ultimate: Presentación Antigénica Masiva.",
       support: "mark",
       amplifies: true,   // fusionado de ILC2: bufa Eosinófilo/Mastocito cercanos
       // Ultimate: PRESENTACIÓN ANTIGÉNICA MASIVA + COORDINACIÓN INMUNE.
@@ -979,9 +979,9 @@
       specialChargeSec: 30 * 1.15,  // +15%: poderes tardan un poco más en cargar
       specialName: "Presentación masiva",
       levels: [
-        { range: 120, damage: 0, fireRate: 1.0, projectileSpeed: 0, splash: 0, hp: 90,  markBonus: 0.35, markDur: 3.0 },
-        { range: 140, damage: 0, fireRate: 1.0, projectileSpeed: 0, splash: 0, hp: 115, markBonus: 0.45, markDur: 3.0 },
-        { range: 160, damage: 0, fireRate: 1.0, projectileSpeed: 0, splash: 0, hp: 145, markBonus: 0.55, markDur: 3.5 }
+        { range: 120, damage: 7,  fireRate: 1.0, projectileSpeed: 0, splash: 0, hp: 90,  markBonus: 0.35, markDur: 3.0 },
+        { range: 140, damage: 11, fireRate: 1.0, projectileSpeed: 0, splash: 0, hp: 115, markBonus: 0.45, markDur: 3.0 },
+        { range: 160, damage: 15, fireRate: 1.0, projectileSpeed: 0, splash: 0, hp: 145, markBonus: 0.55, markDur: 3.5 }
       ],
       upgradeCost: [75, 130]
     },
@@ -7859,6 +7859,25 @@
             if (Math.hypot(ampAlly.x - t.x, ampAlly.y - t.y) > rangePx) continue;
             if (ampAlly.def.id === "eosinofilo") { ampAlly.ilc2EosinT = 5; acted = true; }
             if (ampAlly.def.id === "mastocito")  { ampAlly.ilc2MastoT = 6; acted = true; }
+          }
+        }
+        // LANGERHANS — DARDO DE ANTÍGENO: ataque propio de poco poder. Pica al
+        // germen más cercano en cada tic (DPS ≈ su "damage" del nivel).
+        if (t.def.support === "mark" && (stats.damage || 0) > 0) {
+          var ldT = null, ldD = Infinity;
+          for (var ldi = 0; ldi < state.enemies.length; ldi++) {
+            var lde = state.enemies[ldi];
+            if (lde.dead || lde.dying || lde.absorbing) continue;
+            if (lde.burrowed && !lde.revealed) continue;
+            if (lde.def.cloaked && !lde.revealed) continue;
+            var ldd = Math.hypot(lde.x - t.x, lde.y - t.y);
+            if (ldd <= rangePx && ldd < ldD) { ldD = ldd; ldT = lde; }
+          }
+          if (ldT) {
+            damageEnemy(ldT, stats.damage * 0.4, "langerhans");   // 0.4 = el tic del aura
+            pushEffect({ kind: "markDart", x: t.x, y: t.y, tx: ldT.x, ty: ldT.y,
+              travel: 0.22, life: 0.22, max: 0.22, color: "#7cf0e8" });
+            t.muzzleFlash = 0.08;
           }
         }
         if (acted) { t.attackAnim = 0.2; t.muzzleFlash = 0.06; }
@@ -15792,8 +15811,8 @@
     // Langerhans — célula dendrítica presentadora de antígeno. Biología:
     //  · DENDRITAS LARGAS extendiéndose en todas direcciones (sensan)
     //  · Al final de cada dendrita: MHC-II cargado con antígeno
-    //  · Cuerpo redondo con núcleo prominente
-    var R = 17 * U * pulse;
+    //  · Cuerpo ESTRELLADO (dendrítico) + gránulos de Birbeck (raqueta)
+    var R = 21 * U * pulse;   // 17→21: a la par del resto del roster
     var time = state.time;
     var doingUltimate = (t.def.id === "langerhans" && (t.specialAnim || 0) > 0);
     // Durante ultimate: las dendritas se EXTIENDEN 2.5× su largo
@@ -15874,18 +15893,41 @@
       ctx.arc(tipX, tipY, flagR * 0.45, 0, Math.PI * 2);
       ctx.fill();
     }
-    // Cuerpo central
-    var grad = ctx.createRadialGradient(-R * 0.3, -R * 0.3, R * 0.2, 0, 0, R);
+    // ── CUERPO ESTRELLADO (dendrítico), NO circular: la Langerhans real es
+    // una célula estrellada cuyos velos se meten entre los queratinocitos.
+    var grad = ctx.createRadialGradient(-R * 0.3, -R * 0.3, R * 0.2, 0, 0, R * 1.1);
     grad.addColorStop(0, "#d6fbfd");
     grad.addColorStop(0.6, t.def.color);
     grad.addColorStop(1, t.def.colorDark);
     ctx.fillStyle = grad;
+    ctx.strokeStyle = "#12545a";                    // contorno oscuro grueso
+    ctx.lineWidth = Math.max(2, 2.6 * U);
+    ctx.lineJoin = "round";
+    var lobesL = 7;
     ctx.beginPath();
-    ctx.arc(0, 0, R, 0, Math.PI * 2);
+    for (var sl = 0; sl <= lobesL * 2; sl++) {
+      var slA = (sl / (lobesL * 2)) * Math.PI * 2 - Math.PI / 2;
+      // alterna punta/valle → estrella suave con brazos anchos
+      var slR = (sl % 2 === 0)
+        ? R * (1.06 + Math.sin(time * 1.7 + sl) * 0.05)
+        : R * 0.62;
+      var sx3 = Math.cos(slA) * slR, sy3 = Math.sin(slA) * slR;
+      if (sl === 0) ctx.moveTo(sx3, sy3); else ctx.lineTo(sx3, sy3);
+    }
+    ctx.closePath();
     ctx.fill();
-    ctx.strokeStyle = t.def.colorDark;
-    ctx.lineWidth = Math.max(1.2, 1.5 * U);
     ctx.stroke();
+    // GRÁNULOS DE BIRBECK (forma de raqueta de tenis) — sello de la Langerhans.
+    ctx.strokeStyle = "#0e4a50"; ctx.lineWidth = Math.max(1, 1.3 * U); ctx.lineCap = "round";
+    for (var bg = 0; bg < 3; bg++) {
+      var bgA = bg * 2.1 + time * 0.25;
+      var bx2 = Math.cos(bgA) * R * 0.34, by2 = Math.sin(bgA) * R * 0.34;
+      ctx.save(); ctx.translate(bx2, by2); ctx.rotate(bgA);
+      ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(R * 0.20, 0); ctx.stroke();   // mango
+      ctx.fillStyle = "#a8f0f4";
+      ctx.beginPath(); ctx.ellipse(R * 0.30, 0, R * 0.13, R * 0.09, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      ctx.restore();
+    }
     towerFace(R, expression, blink, "happy", "smile");
     ctx.restore();
   }

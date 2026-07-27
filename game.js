@@ -17203,9 +17203,30 @@
     }
     ctx.restore(); // fin cañón
     ctx.restore(); // fin transform principal
-    // HP bar sin rotación — se dibuja en coordenadas mundo después de restaurar
+    // ── INDICADOR DE CARGA (30s entre mallas) + munición restante ──
+    // Sin esto el tanque parece "muerto" entre disparo y disparo.
     ctx.save();
     ctx.translate(x, y);
+    var ringR2 = R * 1.45;
+    ctx.strokeStyle = "rgba(40,30,10,0.45)"; ctx.lineWidth = Math.max(2, 2.6 * U);
+    ctx.beginPath(); ctx.arc(0, 0, ringR2, 0, Math.PI * 2); ctx.stroke();
+    if (reloadFrac < 1) {
+      ctx.strokeStyle = "#FFD24A"; ctx.lineWidth = Math.max(2, 2.6 * U);
+      ctx.beginPath(); ctx.arc(0, 0, ringR2, -Math.PI / 2, -Math.PI / 2 + reloadFrac * Math.PI * 2); ctx.stroke();
+    } else {
+      // LISTO: aro pulsante — ya puede soltar la malla.
+      var rp = 0.5 + 0.5 * Math.sin(state.time * 5);
+      ctx.strokeStyle = "rgba(255,226,58," + (0.55 + rp * 0.45) + ")";
+      ctx.lineWidth = Math.max(2.5, 3.6 * U);
+      ctx.beginPath(); ctx.arc(0, 0, ringR2, 0, Math.PI * 2); ctx.stroke();
+    }
+    // Munición: puntitos por disparo restante (de 8).
+    var shotsLeft = Math.max(0, (t.def.maxShots || 8) - (t.shotsFired || 0));
+    for (var am = 0; am < (t.def.maxShots || 8); am++) {
+      var amx = -R * 0.95 + am * (R * 1.9 / ((t.def.maxShots || 8) - 1));
+      ctx.fillStyle = am < shotsLeft ? "#FFD24A" : "rgba(90,70,30,0.55)";
+      ctx.beginPath(); ctx.arc(amx, R * 1.62, 1.9 * U, 0, Math.PI * 2); ctx.fill();
+    }
     var ccHpFrac = (t.maxHp && t.hp > 0) ? Math.max(0, t.hp / t.maxHp) : 1;
     drawTankHpBar(R, ccHpFrac, t.def.color);
     ctx.restore();
@@ -24459,7 +24480,6 @@
     safeDraw("NecroticPatches", drawNecroticPatches);
     safeDraw("PendingBombs", drawPendingBombs);
     safeDraw("AcidSplats", drawAcidSplats);
-    safeDraw("CannonNets", drawCannonNets);
     safeDraw("MacPlacing", drawMacPlacing);
     safeDraw("Megakaryocyte", drawMegakaryocyte);
     safeDraw("MegaFactory", drawMegaFactory);
@@ -24514,6 +24534,7 @@
     safeDraw("Gas", drawGas);
     safeDraw("MedFx", drawMedFx);
     safeDraw("Ghost", drawGhost);
+    safeDraw("CannonNets", drawCannonNets);   // sobre torres y gérmenes: la red debe verse
     safeDraw("DamageNumbers", drawDamageNumbers);
     safeDraw("GermIntroBanner", drawGermIntroBanner);
     safeDraw("Atmosphere", drawAtmosphere);

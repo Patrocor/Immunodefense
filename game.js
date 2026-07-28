@@ -12950,7 +12950,19 @@
   function launchNextContent() {
     var ms   = computeMapState(state);
     var next = ms.availableNodes[0];
-    if (!next) { showProximamente(); return; }
+    // Se acabó el mapa. Si el último nodo (SHOCK · MODS) está superado, esto
+    // no es "falta contenido": es el FINAL del juego.
+    if (!next) {
+      if (state.completedMapNodes && state.completedMapNodes.mods) {
+        showMsg(state.lastF2Mode === "win"
+          ? "El paciente sobrevivió al shock séptico. Fin de la campaña."
+          : "El organismo no resistió la falla multiorgánica. Fin de la campaña.");
+        state.confirmRestart = true;
+      } else {
+        showProximamente();
+      }
+      return;
+    }
     var content = MAP_NODE_CONTENT[next];
     if (content && content.built) {
       content.launch();

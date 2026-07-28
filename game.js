@@ -308,8 +308,24 @@
   // Diseminación: el MUNDO mide 1.25× el alto del viewport (nivel más largo,
   // con scroll vertical). Fuera de Diseminación = 1 (sin scroll).
   var DS_STRETCH = 1.25;
-  function dsWorldH() { return FIELD_H * (state && state.dissemination ? DS_STRETCH : 1); }
+  // FASE 2 (niveles de órgano): el mundo es más grande que el viewport en LOS
+  // DOS ejes — se navega arrastrando hacia abajo y hacia los costados. Cada
+  // nivel define su propio stretch en F2_LEVELS[key].stretchX / stretchY.
+  function f2Cfg() { return (state && state.f2) ? state.f2.cfg : null; }
+  function worldStretchY() {
+    var c = f2Cfg(); if (c) return c.stretchY || 1;
+    return (state && state.dissemination) ? DS_STRETCH : 1;
+  }
+  function worldStretchX() {
+    var c = f2Cfg(); if (c) return c.stretchX || 1;
+    return 1;
+  }
+  function dsWorldH() { return FIELD_H * worldStretchY(); }
+  function dsWorldW() { return FIELD_W * worldStretchX(); }
   function dsMaxScrollY() { return Math.max(0, dsWorldH() - FIELD_H); }
+  function dsMaxScrollX() { return Math.max(0, dsWorldW() - FIELD_W); }
+  // ¿Hay cámara de scroll activa? (Diseminación o cualquier nivel F2.)
+  function camActive() { return !!(state && (state.dissemination || state.f2)); }
 
   function readSafeAreas() {
     var probe = document.getElementById("__safe_probe");
@@ -600,6 +616,10 @@
   }
 
   function rebuildPath() {
+    if (typeof state !== "undefined" && state && state.f2) {
+      rebuildF2Path();
+      return;
+    }
     if (typeof state !== "undefined" && state && state.dissemination) {
       rebuildDisseminationPath();
       return;
@@ -713,6 +733,56 @@
     if (state) generateTissue();
   }
   // ============ FIN PATH NIVEL PUENTE ============
+
+  // ============ PATH DE FASE 2 (niveles de órgano) ========================
+  // Mundo MÁS GRANDE que el viewport en los dos ejes: los carriles se reparten
+  // a lo ancho del mundo estirado (scroll horizontal) y corren de arriba abajo
+  // sobre un mundo alto (scroll vertical). Cada carril termina en un FOCO del
+  // órgano (la estructura que hay que defender: valva, canal, compartimento).
+  function rebuildF2Path() {
+    var cfg = state.f2.cfg;
+    PATH.orientation = isPortrait ? "portrait" : "landscape";
+    var worldW = dsWorldW(), worldH = dsWorldH();
+    var laneXs = cfg.laneXs;            // normalizados sobre el MUNDO, no el viewport
+    var entryYn = cfg.entryYn != null ? cfg.entryYn : 0.06;
+    var exitYn  = cfg.exitYn  != null ? cfg.exitYn  : 0.94;
+    PATH.wounds = [];
+    PATH.branches = [];
+    PATH.totalForBranch = [];
+    PATH.absorbStartForBranch = [];
+    PATH.organDoors = [];
+    PATH.laneXs = laneXs;
+    PATH.entryYn = entryYn;
+    PATH.exitYn = exitYn;
+    for (var i = 0; i < laneXs.length; i++) {
+      var xPx = FIELD_LEFT + laneXs[i] * worldW;
+      var entry = { x: xPx, y: FIELD_TOP + entryYn * worldH };
+      var exit  = { x: xPx, y: FIELD_TOP + exitYn  * worldH };
+      PATH.wounds.push({ x: entry.x, y: entry.y, phase: i * 0.4, active: true });
+      PATH.organDoors.push({
+        x: exit.x, y: exit.y, laneX: xPx,
+        organ: { id: cfg.key + "_" + i, label: cfg.foci[i], color: cfg.color, tint: cfg.tint }
+      });
+      // Serpenteo suave: los carriles de órgano no son rectos, se curvan
+      // alrededor de la anatomía (cuerdas tendinosas, trabéculas, pliegues).
+      var bow = (i % 2 === 0 ? 1 : -1) * cfg.bow * worldW;
+      var midA = { x: xPx + bow, y: FIELD_TOP + (entryYn + (exitYn - entryYn) * 0.35) * worldH };
+      var midB = { x: xPx - bow * 0.6, y: FIELD_TOP + (entryYn + (exitYn - entryYn) * 0.72) * worldH };
+      PATH.branches.push(buildBezierPath([entry, midA, midB, exit]));
+      var t = PATH.branches[i].length;
+      PATH.totalForBranch.push(t);
+      PATH.absorbStartForBranch.push(t * 0.98);
+    }
+    PATH.main = { length: 0, beziers: [] };
+    PATH.confluence = null;
+    PATH.exit = { x: FIELD_LEFT + 0.5 * worldW, y: FIELD_TOP + exitYn * worldH };
+    PATH.beziers = [];
+    PATH.total = PATH.totalForBranch[0];
+    PATH.entry = PATH.wounds[Math.floor(laneXs.length / 2)];
+    PATH.absorbStart = PATH.absorbStartForBranch[0];
+    if (state) generateTissue();
+  }
+  // ============ FIN PATH DE FASE 2 ============
 
   // Sample a point on a beziers array at distance `progress` (0..length).
   function sampleBeziers(beziers, progress) {
@@ -1170,10 +1240,171 @@
         { range: 170, damage: 0, fireRate: 1.0, projectileSpeed: 0, splash: 0, hp: 135 }
       ],
       upgradeCost: [95, 160]
+    },
+    // ======================================================================
+    // FASE 2 — TORRES DE ÓRGANO. Cada nivel F2 desbloquea 3 células
+    // residentes propias del tejido. No aparecen en el dock fuera de su
+    // órgano (ver f2TowerAllowed): son población local, no circulante.
+    // ======================================================================
+    // ---- ENDOCARDITIS (válvula) -----------------------------------------
+    endotelial: {
+      id: "endotelial", name: "Célula Endotelial Valvular", shortName: "Endotelio",
+      color: "#5fa8b8", colorDark: "#25525e", cost: 70,
+      f2Organ: "endocarditis",
+      desc: "Reviste la valva. NO dispara: SELLA. Su aura impide que los gérmenes se adhieran y DESHACE la vegetación ya formada en su rango. Tócala para un turno de reendotelización: repara el velo valvular dañado.",
+      producer: true,
+      antiVegetation: 0.55,          // capas/seg que disuelve en rango
+      valveRepair: 1,                // puntos de valva que repara por turno
+      specialChargeSec: 16,
+      specialName: "Reendotelización",
+      levels: [
+        { range: 120, damage: 0, fireRate: 0, projectileSpeed: 0, splash: 0, hp: 150 },
+        { range: 145, damage: 0, fireRate: 0, projectileSpeed: 0, splash: 0, hp: 200 },
+        { range: 170, damage: 0, fireRate: 0, projectileSpeed: 0, splash: 0, hp: 265 }
+      ],
+      upgradeCost: [80, 145]
+    },
+    monocito: {
+      id: "monocito", name: "Monocito Patrullero", shortName: "Monocito",
+      color: "#8a7fc8", colorDark: "#3b3470", cost: 85,
+      f2Organ: "endocarditis",
+      desc: "Patrulla el endotelio rodando sobre la valva. Daño moderado, pero ARRANCA a los gérmenes adheridos: cada impacto le quita una capa de vegetación al objetivo y lo despega del velo.",
+      stripVegetation: 1,
+      patrols: { radius: 46, speed: 26 },
+      specialChargeSec: 24,
+      specialName: "Rodamiento adhesivo",
+      levels: [
+        { range: 135, damage: 22, fireRate: 1.5, projectileSpeed: 400, splash: 0, hp: 120 },
+        { range: 155, damage: 33, fireRate: 1.7, projectileSpeed: 430, splash: 0, hp: 155 },
+        { range: 175, damage: 48, fireRate: 2.0, projectileSpeed: 460, splash: 0, hp: 195 }
+      ],
+      upgradeCost: [90, 155]
+    },
+    macrofagoCardiaco: {
+      id: "macrofagoCardiaco", name: "Macrófago Cardíaco Residente", shortName: "MΦ cardíaco",
+      color: "#c9634f", colorDark: "#6a2618", cost: 110,
+      f2Organ: "endocarditis",
+      desc: "Macrófago CCR2− de origen embrionario: fagocita y además CONDUCE el impulso, acelerando la cadencia de las torres vecinas (+25%). Ultimate: descarga de conducción — todas las torres en rango disparan a la vez.",
+      conductionAura: 0.25,
+      specialChargeSec: 30,
+      specialName: "Descarga de conducción",
+      levels: [
+        { range: 145, damage: 34, fireRate: 0.8, projectileSpeed: 340, splash: 26, hp: 210 },
+        { range: 165, damage: 52, fireRate: 0.95, projectileSpeed: 370, splash: 32, hp: 275 },
+        { range: 190, damage: 76, fireRate: 1.1, projectileSpeed: 400, splash: 40, hp: 350 }
+      ],
+      upgradeCost: [115, 185]
+    },
+    // ---- OSTEOMIELITIS (hueso) ------------------------------------------
+    osteoclasto: {
+      id: "osteoclasto", name: "Osteoclasto", shortName: "Osteoclasto",
+      color: "#c08a4a", colorDark: "#603c14", cost: 100,
+      f2Organ: "osteomielitis",
+      desc: "Célula multinucleada que acidifica su laguna de Howship y RESORBE hueso. Único que rompe SECUESTROS óseos: sin él, los gérmenes escondidos en hueso muerto son intocables. Daño en área y ×2 contra estructuras.",
+      breaksSequestrum: true,
+      bonusVsStructure: 2.0,
+      specialChargeSec: 26,
+      specialName: "Laguna de Howship",
+      levels: [
+        { range: 125, damage: 40, fireRate: 0.6, projectileSpeed: 300, splash: 34, hp: 190 },
+        { range: 145, damage: 62, fireRate: 0.75, projectileSpeed: 330, splash: 42, hp: 245 },
+        { range: 165, damage: 92, fireRate: 0.9, projectileSpeed: 360, splash: 52, hp: 310 }
+      ],
+      upgradeCost: [105, 175]
+    },
+    osteoblasto: {
+      id: "osteoblasto", name: "Osteoblasto", shortName: "Osteoblasto",
+      color: "#d8c89a", colorDark: "#7a6c40", cost: 75,
+      f2Organ: "osteomielitis",
+      desc: "Deposita matriz osteoide: NO dispara, CONSTRUYE. Tócalo para levantar un INVOLUCRO — muro de hueso nuevo que bloquea el carril y hay que romper para pasar. El muro se degrada, pero se puede volver a levantar.",
+      producer: true,
+      buildsWall: { hp: 260, life: 26, w: 54, h: 14 },
+      specialChargeSec: 18,
+      specialName: "Involucro",
+      levels: [
+        { range: 130, damage: 0, fireRate: 0, projectileSpeed: 0, splash: 0, hp: 160 },
+        { range: 150, damage: 0, fireRate: 0, projectileSpeed: 0, splash: 0, hp: 210 },
+        { range: 175, damage: 0, fireRate: 0, projectileSpeed: 0, splash: 0, hp: 280 }
+      ],
+      upgradeCost: [85, 150]
+    },
+    osteocito: {
+      id: "osteocito", name: "Osteocito (red canalicular)", shortName: "Osteocito",
+      color: "#9fb0c4", colorDark: "#3f4c5e", cost: 80,
+      f2Organ: "osteomielitis",
+      desc: "Vive dentro de la laguna ósea y extiende dendritas por los canalículos. No pelea: DETECTA. Revela gérmenes intraóseos y ocultos en un radio amplio y los marca (+30% de daño recibido).",
+      revealsHidden: true,
+      markAmplify: 0.30,
+      specialChargeSec: 28,
+      specialName: "Red canalicular",
+      levels: [
+        { range: 175, damage: 0, fireRate: 0, projectileSpeed: 0, splash: 0, hp: 95 },
+        { range: 205, damage: 0, fireRate: 0, projectileSpeed: 0, splash: 0, hp: 125 },
+        { range: 240, damage: 0, fireRate: 0, projectileSpeed: 0, splash: 0, hp: 160 }
+      ],
+      upgradeCost: [85, 145]
+    },
+    // ---- ARTRITIS SÉPTICA (articulación) --------------------------------
+    sinoviocitoA: {
+      id: "sinoviocitoA", name: "Sinoviocito tipo A (macrofágico)", shortName: "Sinov. A",
+      color: "#6fa8b0", colorDark: "#2b565c", cost: 90,
+      f2Organ: "artritis",
+      desc: "Macrófago residente de la membrana sinovial: limpia detritus y fagocita lo que flota en la cavidad. Daño sólido y ×1.5 contra gérmenes que están comiendo cartílago.",
+      bonusVsCartilageEater: 1.5,
+      specialChargeSec: 27,
+      specialName: "Aclaramiento sinovial",
+      levels: [
+        { range: 140, damage: 30, fireRate: 1.2, projectileSpeed: 390, splash: 18, hp: 150 },
+        { range: 160, damage: 46, fireRate: 1.4, projectileSpeed: 420, splash: 24, hp: 195 },
+        { range: 180, damage: 66, fireRate: 1.6, projectileSpeed: 450, splash: 30, hp: 245 }
+      ],
+      upgradeCost: [95, 160]
+    },
+    sinoviocitoB: {
+      id: "sinoviocitoB", name: "Sinoviocito tipo B (fibroblástico)", shortName: "Sinov. B",
+      color: "#b9d46a", colorDark: "#5a6c22", cost: 70,
+      f2Organ: "artritis",
+      desc: "Secreta ácido hialurónico y lubricina. NO dispara: ESPESA el líquido sinovial. Los gérmenes en su rango se arrastran (−45% velocidad) y el cartílago bajo su aura recibe la mitad del daño.",
+      producer: true,
+      viscosityField: { slow: 0.45, cartilageShield: 0.5 },
+      specialChargeSec: 20,
+      specialName: "Bolo de hialurónico",
+      levels: [
+        { range: 135, damage: 0, fireRate: 0, projectileSpeed: 0, splash: 0, hp: 130 },
+        { range: 160, damage: 0, fireRate: 0, projectileSpeed: 0, splash: 0, hp: 170 },
+        { range: 185, damage: 0, fireRate: 0, projectileSpeed: 0, splash: 0, hp: 220 }
+      ],
+      upgradeCost: [80, 140]
+    },
+    condrocito: {
+      id: "condrocito", name: "Condrocito", shortName: "Condrocito",
+      color: "#e2e8ea", colorDark: "#7d8a90", cost: 95,
+      f2Organ: "artritis",
+      desc: "La única célula del cartílago. No ataca ni se defiende: REPARA. Regenera lentamente el cartílago articular perdido — la única forma de revertir el daño de la fase. Frágil: protegelo.",
+      repairsCartilage: 0.10,        // puntos de cartílago por segundo
+      specialChargeSec: 34,
+      specialName: "Matriz de colágeno II",
+      levels: [
+        { range: 120, damage: 0, fireRate: 0, projectileSpeed: 0, splash: 0, hp: 90 },
+        { range: 140, damage: 0, fireRate: 0, projectileSpeed: 0, splash: 0, hp: 120 },
+        { range: 160, damage: 0, fireRate: 0, projectileSpeed: 0, splash: 0, hp: 155 }
+      ],
+      upgradeCost: [100, 170]
     }
   };
   var MAC_COST = 5;   // fragmentos de complemento para ensamblar el cañón
-  var TOWER_LIST = ["neutrofilo", "queratinocito", "mastocito", "langerhans", "nk", "eosinofilo", "complemento", "centinela", "linfocitogd"];
+  var TOWER_LIST = ["neutrofilo", "queratinocito", "mastocito", "langerhans", "nk", "eosinofilo", "complemento", "centinela", "linfocitogd",
+    // Residentes de órgano (Fase 2) — visibles en el Dex siempre, en el dock
+    // solo dentro de su órgano (ver isUnlocked/f2Organ).
+    "endotelial", "monocito", "macrofagoCardiaco",
+    "osteoclasto", "osteoblasto", "osteocito",
+    "sinoviocitoA", "sinoviocitoB", "condrocito"];
+  // Torres que desbloquea cada nivel F2 al entrar (población residente).
+  var F2_ORGAN_TOWERS = {
+    endocarditis:  ["endotelial", "monocito", "macrofagoCardiaco"],
+    osteomielitis: ["osteoclasto", "osteoblasto", "osteocito"],
+    artritis:      ["sinoviocitoA", "sinoviocitoB", "condrocito"]
+  };
   // Cartilla por grupos desplegables (categorías de defensa).
   // 3 grupos principales + 1 "otras estructuras":
   //  · Defensas: torres que atacan directamente
@@ -1181,9 +1412,11 @@
   //  · Tanques: estructuras pesadas/persistentes (MAC, Trombo)
   //  · Otras estructuras: el resto (Fibrina solo en diseminación)
   var TOWER_GROUPS = [
-    { id: "defensas",      label: "Defensas",      towers: ["neutrofilo", "nk", "eosinofilo", "linfocitogd"] },
-    { id: "potenciadores", label: "Potenciadores", towers: ["queratinocito", "mastocito", "langerhans"] },
-    { id: "tanques",       label: "Tanques",       towers: ["complemento", "centinela"] }
+    { id: "defensas",      label: "Defensas",      towers: ["neutrofilo", "nk", "eosinofilo", "linfocitogd",
+                                                            "monocito", "macrofagoCardiaco", "osteoclasto", "sinoviocitoA"] },
+    { id: "potenciadores", label: "Potenciadores", towers: ["queratinocito", "mastocito", "langerhans",
+                                                            "endotelial", "osteocito", "sinoviocitoB", "condrocito"] },
+    { id: "tanques",       label: "Tanques",       towers: ["complemento", "centinela", "osteoblasto"] }
   ];
 
   // === LOADOUT: jugador elige 5 torres + 2 tanques + 1 barrera para el dock ===
@@ -1390,6 +1623,128 @@
       speedMult: 0.55, hp: 1815, reward: 80, viralAdd: 22, attack: 28, power: { type: "devour", range: 120, cooldown: 13, pull: 1.8 }, isBoss: true,
       shield: { type: "wall", maxHP: 5, regenRate: 0, regenDelay: 0 },
       tooltip: "Clostridium perfringens produce la letal α-toxina fosfolipasa C que destruye membranas celulares, causando gangrena gaseosa al producir gas en los tejidos. Avanza lento e implacable — los neutrófilos son los candidatos más eficaces para combatir a este formidable jefe."
+    },
+    // ==== FASE 2 · ENDOCARDITIS (corazón / válvula mitral) ================
+    // Patógenos de la triada clásica de endocarditis infecciosa. Su rasgo
+    // común es la ADHESIÓN al endotelio valvular: en vez de solo avanzar,
+    // se fijan y construyen VEGETACIÓN (biofilm de fibrina-plaquetas) que
+    // los blinda. Hay que despegarlos antes de que la vegetación madure.
+    viridans: {
+      id: "viridans", name: "Streptococcus viridans", shortName: "S. viridans", baseKind: "bacteria",
+      color: "#8fbf6a", colorDark: "#42632c", colorLight: "#c4e39c", radius: 24,
+      speedMult: 0.55, hp: 340, reward: 14, viralAdd: 6, attack: 6, isBoss: false,
+      shield: null,
+      vegetation: { buildRate: 0.18, maxLayers: 4, dmgReducPerLayer: 0.14 },
+      tooltip: "Streptococcus viridans llega desde la boca tras un procedimiento dental y se adhiere al endotelio dañado mediante adhesinas FimA. Es el agente clásico de la endocarditis SUBAGUDA: avanza lento pero teje VEGETACIÓN de fibrina y plaquetas que lo blinda capa a capa. Despegalo temprano — cada capa que madura le quita daño a tus torres."
+    },
+    enterococo: {
+      id: "enterococo", name: "Enterococcus faecalis", shortName: "Enterococo", baseKind: "bacteria",
+      color: "#c49a3a", colorDark: "#6b5010", colorLight: "#e8cd85", radius: 26,
+      speedMult: 0.5, hp: 480, reward: 18, viralAdd: 7, attack: 9, isBoss: false,
+      shield: { type: "wall", maxHP: 4, regenRate: 4 / 10, regenDelay: 2 },
+      selfHeal: { rate: 0.02, delay: 3.0 },
+      vegetation: { buildRate: 0.12, maxLayers: 3, dmgReducPerLayer: 0.12 },
+      tooltip: "Enterococcus faecalis es intrínsecamente resistente a cefalosporinas y tolera concentraciones de antibiótico que matarían a otras bacterias. En la válvula se recupera continuamente del daño: si dejás de golpearlo 3 segundos, empieza a regenerar. Requiere presión sostenida, no ráfagas."
+    },
+    hacek: {
+      id: "hacek", name: "Haemophilus (grupo HACEK)", shortName: "HACEK", baseKind: "bacteria",
+      color: "#6ab5c4", colorDark: "#22525e", colorLight: "#a8e2ec", radius: 16,
+      speedMult: 1.45, hp: 175, reward: 11, viralAdd: 5, attack: 4, isBoss: false,
+      shield: null,
+      bloodSurf: true,
+      zigzag: { amplitude: 22, frequency: 1.4 },
+      tooltip: "El grupo HACEK son bacilos gramnegativos exigentes, de crecimiento lento en cultivo pero SURFISTAS en el torrente: aprovechan cada sístole para acelerar. Son pequeños y erráticos; las torres de disparo lento fallan contra ellos. El flujo pulsátil los empuja — cronometrá tu marcapasos."
+    },
+    bossEndocarditis: {
+      id: "bossEndocarditis", name: "S. aureus valvular", shortName: "Aureus valvular", baseKind: "bacteria",
+      color: "#a01830", colorDark: "#48060f", colorLight: "#e05a70", radius: 46,
+      speedMult: 0.5, hp: 3400, reward: 170, viralAdd: 30, attack: 38,
+      power: { type: "burst", range: 175, cooldown: 3.2, dmg: 30, slowFire: 3 }, isBoss: true,
+      shield: { type: "capsula", maxHP: 9, regenRate: 9 / 10, regenDelay: 1.5, doubleRing: true },
+      vegetation: { buildRate: 0.30, maxLayers: 6, dmgReducPerLayer: 0.10 },
+      valveDestroyer: true,
+      tooltip: "Staphylococcus aureus sobre válvula nativa causa endocarditis AGUDA: destruye la valva en días, no en semanas. Perfora el velo valvular y siembra émbolos sépticos a distancia. Su vegetación crece el doble de rápido que la de cualquier otro — si la dejás madurar seis capas, la válvula se rompe."
+    },
+    // ==== FASE 2 · OSTEOMIELITIS (hueso / canales de Havers) ==============
+    // Patógenos que sobreviven DENTRO del hueso. El rasgo común es el
+    // SECUESTRO: se refugian en hueso muerto/desvitalizado donde las torres
+    // no los alcanzan. Hay que romper el secuestro (Osteoclasto) o
+    // revelarlos (Osteocito) antes de poder dañarlos.
+    aureusSCV: {
+      id: "aureusSCV", name: "S. aureus (variante de colonia pequeña)", shortName: "SCV", baseKind: "bacteria",
+      color: "#b8a878", colorDark: "#5e5230", colorLight: "#e6dcb8", radius: 20,
+      speedMult: 0.45, hp: 420, reward: 16, viralAdd: 6, attack: 7, isBoss: false,
+      shield: null,
+      cloaked: true,
+      intraosseous: { hideEvery: 6.5, hideFor: 3.0 },
+      selfHeal: { rate: 0.015, delay: 2.5 },
+      tooltip: "Las small colony variants de S. aureus tienen metabolismo deprimido y se esconden DENTRO de osteocitos y osteoblastos, donde ni los antibióticos ni los fagocitos llegan. Reaparecen cuando bajás la guardia. Solo la red canalicular del Osteocito las revela mientras están intracelulares."
+    },
+    salmonelaOsea: {
+      id: "salmonelaOsea", name: "Salmonella typhimurium ósea", shortName: "Salmonella", baseKind: "bacteria",
+      color: "#7f9a55", colorDark: "#3a4a20", colorLight: "#bcd48e", radius: 23,
+      speedMult: 0.9, hp: 300, reward: 13, viralAdd: 6, attack: 6, isBoss: false,
+      shield: { type: "wall", maxHP: 3, regenRate: 0, regenDelay: 0 },
+      power: { type: "burst", range: 120, cooldown: 5.5, dmg: 16, slowFire: 2 },
+      tooltip: "Salmonella causa osteomielitis con predilección por pacientes con drepanocitosis, donde los infartos óseos dejan hueso muerto listo para colonizar. Sobrevive dentro del macrófago usando su sistema de secreción tipo III, y desde ahí bombardea las células vecinas."
+    },
+    kingella: {
+      id: "kingella", name: "Kingella kingae", shortName: "Kingella", baseKind: "bacteria",
+      color: "#c98fb0", colorDark: "#65395a", colorLight: "#efc4dc", radius: 15,
+      speedMult: 1.5, hp: 150, reward: 10, viralAdd: 4, attack: 3, isBoss: false,
+      shield: null,
+      spore: { interval: 5.0, childHpFrac: 0.3, childSpeedMult: 1.5, maxChildren: 3 },
+      tooltip: "Kingella kingae es la causa principal de osteoartritis en niños pequeños: coloniza la faringe, pasa a sangre y siembra hueso y articulación. Su toxina RTX mata células ciliadas. Pequeña, veloz y se multiplica — no la dejes acumular."
+    },
+    bossBrodie: {
+      id: "bossBrodie", name: "Absceso de Brodie", shortName: "Brodie", baseKind: "bacteria",
+      color: "#8a7b4e", colorDark: "#3d3518", colorLight: "#d6c48c", radius: 50,
+      speedMult: 0.28, hp: 3900, reward: 180, viralAdd: 32, attack: 30,
+      power: { type: "spray", range: 155, cooldown: 4.0, stun: 2, dmg: 24 }, isBoss: true,
+      shield: { type: "wall", maxHP: 12, regenRate: 12 / 14, regenDelay: 2.0, doubleRing: true },
+      abscessSeeder: { interval: 6.5, spawn: "aureusSCV" },
+      tooltip: "El absceso de Brodie es una osteomielitis crónica encapsulada: una cavidad de pus rodeada de hueso esclerótico que el sistema inmune no puede penetrar. Casi no se mueve, pero SIEMBRA colonias sin parar desde su interior. Rompé la cápsula esclerótica con osteoclastos o te desborda por goteo."
+    },
+    // ==== FASE 2 · ARTRITIS SÉPTICA (articulación / cavidad sinovial) =====
+    // Patógenos que flotan en el líquido sinovial. El rasgo común es que el
+    // daño real no lo hacen ellos sino la INFLAMACIÓN que provocan: cada
+    // germen vivo en la cavidad degrada cartílago con el tiempo.
+    gonoArticular: {
+      id: "gonoArticular", name: "Neisseria gonorrhoeae diseminada", shortName: "Gonococo art.", baseKind: "bacteria",
+      color: "#e08a3c", colorDark: "#7a4410", colorLight: "#f7c288", radius: 24,
+      speedMult: 0.85, hp: 320, reward: 14, viralAdd: 6, attack: 5, isBoss: false,
+      shield: null,
+      piliAdhesion: { range: 60, slowFire: 4.0, duration: 5.0 },
+      cartilageEater: 1.0,
+      tooltip: "La infección gonocócica diseminada es la artritis séptica más frecuente en adultos jóvenes sexualmente activos: da la triada de dermatitis, tenosinovitis y artritis migratoria. Sus pili tipo IV frenan a las torres que toca, y mientras vive en la cavidad va comiendo cartílago."
+    },
+    borrelia: {
+      id: "borrelia", name: "Borrelia burgdorferi", shortName: "Borrelia", baseKind: "bacteria",
+      color: "#9a7fd0", colorDark: "#463466", colorLight: "#cbb8f0", radius: 18,
+      speedMult: 1.2, hp: 260, reward: 15, viralAdd: 7, attack: 4, isBoss: false,
+      shield: null,
+      spirochete: { coils: 7, amplitude: 26, frequency: 2.2 },
+      antigenShift: { interval: 5.0, evadeChance: 0.35 },
+      cartilageEater: 0.7,
+      tooltip: "Borrelia burgdorferi es una espiroqueta que se desplaza en tirabuzón por el tejido conectivo y cambia su lipoproteína VlsE constantemente para escapar de los anticuerpos. La artritis de Lyme es su fase tardía: rodilla hinchada, poco dolor y una bacteria que a veces simplemente ESQUIVA el disparo."
+    },
+    pyogenesArt: {
+      id: "pyogenesArt", name: "Streptococcus pyogenes articular", shortName: "Pyogenes art.", baseKind: "bacteria",
+      color: "#d4506a", colorDark: "#6e1728", colorLight: "#f5a0b2", radius: 27,
+      speedMult: 0.75, hp: 430, reward: 17, viralAdd: 8, attack: 11, isBoss: false,
+      shield: { type: "capsula", maxHP: 4, regenRate: 0, regenDelay: 0 },
+      power: { type: "burst", range: 140, cooldown: 4.5, dmg: 20, slowFire: 3 },
+      cartilageEater: 1.6,
+      tooltip: "S. pyogenes en la articulación produce una destrucción fulminante: su estreptoquinasa y su hialuronidasa disuelven el ácido hialurónico del líquido sinovial, y las enzimas de los neutrófilos que acuden hacen el resto. Es el que más rápido come cartílago — priorizalo siempre."
+    },
+    bossPannus: {
+      id: "bossPannus", name: "Pannus séptico", shortName: "Pannus", baseKind: "hongo",
+      color: "#b0455f", colorDark: "#4e1424", colorLight: "#eb92a8", radius: 52,
+      speedMult: 0.3, hp: 4200, reward: 200, viralAdd: 35, attack: 34,
+      power: { type: "devour", range: 145, cooldown: 10, pull: 1.7 }, isBoss: true,
+      shield: { type: "wall", maxHP: 10, regenRate: 10 / 12, regenDelay: 1.8 },
+      cartilageEater: 3.0,
+      tooltip: "El pannus es tejido de granulación invasor: una masa de sinovia hipertrófica cargada de macrófagos y fibroblastos activados que trepa sobre el cartílago y lo devora desde el borde. Aquí viene infectado. Se traga tus torres y destruye la articulación mientras exista."
     },
     // ---- Legacy aliases (some old code still references these by name) --
     bacteria: {
@@ -4420,6 +4775,9 @@
     candida:         [2, 1, 1]    // candidiasis sistémica → endocarditis
   };
   function pickDisseminationLane(typeId) {
+    // Fase 2: los carriles son focos del mismo órgano, no órganos distintos.
+    // La siembra hematógena es aleatoria entre los focos disponibles.
+    if (state.f2) return Math.floor(Math.random() * state.f2.cfg.laneXs.length);
     var weights = GERM_AFFINITY[typeId] || [1, 1, 1];
     var total = 0;
     for (var i = 0; i < weights.length; i++) total += weights[i];
@@ -4584,6 +4942,8 @@
       transitionTimer: 0,
       // Nivel puente "Diseminación" (3 carriles, post ola 10).
       dissemination: false,
+      // Fase 2: nivel de órgano activo (null fuera de F2). Ver F2_LEVELS.
+      f2: null,
       disseminationWaveIdx: 0,         // 0..5 dentro del puente (6 olas)
       disseminationOver: null,         // { germ, organ, mode } cuando un órgano llena o se gana con quiebre
       disseminationIntroTimer: 0,      // banner de entrada al puente
@@ -4671,7 +5031,24 @@
   state.vistos = loadVistos();
   // Dev hook: permite inspeccionar y mutar state desde DevTools en producción.
   // Es inofensivo — el código del juego ya es público (GitHub Pages + Vercel).
-  window.__game = { get state() { return state; } };
+  window.__game = {
+    get state() { return state; },
+    // Salto directo a un nivel de Fase 2 (pruebas): __game.goF2("artritis").
+    goF2: function (key) { state.showTitle = false; state.showIntro = false; enterF2TD(key); },
+    goMap: function () { state.showTitle = false; state.showIntro = false; enterBodyMapForState(); },
+    // Coloca una torre en coordenadas normalizadas del MUNDO (0..1).
+    place: function (typeId, wnx, wny) {
+      placeTower(FIELD_LEFT + wnx * dsWorldW(), FIELD_TOP + wny * dsWorldH(), typeId);
+      return state.towers.length;
+    },
+    // Adelanta la simulación N segundos sin depender del reloj de frames.
+    step: function (seconds, dt) {
+      dt = dt || 0.05;
+      var n = Math.max(1, Math.round(seconds / dt));
+      for (var i = 0; i < n; i++) loop(0, dt);
+      return state.time;
+    }
+  };
 
   // Per-wave difficulty (replaces getDifficulty(level)). Speed also receives
   // an additional snowball multiplier from infestation in updateEnemies.
@@ -5034,10 +5411,13 @@
     // disseminationOnly NO aparecen en Fase 1 aunque estén en unlockedTowers.
     var unlocked = (state && state.unlockedTowers) || ["neutrofilo", "linfocitoB", "linfocitoT"];
     var inDiss = !!(state && state.dissemination);
+    var curOrgan = (state && state.f2) ? state.f2.key : null;
     function isUnlocked(typeId) {
       if (unlocked.indexOf(typeId) === -1) return false;
       var d = TOWER_DEFS[typeId];
       if (d && d.disseminationOnly && !inDiss) return false;
+      // Torres residentes de órgano (Fase 2): solo existen en SU órgano.
+      if (d && d.f2Organ && d.f2Organ !== curOrgan) return false;
       return true;
     }
     // Dock = SOLO las torres dentro del loadout (5+2+1). Si está vacío,
@@ -5045,6 +5425,10 @@
     var dockEmpty = loadoutEmpty();
     function isInDock(typeId) {
       if (!isUnlocked(typeId)) return false;
+      // Las residentes del órgano NO consumen ranura de loadout: son población
+      // local del tejido, siempre disponibles mientras dure ese nivel.
+      var dd = TOWER_DEFS[typeId];
+      if (dd && dd.f2Organ) return true;
       if (dockEmpty) return false;
       return isInLoadout(typeId);
     }
@@ -5120,6 +5504,7 @@
   // -------- WAVES / SPAWN -------------------------------------------------
   function startNextWave() {
     if (state.waveActive || state.cinematicEnd || state.confirmRestart || state.showIntro) return;
+    if (state.f2) { startNextF2Wave(); return; }
     if (state.dissemination) { startNextDisseminationWave(); return; }
     state.waveIdx += 1;
     META.wavesReached = Math.max(META.wavesReached, state.waveIdx);
@@ -5355,6 +5740,830 @@
     sfx("wave");
   }
   // ============ FIN NIVEL PUENTE: TRANSICIÓN ============
+
+  // ========================================================================
+  // ============ FASE 2 · NIVELES DE ÓRGANO ================================
+  // ========================================================================
+  // Tres niveles hematógenos clásicos (endocarditis, osteomielitis, artritis
+  // séptica). Corren sobre el MISMO motor de carriles que Diseminación
+  // (state.dissemination sigue en true) pero con:
+  //   · mundo más grande que el viewport en los DOS ejes (scroll libre),
+  //   · 5 carriles que terminan en FOCOS del órgano,
+  //   · integridad de órgano en vez de "carga" por carril,
+  //   · FILTRACIÓN: al superar cada ola, algunos gérmenes ya están DENTRO,
+  //     por detrás de tu defensa — nunca hay limpieza perfecta,
+  //   · una BASE propia del órgano con un poder activo, y
+  //   · un mecanismo fisiológico distinto por órgano.
+  var F2_LEVELS = {
+    // ---------------------------------------------------------------- CORAZÓN
+    endocarditis: {
+      key: "endocarditis",
+      label: "ENDOCARDITIS",
+      organLabel: "VÁLVULA MITRAL",
+      subtitle: "El endotelio valvular está sembrado",
+      color: "#c1416a", colorDark: "#5e1730", colorLight: "#f0a0b8",
+      tint: "rgba(193, 65, 106, 0.10)",
+      bg: ["#2a0d16", "#4a1526", "#7a2038"],
+      stretchX: 1.55, stretchY: 1.35,
+      laneXs: [0.11, 0.30, 0.50, 0.70, 0.89],
+      foci: ["Velo anterior", "Comisura anterior", "Cuerda tendinosa", "Comisura posterior", "Velo posterior"],
+      bow: 0.030,
+      entryYn: 0.06, exitYn: 0.94,
+      integrityLabel: "VÁLVULA",
+      integrityMax: 100,
+      arrivalDamage: 7,          // cuánta integridad cuesta cada germen que llega
+      mechanic: "pulso",
+      mechanicName: "FLUJO PULSÁTIL",
+      mechanicDesc: "Cada sístole empuja a los gérmenes hacia atrás. Los que se adhieren tejen VEGETACIÓN y se blindan.",
+      baseName: "Nódulo Sinusal",
+      baseShort: "Marcapasos",
+      basePowerName: "SÍSTOLE FORZADA",
+      basePowerDesc: "Contracción máxima: barre todos los carriles y arranca una capa de vegetación a cada germen.",
+      basePowerCd: 26,
+      towers: ["endotelial", "monocito", "macrofagoCardiaco"],
+      germPool: ["viridans", "enterococo", "hacek"],
+      startAtp: 220,
+      waves: [
+        [["viridans", 4, 1.9]],
+        [["viridans", 5, 1.6], ["hacek", 3, 1.3]],
+        [["viridans", 5, 1.5], ["hacek", 4, 1.1], ["enterococo", 2, 2.0]],
+        [["viridans", 6, 1.3], ["hacek", 5, 1.0], ["enterococo", 3, 1.7], ["saureus", 2, 1.6]],
+        [["viridans", 6, 1.2], ["hacek", 6, 0.95], ["enterococo", 4, 1.5], ["bossPyogenes", 1, 4.0]],
+        [["viridans", 7, 1.1], ["hacek", 6, 0.9], ["enterococo", 5, 1.35], ["saureus", 4, 1.3]],
+        [["viridans", 8, 1.0], ["hacek", 7, 0.85], ["enterococo", 5, 1.25], ["bossMRSA", 1, 3.5]],
+        [["viridans", 9, 0.95], ["hacek", 8, 0.8], ["enterococo", 6, 1.15], ["saureus", 5, 1.2], ["bossEndocarditis", 1, 4.0]]
+      ],
+      // Gérmenes que se FILTRAN al cerrar cada ola (ya dentro, tras tu línea).
+      leak: [1, 1, 2, 2, 3, 3, 4, 2]
+    },
+    // ------------------------------------------------------------------ HUESO
+    osteomielitis: {
+      key: "osteomielitis",
+      label: "OSTEOMIELITIS",
+      organLabel: "DIÁFISIS FEMORAL",
+      subtitle: "La infección bajó al canal medular",
+      color: "#c8a070", colorDark: "#5e4620", colorLight: "#efdcb4",
+      tint: "rgba(200, 160, 112, 0.10)",
+      bg: ["#1c1710", "#3a3020", "#5e5030"],
+      stretchX: 1.30, stretchY: 1.70,
+      laneXs: [0.14, 0.33, 0.52, 0.71, 0.88],
+      foci: ["Canal de Havers I", "Canal de Havers II", "Cavidad medular", "Canal de Volkmann", "Periostio"],
+      bow: 0.022,
+      entryYn: 0.04, exitYn: 0.96,
+      integrityLabel: "CORTICAL",
+      integrityMax: 100,
+      arrivalDamage: 6,
+      mechanic: "secuestro",
+      mechanicName: "SECUESTRO ÓSEO",
+      mechanicDesc: "Islas de hueso muerto protegen a los gérmenes que las pisan. Rompelas con el Osteoclasto o revelalos con el Osteocito.",
+      baseName: "Canal Nutricio",
+      baseShort: "Canal",
+      basePowerName: "BROTE VASCULAR",
+      basePowerDesc: "Angiogénesis de urgencia: irriga el hueso, cura a todas tus células y entrega un pulso de ATP.",
+      basePowerCd: 30,
+      towers: ["osteoclasto", "osteoblasto", "osteocito"],
+      germPool: ["aureusSCV", "salmonelaOsea", "kingella"],
+      startAtp: 240,
+      waves: [
+        [["kingella", 5, 1.5]],
+        [["kingella", 6, 1.3], ["aureusSCV", 3, 1.8]],
+        [["kingella", 6, 1.2], ["aureusSCV", 4, 1.6], ["salmonelaOsea", 3, 1.5]],
+        [["kingella", 7, 1.1], ["aureusSCV", 5, 1.4], ["salmonelaOsea", 4, 1.35], ["bossClostridium", 1, 4.0]],
+        [["kingella", 8, 1.0], ["aureusSCV", 6, 1.3], ["salmonelaOsea", 5, 1.25], ["saureus", 3, 1.4]],
+        [["kingella", 9, 0.95], ["aureusSCV", 7, 1.2], ["salmonelaOsea", 6, 1.15], ["bossMRSA", 1, 3.5]],
+        [["kingella", 10, 0.9], ["aureusSCV", 8, 1.1], ["salmonelaOsea", 6, 1.1], ["saureus", 5, 1.25]],
+        [["kingella", 10, 0.85], ["aureusSCV", 9, 1.0], ["salmonelaOsea", 7, 1.05], ["bossBrodie", 1, 4.0]]
+      ],
+      leak: [1, 2, 2, 3, 3, 4, 4, 2]
+    },
+    // ----------------------------------------------------------- ARTICULACIÓN
+    artritis: {
+      key: "artritis",
+      label: "ARTRITIS SÉPTICA",
+      organLabel: "CAVIDAD SINOVIAL",
+      subtitle: "La rodilla está caliente y tensa",
+      color: "#8ec5d0", colorDark: "#2e565e", colorLight: "#d4eef4",
+      tint: "rgba(142, 197, 208, 0.10)",
+      bg: ["#0e1e22", "#1d3a42", "#2f5c66"],
+      stretchX: 1.45, stretchY: 1.45,
+      laneXs: [0.12, 0.31, 0.50, 0.69, 0.88],
+      foci: ["Receso suprapatelar", "Compartimento medial", "Escotadura intercondílea", "Compartimento lateral", "Bursa poplítea"],
+      bow: 0.034,
+      entryYn: 0.05, exitYn: 0.95,
+      integrityLabel: "CÁPSULA",
+      integrityMax: 100,
+      arrivalDamage: 6,
+      mechanic: "cartilago",
+      mechanicName: "CARTÍLAGO ARTICULAR",
+      mechanicDesc: "Cada germen VIVO en la cavidad va comiendo cartílago, llegue o no al fondo. Si el cartílago se agota, perdés la articulación.",
+      baseName: "Membrana Sinovial",
+      baseShort: "Sinovial",
+      basePowerName: "LAVADO ARTICULAR",
+      basePowerDesc: "Artrocentesis: drena el líquido y arrastra a todos los gérmenes de vuelta hacia el receso.",
+      basePowerCd: 28,
+      towers: ["sinoviocitoA", "sinoviocitoB", "condrocito"],
+      germPool: ["gonoArticular", "borrelia", "pyogenesArt"],
+      startAtp: 230,
+      cartilageMax: 100,
+      cartilageRate: 0.55,       // puntos/seg por cada germen "cartilageEater 1.0"
+      waves: [
+        [["gonoArticular", 4, 1.7]],
+        [["gonoArticular", 5, 1.5], ["borrelia", 3, 1.6]],
+        [["gonoArticular", 5, 1.4], ["borrelia", 4, 1.4], ["pyogenesArt", 2, 1.9]],
+        [["gonoArticular", 6, 1.25], ["borrelia", 5, 1.3], ["pyogenesArt", 3, 1.7], ["bossPyogenes", 1, 4.0]],
+        [["gonoArticular", 7, 1.15], ["borrelia", 6, 1.2], ["pyogenesArt", 4, 1.5], ["neisseria", 3, 1.4]],
+        [["gonoArticular", 8, 1.05], ["borrelia", 6, 1.1], ["pyogenesArt", 5, 1.4], ["bossPseudomonas", 1, 3.5]],
+        [["gonoArticular", 9, 1.0], ["borrelia", 7, 1.05], ["pyogenesArt", 6, 1.3], ["saureus", 4, 1.3]],
+        [["gonoArticular", 9, 0.95], ["borrelia", 8, 1.0], ["pyogenesArt", 7, 1.2], ["bossPannus", 1, 4.0]]
+      ],
+      leak: [1, 1, 2, 2, 3, 3, 4, 2]
+    }
+  };
+  // Qué nodo F3 abre cada F2 al completarse (el fan del world-map).
+  var F2_TO_F3 = {
+    endocarditis:  ["f3_pulm", "f3_cereb", "f3_bazo"],
+    osteomielitis: ["f3_epid", "f3_bact", "f3_fasc"],
+    artritis:      ["f3_multi", "f3_osloc", "f3_pust"]
+  };
+
+  // ---- ENTRADA A UN NIVEL DE FASE 2 --------------------------------------
+  function enterF2TD(key) {
+    var cfg = F2_LEVELS[key];
+    if (!cfg) { showProximamente(); return; }
+    // Entrar a un nivel siempre cierra el mapa (defensivo: el flujo normal ya
+    // lo cierra en handleBodyMapTap, pero no queremos overlay sobre el campo).
+    state.bodyMap = null;
+    UI.bodyMapBtn = null;
+    // Corre sobre el motor de carriles de Diseminación.
+    state.dissemination = true;
+    state.f2 = {
+      key: key,
+      cfg: cfg,
+      waveIdx: 0,
+      integrity: cfg.integrityMax,
+      cartilage: cfg.cartilageMax || 0,
+      over: null,
+      introTimer: 4.0,
+      baseCd: 0,                  // cooldown del poder de base (0 = listo)
+      baseX: 0, baseY: 0, baseR: 0,
+      basePulse: 0,
+      pulseT: 0,                  // fase del ciclo cardíaco / respiración del órgano
+      sequestra: [],              // osteomielitis: islas de hueso muerto
+      walls: [],                  // osteomielitis: involucros levantados
+      focusFlash: [],
+      leakedTotal: 0,
+      arrivals: 0,
+      fxT: 0
+    };
+    for (var fi = 0; fi < cfg.laneXs.length; fi++) state.f2.focusFlash.push(0);
+    // Población residente del órgano: se desbloquea al entrar y es permanente.
+    if (!state.unlockedTowers) state.unlockedTowers = BASIC_TOWERS.slice();
+    for (var ti = 0; ti < cfg.towers.length; ti++) {
+      if (state.unlockedTowers.indexOf(cfg.towers[ti]) === -1) state.unlockedTowers.push(cfg.towers[ti]);
+    }
+    // Estado de Diseminación que NO aplica en F2 (barreras de 3 carriles,
+    // megacariocito, etc.): se apaga para que su lógica no corra en vacío.
+    state.disseminationOver = null;
+    state.disseminationIntroTimer = 0;
+    state.spreadOrganLoad = [];
+    state.spreadFlash = [];
+    state.disseminationBarrierHP = [];
+    state.disseminationBarrierMax = [];
+    state.barrierPenetrated = [];
+    state.disseminationDamageTaken = [];
+    state.megakaryocyte = null;
+    state.megaFactory = null;
+    state.megaSwarm = [];
+    state.plaquetaPickups = [];
+    state.megaPlacing = false;
+    state.antigens = { count: 0, drops: [] };
+    state.nets = [];
+    state.necroticPatches = [];
+    state.dsScrollX = 0;
+    state.dsScrollY = 0;
+    state.dsScrollDrag = null;
+    state.armedResponse = null;
+    state.medCharge = 0;
+    state.topicalCharge = 0;
+    state.guardianTimer = 10;
+    state.openGroups = { defensas: true, potenciadores: true, tanques: true };
+    state.unlockScheduleNotified = {};
+    state.unlockPickups = [];
+    state.medReinforcePicker = null;
+    state.medRegenTimer = 0; state.medChargeBoostTimer = 0;
+    state.medPrimaTimer = 0; state.medCitoTimer = 0; state.medCelulaReserva = 0;
+    state.combo = { atk: 0, def: 0, rng: 0, spd: 0 };
+    state.comboPicker = null;
+    state.pendingPhaseUnlocks = [];
+    state.medulaQueue = [];
+    state.medulaEmitTimer = 12;
+    resize();
+    // Limpiar el campo anterior.
+    state.enemies.length = 0;
+    state.towers.length = 0;
+    state.guardians.length = 0;
+    state.germShots.length = 0;
+    state.projectiles.length = 0;
+    state.effects.length = 0;
+    state.fragments.length = 0;
+    state.cannonShots.length = 0;
+    state.acidSplats.length = 0;
+    if (state.cannonNets) state.cannonNets.length = 0;
+    state.seekers.length = 0;
+    state.slicks.length = 0;
+    if (state.epiWalls) state.epiWalls.length = 0;
+    state.restos.length = 0;
+    state.collectors.length = 0;
+    state.pathInflammation.length = 0;
+    state.barricada = null;
+    state.bossActive = null;
+    state.cinematicEnd = null;
+    state.selectedToBuild = null;
+    state.selectedTower = null;
+    state.atp = cfg.startAtp;
+    state.viralLoad = 0;
+    state.viralThreshold = INFESTACION_THRESHOLD;
+    state.pathogensReached = 0;
+    state.waveIdx = 0;
+    state.waveActive = false;
+    state.pendingSpawns = [];
+    state.spawnElapsed = 0;
+    state.nextWaveAt = 12;
+    state.waveCountdownActive = true;
+    state.surgeAnnounced = false;
+    rebuildPath();
+    layoutF2Base();
+    if (cfg.mechanic === "secuestro") seedSequestra();
+    if (state.lymph) state.lymph.drop = null;
+    if (state.lymphR) state.lymphR.drop = null;
+    layoutDrip();
+  }
+
+  // La base del órgano vive en el centro-bajo del MUNDO, entre los focos.
+  function layoutF2Base() {
+    if (!state.f2) return;
+    var f = state.f2;
+    f.baseX = FIELD_LEFT + 0.5 * dsWorldW();
+    f.baseY = FIELD_TOP + 0.985 * dsWorldH();
+    f.baseR = 30 * U;
+  }
+
+  // Osteomielitis: islas de hueso muerto repartidas sobre los carriles.
+  function seedSequestra() {
+    var f = state.f2, cfg = f.cfg;
+    f.sequestra = [];
+    var worldW = dsWorldW(), worldH = dsWorldH();
+    for (var i = 0; i < cfg.laneXs.length; i++) {
+      var n = 1 + (i % 2);
+      for (var k = 0; k < n; k++) {
+        var yn = 0.28 + (k * 0.30) + Math.random() * 0.12;
+        f.sequestra.push({
+          x: FIELD_LEFT + (cfg.laneXs[i] + (Math.random() - 0.5) * 0.03) * worldW,
+          y: FIELD_TOP + yn * worldH,
+          r: (26 + Math.random() * 12) * U,
+          hp: 120, maxHp: 120, lane: i, broken: false, flash: 0
+        });
+      }
+    }
+  }
+
+  // ---- OLEADAS DE FASE 2 --------------------------------------------------
+  function startNextF2Wave() {
+    var f = state.f2, cfg = f.cfg;
+    if (f.over) return;
+    // ¿Se acabaron las olas? Victoria del órgano.
+    if (f.waveIdx >= cfg.waves.length) {
+      f.over = { mode: "win", t: 0 };
+      state.waveActive = false;
+      state.pendingSpawns = [];
+      triggerShake(0.3, 5);
+      sfx("victory");
+      return;
+    }
+    var idx = f.waveIdx++;
+    // FILTRACIÓN: antes de lanzar la ola nueva, los gérmenes que "se colaron"
+    // durante la anterior aparecen YA DENTRO del órgano, por detrás de la
+    // defensa. Nunca hay tablero limpio — así es una infección hematógena.
+    if (idx > 0) {
+      var leakN = cfg.leak[idx - 1] || 0;
+      for (var l = 0; l < leakN; l++) spawnF2Leak(idx);
+      if (leakN > 0) {
+        showMsg("¡" + leakN + " " + (leakN === 1 ? "germen se filtró" : "gérmenes se filtraron") + " por detrás de tu línea!");
+        triggerShake(0.15, 3);
+      }
+    }
+    var groups = cfg.waves[idx];
+    state.waveActive = true;
+    state.waveCountdownActive = false;
+    state.waveIdx = idx + 1;
+    state.pendingSpawns = [];
+    state.spawnElapsed = 0;
+    var hpMult = 0.70 + idx * 0.075;
+    var t = 0;
+    for (var g = 0; g < groups.length; g++) {
+      var grp = groups[g];
+      for (var k = 0; k < grp[1]; k++) {
+        state.pendingSpawns.push({ type: grp[0], time: t, hpMult: hpMult });
+        t += grp[2] * (0.85 + Math.random() * 0.30);
+      }
+      t += 0.6;
+    }
+    state.waveBannerText = "";
+    state.waveBannerTimer = 0;
+    sfx("wave");
+  }
+
+  // Un germen que ya pasó la línea: aparece a media ruta, más rápido y marcado.
+  function spawnF2Leak(waveIdx) {
+    var f = state.f2, cfg = f.cfg;
+    var pool = cfg.germPool;
+    var typeId = pool[Math.floor(Math.random() * pool.length)];
+    var before = state.enemies.length;
+    spawnEnemy(typeId, 0.60 + waveIdx * 0.06);
+    if (state.enemies.length <= before) return;
+    var e = state.enemies[state.enemies.length - 1];
+    var total = PATH.totalForBranch[e.heridaIdx | 0] || PATH.total;
+    // Entre el 45% y el 70% del carril: ya dentro, pero con margen para cazarlo.
+    e.progress = total * (0.45 + Math.random() * 0.25);
+    var p = pathPos(e.progress, e.heridaIdx);
+    e.x = p.x; e.y = p.y;
+    e.state = "walking";
+    e.outsideTimer = 0;
+    e.filtered = true;
+    e.speedBoost = 1.25;
+    f.leakedTotal++;
+    spawnEffect("escape", e.x, e.y, cfg.colorLight);
+  }
+
+  // ---- MECANISMOS FISIOLÓGICOS POR ÓRGANO --------------------------------
+  function updateF2(dt) {
+    if (!state.f2) return;
+    var f = state.f2, cfg = f.cfg;
+    f.fxT += dt;
+    f.pulseT += dt;
+    if (f.baseCd > 0) f.baseCd = Math.max(0, f.baseCd - dt);
+    if (f.basePulse > 0) f.basePulse = Math.max(0, f.basePulse - dt);
+    for (var i = 0; i < f.focusFlash.length; i++) {
+      if (f.focusFlash[i] > 0) f.focusFlash[i] -= dt;
+    }
+    if (f.introTimer > 0) f.introTimer = Math.max(0, f.introTimer - dt);
+
+    // --- AURAS PASIVAS Y TIMERS COMUNES A FASE 2 -------------------------
+    // Conducción: cada macrófago cardíaco acelera a sus vecinas.
+    for (var ta = 0; ta < state.towers.length; ta++) state.towers[ta].conductionAura = 0;
+    for (var tc = 0; tc < state.towers.length; tc++) {
+      var src = state.towers[tc];
+      if (!src.def || !src.def.conductionAura || src.dead) continue;
+      var srcR = (src.def.levels[src.level] || src.def.levels[0]).range * U;
+      for (var tv = 0; tv < state.towers.length; tv++) {
+        var dst = state.towers[tv];
+        if (dst === src || dst.dead) continue;
+        if (Math.hypot(dst.x - src.x, dst.y - src.y) <= srcR) {
+          dst.conductionAura = Math.max(dst.conductionAura || 0, src.def.conductionAura);
+        }
+      }
+    }
+    for (var tb = 0; tb < state.towers.length; tb++) {
+      var twb = state.towers[tb];
+      if ((twb.conductionBoost || 0) > 0) twb.conductionBoost -= dt;
+    }
+    // Osteocito: revela y marca de forma continua lo que entra en su red.
+    for (var eR = 0; eR < state.enemies.length; eR++) {
+      var er2 = state.enemies[eR];
+      if (er2.dead) continue;
+      if ((er2.canalicularTimer || 0) > 0) {
+        er2.canalicularTimer -= dt;
+        if (er2.canalicularTimer <= 0) er2.canalicularMark = 0;
+      }
+      if ((er2.antiAdhesionTimer || 0) > 0) er2.antiAdhesionTimer -= dt;
+    }
+    for (var to = 0; to < state.towers.length; to++) {
+      var tow = state.towers[to];
+      if (!tow.def || !tow.def.revealsHidden || tow.dead) continue;
+      var towR = (tow.def.levels[tow.level] || tow.def.levels[0]).range * U;
+      for (var eh = 0; eh < state.enemies.length; eh++) {
+        var eeh = state.enemies[eh];
+        if (eeh.dead) continue;
+        if (Math.hypot(eeh.x - tow.x, eeh.y - tow.y) <= towR) {
+          eeh.revealed = true;
+          eeh.canalicularMark = Math.max(eeh.canalicularMark || 0, tow.def.markAmplify || 0);
+          eeh.canalicularTimer = Math.max(eeh.canalicularTimer || 0, 1.0);
+        }
+      }
+    }
+    // Viscosidad del líquido sinovial: frena a los gérmenes que la atraviesan.
+    for (var ev2 = 0; ev2 < state.enemies.length; ev2++) {
+      var evs = state.enemies[ev2];
+      if (evs.dead) continue;
+      evs.viscositySlow = 0;
+    }
+    for (var tvi = 0; tvi < state.towers.length; tvi++) {
+      var tw2 = state.towers[tvi];
+      if (!tw2.def || !tw2.def.viscosityField || tw2.dead) continue;
+      var vR = (tw2.def.levels[tw2.level] || tw2.def.levels[0]).range * U;
+      for (var ev3 = 0; ev3 < state.enemies.length; ev3++) {
+        var evv = state.enemies[ev3];
+        if (evv.dead) continue;
+        if (Math.hypot(evv.x - tw2.x, evv.y - tw2.y) <= vR) {
+          evv.viscositySlow = Math.max(evv.viscositySlow || 0, tw2.def.viscosityField.slow || 0);
+        }
+      }
+    }
+
+    // --- CORAZÓN: sístole periódica + vegetación -------------------------
+    if (cfg.mechanic === "pulso") {
+      var cycle = 1.15;                       // ~52 lpm de juego
+      var phase = (f.pulseT % cycle) / cycle;
+      var wasSystole = f.inSystole;
+      f.inSystole = phase < 0.22;
+      if (f.inSystole && !wasSystole) {
+        // Cada sístole empuja levemente hacia atrás a todo lo que flota.
+        for (var e1 = 0; e1 < state.enemies.length; e1++) {
+          var en = state.enemies[e1];
+          if (en.dead || en.absorbing) continue;
+          var push = (en.def && en.def.bloodSurf) ? -6 : 9;   // los HACEK SURFEAN la sístole
+          en.progress = Math.max(0, en.progress - push * U);
+        }
+      }
+      // Vegetación: los gérmenes adherentes acumulan capas que los blindan.
+      for (var e2 = 0; e2 < state.enemies.length; e2++) {
+        var ev = state.enemies[e2];
+        if (ev.dead || !ev.def || !ev.def.vegetation) continue;
+        if (ev.vegLayers == null) ev.vegLayers = 0;
+        var veg = ev.def.vegetation;
+        var strip = f2AntiVegetationAt(ev.x, ev.y) * dt;
+        ev.vegLayers = Math.max(0, Math.min(veg.maxLayers, ev.vegLayers + veg.buildRate * dt - strip));
+        ev.dmgReduction = Math.min(0.72, ev.vegLayers * veg.dmgReducPerLayer);
+        // El boss rompe la valva si su vegetación llega al máximo.
+        if (ev.def.valveDestroyer && ev.vegLayers >= veg.maxLayers - 0.01) {
+          f2DamageIntegrity(6 * dt, ev.heridaIdx | 0);
+        }
+      }
+    }
+
+    // --- HUESO: secuestros que blindan a quien los pisa ------------------
+    if (cfg.mechanic === "secuestro") {
+      for (var s = 0; s < f.sequestra.length; s++) {
+        var sq = f.sequestra[s];
+        if (sq.flash > 0) sq.flash -= dt;
+      }
+      // El Osteoclasto resorbe de forma CONTINUA el hueso muerto en su rango
+      // (así es la resorción real: lenta y sostenida, no un golpe puntual).
+      for (var tk = 0; tk < state.towers.length; tk++) {
+        var tko = state.towers[tk];
+        if (!tko.def || !tko.def.breaksSequestrum || tko.dead) continue;
+        var kR = (tko.def.levels[tko.level] || tko.def.levels[0]).range * U;
+        var kDmg = (tko.def.levels[tko.level] || tko.def.levels[0]).damage * 0.55;
+        for (var s3 = 0; s3 < f.sequestra.length; s3++) {
+          var sq3 = f.sequestra[s3];
+          if (sq3.broken) continue;
+          if (Math.hypot(sq3.x - tko.x, sq3.y - tko.y) > kR + sq3.r) continue;
+          sq3.hp -= kDmg * dt;
+          sq3.flash = 0.15;
+          if (sq3.hp <= 0) {
+            sq3.broken = true;
+            spawnEffect("escape", sq3.x, sq3.y, "#e8d0a0");
+            showMsg("Secuestro resorbido — los gérmenes quedan expuestos");
+          }
+        }
+      }
+      for (var e3 = 0; e3 < state.enemies.length; e3++) {
+        var eb = state.enemies[e3];
+        if (eb.dead) continue;
+        eb.inSequestrum = false;
+        for (var s2 = 0; s2 < f.sequestra.length; s2++) {
+          var sq2 = f.sequestra[s2];
+          if (sq2.broken) continue;
+          if (Math.hypot(eb.x - sq2.x, eb.y - sq2.y) < sq2.r) { eb.inSequestrum = true; break; }
+        }
+      }
+      // Involucros (muros del Osteoblasto): expiran y frenan gérmenes.
+      for (var w = f.walls.length - 1; w >= 0; w--) {
+        var wl = f.walls[w];
+        wl.life -= dt;
+        if (wl.life <= 0 || wl.hp <= 0) { f.walls.splice(w, 1); continue; }
+        for (var e4 = 0; e4 < state.enemies.length; e4++) {
+          var ew = state.enemies[e4];
+          if (ew.dead || ew.absorbing) continue;
+          if (Math.abs(ew.x - wl.x) < wl.w / 2 && Math.abs(ew.y - wl.y) < wl.h) {
+            // El muro bloquea: el germen se detiene y lo muerde.
+            ew.progress = Math.max(0, ew.progress - 24 * U * dt);
+            wl.hp -= (ew.def.attack || 5) * dt;
+            wl.flash = 0.2;
+          }
+        }
+      }
+    }
+
+    // --- ARTICULACIÓN: destrucción de cartílago ---------------------------
+    if (cfg.mechanic === "cartilago") {
+      var eat = 0;
+      for (var e5 = 0; e5 < state.enemies.length; e5++) {
+        var ec = state.enemies[e5];
+        if (ec.dead || !ec.def || !ec.def.cartilageEater) continue;
+        var prot = f2ViscosityAt(ec.x, ec.y);   // sinoviocito B protege el cartílago
+        eat += ec.def.cartilageEater * (1 - prot);
+      }
+      f.cartilage = Math.max(0, f.cartilage - eat * cfg.cartilageRate * dt);
+      // Condrocitos reparando.
+      var repair = 0;
+      for (var t2 = 0; t2 < state.towers.length; t2++) {
+        var tw = state.towers[t2];
+        if (tw.def && tw.def.repairsCartilage && !tw.dead) repair += tw.def.repairsCartilage * (1 + tw.level * 0.5);
+      }
+      f.cartilage = Math.min(cfg.cartilageMax, f.cartilage + repair * dt);
+      if (f.cartilage <= 0 && !f.over) {
+        f.over = { mode: "loss", t: 0, cause: "cartilago" };
+        state.waveActive = false;
+        state.pendingSpawns = [];
+        triggerShake(0.5, 9);
+      }
+    }
+  }
+
+  // Suma de "capas de vegetación disueltas por segundo" en un punto.
+  function f2AntiVegetationAt(x, y) {
+    var sum = 0;
+    for (var i = 0; i < state.towers.length; i++) {
+      var t = state.towers[i];
+      if (!t.def || !t.def.antiVegetation || t.dead) continue;
+      var rng = (t.def.levels[t.level] || t.def.levels[0]).range * U;
+      if (Math.hypot(t.x - x, t.y - y) <= rng) sum += t.def.antiVegetation;
+    }
+    return sum;
+  }
+  // Fracción de protección del cartílago (0..0.9) por el aura de viscosidad.
+  function f2ViscosityAt(x, y) {
+    var best = 0;
+    for (var i = 0; i < state.towers.length; i++) {
+      var t = state.towers[i];
+      if (!t.def || !t.def.viscosityField || t.dead) continue;
+      var rng = (t.def.levels[t.level] || t.def.levels[0]).range * U;
+      if (Math.hypot(t.x - x, t.y - y) <= rng) {
+        best = Math.max(best, t.def.viscosityField.cartilageShield || 0);
+      }
+    }
+    return Math.min(0.9, best);
+  }
+
+  function f2DamageIntegrity(amount, lane) {
+    var f = state.f2;
+    if (!f || f.over) return;
+    f.integrity = Math.max(0, f.integrity - amount);
+    if (lane != null && f.focusFlash[lane] != null) f.focusFlash[lane] = 0.6;
+    if (f.integrity <= 0) {
+      f.over = { mode: "loss", t: 0, cause: "integridad" };
+      state.waveActive = false;
+      state.pendingSpawns = [];
+      triggerShake(0.5, 9);
+    }
+  }
+
+  // ---- PODER DE BASE (tap sobre la estructura del órgano) ----------------
+  function f2TryBasePower(wx, wy) {
+    if (!state.f2) return false;
+    var f = state.f2, cfg = f.cfg;
+    if (Math.hypot(wx - f.baseX, wy - f.baseY) > f.baseR * 1.5) return false;
+    if (f.baseCd > 0) {
+      showMsg(cfg.basePowerName + " recargando · " + Math.ceil(f.baseCd) + "s");
+      return true;
+    }
+    f.baseCd = cfg.basePowerCd;
+    f.basePulse = 1.0;
+    triggerShake(0.25, 5);
+    sfx("upgrade");
+    if (cfg.mechanic === "pulso") {
+      // SÍSTOLE FORZADA: empuja todo hacia atrás + arranca una capa de vegetación.
+      for (var i = 0; i < state.enemies.length; i++) {
+        var e = state.enemies[i];
+        if (e.dead || e.absorbing) continue;
+        e.progress = Math.max(0, e.progress - 90 * U);
+        if (e.vegLayers) e.vegLayers = Math.max(0, e.vegLayers - 1);
+        var p = pathPos(e.progress, e.heridaIdx);
+        e.x = p.x; e.y = p.y;
+        spawnEffect("escape", e.x, e.y, cfg.colorLight);
+      }
+      showMsg("SÍSTOLE FORZADA — la válvula barre la vegetación");
+    } else if (cfg.mechanic === "secuestro") {
+      // BROTE VASCULAR: cura torres, revela ocultos y entrega ATP.
+      for (var t = 0; t < state.towers.length; t++) {
+        var tw = state.towers[t];
+        if (tw.dead) continue;
+        tw.hp = Math.min(tw.maxHp, tw.hp + tw.maxHp * 0.35);
+      }
+      for (var e2 = 0; e2 < state.enemies.length; e2++) {
+        state.enemies[e2].revealed = true;
+        state.enemies[e2].cloakBroken = true;
+      }
+      state.atp += 120;
+      showMsg("BROTE VASCULAR — hueso irrigado, +120 ATP");
+    } else if (cfg.mechanic === "cartilago") {
+      // LAVADO ARTICULAR: arrastra todo de vuelta al receso.
+      for (var e3 = 0; e3 < state.enemies.length; e3++) {
+        var ea = state.enemies[e3];
+        if (ea.dead || ea.absorbing) continue;
+        ea.progress *= 0.35;
+        var pa = pathPos(ea.progress, ea.heridaIdx);
+        ea.x = pa.x; ea.y = pa.y;
+        spawnEffect("escape", ea.x, ea.y, cfg.colorLight);
+      }
+      showMsg("LAVADO ARTICULAR — la cavidad se drena");
+    }
+    return true;
+  }
+
+  // Un germen llegó al foco del órgano (llamado desde updateEnemies).
+  function f2GermArrived(e, lane) {
+    var f = state.f2;
+    if (!f) return;
+    var cfg = f.cfg;
+    f.arrivals++;
+    if (!f.laneArrivals) f.laneArrivals = [];
+    f.laneArrivals[lane] = (f.laneArrivals[lane] || 0) + 1;
+    var dmg = cfg.arrivalDamage * (e.def && e.def.isBoss ? 3 : 1);
+    f2DamageIntegrity(dmg, lane);
+    spawnEffect("escape", e.x, e.y, cfg.color);
+    triggerShake(0.12, 3);
+    if (audio && audio.ctx) sfx("playerHurt");
+  }
+  // Cierra el nivel de órgano y devuelve al mapa. Igual que en Fase 1 y
+  // Diseminación, PERDER no corta la partida: el órgano cae y la infección
+  // sigue su curso hacia el siguiente nodo (solo cambia el relato).
+  function finishF2Level(mode) {
+    var key = state.f2.key;
+    var cfg = state.f2.cfg;
+    // Qué foco quedó peor define el nodo F3 que se abre.
+    var f3s = F2_TO_F3[key] || [];
+    var worst = 0, worstV = -1;
+    for (var i = 0; i < state.f2.focusFlash.length; i++) {
+      // focusFlash es momentáneo; usamos el reparto de llegadas por carril si existe.
+      var v = (state.f2.laneArrivals && state.f2.laneArrivals[i]) || 0;
+      if (v > worstV) { worstV = v; worst = i; }
+    }
+    state.activeF3 = f3s[worst % (f3s.length || 1)] || f3s[0] || null;
+    state.lastF2Mode = mode;
+    state.lastF2Key = key;
+    state.f2 = null;
+    state.dissemination = false;
+    state.completedMapNodes = state.completedMapNodes || {};
+    state.completedMapNodes[key] = true;
+    state.enemies.length = 0;
+    state.pendingSpawns = [];
+    state.waveActive = false;
+    resize();
+    enterBodyMapForState(mode === "win" ? {
+      title: cfg.label + " CONTENIDA",
+      subtitle: "El órgano resistió — pero la sangre ya lleva la siembra"
+    } : {
+      title: cfg.label + " ESTABLECIDA",
+      subtitle: cfg.organLabel + " comprometido — la infección avanza"
+    });
+  }
+  // ---- ULTIMATES DE LAS TORRES RESIDENTES DE ÓRGANO ----------------------
+  // Devuelve true si consumió el ultimate (y por lo tanto triggerTowerSpecial
+  // no debe seguir con la rama genérica de productores).
+  function f2TriggerOrganSpecial(t) {
+    if (!state.f2) return false;
+    var f = state.f2, cfg = f.cfg;
+    var st = towerStats(t);
+    var rng = st.range * U;
+    var id = t.def.id;
+    function inRange(o) { return Math.hypot(o.x - t.x, o.y - t.y) <= rng; }
+    function consume(anim, msg) {
+      t.specialAnim = anim; t.specialReady = false; t.specialCharge = 0;
+      if (msg) showMsg(msg);
+      sfx("upgrade");
+    }
+    if (id === "endotelial") {
+      // REENDOTELIZACIÓN: repara la válvula y disuelve la vegetación cercana.
+      f.integrity = Math.min(cfg.integrityMax, f.integrity + 4 + t.level * 2);
+      for (var i = 0; i < state.enemies.length; i++) {
+        var e = state.enemies[i];
+        if (e.dead || !inRange(e)) continue;
+        if (e.vegLayers) e.vegLayers = Math.max(0, e.vegLayers - 2);
+        e.speedBoost = Math.min(e.speedBoost || 1, 0.55);
+        e.antiAdhesionTimer = 5;
+      }
+      pushEffect({ kind: "defensinWave", x: t.x, y: t.y, r: rng * 0.9, life: 0.8, max: 0.8 });
+      consume(1.4, "REENDOTELIZACIÓN — velo valvular reparado");
+      return true;
+    }
+    if (id === "monocito") {
+      // RODAMIENTO ADHESIVO: barre la vegetación de todo lo que toca.
+      for (var m = 0; m < state.enemies.length; m++) {
+        var em = state.enemies[m];
+        if (em.dead || !inRange(em)) continue;
+        if (em.vegLayers) em.vegLayers = Math.max(0, em.vegLayers - 3);
+        damageEnemy(em, st.damage * 1.8, "monocito");
+      }
+      pushEffect({ kind: "defensinWave", x: t.x, y: t.y, r: rng, life: 0.6, max: 0.6 });
+      consume(1.2, "RODAMIENTO — gérmenes despegados del endotelio");
+      return true;
+    }
+    if (id === "macrofagoCardiaco") {
+      // DESCARGA DE CONDUCCIÓN: todas las torres en rango disparan YA.
+      var n = 0;
+      for (var c = 0; c < state.towers.length; c++) {
+        var tw = state.towers[c];
+        if (tw === t || tw.dead || !inRange(tw)) continue;
+        tw.cooldown = 0;
+        tw.conductionBoost = 6;      // 6s de cadencia acelerada
+        n++;
+      }
+      pushEffect({ kind: "defensinWave", x: t.x, y: t.y, r: rng, life: 0.7, max: 0.7 });
+      consume(1.5, "CONDUCCIÓN — " + n + " células disparan a la vez");
+      return true;
+    }
+    if (id === "osteoclasto") {
+      // LAGUNA DE HOWSHIP: resorbe el secuestro más cercano y daña alrededor.
+      var best = null, bestD = Infinity;
+      for (var s = 0; s < f.sequestra.length; s++) {
+        var sq = f.sequestra[s];
+        if (sq.broken) continue;
+        var d = Math.hypot(sq.x - t.x, sq.y - t.y);
+        if (d < bestD) { bestD = d; best = sq; }
+      }
+      if (best && bestD <= rng * 1.6) {
+        best.broken = true;
+        best.flash = 0.6;
+        spawnEffect("escape", best.x, best.y, "#e8d0a0");
+        triggerShake(0.2, 4);
+      }
+      for (var o = 0; o < state.enemies.length; o++) {
+        var eo = state.enemies[o];
+        if (eo.dead || !inRange(eo)) continue;
+        damageEnemy(eo, st.damage * 2.2, "osteoclasto");
+      }
+      consume(1.6, best && bestD <= rng * 1.6 ? "HOWSHIP — secuestro resorbido" : "HOWSHIP — resorción ósea");
+      return true;
+    }
+    if (id === "osteoblasto") {
+      // INVOLUCRO: levanta un muro de hueso nuevo sobre el carril más cercano.
+      var arc = nearestPathProgress(t.x, t.y);
+      var pt = arc ? pathPos(arc.progress, arc.heridaIdx) : { x: t.x, y: t.y };
+      var wcfg = t.def.buildsWall;
+      var hp = wcfg.hp * (1 + t.level * 0.45);
+      f.walls.push({
+        x: pt.x, y: pt.y, w: wcfg.w * U, h: wcfg.h * U,
+        hp: hp, maxHp: hp, life: wcfg.life + t.level * 6, flash: 0
+      });
+      pushEffect({ kind: "place", x: pt.x, y: pt.y, life: 0.6, max: 0.6, color: "#e0d2a4" });
+      consume(1.4, "INVOLUCRO — hueso nuevo bloquea el carril");
+      return true;
+    }
+    if (id === "osteocito") {
+      // RED CANALICULAR: revela y marca todo lo que hay en el radio.
+      var cnt = 0;
+      for (var r = 0; r < state.enemies.length; r++) {
+        var er = state.enemies[r];
+        if (er.dead || !inRange(er)) continue;
+        er.revealed = true;
+        er.canalicularMark = t.def.markAmplify;
+        er.canalicularTimer = 10;
+        cnt++;
+      }
+      pushEffect({ kind: "defensinWave", x: t.x, y: t.y, r: rng, life: 0.9, max: 0.9 });
+      consume(1.3, "RED CANALICULAR — " + cnt + " gérmenes revelados");
+      return true;
+    }
+    if (id === "sinoviocitoA") {
+      // ACLARAMIENTO SINOVIAL: golpe de limpieza en toda la cavidad cercana.
+      for (var a = 0; a < state.enemies.length; a++) {
+        var ea = state.enemies[a];
+        if (ea.dead || !inRange(ea)) continue;
+        damageEnemy(ea, st.damage * 2.4, "sinoviocitoA");
+      }
+      pushEffect({ kind: "defensinWave", x: t.x, y: t.y, r: rng, life: 0.7, max: 0.7 });
+      consume(1.4, "ACLARAMIENTO SINOVIAL");
+      return true;
+    }
+    if (id === "sinoviocitoB") {
+      // BOLO DE HIALURÓNICO: charco viscoso que frena fuerte y protege.
+      if (!state.sebumPuddles) state.sebumPuddles = [];
+      var arcB = nearestPathProgress(t.x, t.y);
+      for (var pk = 0; pk < 3; pk++) {
+        var off = (pk - 1) * 42 * U;
+        var pb = arcB ? pathPos(arcB.progress + off, arcB.heridaIdx) : { x: t.x, y: t.y + off };
+        state.sebumPuddles.push({
+          x: pb.x, y: pb.y, r: (36 + t.level * 6) * U, life: 8, max: 8,
+          dot: 6, slow: true, kind: "defensin", srcId: "sinoviocitoB"
+        });
+      }
+      consume(1.3, "HIALURÓNICO — el líquido se espesa");
+      return true;
+    }
+    if (id === "condrocito") {
+      // MATRIZ DE COLÁGENO II: recupera un bloque de cartílago.
+      if (cfg.cartilageMax) {
+        f.cartilage = Math.min(cfg.cartilageMax, f.cartilage + 8 + t.level * 4);
+      }
+      pushEffect({ kind: "defensinWave", x: t.x, y: t.y, r: rng * 0.8, life: 0.9, max: 0.9 });
+      consume(1.5, "COLÁGENO II — cartílago regenerado");
+      return true;
+    }
+    return false;
+  }
+  // ============ FIN FASE 2 · NIVELES DE ÓRGANO ============================
 
   function spawnEnemy(typeId, hpMult) {
     var def = ENEMY_DEFS[typeId];
@@ -5873,6 +7082,15 @@
       // Nivel puente: gérmenes a 0.35× la velocidad original (50% × 70%
       // adicional) para dar tiempo holgado de defender.
       if (state.dissemination) pxSpeed *= 0.35;
+      // Fase 2: los niveles de órgano son más largos (mundo estirado en los
+      // dos ejes), así que los gérmenes recuperan algo de velocidad — si no,
+      // recorrer el carril entero se hace eterno.
+      if (state.f2) {
+        pxSpeed *= 1.55;
+        // Viscosidad del hialurónico (sinoviocito B) y anti-adhesión endotelial.
+        if (e.viscositySlow) pxSpeed *= (1 - e.viscositySlow);
+        if ((e.antiAdhesionTimer || 0) > 0) pxSpeed *= 0.7;
+      }
       if (state.dissemination && e.nettedUntil && state.time < e.nettedUntil) {
         pxSpeed = 0;
       }
@@ -6134,6 +7352,12 @@
         // NIVEL PUENTE: cada germen que cruza una puerta llena +10% el
         // medidor del órgano. Al llegar a 10/10 (100%), ese órgano cae y
         // se define el escenario de Fase 2.
+        // FASE 2: el germen alcanza el foco del órgano → daña la integridad.
+        if (state.f2) {
+          f2GermArrived(e, hi);
+          e.dead = true;
+          continue;
+        }
         if (state.dissemination) {
           if (!state.spreadOrganLoad) state.spreadOrganLoad = [0, 0, 0];
           if (!state.disseminationBarrierHP) state.disseminationBarrierHP = [0, 0, 0];
@@ -6580,6 +7804,8 @@
   function triggerTowerSpecial(t) {
     if (!t || !t.specialReady) return;
     var def = t.def;
+    // ---- ULTIMATES DE LAS RESIDENTES DE ÓRGANO (Fase 2) -----------------
+    if (def.f2Organ && f2TriggerOrganSpecial(t)) return;
     if (def.producer) {
       // TURNO DE SECRECIÓN: el nicho vuelca parches antimicrobianos sobre el
       // carril más cercano dentro de su rango. Cada parche daña + frena.
@@ -7191,7 +8417,10 @@
     var corneum = t.corneumStack || 0;          // estrato córneo (Nichos juntos)
     var swarm = t.swarmStack || 0;              // enjambre de neutrófilos
     var hasAlarm = (t.alarmBuffT || 0) > 0;     // alarmina del Centinela
-    if (!t.synBuff && !hasLangerBuff && !hasKcBuff && !hasIfnBuff && !hasIl17Buff && !hasIlc2Eosin && !hasIlc2Lang && !hasCitoBuff && !hasCombo && !corneum && !swarm && !hasAlarm) return base;
+    // Fase 2 · corazón: conducción del macrófago cardíaco residente (aura
+    // pasiva) y su descarga puntual (conductionBoost, temporal).
+    var hasConduct = (t.conductionAura || 0) > 0 || (t.conductionBoost || 0) > 0;
+    if (!t.synBuff && !hasLangerBuff && !hasKcBuff && !hasIfnBuff && !hasIl17Buff && !hasIlc2Eosin && !hasIlc2Lang && !hasCitoBuff && !hasCombo && !corneum && !swarm && !hasAlarm && !hasConduct) return base;
     // Devuelve una copia con multiplicadores aplicados.
     var out = {};
     for (var k in base) { if (base.hasOwnProperty(k)) out[k] = base[k]; }
@@ -7219,6 +8448,12 @@
     if (corneum && out.range != null) out.range = out.range * (1 + 0.12 * corneum);
     if (swarm && out.fireRate != null) out.fireRate = out.fireRate * 1.25;
     if (hasAlarm && out.fireRate != null) out.fireRate = out.fireRate * 1.20;
+    // Conducción cardíaca: aura pasiva + descarga temporal (no acumulan más
+    // allá de +75% de cadencia para que no rompa la curva de dificultad).
+    if (hasConduct && out.fireRate != null) {
+      var cm = 1 + Math.min(0.75, (t.conductionAura || 0) + ((t.conductionBoost || 0) > 0 ? 0.5 : 0));
+      out.fireRate = out.fireRate * cm;
+    }
     // Combos permanentes de Diseminación (+10% acumulativo por stack).
     if (hasCombo) {
       if (out.damage != null)   out.damage   = out.damage   * comboMult("atk");
@@ -8226,6 +9461,27 @@
     if (e.burrowed && !e.revealed) return;
     if (e.def.cloaked && !e.revealed) return;
     var def = e.def;
+    // ---- FASE 2: modificadores de órgano --------------------------------
+    if (state.f2) {
+      // HUESO: dentro de un secuestro (hueso muerto) el germen es intocable,
+      // salvo para el Osteoclasto, que resorbe la propia isla ósea.
+      if (e.inSequestrum && attackerType !== "osteoclasto") {
+        pushDamageNumber(e.x, e.y - def.radius * U - 4, "SECUESTRO", "#c8b070");
+        return;
+      }
+      // Refuerzo del Osteocito: marca canalicular (+30% de daño recibido).
+      if ((e.canalicularMark || 0) > 0) amount *= (1 + e.canalicularMark);
+      // CORAZÓN: la vegetación amortigua el daño capa a capa.
+      if (e.dmgReduction) amount *= (1 - e.dmgReduction);
+      // El Monocito arranca la vegetación de un tirón al impactar.
+      if (attackerType === "monocito" && e.vegLayers) {
+        e.vegLayers = Math.max(0, e.vegLayers - (TOWER_DEFS.monocito.stripVegetation || 1));
+      }
+      // Sinoviocito A castiga a quien está comiendo cartílago.
+      if (attackerType === "sinoviocitoA" && def.cartilageEater) {
+        amount *= TOWER_DEFS.sinoviocitoA.bonusVsCartilageEater || 1;
+      }
+    }
     // Marca de Langerhans: amplifica TODO el daño recibido mientras dura.
     if ((e.markTimer || 0) > 0 && (e.markBonus || 0) > 0) amount *= (1 + e.markBonus);
     var bodyDamage = amount;
@@ -10475,11 +11731,11 @@
   // Para agregar nuevo contenido: agregar la entrada y el exit handler correspondiente.
   var MAP_NODE_CONTENT = {
     "fase1":   { built: false },   // punto de entrada — no se rejuega
-    "dissem":  { built: true,  launch: function() { enterDissemination(); } }
-    // Futuros:
-    // "endocarditis":  { built: true, launch: function() { enterF2TD("endocarditis"); } },
-    // "osteomielitis": { built: true, launch: function() { enterF2TD("osteomielitis"); } },
-    // "artritis":      { built: true, launch: function() { enterF2TD("artritis"); } },
+    "dissem":  { built: true,  launch: function() { enterDissemination(); } },
+    // Fase 2: los tres focos hematógenos clásicos.
+    "endocarditis":  { built: true, launch: function() { enterF2TD("endocarditis"); } },
+    "osteomielitis": { built: true, launch: function() { enterF2TD("osteomielitis"); } },
+    "artritis":      { built: true, launch: function() { enterF2TD("artritis"); } }
   };
 
   // Coords x,y relativas al rect del mapa (mapX, mapY, mapW, mapH).
@@ -13244,6 +14500,10 @@
     if (state.dissemination && tryTapPlaquetaPickup(x, y)) {
       return;
     }
+    // FASE 2: tap sobre la BASE del órgano → dispara su poder activo.
+    if (state.f2 && f2TryBasePower(x, y)) {
+      return;
+    }
     // Tap sobre un GERMEN con glow (no visto aún): abre el compendio y lo
     // marca como visto.
     for (var enei = 0; enei < state.enemies.length; enei++) {
@@ -13811,9 +15071,14 @@
     }
     // Diseminación: toque en el CAMPO → puede ser un arrastre de scroll o un
     // tap. Se resuelve en pointerUp (tap = handleClick con Y de MUNDO).
-    if (state.dissemination && dsMaxScrollY() > 0 &&
+    if (camActive() && (dsMaxScrollY() > 0 || dsMaxScrollX() > 0) &&
         p.x < FIELD_RIGHT && p.y >= FIELD_TOP && p.y <= FIELD_BOTTOM) {
-      state.dsScrollDrag = { startX: p.x, startY: p.y, startScrollY: state.dsScrollY || 0, dragged: false };
+      state.dsScrollDrag = {
+        startX: p.x, startY: p.y,
+        startScrollY: state.dsScrollY || 0,
+        startScrollX: state.dsScrollX || 0,
+        dragged: false
+      };
       return;
     }
     handleClick(p.x, p.y);
@@ -13821,14 +15086,17 @@
   function onPointerMove(evt) {
     var p = canvasPosFromEvent(evt);
     state.pointer.x = p.x; state.pointer.y = p.y; state.pointer.isOver = true;
-    // Arrastre de scroll de Diseminación (vertical).
+    // Arrastre de scroll del campo (Diseminación = vertical; F2 = ambos ejes).
     if (state.dsScrollDrag) {
       var sd = state.dsScrollDrag;
       var sdy = p.y - sd.startY;
-      if (!sd.dragged && Math.abs(sdy) > TAP_DRAG_THRESHOLD) sd.dragged = true;
+      var sdx = p.x - sd.startX;
+      if (!sd.dragged && (Math.abs(sdy) > TAP_DRAG_THRESHOLD || Math.abs(sdx) > TAP_DRAG_THRESHOLD)) sd.dragged = true;
       if (sd.dragged) {
         var mx = dsMaxScrollY();
         state.dsScrollY = Math.max(0, Math.min(mx, sd.startScrollY - sdy));
+        var mxx = dsMaxScrollX();
+        if (mxx > 0) state.dsScrollX = Math.max(0, Math.min(mxx, (sd.startScrollX || 0) - sdx));
       }
       return;
     }
@@ -13912,7 +15180,7 @@
     if (state.dsScrollDrag) {
       var dsd = state.dsScrollDrag;
       state.dsScrollDrag = null;
-      if (!dsd.dragged) handleClick(dsd.startX, dsd.startY + (state.dsScrollY || 0));
+      if (!dsd.dragged) handleClick(dsd.startX + (state.dsScrollX || 0), dsd.startY + (state.dsScrollY || 0));
       return;
     }
     // Drag del world-map: si no se movió suficiente, era un tap sobre el mapa
@@ -14981,6 +16249,16 @@
     else if (t.def.id === "pdc") drawPDC(t, pulse, expression, blink);
     else if (t.def.id === "linfocitogd") drawLinfocitoGD(t, pulse, expression, blink);
     else if (t.def.id === "ilc2") drawILC2(t, pulse, expression, blink);
+    // --- Fase 2: residentes de órgano ---
+    else if (t.def.id === "endotelial") drawEndotelial(t, pulse, expression, blink);
+    else if (t.def.id === "monocito") drawMonocito(t, pulse, expression, blink);
+    else if (t.def.id === "macrofagoCardiaco") drawMacrofagoCardiaco(t, pulse, expression, blink);
+    else if (t.def.id === "osteoclasto") drawOsteoclasto(t, pulse, expression, blink);
+    else if (t.def.id === "osteoblasto") drawOsteoblasto(t, pulse, expression, blink);
+    else if (t.def.id === "osteocito") drawOsteocito(t, pulse, expression, blink);
+    else if (t.def.id === "sinoviocitoA") drawSinoviocitoA(t, pulse, expression, blink);
+    else if (t.def.id === "sinoviocitoB") drawSinoviocitoB(t, pulse, expression, blink);
+    else if (t.def.id === "condrocito") drawCondrocito(t, pulse, expression, blink);
     else drawLinfocitoT(t, pulse, expression, blink);
     // Level-up sparkles
     if (levelup) {
@@ -16934,6 +18212,404 @@
     ctx.restore();
   }
 
+  // ======================================================================
+  // SPRITES DE FASE 2 — TORRES RESIDENTES DE ÓRGANO
+  // ======================================================================
+
+  // --- Célula endotelial valvular: pavimento que sella la valva ----------
+  function drawEndotelial(t, pulse, expression, blink) {
+    var R = 15 * U * pulse, time = state.time, w = (t.idlePhase || 0);
+    ctx.save();
+    ctx.translate(t.x, t.y);
+    // Monocapa: la célula endotelial es aplanada y poligonal, no redonda.
+    var g = ctx.createLinearGradient(-R, -R, R, R);
+    g.addColorStop(0, "#a8e0ea");
+    g.addColorStop(0.5, "#5fa8b8");
+    g.addColorStop(1, "#25525e");
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    for (var a = 0; a < 6; a++) {
+      var ang = (a / 6) * Math.PI * 2 + 0.25;
+      var rr = R * (1 + 0.10 * Math.sin(a * 2.1 + time * 0.8));
+      var px = Math.cos(ang) * rr * 1.22, py = Math.sin(ang) * rr * 0.78;
+      if (a === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = "#14343d"; ctx.lineWidth = Math.max(1.6, 2.2 * U); ctx.stroke();
+    // Uniones estrechas con las vecinas: guiones en el borde.
+    ctx.strokeStyle = "rgba(200,245,255,0.65)";
+    ctx.lineWidth = Math.max(1, 1.3 * U);
+    ctx.setLineDash([2.5 * U, 2.5 * U]);
+    ctx.beginPath(); ctx.ellipse(0, 0, R * 1.30, R * 0.86, 0, 0, Math.PI * 2); ctx.stroke();
+    ctx.setLineDash([]);
+    // Cuerpos de Weibel-Palade: gránulos alargados internos.
+    ctx.fillStyle = "rgba(255,255,255,0.55)";
+    for (var k = 0; k < 4; k++) {
+      var ka = w + k * 1.57 + time * 0.5;
+      ctx.save();
+      ctx.translate(Math.cos(ka) * R * 0.45, Math.sin(ka) * R * 0.3);
+      ctx.rotate(ka);
+      roundRect(-R * 0.22, -R * 0.06, R * 0.44, R * 0.12, R * 0.06);
+      ctx.fill();
+      ctx.restore();
+    }
+    // Núcleo aplanado.
+    ctx.fillStyle = "#0e2a32";
+    ctx.beginPath(); ctx.ellipse(0, R * 0.05, R * 0.42, R * 0.26, 0, 0, Math.PI * 2); ctx.fill();
+    towerFace(R * 0.55, expression, blink);
+    ctx.restore();
+  }
+
+  // --- Monocito patrullero: rueda sobre el endotelio ---------------------
+  function drawMonocito(t, pulse, expression, blink) {
+    var R = 14 * U * pulse, time = state.time, w = (t.idlePhase || 0);
+    ctx.save();
+    ctx.translate(t.x, t.y);
+    // Estela de rodamiento (rolling adhesion).
+    ctx.strokeStyle = "rgba(138,127,200,0.30)";
+    ctx.lineWidth = Math.max(1, 1.4 * U);
+    for (var s = 1; s <= 3; s++) {
+      ctx.beginPath();
+      ctx.arc(-s * R * 0.5, R * 0.75, R * 0.30, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    // Cuerpo con el clásico núcleo ARRIÑONADO del monocito.
+    var g = ctx.createRadialGradient(-R * 0.3, -R * 0.3, R * 0.1, 0, 0, R);
+    g.addColorStop(0, "#cfc6ff");
+    g.addColorStop(0.55, "#8a7fc8");
+    g.addColorStop(1, "#3b3470");
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = "#231d4a"; ctx.lineWidth = Math.max(1.8, 2.4 * U); ctx.stroke();
+    // Núcleo en herradura.
+    ctx.fillStyle = "#372c6e";
+    ctx.beginPath();
+    ctx.arc(0, 0, R * 0.60, Math.PI * 0.25, Math.PI * 1.55);
+    ctx.arc(0, 0, R * 0.26, Math.PI * 1.55, Math.PI * 0.25, true);
+    ctx.closePath();
+    ctx.fill();
+    // Seudópodos que "arrancan" gérmenes: 3 ganchos que se estiran.
+    ctx.strokeStyle = "#6d61ad"; ctx.lineWidth = Math.max(1.6, 2.1 * U); ctx.lineCap = "round";
+    for (var p = 0; p < 3; p++) {
+      var pa = w + p * 2.09 + Math.sin(time * 3 + p) * 0.25;
+      var len = R * (1.1 + 0.25 * Math.sin(time * 4 + p));
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(pa) * R * 0.9, Math.sin(pa) * R * 0.9);
+      ctx.quadraticCurveTo(Math.cos(pa + 0.4) * len, Math.sin(pa + 0.4) * len,
+                           Math.cos(pa + 0.8) * len * 0.9, Math.sin(pa + 0.8) * len * 0.9);
+      ctx.stroke();
+    }
+    towerFace(R * 0.52, expression, blink);
+    ctx.restore();
+  }
+
+  // --- Macrófago cardíaco residente: fagocita y CONDUCE ------------------
+  function drawMacrofagoCardiaco(t, pulse, expression, blink) {
+    var R = 16 * U * pulse, time = state.time, w = (t.idlePhase || 0);
+    ctx.save();
+    ctx.translate(t.x, t.y);
+    // Onda de conducción: anillo que se expande al ritmo del latido.
+    var beat = (time % 1.15) / 1.15;
+    ctx.strokeStyle = "rgba(240,140,110," + (0.42 * (1 - beat)) + ")";
+    ctx.lineWidth = Math.max(1.4, 2 * U);
+    ctx.beginPath(); ctx.arc(0, 0, R * (1.2 + beat * 1.5), 0, Math.PI * 2); ctx.stroke();
+    // Cuerpo ameboide con prolongaciones (macrófago residente ramificado).
+    var g = ctx.createRadialGradient(-R * 0.3, -R * 0.3, R * 0.1, 0, 0, R * 1.05);
+    g.addColorStop(0, "#f0a08c");
+    g.addColorStop(0.55, "#c9634f");
+    g.addColorStop(1, "#6a2618");
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    for (var a = 0; a <= 18; a++) {
+      var ang = (a / 18) * Math.PI * 2;
+      var lobe = 1 + 0.16 * Math.sin(ang * 4 + time * 1.5 + w);
+      var px = Math.cos(ang) * R * lobe, py = Math.sin(ang) * R * lobe;
+      if (a === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = "#4a1a10"; ctx.lineWidth = Math.max(1.8, 2.4 * U); ctx.stroke();
+    // Vacuolas fagocíticas.
+    ctx.fillStyle = "rgba(255,220,200,0.5)";
+    for (var v = 0; v < 3; v++) {
+      var va = w + v * 2.1 + time * 0.4;
+      ctx.beginPath();
+      ctx.arc(Math.cos(va) * R * 0.42, Math.sin(va) * R * 0.42, R * (0.15 + 0.03 * Math.sin(time * 3 + v)), 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // Chispa eléctrica de conducción en el centro.
+    ctx.strokeStyle = "rgba(255,235,160,0.9)";
+    ctx.lineWidth = Math.max(1.2, 1.6 * U);
+    ctx.beginPath();
+    ctx.moveTo(-R * 0.30, R * 0.10);
+    ctx.lineTo(-R * 0.06, -R * 0.14);
+    ctx.lineTo(R * 0.04, R * 0.06);
+    ctx.lineTo(R * 0.28, -R * 0.18);
+    ctx.stroke();
+    towerFace(R * 0.55, expression, blink);
+    ctx.restore();
+  }
+
+  // --- Osteoclasto: multinucleado con borde en cepillo -------------------
+  function drawOsteoclasto(t, pulse, expression, blink) {
+    var R = 17 * U * pulse, time = state.time, w = (t.idlePhase || 0);
+    ctx.save();
+    ctx.translate(t.x, t.y);
+    // Cuerpo grande y aplanado.
+    var g = ctx.createRadialGradient(-R * 0.3, -R * 0.35, R * 0.1, 0, 0, R * 1.1);
+    g.addColorStop(0, "#f0c88c");
+    g.addColorStop(0.55, "#c08a4a");
+    g.addColorStop(1, "#603c14");
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.ellipse(0, -R * 0.10, R * 1.15, R * 0.92, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = "#3f2708"; ctx.lineWidth = Math.max(1.8, 2.4 * U); ctx.stroke();
+    // BORDE EN CEPILLO (ruffled border): flecos densos en la cara inferior.
+    ctx.strokeStyle = "#8a5c22"; ctx.lineWidth = Math.max(1, 1.3 * U);
+    for (var i = 0; i < 13; i++) {
+      var fx = -R * 0.95 + (i / 12) * R * 1.9;
+      var fl = R * (0.30 + 0.12 * Math.sin(time * 6 + i));
+      ctx.beginPath();
+      ctx.moveTo(fx, R * 0.68);
+      ctx.lineTo(fx + Math.sin(time * 5 + i) * R * 0.06, R * 0.68 + fl);
+      ctx.stroke();
+    }
+    // Laguna de Howship: mancha ácida bajo el borde en cepillo.
+    ctx.fillStyle = "rgba(255,200,90,0.22)";
+    ctx.beginPath(); ctx.ellipse(0, R * 1.02, R * 1.0, R * 0.26, 0, 0, Math.PI * 2); ctx.fill();
+    // MÚLTIPLES núcleos (es una célula multinucleada, su rasgo distintivo).
+    ctx.fillStyle = "#6b4415";
+    var nuclei = [[-0.45, -0.25], [0, -0.42], [0.45, -0.25], [-0.25, 0.12], [0.28, 0.14]];
+    for (var n = 0; n < nuclei.length; n++) {
+      ctx.beginPath();
+      ctx.arc(nuclei[n][0] * R, nuclei[n][1] * R, R * 0.19, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // Burbujas de protón (bomba H+ acidificando).
+    ctx.fillStyle = "rgba(255,240,180,0.7)";
+    for (var b = 0; b < 4; b++) {
+      var bp = ((time * 0.8 + b * 0.25) % 1);
+      ctx.globalAlpha = 0.7 * (1 - bp);
+      ctx.beginPath();
+      ctx.arc((b - 1.5) * R * 0.4, R * 0.75 + bp * R * 0.5, R * 0.08, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    towerFace(R * 0.42, expression, blink);
+    ctx.restore();
+  }
+
+  // --- Osteoblasto: cúbico, deposita matriz osteoide ---------------------
+  function drawOsteoblasto(t, pulse, expression, blink) {
+    var R = 15 * U * pulse, time = state.time;
+    ctx.save();
+    ctx.translate(t.x, t.y);
+    // Matriz osteoide recién depositada bajo la célula.
+    ctx.fillStyle = "rgba(240,225,175,0.35)";
+    roundRect(-R * 1.15, R * 0.62, R * 2.3, R * 0.44, 4 * U);
+    ctx.fill();
+    // Cuerpo CÚBICO (el osteoblasto activo es cuboidal, no redondo).
+    var g = ctx.createLinearGradient(-R, -R, R, R);
+    g.addColorStop(0, "#f4ecce");
+    g.addColorStop(0.5, "#d8c89a");
+    g.addColorStop(1, "#7a6c40");
+    ctx.fillStyle = g;
+    roundRect(-R * 0.88, -R * 0.82, R * 1.76, R * 1.5, 4 * U);
+    ctx.fill();
+    ctx.strokeStyle = "#4e4522"; ctx.lineWidth = Math.max(1.8, 2.4 * U);
+    roundRect(-R * 0.88, -R * 0.82, R * 1.76, R * 1.5, 4 * U);
+    ctx.stroke();
+    // Retículo endoplásmico abundante (célula secretora): líneas internas.
+    ctx.strokeStyle = "rgba(120,100,50,0.5)";
+    ctx.lineWidth = Math.max(0.8, 1.1 * U);
+    for (var i = 0; i < 3; i++) {
+      var yy = -R * 0.36 + i * R * 0.34;
+      ctx.beginPath();
+      ctx.moveTo(-R * 0.62, yy);
+      ctx.quadraticCurveTo(0, yy + Math.sin(time * 2 + i) * R * 0.10, R * 0.62, yy);
+      ctx.stroke();
+    }
+    // Gránulos de colágeno saliendo hacia la matriz.
+    ctx.fillStyle = "rgba(255,250,220,0.8)";
+    for (var k = 0; k < 3; k++) {
+      var kp = ((time * 0.9 + k * 0.33) % 1);
+      ctx.globalAlpha = 0.8 * (1 - kp);
+      ctx.beginPath();
+      ctx.arc((k - 1) * R * 0.42, R * 0.7 + kp * R * 0.3, R * 0.09, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = "#5a4d20";
+    ctx.beginPath(); ctx.arc(0, R * 0.05, R * 0.28, 0, Math.PI * 2); ctx.fill();
+    towerFace(R * 0.50, expression, blink);
+    ctx.restore();
+  }
+
+  // --- Osteocito: estrellado, con dendritas por los canalículos ----------
+  function drawOsteocito(t, pulse, expression, blink) {
+    var R = 13 * U * pulse, time = state.time, w = (t.idlePhase || 0);
+    ctx.save();
+    ctx.translate(t.x, t.y);
+    // Red canalicular: dendritas largas y finas en todas direcciones.
+    ctx.strokeStyle = "rgba(159,176,196,0.75)";
+    ctx.lineCap = "round";
+    for (var d = 0; d < 12; d++) {
+      var da = (d / 12) * Math.PI * 2 + w;
+      var len = R * (1.7 + 0.35 * Math.sin(time * 1.6 + d));
+      ctx.lineWidth = Math.max(0.8, 1.2 * U);
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(da) * R * 0.7, Math.sin(da) * R * 0.7);
+      var bend = Math.sin(time * 1.2 + d) * 0.25;
+      ctx.quadraticCurveTo(Math.cos(da + bend) * len * 0.7, Math.sin(da + bend) * len * 0.7,
+                           Math.cos(da) * len, Math.sin(da) * len);
+      ctx.stroke();
+      // Pulso de señal viajando por la dendrita.
+      var sp = ((time * 0.7 + d * 0.12) % 1);
+      ctx.fillStyle = "rgba(210,235,255," + (0.8 * (1 - sp)) + ")";
+      ctx.beginPath();
+      ctx.arc(Math.cos(da) * (R * 0.7 + sp * (len - R * 0.7)),
+              Math.sin(da) * (R * 0.7 + sp * (len - R * 0.7)), R * 0.10, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // Laguna ósea que lo contiene.
+    ctx.strokeStyle = "rgba(120,132,150,0.55)";
+    ctx.lineWidth = Math.max(1, 1.4 * U);
+    ctx.beginPath(); ctx.ellipse(0, 0, R * 1.15, R * 0.95, 0.2, 0, Math.PI * 2); ctx.stroke();
+    // Cuerpo pequeño y fusiforme.
+    var g = ctx.createRadialGradient(-R * 0.25, -R * 0.25, R * 0.08, 0, 0, R * 0.8);
+    g.addColorStop(0, "#dce7f2");
+    g.addColorStop(0.55, "#9fb0c4");
+    g.addColorStop(1, "#3f4c5e");
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.ellipse(0, 0, R * 0.80, R * 0.62, 0.2, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = "#28313d"; ctx.lineWidth = Math.max(1.6, 2.1 * U); ctx.stroke();
+    towerFace(R * 0.44, expression, blink);
+    ctx.restore();
+  }
+
+  // --- Sinoviocito A (macrofágico): limpia la cavidad --------------------
+  function drawSinoviocitoA(t, pulse, expression, blink) {
+    var R = 15 * U * pulse, time = state.time, w = (t.idlePhase || 0);
+    ctx.save();
+    ctx.translate(t.x, t.y);
+    // Cuerpo redondeado con microvellosidades cortas.
+    ctx.strokeStyle = "rgba(111,168,176,0.8)";
+    ctx.lineWidth = Math.max(1, 1.4 * U);
+    for (var m = 0; m < 16; m++) {
+      var ma = (m / 16) * Math.PI * 2 + w * 0.5;
+      var ml = R * (1.02 + 0.13 * Math.sin(time * 5 + m));
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(ma) * R * 0.95, Math.sin(ma) * R * 0.95);
+      ctx.lineTo(Math.cos(ma) * ml * 1.15, Math.sin(ma) * ml * 1.15);
+      ctx.stroke();
+    }
+    var g = ctx.createRadialGradient(-R * 0.28, -R * 0.3, R * 0.08, 0, 0, R);
+    g.addColorStop(0, "#c8ecf0");
+    g.addColorStop(0.55, "#6fa8b0");
+    g.addColorStop(1, "#2b565c");
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = "#1a3a40"; ctx.lineWidth = Math.max(1.8, 2.4 * U); ctx.stroke();
+    // Lisosomas: gránulos oscuros de digestión.
+    ctx.fillStyle = "rgba(30,70,78,0.75)";
+    for (var l = 0; l < 5; l++) {
+      var la = w + l * 1.26 + time * 0.5;
+      var lr = R * (0.30 + 0.14 * ((l % 3) / 2));
+      ctx.beginPath();
+      ctx.arc(Math.cos(la) * lr, Math.sin(la) * lr, R * 0.14, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    towerFace(R * 0.52, expression, blink);
+    ctx.restore();
+  }
+
+  // --- Sinoviocito B (fibroblástico): fabrica hialurónico ----------------
+  function drawSinoviocitoB(t, pulse, expression, blink) {
+    var R = 15 * U * pulse, time = state.time, w = (t.idlePhase || 0);
+    ctx.save();
+    ctx.translate(t.x, t.y);
+    // Halo viscoso: el líquido espesado alrededor.
+    var visc = ctx.createRadialGradient(0, 0, R * 0.8, 0, 0, R * 2.1);
+    visc.addColorStop(0, "rgba(185,212,106,0.16)");
+    visc.addColorStop(1, "rgba(185,212,106,0)");
+    ctx.fillStyle = visc;
+    ctx.beginPath(); ctx.arc(0, 0, R * 2.1, 0, Math.PI * 2); ctx.fill();
+    // Hebras de ácido hialurónico girando lentamente.
+    ctx.strokeStyle = "rgba(210,235,140,0.5)";
+    ctx.lineWidth = Math.max(1, 1.3 * U);
+    for (var h = 0; h < 3; h++) {
+      ctx.beginPath();
+      for (var s = 0; s <= 24; s++) {
+        var sa = (s / 24) * Math.PI * 2;
+        var sr = R * (1.35 + 0.22 * Math.sin(sa * 3 + time * 1.1 + h * 2.1));
+        var px = Math.cos(sa) * sr, py = Math.sin(sa) * sr;
+        if (s === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+      }
+      ctx.closePath();
+      ctx.stroke();
+    }
+    // Cuerpo fusiforme (fibroblasto: alargado, con prolongaciones).
+    ctx.save();
+    ctx.rotate(0.35 + Math.sin(time * 0.7) * 0.06);
+    var g = ctx.createLinearGradient(-R, 0, R, 0);
+    g.addColorStop(0, "#e8f4b8");
+    g.addColorStop(0.5, "#b9d46a");
+    g.addColorStop(1, "#5a6c22");
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.ellipse(0, 0, R * 1.15, R * 0.58, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = "#3c4a12"; ctx.lineWidth = Math.max(1.7, 2.2 * U); ctx.stroke();
+    ctx.fillStyle = "#42501a";
+    ctx.beginPath(); ctx.ellipse(0, 0, R * 0.34, R * 0.26, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+    towerFace(R * 0.48, expression, blink);
+    ctx.restore();
+  }
+
+  // --- Condrocito: dentro de su laguna, reparando cartílago --------------
+  function drawCondrocito(t, pulse, expression, blink) {
+    var R = 14 * U * pulse, time = state.time, w = (t.idlePhase || 0);
+    ctx.save();
+    ctx.translate(t.x, t.y);
+    // Matriz territorial: halo de colágeno II que va creciendo.
+    var grow = 0.5 + 0.5 * Math.sin(time * 0.9 + w);
+    ctx.fillStyle = "rgba(235,245,248,0.18)";
+    ctx.beginPath(); ctx.arc(0, 0, R * (1.5 + 0.15 * grow), 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = "rgba(200,220,228,0.55)";
+    ctx.lineWidth = Math.max(1, 1.4 * U);
+    ctx.beginPath(); ctx.arc(0, 0, R * (1.5 + 0.15 * grow), 0, Math.PI * 2); ctx.stroke();
+    // Fibras de colágeno irradiando (la reparación en curso).
+    ctx.strokeStyle = "rgba(220,235,240,0.45)";
+    ctx.lineWidth = Math.max(0.8, 1.0 * U);
+    for (var i = 0; i < 10; i++) {
+      var ia = (i / 10) * Math.PI * 2 + time * 0.25;
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(ia) * R * 1.05, Math.sin(ia) * R * 1.05);
+      ctx.lineTo(Math.cos(ia) * R * (1.45 + 0.12 * grow), Math.sin(ia) * R * (1.45 + 0.12 * grow));
+      ctx.stroke();
+    }
+    // Laguna (condroplasto).
+    ctx.fillStyle = "rgba(255,255,255,0.30)";
+    ctx.beginPath(); ctx.ellipse(0, 0, R * 1.05, R * 0.95, 0, 0, Math.PI * 2); ctx.fill();
+    // Cuerpo: redondeado, con mucho glucógeno (aspecto claro).
+    var g = ctx.createRadialGradient(-R * 0.25, -R * 0.28, R * 0.08, 0, 0, R * 0.85);
+    g.addColorStop(0, "#ffffff");
+    g.addColorStop(0.55, "#e2e8ea");
+    g.addColorStop(1, "#7d8a90");
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(0, 0, R * 0.82, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = "#5b686e"; ctx.lineWidth = Math.max(1.7, 2.2 * U); ctx.stroke();
+    // Vacuolas de glucógeno.
+    ctx.fillStyle = "rgba(190,205,212,0.7)";
+    for (var v = 0; v < 3; v++) {
+      var va = w + v * 2.1;
+      ctx.beginPath();
+      ctx.arc(Math.cos(va) * R * 0.34, Math.sin(va) * R * 0.34, R * 0.16, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    towerFace(R * 0.48, expression, blink);
+    ctx.restore();
+  }
+
   function drawILC2(t, pulse, expression, blink) {
     // ILC2 — linfoide innato tipo 2. Amplificador: libera GRÁNULOS de
     // citocinas (IL-5/IL-13) y emite antenas de señalización a las aliadas.
@@ -17843,6 +19519,19 @@
     else if (def.id === "bossPyogenes")      drawBossPyogenes(e, rad * scale, expression, blink);
     else if (def.id === "bossMRSA")          drawBossMRSA(e, rad * scale, expression, blink);
     else if (def.id === "bossClostridium")   drawBossClostridium(e, rad * scale, expression, blink);
+    // --- Fase 2: gérmenes de órgano ---
+    else if (def.id === "viridans")          drawViridans(e, rad * scale, expression, blink);
+    else if (def.id === "enterococo")        drawEnterococo(e, rad * scale, expression, blink);
+    else if (def.id === "hacek")             drawHacek(e, rad * scale, expression, blink);
+    else if (def.id === "bossEndocarditis")  drawBossEndocarditis(e, rad * scale, expression, blink);
+    else if (def.id === "aureusSCV")         drawAureusSCV(e, rad * scale, expression, blink);
+    else if (def.id === "salmonelaOsea")     drawSalmonelaOsea(e, rad * scale, expression, blink);
+    else if (def.id === "kingella")          drawKingella(e, rad * scale, expression, blink);
+    else if (def.id === "bossBrodie")        drawBossBrodie(e, rad * scale, expression, blink);
+    else if (def.id === "gonoArticular")     drawGonoArticular(e, rad * scale, expression, blink);
+    else if (def.id === "borrelia")          drawBorrelia(e, rad * scale, expression, blink);
+    else if (def.id === "pyogenesArt")       drawPyogenesArt(e, rad * scale, expression, blink);
+    else if (def.id === "bossPannus")        drawBossPannus(e, rad * scale, expression, blink);
     else if (kind === "bacteria")       drawBacteria(e, rad * scale, expression, blink);
     else if (kind === "virus")          drawVirus(e, rad * scale, expression, blink);
     else if (kind === "hongo")          drawHongo(e, rad * scale, expression, blink);
@@ -21163,6 +22852,528 @@
     ctx.restore();
   }
 
+  // ======================================================================
+  // SPRITES DE FASE 2 — GÉRMENES DE ÓRGANO
+  // Cada uno se dibuja desde su biología real, igual que los de Fase 1.
+  // RECORDATORIO: toda función nueva va registrada en drawEnemy Y en
+  // drawTooltipSprite, o el Dex muestra un sprite genérico.
+  // ======================================================================
+
+  // Vegetación valvular: capas de fibrina-plaquetas que envuelven al germen
+  // adherido. Se dibuja ANTES del cuerpo para que el germen quede encima.
+  function drawVegetationLayers(e, R) {
+    var layers = e.vegLayers || 0;
+    if (layers <= 0.05) return;
+    var t = state.time;
+    for (var i = 0; i < Math.ceil(layers); i++) {
+      var full = Math.min(1, layers - i);
+      var rr = R * (1.12 + i * 0.17);
+      ctx.save();
+      // Alpha bajo por capa: la vegetación tiene que LEERSE como envoltura
+      // sin tapar el germen (si no, todos parecen la misma bola blanca).
+      ctx.globalAlpha = 0.13 * full;
+      ctx.fillStyle = "#f2e0d0";
+      ctx.beginPath();
+      for (var a = 0; a <= 14; a++) {
+        var ang = (a / 14) * Math.PI * 2;
+        var wob = 1 + Math.sin(t * 1.4 + a * 1.7 + i) * 0.10;
+        var px = Math.cos(ang) * rr * wob, py = Math.sin(ang) * rr * wob;
+        if (a === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+      }
+      ctx.closePath();
+      ctx.fill();
+      ctx.globalAlpha = 0.42 * full;
+      ctx.strokeStyle = "#e8d4c0";
+      ctx.lineWidth = Math.max(0.8, 1.0 * U);
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  // --- Streptococcus viridans: CADENA de cocos + vegetación --------------
+  function drawViridans(e, rad, expression, blink) {
+    var R = rad, t = state.time, w = e.wobble || 0, hit = e.hitFlash > 0;
+    ctx.save();
+    ctx.translate(e.x, e.y);
+    drawVegetationLayers(e, R);
+    // Cadena de 5 cocos en arco (los estreptococos crecen en cadena).
+    var n = 5;
+    var arc = 1.5 + Math.sin(t * 1.2 + w) * 0.25;
+    for (var i = 0; i < n; i++) {
+      var f = (i / (n - 1)) - 0.5;
+      var ang = f * arc;
+      var cx = Math.sin(ang) * R * 0.95;
+      var cy = -Math.cos(ang) * R * 0.28 + R * 0.22;
+      var rr = R * (0.44 - Math.abs(f) * 0.08);
+      var g = ctx.createRadialGradient(cx - rr * 0.3, cy - rr * 0.35, rr * 0.1, cx, cy, rr);
+      g.addColorStop(0, e.def.colorLight);
+      g.addColorStop(0.6, e.def.color);
+      g.addColorStop(1, e.def.colorDark);
+      ctx.fillStyle = hit ? "#fff" : g;
+      ctx.beginPath(); ctx.arc(cx, cy, rr, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = e.def.colorDark;
+      ctx.lineWidth = Math.max(1, 1.2 * U);
+      ctx.stroke();
+      // Brillo.
+      ctx.fillStyle = "rgba(255,255,255,0.35)";
+      ctx.beginPath(); ctx.arc(cx - rr * 0.28, cy - rr * 0.32, rr * 0.26, 0, Math.PI * 2); ctx.fill();
+    }
+    // Adhesinas FimA: hilitos pegajosos hacia abajo (al endotelio).
+    ctx.strokeStyle = colorAlpha(e.def.colorLight, 0.55);
+    ctx.lineWidth = Math.max(0.7, 0.9 * U);
+    for (var p = 0; p < 6; p++) {
+      var px2 = (-0.5 + p / 5) * R * 1.5;
+      var sway = Math.sin(t * 3 + p) * R * 0.10;
+      ctx.beginPath();
+      ctx.moveTo(px2, R * 0.55);
+      ctx.quadraticCurveTo(px2 + sway, R * 0.85, px2 + sway * 1.6, R * 1.10);
+      ctx.stroke();
+    }
+    germFace(R * 0.70, expression, blink, R * 0.28);
+    ctx.restore();
+  }
+
+  // --- Enterococcus faecalis: diplococo coriáceo que se auto-repara ------
+  function drawEnterococo(e, rad, expression, blink) {
+    var R = rad, t = state.time, w = e.wobble || 0, hit = e.hitFlash > 0;
+    ctx.save();
+    ctx.translate(e.x, e.y);
+    drawVegetationLayers(e, R);
+    // Pared celular gruesa gram-positiva: anillo exterior mate.
+    ctx.fillStyle = colorAlpha(e.def.colorDark, 0.45);
+    ctx.beginPath(); ctx.arc(0, 0, R * 1.06, 0, Math.PI * 2); ctx.fill();
+    // Par de cocos ovoides, uno arriba y otro abajo.
+    var throb = 1 + Math.sin(t * 2.2 + w) * 0.05;
+    for (var s = -1; s <= 1; s += 2) {
+      ctx.save();
+      ctx.translate(0, s * R * 0.36);
+      ctx.scale(throb, throb);
+      var g = ctx.createRadialGradient(-R * 0.18, -R * 0.20, R * 0.05, 0, 0, R * 0.66);
+      g.addColorStop(0, e.def.colorLight);
+      g.addColorStop(0.55, e.def.color);
+      g.addColorStop(1, e.def.colorDark);
+      ctx.fillStyle = hit ? "#fff" : g;
+      ctx.beginPath(); ctx.ellipse(0, 0, R * 0.62, R * 0.50, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = e.def.colorDark; ctx.lineWidth = Math.max(1, 1.5 * U); ctx.stroke();
+      ctx.restore();
+    }
+    // Señal de regeneración: chispas verdes cuando está curándose.
+    if ((e.healingPulse || 0) > 0 || (e.def.selfHeal && !e.recentlyHit)) {
+      ctx.fillStyle = "rgba(150, 235, 140, 0.75)";
+      for (var k = 0; k < 4; k++) {
+        var ka = t * 2 + k * 1.57;
+        var kr = R * (1.1 + 0.12 * Math.sin(t * 3 + k));
+        ctx.beginPath();
+        ctx.arc(Math.cos(ka) * kr, Math.sin(ka) * kr, R * 0.09, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    germFace(R * 0.72, expression, blink, R * 0.30);
+    ctx.restore();
+  }
+
+  // --- HACEK: bacilo pequeño y veloz que surfea la sístole ---------------
+  function drawHacek(e, rad, expression, blink) {
+    var R = rad, t = state.time, hit = e.hitFlash > 0;
+    var ang = Math.atan2(e.vy || 0, e.vx || 1);
+    if (!e.vx && !e.vy) ang = Math.PI / 2;
+    ctx.save();
+    ctx.translate(e.x, e.y);
+    ctx.rotate(ang + Math.sin(t * 7) * 0.12);
+    // Estela de flujo (va montado en la corriente).
+    ctx.strokeStyle = colorAlpha(e.def.colorLight, 0.4);
+    ctx.lineWidth = Math.max(0.8, 1.1 * U);
+    for (var s = 0; s < 3; s++) {
+      var off = (s - 1) * R * 0.35;
+      ctx.beginPath();
+      ctx.moveTo(-R * 1.1, off);
+      ctx.lineTo(-R * (2.0 + 0.4 * Math.sin(t * 8 + s)), off * 1.5);
+      ctx.stroke();
+    }
+    // Cuerpo: bacilo corto (cocobacilo).
+    var g = ctx.createLinearGradient(0, -R * 0.5, 0, R * 0.5);
+    g.addColorStop(0, e.def.colorLight);
+    g.addColorStop(0.5, e.def.color);
+    g.addColorStop(1, e.def.colorDark);
+    ctx.fillStyle = hit ? "#fff" : g;
+    roundRect(-R * 0.95, -R * 0.48, R * 1.9, R * 0.96, R * 0.48);
+    ctx.fill();
+    ctx.strokeStyle = e.def.colorDark; ctx.lineWidth = Math.max(1, 1.3 * U); ctx.stroke();
+    // Brillo superior.
+    ctx.fillStyle = "rgba(255,255,255,0.30)";
+    roundRect(-R * 0.7, -R * 0.34, R * 1.1, R * 0.24, R * 0.12);
+    ctx.fill();
+    ctx.restore();
+    // Cara sin rotar (para que se lea siempre).
+    ctx.save();
+    ctx.translate(e.x, e.y);
+    germFace(R * 0.52, expression, blink, R * 0.24);
+    ctx.restore();
+  }
+
+  // --- S. aureus valvular (BOSS de endocarditis) -------------------------
+  function drawBossEndocarditis(e, rad, expression, blink) {
+    var R = rad, t = state.time, hit = e.hitFlash > 0;
+    ctx.save();
+    ctx.translate(e.x, e.y);
+    drawVegetationLayers(e, R);
+    // Halo de destrucción valvular: anillo dentado que gira.
+    ctx.save();
+    ctx.rotate(t * 0.5);
+    ctx.strokeStyle = colorAlpha("#ff5a70", 0.35 + 0.15 * Math.sin(t * 4));
+    ctx.lineWidth = Math.max(1.4, 2 * U);
+    ctx.beginPath();
+    for (var d = 0; d < 16; d++) {
+      var da = (d / 16) * Math.PI * 2;
+      var dr = R * (d % 2 === 0 ? 1.35 : 1.15);
+      var dx = Math.cos(da) * dr, dy = Math.sin(da) * dr;
+      if (d === 0) ctx.moveTo(dx, dy); else ctx.lineTo(dx, dy);
+    }
+    ctx.closePath(); ctx.stroke();
+    ctx.restore();
+    // Racimo de cocos (staphylo = racimo), grande y apretado.
+    var cluster = [[0, 0, 0.52], [-0.55, -0.35, 0.40], [0.55, -0.32, 0.40],
+                   [-0.48, 0.45, 0.36], [0.50, 0.44, 0.38], [0, -0.72, 0.32], [0, 0.75, 0.30]];
+    for (var i = 0; i < cluster.length; i++) {
+      var cx = cluster[i][0] * R, cy = cluster[i][1] * R, rr = cluster[i][2] * R;
+      var breathe = 1 + Math.sin(t * 2.4 + i * 0.7) * 0.05;
+      var g = ctx.createRadialGradient(cx - rr * 0.3, cy - rr * 0.3, rr * 0.1, cx, cy, rr * breathe);
+      g.addColorStop(0, e.def.colorLight);
+      g.addColorStop(0.55, e.def.color);
+      g.addColorStop(1, e.def.colorDark);
+      ctx.fillStyle = hit ? "#fff" : g;
+      ctx.beginPath(); ctx.arc(cx, cy, rr * breathe, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = e.def.colorDark; ctx.lineWidth = Math.max(1, 1.6 * U); ctx.stroke();
+    }
+    germFace(R * 0.62, expression, blink, R * 0.34);
+    ctx.restore();
+  }
+
+  // --- S. aureus SCV: colonia pequeña que se esconde en el hueso ---------
+  function drawAureusSCV(e, rad, expression, blink) {
+    var R = rad, t = state.time, hit = e.hitFlash > 0;
+    var hidden = !e.revealed;
+    ctx.save();
+    ctx.translate(e.x, e.y);
+    if (hidden) ctx.globalAlpha = 0.42;
+    // Nicho intracelular: contorno de la laguna ósea que lo aloja.
+    if (hidden) {
+      ctx.strokeStyle = "rgba(200,190,150,0.55)";
+      ctx.lineWidth = Math.max(1, 1.4 * U);
+      ctx.setLineDash([3 * U, 3 * U]);
+      ctx.beginPath(); ctx.ellipse(0, 0, R * 1.35, R * 1.05, 0.3, 0, Math.PI * 2); ctx.stroke();
+      ctx.setLineDash([]);
+    }
+    // Micro-racimo apretado (colonias enanas).
+    var pts = [[0, 0, 0.42], [-0.42, -0.30, 0.30], [0.44, -0.26, 0.30], [-0.30, 0.42, 0.26], [0.34, 0.40, 0.28]];
+    for (var i = 0; i < pts.length; i++) {
+      var cx = pts[i][0] * R, cy = pts[i][1] * R, rr = pts[i][2] * R;
+      var g = ctx.createRadialGradient(cx - rr * 0.3, cy - rr * 0.3, rr * 0.1, cx, cy, rr);
+      g.addColorStop(0, e.def.colorLight);
+      g.addColorStop(0.6, e.def.color);
+      g.addColorStop(1, e.def.colorDark);
+      ctx.fillStyle = hit ? "#fff" : g;
+      ctx.beginPath(); ctx.arc(cx, cy, rr, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = e.def.colorDark; ctx.lineWidth = Math.max(0.9, 1.1 * U); ctx.stroke();
+    }
+    // Metabolismo deprimido: latido MUY lento y tenue.
+    var slowPulse = 0.25 + 0.2 * Math.sin(t * 0.9);
+    ctx.strokeStyle = colorAlpha(e.def.colorLight, slowPulse);
+    ctx.lineWidth = Math.max(1, 1.2 * U);
+    ctx.beginPath(); ctx.arc(0, 0, R * 1.08, 0, Math.PI * 2); ctx.stroke();
+    germFace(R * 0.62, expression, blink, R * 0.26);
+    ctx.restore();
+  }
+
+  // --- Salmonella ósea: bacilo flagelado --------------------------------
+  function drawSalmonelaOsea(e, rad, expression, blink) {
+    var R = rad, t = state.time, hit = e.hitFlash > 0;
+    ctx.save();
+    ctx.translate(e.x, e.y);
+    // Flagelos perítricos: hebras onduladas alrededor de todo el cuerpo.
+    ctx.strokeStyle = colorAlpha(e.def.colorLight, 0.7);
+    ctx.lineWidth = Math.max(0.8, 1.0 * U);
+    ctx.lineCap = "round";
+    for (var fl = 0; fl < 8; fl++) {
+      var fa = (fl / 8) * Math.PI * 2;
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(fa) * R * 0.7, Math.sin(fa) * R * 0.55);
+      for (var seg = 1; seg <= 5; seg++) {
+        var d2 = R * (0.7 + seg * 0.20);
+        var wob = Math.sin(t * 9 + fl * 1.3 + seg * 0.9) * R * 0.13;
+        ctx.lineTo(Math.cos(fa) * d2 + Math.cos(fa + Math.PI / 2) * wob,
+                   Math.sin(fa) * d2 + Math.sin(fa + Math.PI / 2) * wob);
+      }
+      ctx.stroke();
+    }
+    // Cuerpo: bacilo alargado.
+    var g = ctx.createLinearGradient(0, -R * 0.6, 0, R * 0.6);
+    g.addColorStop(0, e.def.colorLight);
+    g.addColorStop(0.5, e.def.color);
+    g.addColorStop(1, e.def.colorDark);
+    ctx.fillStyle = hit ? "#fff" : g;
+    roundRect(-R * 0.78, -R * 0.56, R * 1.56, R * 1.12, R * 0.52);
+    ctx.fill();
+    ctx.strokeStyle = e.def.colorDark; ctx.lineWidth = Math.max(1, 1.4 * U); ctx.stroke();
+    // Sistema de secreción tipo III: aguja corta al frente.
+    ctx.strokeStyle = "rgba(60,80,30,0.85)";
+    ctx.lineWidth = Math.max(1.2, 1.8 * U);
+    ctx.beginPath(); ctx.moveTo(0, R * 0.5); ctx.lineTo(0, R * 0.92); ctx.stroke();
+    germFace(R * 0.62, expression, blink, R * 0.26);
+    ctx.restore();
+  }
+
+  // --- Kingella kingae: cocobacilo chiquito en pares/cadenitas -----------
+  function drawKingella(e, rad, expression, blink) {
+    var R = rad, t = state.time, hit = e.hitFlash > 0;
+    ctx.save();
+    ctx.translate(e.x, e.y);
+    var bob = Math.sin(t * 5 + (e.wobble || 0)) * R * 0.10;
+    for (var i = 0; i < 3; i++) {
+      var cx = (i - 1) * R * 0.62;
+      var cy = bob * (i === 1 ? -1 : 0.6);
+      var rr = R * (i === 1 ? 0.50 : 0.44);
+      var g = ctx.createRadialGradient(cx - rr * 0.3, cy - rr * 0.3, rr * 0.08, cx, cy, rr);
+      g.addColorStop(0, e.def.colorLight);
+      g.addColorStop(0.6, e.def.color);
+      g.addColorStop(1, e.def.colorDark);
+      ctx.fillStyle = hit ? "#fff" : g;
+      ctx.beginPath(); ctx.ellipse(cx, cy, rr, rr * 0.86, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = e.def.colorDark; ctx.lineWidth = Math.max(0.9, 1.1 * U); ctx.stroke();
+    }
+    // Toxina RTX: pequeños destellos que salen hacia adelante.
+    ctx.fillStyle = "rgba(255,180,220,0.6)";
+    for (var k = 0; k < 3; k++) {
+      var kp = (t * 1.6 + k * 0.33) % 1;
+      ctx.globalAlpha = 0.6 * (1 - kp);
+      ctx.beginPath();
+      ctx.arc((k - 1) * R * 0.4, R * (0.6 + kp * 0.8), R * 0.10, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    germFace(R * 0.52, expression, blink, R * 0.24);
+    ctx.restore();
+  }
+
+  // --- Absceso de Brodie (BOSS de osteomielitis) -------------------------
+  function drawBossBrodie(e, rad, expression, blink) {
+    var R = rad, t = state.time, hit = e.hitFlash > 0;
+    ctx.save();
+    ctx.translate(e.x, e.y);
+    // Hueso esclerótico: cápsula gruesa e irregular alrededor de la cavidad.
+    ctx.fillStyle = hit ? "#fff" : "#a89a68";
+    ctx.beginPath();
+    for (var a = 0; a <= 16; a++) {
+      var ang = (a / 16) * Math.PI * 2;
+      var rr = R * (1.0 + 0.10 * Math.sin(a * 2.3) + 0.03 * Math.sin(t * 1.2 + a));
+      var px = Math.cos(ang) * rr, py = Math.sin(ang) * rr * 0.92;
+      if (a === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = "#4d431e"; ctx.lineWidth = Math.max(1.6, 2.4 * U); ctx.stroke();
+    // Cavidad de pus: interior amarillento que burbujea.
+    var g = ctx.createRadialGradient(-R * 0.2, -R * 0.2, R * 0.1, 0, 0, R * 0.72);
+    g.addColorStop(0, "#f5e7a8");
+    g.addColorStop(0.7, "#cbb055");
+    g.addColorStop(1, "#8a7b3a");
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(0, 0, R * 0.70, 0, Math.PI * 2); ctx.fill();
+    // Burbujas de pus subiendo.
+    ctx.fillStyle = "rgba(255,250,210,0.65)";
+    for (var b = 0; b < 6; b++) {
+      var bp = ((t * 0.5 + b * 0.17) % 1);
+      var bx = Math.sin(b * 2.1) * R * 0.42;
+      var by = R * 0.55 - bp * R * 1.1;
+      ctx.beginPath(); ctx.arc(bx, by, R * (0.07 + 0.05 * (1 - bp)), 0, Math.PI * 2); ctx.fill();
+    }
+    // Grietas de la cápsula (por donde siembra).
+    ctx.strokeStyle = "rgba(60,50,20,0.7)";
+    ctx.lineWidth = Math.max(1, 1.4 * U);
+    for (var c = 0; c < 5; c++) {
+      var ca = (c / 5) * Math.PI * 2 + 0.4;
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(ca) * R * 0.72, Math.sin(ca) * R * 0.68);
+      ctx.lineTo(Math.cos(ca) * R * 1.02, Math.sin(ca) * R * 0.95);
+      ctx.stroke();
+    }
+    germFace(R * 0.55, expression, blink, R * 0.30);
+    ctx.restore();
+  }
+
+  // --- Gonococo articular: diplococo con pili, versión articular ---------
+  function drawGonoArticular(e, rad, expression, blink) {
+    var R = rad, t = state.time, hit = e.hitFlash > 0;
+    ctx.save();
+    ctx.translate(e.x, e.y);
+    // Halo inflamatorio (la artritis gonocócica es MUY inflamatoria).
+    var infl = 0.5 + 0.5 * Math.sin(t * 2.4);
+    var hg = ctx.createRadialGradient(0, 0, R * 0.7, 0, 0, R * 1.5);
+    hg.addColorStop(0, "rgba(255,140,80," + (0.14 + 0.06 * infl) + ")");
+    hg.addColorStop(1, "rgba(255,140,80,0)");
+    ctx.fillStyle = hg;
+    ctx.beginPath(); ctx.arc(0, 0, R * 1.5, 0, Math.PI * 2); ctx.fill();
+    // Pili tipo IV.
+    ctx.strokeStyle = colorAlpha(e.def.colorLight, 0.6);
+    ctx.lineWidth = Math.max(0.7, 0.9 * U);
+    for (var p = 0; p < 14; p++) {
+      var pa = (p / 14) * Math.PI * 2 + Math.sin(t * 1.4) * 0.1;
+      var len = R * (1.0 + 0.3 * Math.sin(t * 4.5 + p));
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(pa) * R * 0.62, Math.sin(pa) * R * 0.62);
+      ctx.lineTo(Math.cos(pa) * len, Math.sin(pa) * len);
+      ctx.stroke();
+    }
+    // Par de cocos en grano de café.
+    for (var s = -1; s <= 1; s += 2) {
+      ctx.save();
+      ctx.translate(s * R * 0.42, 0);
+      var g = ctx.createRadialGradient(-R * 0.16, -R * 0.2, R * 0.05, 0, 0, R * 0.64);
+      g.addColorStop(0, e.def.colorLight);
+      g.addColorStop(0.55, e.def.color);
+      g.addColorStop(1, e.def.colorDark);
+      ctx.fillStyle = hit ? "#fff" : g;
+      ctx.beginPath(); ctx.ellipse(0, 0, R * 0.52, R * 0.64, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = e.def.colorDark; ctx.lineWidth = Math.max(1, 1.3 * U); ctx.stroke();
+      ctx.restore();
+    }
+    germFace(R * 0.74, expression, blink, R * 0.28);
+    ctx.restore();
+  }
+
+  // --- Borrelia: espiroqueta en tirabuzón --------------------------------
+  function drawBorrelia(e, rad, expression, blink) {
+    var R = rad, t = state.time, hit = e.hitFlash > 0;
+    var sp = e.def.spirochete || { coils: 7, amplitude: 26, frequency: 2.2 };
+    ctx.save();
+    ctx.translate(e.x, e.y);
+    var heading = Math.atan2(e.vy || 0, e.vx || 0.001);
+    ctx.rotate(heading);
+    // Cuerpo helicoidal: onda sinusoidal gruesa que "avanza" con el tiempo.
+    ctx.strokeStyle = hit ? "#fff" : e.def.color;
+    ctx.lineWidth = Math.max(1.8, R * 0.30);
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    var L = R * 2.4;
+    for (var i = 0; i <= 40; i++) {
+      var f = i / 40;
+      var x = -L / 2 + f * L;
+      var y = Math.sin(f * Math.PI * 2 * (sp.coils / 3) - t * sp.frequency * 2) * R * 0.42
+              * Math.sin(f * Math.PI);   // se afina en las puntas
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+    // Línea interior clara (flagelos periplásmicos).
+    ctx.strokeStyle = colorAlpha(e.def.colorLight, 0.75);
+    ctx.lineWidth = Math.max(0.8, R * 0.11);
+    ctx.beginPath();
+    for (var j = 0; j <= 40; j++) {
+      var f2 = j / 40;
+      var x2 = -L / 2 + f2 * L;
+      var y2 = Math.sin(f2 * Math.PI * 2 * (sp.coils / 3) - t * sp.frequency * 2 + 0.5) * R * 0.34
+               * Math.sin(f2 * Math.PI);
+      if (j === 0) ctx.moveTo(x2, y2); else ctx.lineTo(x2, y2);
+    }
+    ctx.stroke();
+    ctx.restore();
+    // Cabeza con cara, en el extremo delantero, sin rotar.
+    ctx.save();
+    ctx.translate(e.x + Math.cos(heading) * R * 0.95, e.y + Math.sin(heading) * R * 0.95);
+    ctx.fillStyle = hit ? "#fff" : e.def.colorDark;
+    ctx.beginPath(); ctx.arc(0, 0, R * 0.46, 0, Math.PI * 2); ctx.fill();
+    germFace(R * 0.44, expression, blink, R * 0.20);
+    ctx.restore();
+  }
+
+  // --- S. pyogenes articular: cadena con cápsula hialurónica -------------
+  function drawPyogenesArt(e, rad, expression, blink) {
+    var R = rad, t = state.time, hit = e.hitFlash > 0;
+    ctx.save();
+    ctx.translate(e.x, e.y);
+    // Cápsula de ácido hialurónico: halo gelatinoso.
+    var cap = ctx.createRadialGradient(0, 0, R * 0.6, 0, 0, R * 1.35);
+    cap.addColorStop(0, "rgba(250,190,205,0.22)");
+    cap.addColorStop(1, "rgba(250,190,205,0)");
+    ctx.fillStyle = cap;
+    ctx.beginPath(); ctx.arc(0, 0, R * 1.35, 0, Math.PI * 2); ctx.fill();
+    // Cadena corta de 4 cocos en zigzag.
+    for (var i = 0; i < 4; i++) {
+      var f = i / 3 - 0.5;
+      var cx = f * R * 1.25;
+      var cy = Math.sin(t * 2.2 + i * 1.2) * R * 0.16;
+      var rr = R * 0.44;
+      var g = ctx.createRadialGradient(cx - rr * 0.3, cy - rr * 0.3, rr * 0.08, cx, cy, rr);
+      g.addColorStop(0, e.def.colorLight);
+      g.addColorStop(0.55, e.def.color);
+      g.addColorStop(1, e.def.colorDark);
+      ctx.fillStyle = hit ? "#fff" : g;
+      ctx.beginPath(); ctx.arc(cx, cy, rr, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = e.def.colorDark; ctx.lineWidth = Math.max(1, 1.3 * U); ctx.stroke();
+    }
+    // Enzimas líticas: chorros cortos que disuelven el cartílago debajo.
+    ctx.strokeStyle = "rgba(255,120,150,0.55)";
+    ctx.lineWidth = Math.max(1, 1.3 * U);
+    for (var s = 0; s < 4; s++) {
+      var sp2 = ((t * 1.3 + s * 0.25) % 1);
+      ctx.globalAlpha = 0.6 * (1 - sp2);
+      var sx = (s - 1.5) * R * 0.5;
+      ctx.beginPath();
+      ctx.moveTo(sx, R * 0.6);
+      ctx.lineTo(sx, R * (0.6 + sp2 * 0.8));
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+    germFace(R * 0.66, expression, blink, R * 0.28);
+    ctx.restore();
+  }
+
+  // --- Pannus séptico (BOSS de artritis) ---------------------------------
+  function drawBossPannus(e, rad, expression, blink) {
+    var R = rad, t = state.time, hit = e.hitFlash > 0;
+    ctx.save();
+    ctx.translate(e.x, e.y);
+    // Masa de tejido de granulación: lóbulos irregulares que reptan.
+    ctx.fillStyle = hit ? "#fff" : e.def.colorDark;
+    ctx.beginPath();
+    for (var a = 0; a <= 20; a++) {
+      var ang = (a / 20) * Math.PI * 2;
+      var rr = R * (1.0 + 0.16 * Math.sin(a * 1.7 + t * 0.8) + 0.08 * Math.sin(a * 3.1));
+      var px = Math.cos(ang) * rr, py = Math.sin(ang) * rr;
+      if (a === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+    ctx.fill();
+    // Vasos de neoformación: red roja que late sobre la masa.
+    ctx.strokeStyle = "rgba(230,90,110,0.75)";
+    ctx.lineWidth = Math.max(1, 1.5 * U);
+    for (var v = 0; v < 7; v++) {
+      var va = (v / 7) * Math.PI * 2 + t * 0.2;
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.quadraticCurveTo(Math.cos(va) * R * 0.5, Math.sin(va) * R * 0.5,
+                           Math.cos(va + 0.3) * R * 0.95, Math.sin(va + 0.3) * R * 0.9);
+      ctx.stroke();
+    }
+    // Centro de sinoviocitos activados.
+    var g = ctx.createRadialGradient(-R * 0.15, -R * 0.15, R * 0.08, 0, 0, R * 0.6);
+    g.addColorStop(0, e.def.colorLight);
+    g.addColorStop(0.6, e.def.color);
+    g.addColorStop(1, e.def.colorDark);
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(0, 0, R * 0.58, 0, Math.PI * 2); ctx.fill();
+    // Borde erosivo: dientes que muerden el cartílago.
+    ctx.fillStyle = "rgba(255,230,235,0.55)";
+    for (var d = 0; d < 10; d++) {
+      var da = (d / 10) * Math.PI * 2 + t * 0.35;
+      var bite = R * (1.02 + 0.06 * Math.sin(t * 3 + d));
+      ctx.beginPath();
+      ctx.arc(Math.cos(da) * bite, Math.sin(da) * bite, R * 0.09, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    germFace(R * 0.52, expression, blink, R * 0.30);
+    ctx.restore();
+  }
+
   function drawLeishmania(e, rad, expression, blink) {
     var R = rad, t = state.time;
     var amastigote = !!e.leishAmastigote;
@@ -22011,6 +24222,15 @@
     else if (typeId === "pdc")            drawPDC(fakeTower, pulse, "idle", false);
     else if (typeId === "linfocitogd")    drawLinfocitoGD(fakeTower, pulse, "idle", false);
     else if (typeId === "ilc2")           drawILC2(fakeTower, pulse, "idle", false);
+    else if (typeId === "endotelial")     drawEndotelial(fakeTower, pulse, "idle", false);
+    else if (typeId === "monocito")       drawMonocito(fakeTower, pulse, "idle", false);
+    else if (typeId === "macrofagoCardiaco") drawMacrofagoCardiaco(fakeTower, pulse, "idle", false);
+    else if (typeId === "osteoclasto")    drawOsteoclasto(fakeTower, pulse, "idle", false);
+    else if (typeId === "osteoblasto")    drawOsteoblasto(fakeTower, pulse, "idle", false);
+    else if (typeId === "osteocito")      drawOsteocito(fakeTower, pulse, "idle", false);
+    else if (typeId === "sinoviocitoA")   drawSinoviocitoA(fakeTower, pulse, "idle", false);
+    else if (typeId === "sinoviocitoB")   drawSinoviocitoB(fakeTower, pulse, "idle", false);
+    else if (typeId === "condrocito")     drawCondrocito(fakeTower, pulse, "idle", false);
     else {
       // Fallback al ícono simple si no hay función dedicada.
       ctx.translate(-cx, -cy);
@@ -22372,7 +24592,8 @@
       ctx.fillText(String(atpNumL), leftX, atpNumY);
       ctx.restore();
       state.atpHudPos = { x: leftX + 10 * U, y: atpNumY + fontStat * 0.4 };
-      drawHudStat("⊛ Acto", state.dissemination ? "II — Diseminación" : "I — Invasión",
+      drawHudStat("⊛ Acto", state.f2 ? ("III — " + state.f2.cfg.label)
+                          : (state.dissemination ? "II — Diseminación" : "I — Invasión"),
         leftX + Math.min(160, VW * 0.22), statsY, "#d6c0a0", fontStat, fontLabel);
     }
     // Viral load bar — solo en Fase 1. En Diseminación no aplica (el
@@ -22555,8 +24776,10 @@
     // Todo dentro del strip con scroll vertical y clipping.
     var strip = UI.cardStrip;
     var scroll = state.panelScroll || 0;
-    // HINT: si el loadout está vacío, mostrar mensaje en lugar de cards.
-    if (loadoutEmpty() && strip && strip.h > 0) {
+    // HINT: si NO hay ninguna carta que mostrar (loadout vacío y sin torres
+    // residentes de órgano, que no consumen ranura), mostrar el mensaje.
+    var dockHasCards = UI.cards && UI.cards.length > 0;
+    if (!dockHasCards && strip && strip.h > 0) {
       ctx.save();
       var hintX = strip.x + strip.w / 2;
       var hintY = strip.y + Math.min(strip.h * 0.40, 80);
@@ -22578,7 +24801,7 @@
       ctx.fillText("+ 1 barrera)", hintX, hintY + 106);
       ctx.restore();
     }
-    if (strip && strip.h > 0 && !loadoutEmpty()) {
+    if (strip && strip.h > 0 && dockHasCards) {
       ctx.save();
       ctx.beginPath();
       ctx.rect(strip.x - 6, strip.y, strip.w + 12, strip.h);
@@ -22822,6 +25045,15 @@
     else if (def.id === "pdc") drawPDC(fakeTower, 1, "idle", false);
     else if (def.id === "linfocitogd") drawLinfocitoGD(fakeTower, 1, "idle", false);
     else if (def.id === "ilc2") drawILC2(fakeTower, 1, "idle", false);
+    else if (def.id === "endotelial") drawEndotelial(fakeTower, 1, "idle", false);
+    else if (def.id === "monocito") drawMonocito(fakeTower, 1, "idle", false);
+    else if (def.id === "macrofagoCardiaco") drawMacrofagoCardiaco(fakeTower, 1, "idle", false);
+    else if (def.id === "osteoclasto") drawOsteoclasto(fakeTower, 1, "idle", false);
+    else if (def.id === "osteoblasto") drawOsteoblasto(fakeTower, 1, "idle", false);
+    else if (def.id === "osteocito") drawOsteocito(fakeTower, 1, "idle", false);
+    else if (def.id === "sinoviocitoA") drawSinoviocitoA(fakeTower, 1, "idle", false);
+    else if (def.id === "sinoviocitoB") drawSinoviocitoB(fakeTower, 1, "idle", false);
+    else if (def.id === "condrocito") drawCondrocito(fakeTower, 1, "idle", false);
     else drawLinfocitoT(fakeTower, 1, "idle", false);
     ctx.globalAlpha = 1;
     ctx.restore();
@@ -23141,6 +25373,19 @@
     else if (def.id === "bossPyogenes") drawBossPyogenes(fakeEnemy, R, "idle", false);
     else if (def.id === "bossMRSA") drawBossMRSA(fakeEnemy, R, "idle", false);
     else if (def.id === "bossClostridium") drawBossClostridium(fakeEnemy, R, "idle", false);
+    // --- Fase 2: gérmenes de órgano (mismo dispatch que drawEnemy) ---
+    else if (def.id === "viridans") drawViridans(fakeEnemy, R, "idle", false);
+    else if (def.id === "enterococo") drawEnterococo(fakeEnemy, R, "idle", false);
+    else if (def.id === "hacek") drawHacek(fakeEnemy, R, "idle", false);
+    else if (def.id === "bossEndocarditis") drawBossEndocarditis(fakeEnemy, R, "idle", false);
+    else if (def.id === "aureusSCV") { fakeEnemy.revealed = true; drawAureusSCV(fakeEnemy, R, "idle", false); }
+    else if (def.id === "salmonelaOsea") drawSalmonelaOsea(fakeEnemy, R, "idle", false);
+    else if (def.id === "kingella") drawKingella(fakeEnemy, R, "idle", false);
+    else if (def.id === "bossBrodie") drawBossBrodie(fakeEnemy, R, "idle", false);
+    else if (def.id === "gonoArticular") drawGonoArticular(fakeEnemy, R, "idle", false);
+    else if (def.id === "borrelia") { fakeEnemy.vx = 1; fakeEnemy.vy = 0; drawBorrelia(fakeEnemy, R, "idle", false); }
+    else if (def.id === "pyogenesArt") drawPyogenesArt(fakeEnemy, R, "idle", false);
+    else if (def.id === "bossPannus") drawBossPannus(fakeEnemy, R, "idle", false);
     else if (kind === "bacteria") drawBacteria(fakeEnemy, R, "idle", false);
     else if (kind === "virus") drawVirus(fakeEnemy, R, "idle", false);
     else if (kind === "hongo") drawHongo(fakeEnemy, R, "idle", false);
@@ -24432,16 +26677,23 @@
     // CÁMARA DE SCROLL de Diseminación: el mundo mide 1.25× el viewport; se
     // desplaza en vertical (state.dsScrollY) y se recorta al viewport para que
     // el contenido desplazado no invada el HUD.
-    var dsCam = !!state.dissemination;
+    var dsCam = camActive();
     if (dsCam) {
-      var dsMax = dsMaxScrollY();
+      var dsMax = dsMaxScrollY(), dsMaxX = dsMaxScrollX();
       if (state.dsScrollY == null) state.dsScrollY = 0;
+      if (state.dsScrollX == null) state.dsScrollX = 0;
       state.dsScrollY = Math.max(0, Math.min(dsMax, state.dsScrollY));
+      state.dsScrollX = Math.max(0, Math.min(dsMaxX, state.dsScrollX));
       ctx.save();
       ctx.beginPath(); ctx.rect(FIELD_LEFT, FIELD_TOP, FIELD_W, FIELD_H); ctx.clip();
-      ctx.translate(0, -state.dsScrollY);
+      ctx.translate(-state.dsScrollX, -state.dsScrollY);
     }
-    if (state.dissemination) {
+    if (state.f2) {
+      safeDraw("F2Field", drawF2Field);
+      safeDraw("F2Structures", drawF2Structures);
+      safeDraw("AntigenDrops", drawAntigenDrops);
+      safeDraw("Nets", drawNets);
+    } else if (state.dissemination) {
       safeDraw("DisseminationField", drawDisseminationField);
       safeDraw("AntigenDrops", drawAntigenDrops);
       safeDraw("Nets", drawNets);
@@ -24546,11 +26798,24 @@
         ctx.save();
         ctx.fillStyle = "rgba(255,255,255,0.10)";
         ctx.fillRect(trackX, trackY, 3 * U, trackH);
-        var frac = FIELD_H / (FIELD_H * DS_STRETCH);
+        var frac = FIELD_H / dsWorldH();
         var thumbH = trackH * frac;
         var thumbY = trackY + (trackH - thumbH) * (state.dsScrollY / dsMaxScrollY());
         ctx.fillStyle = "rgba(255,226,120,0.55)";
         ctx.fillRect(trackX, thumbY, 3 * U, thumbH);
+        ctx.restore();
+      }
+      // Barra HORIZONTAL (solo cuando el mundo es más ancho que el viewport).
+      if (dsMaxScrollX() > 0) {
+        var hTrackY = FIELD_BOTTOM - 5 * U, hTrackX = FIELD_LEFT + 6 * U, hTrackW = FIELD_W - 12 * U;
+        ctx.save();
+        ctx.fillStyle = "rgba(255,255,255,0.10)";
+        ctx.fillRect(hTrackX, hTrackY, hTrackW, 3 * U);
+        var fracW = FIELD_W / dsWorldW();
+        var thumbW = hTrackW * fracW;
+        var thumbX = hTrackX + (hTrackW - thumbW) * (state.dsScrollX / dsMaxScrollX());
+        ctx.fillStyle = "rgba(255,226,120,0.55)";
+        ctx.fillRect(thumbX, hTrackY, thumbW, 3 * U);
         ctx.restore();
       }
     }
@@ -24571,9 +26836,15 @@
       drawComplementMeter();
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       drawMacrofagoUltMeter();
-      if (state.dissemination) {
+      if (state.dissemination && !state.f2) {
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         drawImmuneResponsePanel();
+      }
+      if (state.f2) {
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        drawF2Hud();
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        drawF2Overlays();
       }
     }
     // Compendio: por encima de todo lo demás cuando está abierto.
@@ -24711,6 +26982,427 @@
   }
 
   // -------- NIVEL PUENTE: RENDER -------------------------------------------
+  // ============ RENDER DE FASE 2 (niveles de órgano) ======================
+  function drawF2Field() {
+    if (!state.f2 || !PATH.laneXs) return;
+    var f = state.f2, cfg = f.cfg;
+    var worldW = dsWorldW(), worldH = dsWorldH();
+    var g = ctx.createLinearGradient(FIELD_LEFT, FIELD_TOP, FIELD_LEFT + worldW, FIELD_TOP + worldH);
+    g.addColorStop(0, cfg.bg[0]);
+    g.addColorStop(0.55, cfg.bg[1]);
+    g.addColorStop(1, cfg.bg[2]);
+    ctx.fillStyle = g;
+    ctx.fillRect(FIELD_LEFT, FIELD_TOP, worldW, worldH);
+    // Anatomía de fondo propia de cada órgano.
+    if (cfg.mechanic === "pulso")     drawValveAnatomy(worldW, worldH, cfg);
+    if (cfg.mechanic === "secuestro") drawBoneAnatomy(worldW, worldH, cfg);
+    if (cfg.mechanic === "cartilago") drawJointAnatomy(worldW, worldH, cfg);
+    // Bandas de carril.
+    var laneW = worldW * 0.155;
+    var bandTop = FIELD_TOP + worldH * 0.03;
+    var bandBottom = FIELD_TOP + worldH * 0.97;
+    for (var i = 0; i < PATH.laneXs.length; i++) {
+      var xc = FIELD_LEFT + PATH.laneXs[i] * worldW;
+      ctx.fillStyle = cfg.tint;
+      ctx.fillRect(xc - laneW / 2, bandTop, laneW, bandBottom - bandTop);
+      var fl = f.focusFlash[i] || 0;
+      if (fl > 0) {
+        ctx.fillStyle = colorAlpha(cfg.colorLight, 0.16 * Math.min(1, fl / 0.6));
+        ctx.fillRect(xc - laneW / 2, bandTop, laneW, bandBottom - bandTop);
+      }
+    }
+    // Marco del área jugable.
+    ctx.strokeStyle = colorAlpha(cfg.colorLight, 0.16);
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(FIELD_LEFT + worldW * 0.02, bandTop, worldW * 0.96, bandBottom - bandTop);
+    // Entradas (siembra hematógena) y focos del órgano.
+    for (var k = 0; k < PATH.wounds.length; k++) {
+      var w = PATH.wounds[k];
+      var d = PATH.organDoors[k];
+      drawDisseminationCrack(w.x, w.y);
+      ctx.save();
+      ctx.font = "bold " + Math.floor(10 * U) + "px Fredoka, sans-serif";
+      ctx.fillStyle = colorAlpha(cfg.colorLight, 0.9);
+      ctx.textAlign = "center"; ctx.textBaseline = "top";
+      ctx.fillText(cfg.foci[k] || "", w.x, w.y + 16 * U);
+      ctx.restore();
+      drawF2Focus(d.x, d.y, cfg, f.focusFlash[k] || 0, k);
+    }
+  }
+
+  // Foco del órgano: la estructura al final de cada carril. Recibe el impacto.
+  function drawF2Focus(x, y, cfg, flash, idx) {
+    var r = 22 * U;
+    ctx.save();
+    ctx.translate(x, y);
+    // Plato receptor (plano, radio 4 — convención visual del juego).
+    ctx.fillStyle = colorAlpha(cfg.colorDark, 0.95);
+    roundRect(-r, -r * 0.55, r * 2, r * 1.1, 4 * U);
+    ctx.fill();
+    ctx.strokeStyle = colorAlpha(cfg.colorLight, flash > 0 ? 0.95 : 0.45);
+    ctx.lineWidth = 2;
+    roundRect(-r, -r * 0.55, r * 2, r * 1.1, 4 * U);
+    ctx.stroke();
+    // Boca del foco (por donde entra el germen).
+    ctx.fillStyle = colorAlpha("#000000", 0.55);
+    roundRect(-r * 0.6, -r * 0.28, r * 1.2, r * 0.56, 4 * U);
+    ctx.fill();
+    if (flash > 0) {
+      ctx.fillStyle = colorAlpha(cfg.colorLight, 0.35 * Math.min(1, flash / 0.6));
+      roundRect(-r * 0.6, -r * 0.28, r * 1.2, r * 0.56, 4 * U);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  // --- Anatomías de fondo -------------------------------------------------
+  // Válvula mitral: velos, cuerdas tendinosas y latido.
+  function drawValveAnatomy(worldW, worldH, cfg) {
+    var f = state.f2;
+    var beat = f.inSystole ? 1 : 0;
+    var pulseAmp = 1 + (f.inSystole ? 0.035 : 0);
+    ctx.save();
+    // Anillo valvular arriba (de donde cuelgan los velos).
+    ctx.strokeStyle = colorAlpha(cfg.colorLight, 0.22);
+    ctx.lineWidth = 4 * U * pulseAmp;
+    ctx.beginPath();
+    ctx.ellipse(FIELD_LEFT + worldW * 0.5, FIELD_TOP + worldH * 0.035,
+                worldW * 0.44, worldH * 0.03, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    // Cuerdas tendinosas: hilos verticales sutiles entre carriles.
+    ctx.strokeStyle = colorAlpha("#f0d0d8", 0.10);
+    ctx.lineWidth = 1;
+    for (var i = 0; i < 26; i++) {
+      var xx = FIELD_LEFT + worldW * (0.04 + (i / 25) * 0.92);
+      var sway = Math.sin(f.fxT * 1.6 + i) * 5 * U * (beat ? 2.2 : 1);
+      ctx.beginPath();
+      ctx.moveTo(xx, FIELD_TOP + worldH * 0.10);
+      ctx.quadraticCurveTo(xx + sway, FIELD_TOP + worldH * 0.55,
+                           xx + sway * 0.4, FIELD_TOP + worldH * 0.90);
+      ctx.stroke();
+    }
+    // Miocardio de fondo latiendo (bandas curvas).
+    ctx.strokeStyle = colorAlpha(cfg.color, 0.13 + beat * 0.06);
+    ctx.lineWidth = 8 * U;
+    for (var b = 0; b < 4; b++) {
+      var yy = FIELD_TOP + worldH * (0.20 + b * 0.20);
+      ctx.beginPath();
+      ctx.moveTo(FIELD_LEFT, yy);
+      ctx.quadraticCurveTo(FIELD_LEFT + worldW * 0.5, yy + worldH * 0.035 * (beat ? 1.6 : 1),
+                           FIELD_LEFT + worldW, yy);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  // Hueso: trabéculas, osteonas concéntricas y canal medular.
+  function drawBoneAnatomy(worldW, worldH, cfg) {
+    var f = state.f2;
+    ctx.save();
+    // Cortical a los costados.
+    ctx.fillStyle = colorAlpha("#8a7c58", 0.30);
+    ctx.fillRect(FIELD_LEFT, FIELD_TOP, worldW * 0.055, worldH);
+    ctx.fillRect(FIELD_LEFT + worldW * 0.945, FIELD_TOP, worldW * 0.055, worldH);
+    // Osteonas: círculos concéntricos repartidos.
+    ctx.strokeStyle = colorAlpha(cfg.colorLight, 0.10);
+    ctx.lineWidth = 1;
+    for (var i = 0; i < 22; i++) {
+      var ox = FIELD_LEFT + worldW * (0.08 + ((i * 37) % 84) / 100);
+      var oy = FIELD_TOP + worldH * (0.08 + ((i * 53) % 84) / 100);
+      for (var r = 1; r <= 3; r++) {
+        ctx.beginPath();
+        ctx.arc(ox, oy, r * 7 * U, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      ctx.fillStyle = colorAlpha("#000000", 0.30);
+      ctx.beginPath(); ctx.arc(ox, oy, 2.5 * U, 0, Math.PI * 2); ctx.fill();
+    }
+    // Trabéculas diagonales.
+    ctx.strokeStyle = colorAlpha("#e6dcb8", 0.07);
+    ctx.lineWidth = 2;
+    for (var t = 0; t < 30; t++) {
+      var tx = FIELD_LEFT + worldW * (t / 30);
+      ctx.beginPath();
+      ctx.moveTo(tx, FIELD_TOP + worldH * 0.06);
+      ctx.lineTo(tx + worldW * 0.10, FIELD_TOP + worldH * 0.94);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  // Articulación: líquido sinovial, cartílago y menisco.
+  function drawJointAnatomy(worldW, worldH, cfg) {
+    var f = state.f2, cfg2 = cfg;
+    ctx.save();
+    // Cartílago articular: franja superior cuyo grosor DEPENDE del daño.
+    var frac = cfg2.cartilageMax ? (f.cartilage / cfg2.cartilageMax) : 1;
+    var cartH = worldH * 0.055 * Math.max(0.12, frac);
+    ctx.fillStyle = colorAlpha("#eef4f6", 0.55 * Math.max(0.25, frac));
+    ctx.fillRect(FIELD_LEFT, FIELD_TOP + worldH * 0.015, worldW, cartH);
+    // Borde comido (irregular) cuando hay daño.
+    if (frac < 0.98) {
+      ctx.fillStyle = colorAlpha(cfg2.colorDark, 0.6);
+      for (var i = 0; i < 40; i++) {
+        var bx = FIELD_LEFT + worldW * (i / 40);
+        var bite = (1 - frac) * cartH * (0.4 + Math.abs(Math.sin(i * 2.7)) * 0.8);
+        ctx.fillRect(bx, FIELD_TOP + worldH * 0.015 + cartH - bite, worldW / 40 + 1, bite);
+      }
+    }
+    // Líquido sinovial: remolinos lentos.
+    ctx.strokeStyle = colorAlpha(cfg2.colorLight, 0.10);
+    ctx.lineWidth = 2;
+    for (var s = 0; s < 12; s++) {
+      var sx = FIELD_LEFT + worldW * (0.05 + (s / 12) * 0.9);
+      var sy = FIELD_TOP + worldH * (0.25 + ((s * 31) % 60) / 100);
+      var ph = f.fxT * 0.5 + s;
+      ctx.beginPath();
+      ctx.arc(sx + Math.cos(ph) * 8 * U, sy + Math.sin(ph) * 6 * U, (12 + (s % 4) * 6) * U,
+              0, Math.PI * 1.4);
+      ctx.stroke();
+    }
+    // Menisco abajo (cuña).
+    ctx.fillStyle = colorAlpha("#cfe4e8", 0.16);
+    ctx.beginPath();
+    ctx.moveTo(FIELD_LEFT, FIELD_TOP + worldH);
+    ctx.lineTo(FIELD_LEFT + worldW, FIELD_TOP + worldH);
+    ctx.lineTo(FIELD_LEFT + worldW, FIELD_TOP + worldH * 0.965);
+    ctx.quadraticCurveTo(FIELD_LEFT + worldW * 0.5, FIELD_TOP + worldH * 0.995,
+                         FIELD_LEFT, FIELD_TOP + worldH * 0.965);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // Estructuras interactivas: secuestros, involucros y la BASE del órgano.
+  function drawF2Structures() {
+    if (!state.f2) return;
+    var f = state.f2, cfg = f.cfg;
+    // Secuestros óseos (hueso muerto): mientras no se rompan, blindan.
+    for (var i = 0; i < f.sequestra.length; i++) {
+      var sq = f.sequestra[i];
+      if (sq.broken) continue;
+      ctx.save();
+      ctx.translate(sq.x, sq.y);
+      ctx.fillStyle = colorAlpha("#6b6040", 0.85);
+      ctx.beginPath();
+      for (var a = 0; a < 9; a++) {
+        var ang = (a / 9) * Math.PI * 2;
+        var rr = sq.r * (0.78 + ((a * 37) % 10) / 40);
+        if (a === 0) ctx.moveTo(Math.cos(ang) * rr, Math.sin(ang) * rr);
+        else ctx.lineTo(Math.cos(ang) * rr, Math.sin(ang) * rr);
+      }
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = colorAlpha(sq.flash > 0 ? "#ffd680" : "#3d3518", 0.9);
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      // Barra de resistencia del secuestro.
+      var bw = sq.r * 1.4;
+      ctx.fillStyle = "rgba(0,0,0,0.45)";
+      ctx.fillRect(-bw / 2, sq.r * 0.82, bw, 3 * U);
+      ctx.fillStyle = "#d8b45a";
+      ctx.fillRect(-bw / 2, sq.r * 0.82, bw * (sq.hp / sq.maxHp), 3 * U);
+      ctx.restore();
+    }
+    // Involucros (muros de hueso nuevo del Osteoblasto).
+    for (var w = 0; w < f.walls.length; w++) {
+      var wl = f.walls[w];
+      ctx.save();
+      ctx.translate(wl.x, wl.y);
+      ctx.fillStyle = colorAlpha("#e0d2a4", 0.92);
+      roundRect(-wl.w / 2, -wl.h / 2, wl.w, wl.h, 4 * U);
+      ctx.fill();
+      ctx.strokeStyle = colorAlpha(wl.flash > 0 ? "#fff0c0" : "#7a6c40", 0.95);
+      ctx.lineWidth = 2;
+      roundRect(-wl.w / 2, -wl.h / 2, wl.w, wl.h, 4 * U);
+      ctx.stroke();
+      ctx.fillStyle = "rgba(0,0,0,0.40)";
+      ctx.fillRect(-wl.w / 2, wl.h / 2 + 2 * U, wl.w, 3 * U);
+      ctx.fillStyle = "#f0e0a8";
+      ctx.fillRect(-wl.w / 2, wl.h / 2 + 2 * U, wl.w * Math.max(0, wl.hp / wl.maxHp), 3 * U);
+      ctx.restore();
+      if (wl.flash > 0) wl.flash -= 0.016;
+    }
+    drawF2Base();
+  }
+
+  // BASE DEL ÓRGANO: estructura propia del jugador con poder activo (tap).
+  function drawF2Base() {
+    var f = state.f2, cfg = f.cfg;
+    var r = f.baseR;
+    var ready = f.baseCd <= 0;
+    var pulse = f.basePulse > 0 ? (1 + 0.18 * f.basePulse) : 1;
+    ctx.save();
+    ctx.translate(f.baseX, f.baseY);
+    ctx.scale(pulse, pulse);
+    // Cuerpo plano hexagonal (estructura, no célula).
+    ctx.beginPath();
+    for (var a = 0; a < 6; a++) {
+      var ang = -Math.PI / 2 + (a / 6) * Math.PI * 2;
+      var px = Math.cos(ang) * r, py = Math.sin(ang) * r * 0.8;
+      if (a === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+    ctx.fillStyle = colorAlpha(cfg.colorDark, 0.95);
+    ctx.fill();
+    ctx.strokeStyle = colorAlpha(ready ? cfg.colorLight : "#6a6a6a", ready ? 0.95 : 0.5);
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+    // Anillo de carga del poder.
+    if (!ready) {
+      var frac = 1 - (f.baseCd / cfg.basePowerCd);
+      ctx.strokeStyle = colorAlpha(cfg.colorLight, 0.85);
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(0, 0, r * 0.78, -Math.PI / 2, -Math.PI / 2 + frac * Math.PI * 2);
+      ctx.stroke();
+    } else {
+      // Latido de "listo".
+      var glow = 0.4 + 0.3 * Math.sin(f.fxT * 3.2);
+      ctx.strokeStyle = colorAlpha(cfg.colorLight, glow);
+      ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(0, 0, r * 0.82, 0, Math.PI * 2); ctx.stroke();
+    }
+    // Símbolo interno por órgano.
+    ctx.strokeStyle = colorAlpha(cfg.colorLight, 0.95);
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    if (cfg.mechanic === "pulso") {
+      // Trazo de ECG.
+      ctx.moveTo(-r * 0.5, 0); ctx.lineTo(-r * 0.2, 0);
+      ctx.lineTo(-r * 0.1, -r * 0.38); ctx.lineTo(0, r * 0.30);
+      ctx.lineTo(r * 0.12, 0); ctx.lineTo(r * 0.5, 0);
+    } else if (cfg.mechanic === "secuestro") {
+      // Canal vascular ramificado.
+      ctx.moveTo(0, r * 0.45); ctx.lineTo(0, -r * 0.15);
+      ctx.moveTo(0, -r * 0.15); ctx.lineTo(-r * 0.32, -r * 0.45);
+      ctx.moveTo(0, -r * 0.15); ctx.lineTo(r * 0.32, -r * 0.45);
+    } else {
+      // Gota de líquido sinovial + aguja.
+      ctx.moveTo(-r * 0.35, -r * 0.30); ctx.lineTo(r * 0.32, r * 0.28);
+      ctx.moveTo(r * 0.10, r * 0.28); ctx.lineTo(r * 0.32, r * 0.28);
+      ctx.moveTo(r * 0.32, r * 0.06); ctx.lineTo(r * 0.32, r * 0.28);
+    }
+    ctx.stroke();
+    ctx.restore();
+    // Etiqueta debajo.
+    ctx.save();
+    ctx.font = "bold " + Math.floor(10 * U) + "px Fredoka, sans-serif";
+    ctx.fillStyle = colorAlpha(ready ? cfg.colorLight : "#8a8a8a", 0.95);
+    ctx.textAlign = "center"; ctx.textBaseline = "bottom";
+    ctx.fillText(ready ? cfg.basePowerName : (cfg.baseShort + " · " + Math.ceil(f.baseCd) + "s"),
+                 f.baseX, f.baseY - f.baseR * 0.95);
+    ctx.restore();
+  }
+  // HUD de Fase 2: integridad del órgano, cartílago (si aplica) y oleada.
+  function drawF2Hud() {
+    var f = state.f2, cfg = f.cfg;
+    var pad = 10 * U;
+    var barW = Math.min(FIELD_W * 0.42, 220 * U);
+    var barH = 9 * U;
+    var x = FIELD_LEFT + pad;
+    var y = FIELD_TOP + pad;
+    ctx.save();
+    // Fondo translúcido: el HUD se superpone al campo (los rótulos de los
+    // focos viven ahí arriba) y sin backing se vuelve ilegible.
+    var panelH = (cfg.cartilageMax ? 3 : 2) * (barH + 16 * U) + 8 * U;
+    ctx.fillStyle = "rgba(12, 8, 14, 0.55)";
+    roundRect(x - 6 * U, y - 14 * U, barW + 12 * U, panelH, 4 * U);
+    ctx.fill();
+    // Integridad del órgano.
+    ctx.font = "bold " + Math.floor(10 * U) + "px Fredoka, sans-serif";
+    ctx.textAlign = "left"; ctx.textBaseline = "bottom";
+    ctx.fillStyle = colorAlpha(cfg.colorLight, 0.95);
+    ctx.fillText(cfg.integrityLabel + "  " + Math.ceil(f.integrity) + "%", x, y - 2 * U);
+    ctx.fillStyle = "rgba(0,0,0,0.45)";
+    roundRect(x, y, barW, barH, 4 * U); ctx.fill();
+    var iFrac = Math.max(0, f.integrity / cfg.integrityMax);
+    ctx.fillStyle = iFrac > 0.5 ? cfg.color : (iFrac > 0.25 ? "#e8a33c" : "#e04040");
+    roundRect(x, y, barW * iFrac, barH, 4 * U); ctx.fill();
+    y += barH + 16 * U;
+    // Cartílago (solo artritis).
+    if (cfg.cartilageMax) {
+      ctx.fillStyle = colorAlpha("#eef4f6", 0.95);
+      ctx.fillText("CARTÍLAGO  " + Math.ceil(f.cartilage) + "%", x, y - 2 * U);
+      ctx.fillStyle = "rgba(0,0,0,0.45)";
+      roundRect(x, y, barW, barH, 4 * U); ctx.fill();
+      var cFrac = Math.max(0, f.cartilage / cfg.cartilageMax);
+      ctx.fillStyle = cFrac > 0.4 ? "#dff0f4" : "#e07070";
+      roundRect(x, y, barW * cFrac, barH, 4 * U); ctx.fill();
+      y += barH + 16 * U;
+    }
+    // Oleadas + filtrados.
+    ctx.font = "bold " + Math.floor(9 * U) + "px Fredoka, sans-serif";
+    ctx.fillStyle = "rgba(255,255,255,0.62)";
+    ctx.fillText("OLEADA " + Math.min(f.waveIdx, cfg.waves.length) + "/" + cfg.waves.length +
+                 "   ·   FILTRADOS " + f.leakedTotal, x, y);
+    ctx.restore();
+  }
+
+  // Velo de entrada y cinemática de cierre del nivel de órgano.
+  function drawF2Overlays() {
+    var f = state.f2, cfg = f.cfg;
+    // --- Entrada -------------------------------------------------------
+    if (f.introTimer > 0) {
+      var a = Math.min(1, f.introTimer / 1.2);
+      ctx.save();
+      ctx.fillStyle = colorAlpha("#000000", 0.82 * a);
+      ctx.fillRect(0, 0, VW, VH);
+      ctx.textAlign = "center";
+      ctx.fillStyle = colorAlpha(cfg.colorLight, a);
+      ctx.font = "bold " + Math.floor(26 * U) + "px Fredoka, sans-serif";
+      ctx.fillText(cfg.label, VW / 2, VH * 0.40);
+      ctx.fillStyle = colorAlpha("#ffffff", 0.85 * a);
+      ctx.font = "bold " + Math.floor(13 * U) + "px Fredoka, sans-serif";
+      ctx.fillText(cfg.organLabel + " · " + cfg.subtitle, VW / 2, VH * 0.47);
+      ctx.fillStyle = colorAlpha(cfg.colorLight, 0.9 * a);
+      ctx.font = "bold " + Math.floor(12 * U) + "px Fredoka, sans-serif";
+      ctx.fillText(cfg.mechanicName, VW / 2, VH * 0.57);
+      ctx.fillStyle = colorAlpha("#ffffff", 0.7 * a);
+      ctx.font = Math.floor(11 * U) + "px Fredoka, sans-serif";
+      wrapTextLines(cfg.mechanicDesc, VW * 0.72).forEach(function (line, i) {
+        ctx.fillText(line, VW / 2, VH * 0.62 + i * 15 * U);
+      });
+      ctx.restore();
+    }
+    // --- Cierre --------------------------------------------------------
+    if (f.over) {
+      var t = f.over.t;
+      var win = f.over.mode === "win";
+      var fade = Math.min(0.88, t / 1.2 * 0.88);
+      ctx.save();
+      ctx.fillStyle = colorAlpha("#000000", fade);
+      ctx.fillRect(0, 0, VW, VH);
+      ctx.textAlign = "center";
+      ctx.fillStyle = win ? colorAlpha(cfg.colorLight, 1) : "#e05a5a";
+      ctx.font = "bold " + Math.floor(24 * U) + "px Fredoka, sans-serif";
+      ctx.fillText(win ? "FOCO CONTENIDO" : "ÓRGANO COMPROMETIDO", VW / 2, VH * 0.42);
+      ctx.fillStyle = "rgba(255,255,255,0.85)";
+      ctx.font = "bold " + Math.floor(12 * U) + "px Fredoka, sans-serif";
+      var msg = win
+        ? cfg.organLabel + " resistió · " + f.leakedTotal + " gérmenes se habían filtrado"
+        : (f.over.cause === "cartilago"
+            ? "El cartílago articular se destruyó por completo"
+            : cfg.integrityLabel + " destruida — la infección se establece");
+      ctx.fillText(msg, VW / 2, VH * 0.49);
+      ctx.restore();
+    }
+  }
+
+  // Corta un texto en líneas que entren en maxW (helper local de Fase 2).
+  function wrapTextLines(text, maxW) {
+    var words = String(text).split(" ");
+    var lines = [], cur = "";
+    for (var i = 0; i < words.length; i++) {
+      var test = cur ? cur + " " + words[i] : words[i];
+      if (ctx.measureText(test).width > maxW && cur) { lines.push(cur); cur = words[i]; }
+      else cur = test;
+    }
+    if (cur) lines.push(cur);
+    return lines;
+  }
+  // ============ FIN RENDER DE FASE 2 ======================================
+
   function drawDisseminationField() {
     var worldH = FIELD_H * DS_STRETCH;   // el fondo cubre TODO el mundo estirado
     // Fondo gradiente cálido (tejido profundo del cuerpo).
@@ -25237,9 +27929,11 @@
 
   // -------- LOOP ----------------------------------------------------------
   var lastT = performance.now();
-  function loop(now) {
-    var realDt = Math.min(0.05, (now - lastT) / 1000);
-    lastT = now;
+  // forcedDt: solo lo usa el hook de desarrollo __game.step() para adelantar
+  // la simulación sin depender del reloj de frames (tests automatizados).
+  function loop(now, forcedDt) {
+    var realDt = forcedDt != null ? forcedDt : Math.min(0.05, (now - lastT) / 1000);
+    if (forcedDt == null) lastT = now;
     // #8 HITSTOP: tras un impacto grande (muerte de jefe) congelamos la
     // simulación ~70ms escalando dt a casi 0 — sim y animaciones se frizan un
     // instante (el "impacto"), el render sigue dibujando el frame congelado.
@@ -25286,6 +27980,18 @@
         enterBodyMapForState();
       }
     }
+    // FASE 2: fin de nivel de órgano (victoria o pérdida del órgano). Igual
+    // que Diseminación, pausamos y al terminar la cinemática volvemos al mapa
+    // con el siguiente nodo desbloqueado.
+    if (state.f2 && state.f2.over) {
+      state.f2.over.t += dt;
+      paused = true;
+      var f2Thresh = state.f2.over.mode === "win" ? 4.2 : 3.3;
+      if (!state.f2.over.resolved && state.f2.over.t >= f2Thresh) {
+        state.f2.over.resolved = true;
+        finishF2Level(state.f2.over.mode);
+      }
+    }
     if (state.spreadFlash) {
       for (var dFi = 0; dFi < state.spreadFlash.length; dFi++) {
         if (state.spreadFlash[dFi] > 0) state.spreadFlash[dFi] -= dt;
@@ -25317,6 +28023,7 @@
       updateSeekers(dt);
       updateNecroticPatches(dt);
       updatePendingBombs(dt);
+      updateF2(dt);
       updateMegakaryocyte(dt);
       updateMegaFactory(dt);
       updateMegaSwarm(dt);
@@ -25412,7 +28119,7 @@
         try { console.error("loop error:", e); } catch (_) {}
       }
     }
-    requestAnimationFrame(loop);
+    if (forcedDt == null) requestAnimationFrame(loop);
   }
 
   window.addEventListener("resize", resize);

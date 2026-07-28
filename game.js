@@ -1390,6 +1390,72 @@
         { range: 160, damage: 0, fireRate: 0, projectileSpeed: 0, splash: 0, hp: 155 }
       ],
       upgradeCost: [100, 170]
+    },
+    // ---- FASE 3-5: una residente por familia de complicación ------------
+    macrofagoAlveolar: {
+      id: "macrofagoAlveolar", name: "Macrófago Alveolar", shortName: "MΦ alveolar",
+      color: "#e0a0b0", colorDark: "#6e3a46", cost: 95,
+      f2Organ: "embolia",
+      desc: "Centinela del lecho capilar. Atrapa émbolos: los gérmenes marcados como fragmento reciben ×2.2 de daño y ya no pueden volver a partirse en su rango.",
+      bonusVsFragment: 2.2,
+      stopsFragmentation: true,
+      specialChargeSec: 26,
+      specialName: "Barrido capilar",
+      levels: [
+        { range: 155, damage: 30, fireRate: 1.2, projectileSpeed: 400, splash: 22, hp: 150 },
+        { range: 175, damage: 46, fireRate: 1.4, projectileSpeed: 430, splash: 28, hp: 195 },
+        { range: 200, damage: 66, fireRate: 1.6, projectileSpeed: 460, splash: 36, hp: 250 }
+      ],
+      upgradeCost: [100, 165]
+    },
+    fibroblastoEncap: {
+      id: "fibroblastoEncap", name: "Fibroblasto Encapsulante", shortName: "Fibroblasto",
+      color: "#c8b088", colorDark: "#5e4c2c", cost: 85,
+      f2Organ: "absceso",
+      desc: "Teje la pared del absceso. NO dispara: CONTIENE. Las colecciones en su rango dejan de sembrar y se drenan solas. Ultimate: encapsula y revienta todas las colecciones cercanas.",
+      producer: true,
+      sealsAbscess: 22,              // puntos de drenaje por segundo
+      specialChargeSec: 22,
+      specialName: "Encapsulación",
+      levels: [
+        { range: 150, damage: 0, fireRate: 0, projectileSpeed: 0, splash: 0, hp: 175 },
+        { range: 175, damage: 0, fireRate: 0, projectileSpeed: 0, splash: 0, hp: 230 },
+        { range: 205, damage: 0, fireRate: 0, projectileSpeed: 0, splash: 0, hp: 300 }
+      ],
+      upgradeCost: [90, 155]
+    },
+    dendriticaMigratoria: {
+      id: "dendriticaMigratoria", name: "Célula Dendrítica Migratoria", shortName: "DC migratoria",
+      color: "#9fd0c8", colorDark: "#31615a", cost: 100,
+      f2Organ: "difusion",
+      desc: "Recorre los territorios como los gérmenes que persigue. Marca a todo el que MIGRA (+45% de daño recibido) y su marca viaja con el germen aunque cambie de carril.",
+      marksMigrators: 0.45,
+      globalMark: true,
+      specialChargeSec: 28,
+      specialName: "Presentación cruzada",
+      levels: [
+        { range: 165, damage: 26, fireRate: 1.3, projectileSpeed: 420, splash: 0, hp: 130 },
+        { range: 190, damage: 40, fireRate: 1.5, projectileSpeed: 450, splash: 0, hp: 170 },
+        { range: 215, damage: 58, fireRate: 1.7, projectileSpeed: 480, splash: 0, hp: 215 }
+      ],
+      upgradeCost: [105, 175]
+    },
+    tregSepsis: {
+      id: "tregSepsis", name: "Linfocito T Regulador", shortName: "Treg",
+      color: "#8fd8a8", colorDark: "#2e6640", cost: 110,
+      f2Organ: "tormenta",
+      desc: "El freno del sistema inmune. No mata: APAGA. Baja la tormenta de citoquinas de forma continua (IL-10 y TGF-β) y repara a las torres que la propia inflamación está quemando.",
+      producer: true,
+      calmsStorm: 3.5,               // puntos de tormenta por segundo
+      healsTowers: 0.02,             // fracción de vida por segundo
+      specialChargeSec: 30,
+      specialName: "Descarga de IL-10",
+      levels: [
+        { range: 160, damage: 0, fireRate: 0, projectileSpeed: 0, splash: 0, hp: 160 },
+        { range: 185, damage: 0, fireRate: 0, projectileSpeed: 0, splash: 0, hp: 210 },
+        { range: 215, damage: 0, fireRate: 0, projectileSpeed: 0, splash: 0, hp: 275 }
+      ],
+      upgradeCost: [115, 185]
     }
   };
   var MAC_COST = 5;   // fragmentos de complemento para ensamblar el cañón
@@ -1398,7 +1464,8 @@
     // solo dentro de su órgano (ver isUnlocked/f2Organ).
     "endotelial", "monocito", "macrofagoCardiaco",
     "osteoclasto", "osteoblasto", "osteocito",
-    "sinoviocitoA", "sinoviocitoB", "condrocito"];
+    "sinoviocitoA", "sinoviocitoB", "condrocito",
+    "macrofagoAlveolar", "fibroblastoEncap", "dendriticaMigratoria", "tregSepsis"];
   // Torres que desbloquea cada nivel F2 al entrar (población residente).
   var F2_ORGAN_TOWERS = {
     endocarditis:  ["endotelial", "monocito", "macrofagoCardiaco"],
@@ -1413,9 +1480,11 @@
   //  · Otras estructuras: el resto (Fibrina solo en diseminación)
   var TOWER_GROUPS = [
     { id: "defensas",      label: "Defensas",      towers: ["neutrofilo", "nk", "eosinofilo", "linfocitogd",
-                                                            "monocito", "macrofagoCardiaco", "osteoclasto", "sinoviocitoA"] },
+                                                            "monocito", "macrofagoCardiaco", "osteoclasto", "sinoviocitoA",
+                                                            "macrofagoAlveolar", "dendriticaMigratoria"] },
     { id: "potenciadores", label: "Potenciadores", towers: ["queratinocito", "mastocito", "langerhans",
-                                                            "endotelial", "osteocito", "sinoviocitoB", "condrocito"] },
+                                                            "endotelial", "osteocito", "sinoviocitoB", "condrocito",
+                                                            "fibroblastoEncap", "tregSepsis"] },
     { id: "tanques",       label: "Tanques",       towers: ["complemento", "centinela", "osteoblasto"] }
   ];
 
@@ -1745,6 +1814,23 @@
       shield: { type: "wall", maxHP: 10, regenRate: 10 / 12, regenDelay: 1.8 },
       cartilageEater: 3.0,
       tooltip: "El pannus es tejido de granulación invasor: una masa de sinovia hipertrófica cargada de macrófagos y fibroblastos activados que trepa sobre el cartílago y lo devora desde el borde. Aquí viene infectado. Se traga tus torres y destruye la articulación mientras exista."
+    },
+    // ==== FASE 3 · COMPLICACIONES =========================================
+    emboloSeptico: {
+      id: "emboloSeptico", name: "Émbolo séptico", shortName: "Émbolo", baseKind: "bacteria",
+      color: "#d4788c", colorDark: "#66242f", colorLight: "#ffc0cc", radius: 22,
+      speedMult: 1.15, hp: 260, reward: 12, viralAdd: 6, attack: 6, isBoss: false,
+      shield: null,
+      fragments: true,
+      tooltip: "Un émbolo séptico es un trozo de vegetación que se soltó de la válvula y viaja por la sangre hasta encajarse en un vaso pequeño. Lleva dentro bacterias vivas, fibrina y plaquetas. Al impactar se FRAGMENTA y siembra el territorio distal: por eso una endocarditis termina dando infartos en pulmón, cerebro y bazo a la vez."
+    },
+    bacteroides: {
+      id: "bacteroides", name: "Bacteroides fragilis", shortName: "Bacteroides", baseKind: "bacteria",
+      color: "#7d6a90", colorDark: "#33263f", colorLight: "#c4b0d8", radius: 25,
+      speedMult: 0.6, hp: 400, reward: 16, viralAdd: 7, attack: 8, isBoss: false,
+      shield: { type: "capsula", maxHP: 5, regenRate: 5 / 12, regenDelay: 2 },
+      anaerobe: true,
+      tooltip: "Bacteroides fragilis es un anaerobio estricto de la flora intestinal y el rey de los abscesos: su cápsula de polisacárido A induce por sí sola la formación de pus. Prospera donde no llega el oxígeno, es decir, justo en el centro de la colección. Mientras haya absceso sin drenar, él vuelve."
     },
     // ---- Legacy aliases (some old code still references these by name) --
     bacteria: {
@@ -5412,12 +5498,15 @@
     var unlocked = (state && state.unlockedTowers) || ["neutrofilo", "linfocitoB", "linfocitoT"];
     var inDiss = !!(state && state.dissemination);
     var curOrgan = (state && state.f2) ? state.f2.key : null;
+    // Las residentes de Fase 3-5 se declaran por FAMILIA de mecanismo
+    // ("embolia", "absceso", "difusion", "tormenta") en vez de por nodo.
+    var curMech = (state && state.f2) ? state.f2.cfg.mechanic : null;
     function isUnlocked(typeId) {
       if (unlocked.indexOf(typeId) === -1) return false;
       var d = TOWER_DEFS[typeId];
       if (d && d.disseminationOnly && !inDiss) return false;
-      // Torres residentes de órgano (Fase 2): solo existen en SU órgano.
-      if (d && d.f2Organ && d.f2Organ !== curOrgan) return false;
+      // Torres residentes de tejido: solo existen en SU órgano/familia.
+      if (d && d.f2Organ && d.f2Organ !== curOrgan && d.f2Organ !== curMech) return false;
       return true;
     }
     // Dock = SOLO las torres dentro del loadout (5+2+1). Si está vacío,
@@ -5879,6 +5968,297 @@
       leak: [1, 1, 2, 2, 3, 3, 4, 2]
     }
   };
+  // ======================= FASE 3 · COMPLICACIONES ========================
+  // Nueve focos secundarios, tres por cada F2. Comparten el motor pero traen
+  // tres mecanismos nuevos, agrupados por familia:
+  //   · "embolia"  — el germen se FRAGMENTA y siembra a distancia (corazón).
+  //   · "absceso"  — se forman colecciones de pus que hay que drenar (hueso).
+  //   · "difusion" — los gérmenes MIGRAN entre carriles (articulación).
+  // Cada familia trae su propia célula residente.
+  var F3_COMMON = {
+    integrityMax: 100,
+    startAtp: 260,
+    bow: 0.028,
+    entryYn: 0.05, exitYn: 0.95
+  };
+  function f3Level(o) {
+    var lv = {};
+    for (var k in F3_COMMON) if (F3_COMMON.hasOwnProperty(k)) lv[k] = F3_COMMON[k];
+    for (var k2 in o) if (o.hasOwnProperty(k2)) lv[k2] = o[k2];
+    return lv;
+  }
+  // Curva de olas compartida por la Fase 3: 7 olas, in crescendo, con boss
+  // en la 4 y en la 7. Cada nivel inyecta su propio trío de gérmenes.
+  function f3Waves(a, b, c, boss1, boss2) {
+    return [
+      [[a, 5, 1.5]],
+      [[a, 6, 1.3], [b, 3, 1.6]],
+      [[a, 6, 1.2], [b, 4, 1.4], [c, 2, 1.8]],
+      [[a, 7, 1.1], [b, 5, 1.3], [c, 3, 1.6], [boss1, 1, 4.0]],
+      [[a, 8, 1.0], [b, 6, 1.2], [c, 4, 1.4]],
+      [[a, 9, 0.95], [b, 7, 1.1], [c, 5, 1.3], [boss1, 1, 3.5]],
+      [[a, 10, 0.9], [b, 8, 1.0], [c, 6, 1.2], [boss2, 1, 4.0]]
+    ];
+  }
+  var F3_LEAK = [1, 2, 2, 3, 3, 4, 2];
+
+  var F3_LEVELS = {
+    // ---- Familia EMBOLIA (hijas de Endocarditis) ------------------------
+    f3_pulm: f3Level({
+      key: "f3_pulm", label: "ÉMBOLOS PULMONARES", organLabel: "LECHO CAPILAR PULMONAR",
+      subtitle: "La vegetación se soltó y viajó a los pulmones",
+      color: "#e8a3b3", colorDark: "#6e3a46", colorLight: "#ffd8e2",
+      tint: "rgba(232, 163, 179, 0.10)", bg: ["#2a1a20", "#4a2c36", "#6e4450"],
+      stretchX: 1.50, stretchY: 1.40,
+      laneXs: [0.10, 0.30, 0.50, 0.70, 0.90],
+      foci: ["Lóbulo superior D", "Lóbulo medio", "Língula", "Lóbulo inferior I", "Pleura"],
+      integrityLabel: "PARÉNQUIMA", arrivalDamage: 6,
+      mechanic: "embolia", mechanicName: "SIEMBRA EMBÓLICA",
+      mechanicDesc: "Los émbolos se FRAGMENTAN al avanzar: cada uno se parte en crías que caen más adelante, ya pasada tu línea.",
+      baseName: "Red Capilar Alveolar", baseShort: "Capilar",
+      basePowerName: "RECLUTAMIENTO MARGINAL",
+      basePowerDesc: "Vacía el pool marginado de neutrófilos del pulmón: daña todo lo que flota en el lecho capilar.",
+      basePowerCd: 27,
+      towers: ["macrofagoAlveolar"],
+      germPool: ["emboloSeptico", "viridans", "saureus"],
+      waves: f3Waves("emboloSeptico", "viridans", "saureus", "bossPyogenes", "bossEndocarditis"),
+      leak: F3_LEAK
+    }),
+    f3_cereb: f3Level({
+      key: "f3_cereb", label: "ÉMBOLOS CEREBRALES", organLabel: "CIRCULACIÓN CEREBRAL",
+      subtitle: "La siembra alcanzó la barrera hematoencefálica",
+      color: "#a8b8e8", colorDark: "#3a4468", colorLight: "#dde5ff",
+      tint: "rgba(168, 184, 232, 0.10)", bg: ["#141828", "#252d48", "#3a4468"],
+      stretchX: 1.45, stretchY: 1.45,
+      laneXs: [0.11, 0.30, 0.50, 0.70, 0.89],
+      foci: ["Arteria cerebral media", "Territorio frontal", "Ganglios basales", "Territorio parietal", "Seno venoso"],
+      integrityLabel: "BARRERA HE", arrivalDamage: 8,
+      mechanic: "embolia", mechanicName: "MICROEMBOLIA CEREBRAL",
+      mechanicDesc: "Territorio sin margen: cada germen que llega cuesta el doble. Los émbolos se fragmentan en el árbol arterial.",
+      baseName: "Barrera Hematoencefálica", baseShort: "BHE",
+      basePowerName: "CIERRE DE UNIONES",
+      basePowerDesc: "Sella las uniones estrechas: frena en seco a todo lo que circula y protege el parénquima.",
+      basePowerCd: 30,
+      towers: ["macrofagoAlveolar"],
+      germPool: ["emboloSeptico", "viridans", "hacek"],
+      waves: f3Waves("emboloSeptico", "viridans", "hacek", "bossPyogenes", "bossEndocarditis"),
+      leak: F3_LEAK
+    }),
+    f3_bazo: f3Level({
+      key: "f3_bazo", label: "INFARTOS ESPLÉNICOS", organLabel: "PULPA ROJA DEL BAZO",
+      subtitle: "El filtro del cuerpo quedó tapado de émbolos",
+      color: "#a85090", colorDark: "#4a1c40", colorLight: "#e8b0da",
+      tint: "rgba(168, 80, 144, 0.10)", bg: ["#1e1020", "#3a1c38", "#5c2c54"],
+      stretchX: 1.40, stretchY: 1.35,
+      laneXs: [0.12, 0.31, 0.50, 0.69, 0.88],
+      foci: ["Polo superior", "Hilio", "Pulpa roja", "Pulpa blanca", "Polo inferior"],
+      integrityLabel: "PULPA", arrivalDamage: 5,
+      mechanic: "embolia", mechanicName: "FILTRO ESPLÉNICO",
+      mechanicDesc: "El bazo filtra: los gérmenes se acumulan en cordones y se fragmentan. Aguantás más golpes, pero llegan muchos más.",
+      baseName: "Cordones de Billroth", baseShort: "Cordones",
+      basePowerName: "PURGA DEL FILTRO",
+      basePowerDesc: "Los macrófagos del cordón vacían el filtro de golpe: daño masivo a todo lo acumulado.",
+      basePowerCd: 26,
+      towers: ["macrofagoAlveolar"],
+      germPool: ["emboloSeptico", "enterococo", "saureus"],
+      waves: f3Waves("emboloSeptico", "enterococo", "saureus", "bossMRSA", "bossEndocarditis"),
+      leak: F3_LEAK
+    }),
+    // ---- Familia ABSCESO (hijas de Osteomielitis) -----------------------
+    f3_epid: f3Level({
+      key: "f3_epid", label: "ABSCESO EPIDURAL", organLabel: "ESPACIO EPIDURAL",
+      subtitle: "El pus comprime la médula espinal",
+      color: "#a08070", colorDark: "#40302a", colorLight: "#dcc4b4",
+      tint: "rgba(160, 128, 112, 0.10)", bg: ["#181210", "#332822", "#4e3c33"],
+      stretchX: 1.25, stretchY: 1.75,
+      laneXs: [0.15, 0.33, 0.50, 0.67, 0.85],
+      foci: ["Nivel cervical", "Nivel torácico alto", "Nivel torácico bajo", "Nivel lumbar", "Nivel sacro"],
+      integrityLabel: "MÉDULA ESPINAL", arrivalDamage: 8,
+      mechanic: "absceso", mechanicName: "COLECCIÓN PURULENTA",
+      mechanicDesc: "El pus se acumula en bolsas sobre el carril. Cada bolsa que madura SIEMBRA gérmenes nuevos hasta que la drenás.",
+      baseName: "Plexo Venoso de Batson", baseShort: "Plexo",
+      basePowerName: "DRENAJE DE URGENCIA",
+      basePowerDesc: "Descomprime el espacio epidural: revienta todas las colecciones y aturde lo que estaba dentro.",
+      basePowerCd: 28,
+      towers: ["fibroblastoEncap"],
+      germPool: ["aureusSCV", "bacteroides", "salmonelaOsea"],
+      waves: f3Waves("aureusSCV", "bacteroides", "salmonelaOsea", "bossBrodie", "bossMRSA"),
+      leak: F3_LEAK
+    }),
+    f3_bact: f3Level({
+      key: "f3_bact", label: "BACTERIEMIA PERSISTENTE", organLabel: "TORRENTE SANGUÍNEO",
+      subtitle: "Los hemocultivos siguen positivos",
+      color: "#b8232a", colorDark: "#4e0d10", colorLight: "#ff8a90",
+      tint: "rgba(184, 35, 42, 0.10)", bg: ["#20080c", "#420f16", "#661822"],
+      stretchX: 1.60, stretchY: 1.30,
+      laneXs: [0.09, 0.29, 0.50, 0.71, 0.91],
+      foci: ["Vena cava", "Cavidades derechas", "Circulación menor", "Cavidades izquierdas", "Aorta"],
+      integrityLabel: "HEMODINAMIA", arrivalDamage: 5,
+      mechanic: "absceso", mechanicName: "FOCO NO DRENADO",
+      mechanicDesc: "Mientras exista un foco sin drenar, la sangre se resiembra sola. Las bolsas aparecen más rápido que en ningún otro nivel.",
+      baseName: "Catéter Central", baseShort: "Catéter",
+      basePowerName: "RECAMBIO DE CATÉTER",
+      basePowerDesc: "Retira la fuente: destruye toda colección activa y limpia el biofilm del torrente.",
+      basePowerCd: 25,
+      towers: ["fibroblastoEncap"],
+      germPool: ["saureus", "enterococo", "bacteroides"],
+      waves: f3Waves("saureus", "enterococo", "bacteroides", "bossMRSA", "bossEndocarditis"),
+      leak: [2, 2, 3, 3, 4, 4, 3]
+    }),
+    f3_fasc: f3Level({
+      key: "f3_fasc", label: "FASCITIS NECROSANTE", organLabel: "FASCIA PROFUNDA",
+      subtitle: "El plano fascial se está licuando",
+      color: "#c87090", colorDark: "#521c30", colorLight: "#ffb0c8",
+      tint: "rgba(200, 112, 144, 0.10)", bg: ["#200c14", "#421826", "#66283c"],
+      stretchX: 1.55, stretchY: 1.35,
+      laneXs: [0.10, 0.30, 0.50, 0.70, 0.90],
+      foci: ["Plano superficial", "Fascia de Scarpa", "Plano profundo", "Vaina muscular", "Compartimento"],
+      integrityLabel: "FASCIA", arrivalDamage: 9,
+      mechanic: "absceso", mechanicName: "AVANCE POR EL PLANO",
+      mechanicDesc: "La necrosis corre por la fascia: las colecciones se propagan a los carriles vecinos si no las cortás a tiempo.",
+      baseName: "Desbridamiento Quirúrgico", baseShort: "Desbridar",
+      basePowerName: "DESBRIDAMIENTO AMPLIO",
+      basePowerDesc: "Corte quirúrgico: elimina el tejido necrótico y todo lo que estaba encima de él.",
+      basePowerCd: 32,
+      towers: ["fibroblastoEncap"],
+      germPool: ["pyogenesArt", "bacteroides", "salmonelaOsea"],
+      waves: f3Waves("pyogenesArt", "bacteroides", "salmonelaOsea", "bossClostridium", "bossPyogenes"),
+      leak: F3_LEAK
+    }),
+    // ---- Familia DIFUSIÓN (hijas de Artritis) ---------------------------
+    f3_multi: f3Level({
+      key: "f3_multi", label: "PIOARTRITIS DISEMINADA", organLabel: "VARIAS ARTICULACIONES",
+      subtitle: "Ya no es una rodilla: son todas",
+      color: "#8ec5d0", colorDark: "#2a4e56", colorLight: "#d8f2f8",
+      tint: "rgba(142, 197, 208, 0.10)", bg: ["#0e1c20", "#1c363e", "#2c545e"],
+      stretchX: 1.55, stretchY: 1.45,
+      laneXs: [0.10, 0.30, 0.50, 0.70, 0.90],
+      foci: ["Hombro", "Codo", "Cadera", "Rodilla", "Tobillo"],
+      integrityLabel: "APARATO LOCOMOTOR", arrivalDamage: 6,
+      mechanic: "difusion", mechanicName: "ARTRITIS MIGRATORIA",
+      mechanicDesc: "Los gérmenes SALTAN de articulación en articulación. Defender un carril no sirve: hay que cubrir el conjunto.",
+      baseName: "Circulación Sinovial", baseShort: "Circulación",
+      basePowerName: "PULSO DE CORTICOIDE",
+      basePowerDesc: "Apaga la inflamación en todas las articulaciones: frena y debilita a todo el tablero a la vez.",
+      basePowerCd: 30,
+      towers: ["dendriticaMigratoria"],
+      germPool: ["gonoArticular", "borrelia", "kingella"],
+      waves: f3Waves("gonoArticular", "borrelia", "kingella", "bossPannus", "bossPyogenes"),
+      leak: F3_LEAK
+    }),
+    f3_osloc: f3Level({
+      key: "f3_osloc", label: "OSTEOMIELITIS ADYACENTE", organLabel: "HUESO SUBCONDRAL",
+      subtitle: "La infección cruzó del cartílago al hueso",
+      color: "#c8a070", colorDark: "#5a4424", colorLight: "#f0dcb8",
+      tint: "rgba(200, 160, 112, 0.10)", bg: ["#1a1610", "#332c1e", "#4e4430"],
+      stretchX: 1.35, stretchY: 1.60,
+      laneXs: [0.13, 0.32, 0.50, 0.68, 0.87],
+      foci: ["Cartílago calcificado", "Placa subcondral", "Metáfisis", "Fisis", "Epífisis"],
+      integrityLabel: "HUESO SUBCONDRAL", arrivalDamage: 7,
+      mechanic: "difusion", mechanicName: "PASO TRANSCORTICAL",
+      mechanicDesc: "Los gérmenes atraviesan la placa subcondral saltando de carril. Mezclan la lógica del hueso con la de la articulación.",
+      baseName: "Placa Subcondral", baseShort: "Placa",
+      basePowerName: "ESCLEROSIS REACTIVA",
+      basePowerDesc: "El hueso se endurece: frena a todos y repara la placa dañada.",
+      basePowerCd: 29,
+      towers: ["dendriticaMigratoria"],
+      germPool: ["aureusSCV", "kingella", "pyogenesArt"],
+      waves: f3Waves("aureusSCV", "kingella", "pyogenesArt", "bossBrodie", "bossPannus"),
+      leak: F3_LEAK
+    }),
+    f3_pust: f3Level({
+      key: "f3_pust", label: "PUSTULOSIS DISEMINADA", organLabel: "PIEL DE TODO EL CUERPO",
+      subtitle: "La siembra volvió a la superficie",
+      color: "#e8b09a", colorDark: "#6a4034", colorLight: "#ffdccc",
+      tint: "rgba(232, 176, 154, 0.10)", bg: ["#241812", "#452e24", "#6a4838"],
+      stretchX: 1.60, stretchY: 1.35,
+      laneXs: [0.09, 0.29, 0.50, 0.71, 0.91],
+      foci: ["Tronco", "Palmas", "Extremidad superior", "Plantas", "Extremidad inferior"],
+      integrityLabel: "TEGUMENTO", arrivalDamage: 4,
+      mechanic: "difusion", mechanicName: "BROTE PUSTULOSO",
+      mechanicDesc: "Cada germen que sobrevive salta a otra región y abre una pústula nueva. Es una carrera contra la dispersión.",
+      baseName: "Plexo Dérmico", baseShort: "Plexo",
+      basePowerName: "BARRIDO DÉRMICO",
+      basePowerDesc: "Moviliza toda la inmunidad cutánea: daña y frena cada pústula abierta del tablero.",
+      basePowerCd: 24,
+      towers: ["dendriticaMigratoria"],
+      germPool: ["gonoArticular", "saureus", "kingella"],
+      waves: f3Waves("gonoArticular", "saureus", "kingella", "bossMRSA", "bossPannus"),
+      leak: F3_LEAK
+    })
+  };
+
+  // ==================== FASE 4-5 · SEPSIS Y SHOCK =========================
+  var F45_LEVELS = {
+    sepsis: {
+      key: "sepsis", label: "SEPSIS SISTÉMICA", organLabel: "TODO EL ORGANISMO",
+      subtitle: "La respuesta se volvió contra el huésped",
+      color: "#ff5550", colorDark: "#5e1210", colorLight: "#ffb0a8",
+      tint: "rgba(255, 85, 80, 0.10)", bg: ["#1c0808", "#4a1410", "#7a2418"],
+      stretchX: 1.70, stretchY: 1.55,
+      laneXs: [0.08, 0.29, 0.50, 0.71, 0.92],
+      foci: ["Pulmón", "Riñón", "Hígado", "Coagulación", "Cerebro"],
+      bow: 0.032, entryYn: 0.04, exitYn: 0.96,
+      integrityLabel: "PERFUSIÓN", integrityMax: 120, arrivalDamage: 6,
+      mechanic: "tormenta", mechanicName: "TORMENTA DE CITOQUINAS",
+      mechanicDesc: "Tu propia respuesta te está matando: las torres pierden vida sola mientras la tormenta esté alta. Bajar la tormenta importa tanto como matar gérmenes.",
+      baseName: "Eje Neuroinmune", baseShort: "Eje",
+      basePowerName: "REFLEJO COLINÉRGICO",
+      basePowerDesc: "El nervio vago frena la tormenta de golpe: corta el daño autoinmune y cura a tus células.",
+      basePowerCd: 26,
+      towers: ["tregSepsis"],
+      germPool: ["saureus", "pseudomonas", "enterococo", "bacteroides"],
+      startAtp: 300,
+      waves: [
+        [["saureus", 6, 1.2], ["pseudomonas", 3, 1.5]],
+        [["saureus", 7, 1.1], ["pseudomonas", 4, 1.3], ["bacteroides", 3, 1.5]],
+        [["saureus", 8, 1.0], ["enterococo", 4, 1.3], ["bacteroides", 4, 1.3], ["bossMRSA", 1, 4.0]],
+        [["saureus", 9, 0.95], ["pseudomonas", 6, 1.1], ["enterococo", 5, 1.2], ["bacteroides", 5, 1.2]],
+        [["saureus", 10, 0.9], ["pseudomonas", 7, 1.0], ["enterococo", 6, 1.1], ["bossEndocarditis", 1, 4.0]],
+        [["saureus", 11, 0.85], ["pseudomonas", 8, 0.95], ["bacteroides", 7, 1.05], ["bossBrodie", 1, 4.0]],
+        [["saureus", 12, 0.8], ["pseudomonas", 9, 0.9], ["enterococo", 8, 1.0], ["bossPannus", 1, 4.0]],
+        [["saureus", 14, 0.75], ["pseudomonas", 10, 0.85], ["bacteroides", 9, 0.95],
+         ["bossMRSA", 1, 3.0], ["bossPyogenes", 1, 3.0]]
+      ],
+      leak: [2, 3, 3, 4, 4, 5, 5, 3]
+    },
+    mods: {
+      key: "mods", label: "SHOCK SÉPTICO · MODS", organLabel: "FALLA MULTIORGÁNICA",
+      subtitle: "Último acto — todo o nada",
+      color: "#7a0010", colorDark: "#2e0006", colorLight: "#ff6a70",
+      tint: "rgba(122, 0, 16, 0.12)", bg: ["#12000a", "#33020e", "#5c0614"],
+      stretchX: 1.75, stretchY: 1.70,
+      laneXs: [0.08, 0.29, 0.50, 0.71, 0.92],
+      foci: ["Falla respiratoria", "Falla renal", "Falla hepática", "CID", "Encefalopatía"],
+      bow: 0.036, entryYn: 0.03, exitYn: 0.97,
+      integrityLabel: "VIDA", integrityMax: 150, arrivalDamage: 7,
+      mechanic: "tormenta", mechanicName: "FALLA MULTIORGÁNICA",
+      mechanicDesc: "Cinco órganos fallando a la vez y la tormenta al máximo. El Patógeno Primordial cierra la partida.",
+      baseName: "Reanimación", baseShort: "Reanimar",
+      basePowerName: "PROTOCOLO DE REANIMACIÓN",
+      basePowerDesc: "Fluidos, vasopresores y antibiótico de amplio espectro: recupera perfusión y castiga a todo el tablero.",
+      basePowerCd: 30,
+      towers: ["tregSepsis"],
+      germPool: ["saureus", "pseudomonas", "enterococo", "bacteroides", "candida"],
+      startAtp: 340,
+      waves: [
+        [["saureus", 8, 1.0], ["pseudomonas", 5, 1.2], ["candida", 3, 1.4]],
+        [["saureus", 9, 0.95], ["pseudomonas", 6, 1.1], ["bacteroides", 5, 1.2], ["bossMRSA", 1, 4.0]],
+        [["saureus", 10, 0.9], ["enterococo", 7, 1.05], ["candida", 5, 1.2], ["bossBrodie", 1, 4.0]],
+        [["saureus", 12, 0.85], ["pseudomonas", 8, 1.0], ["bacteroides", 7, 1.1], ["bossPannus", 1, 4.0]],
+        [["saureus", 13, 0.8], ["pseudomonas", 9, 0.95], ["enterococo", 8, 1.0], ["bossEndocarditis", 1, 4.0]],
+        [["saureus", 15, 0.75], ["pseudomonas", 11, 0.9], ["candida", 8, 1.0],
+         ["bossMRSA", 1, 3.0], ["bossPyogenes", 1, 3.0]],
+        [["saureus", 16, 0.7], ["pseudomonas", 12, 0.85], ["bacteroides", 10, 0.95],
+         ["bossPrimordial", 1, 5.0]]
+      ],
+      leak: [3, 3, 4, 4, 5, 5, 3]
+    }
+  };
+  // Todos los niveles que corren sobre el motor F2, en una sola tabla.
+  for (var f3k in F3_LEVELS) if (F3_LEVELS.hasOwnProperty(f3k)) F2_LEVELS[f3k] = F3_LEVELS[f3k];
+  for (var f45k in F45_LEVELS) if (F45_LEVELS.hasOwnProperty(f45k)) F2_LEVELS[f45k] = F45_LEVELS[f45k];
+
   // Qué nodo F3 abre cada F2 al completarse (el fan del world-map).
   var F2_TO_F3 = {
     endocarditis:  ["f3_pulm", "f3_cereb", "f3_bazo"],
@@ -5910,6 +6290,9 @@
       pulseT: 0,                  // fase del ciclo cardíaco / respiración del órgano
       sequestra: [],              // osteomielitis: islas de hueso muerto
       walls: [],                  // osteomielitis: involucros levantados
+      abscesses: [],              // fase 3 (familia absceso): colecciones de pus
+      abscessTimer: 0,
+      storm: 0,                   // sepsis/MODS: tormenta de citoquinas 0..100
       focusFlash: [],
       leakedTotal: 0,
       arrivals: 0,
@@ -6095,6 +6478,57 @@
     spawnEffect("escape", e.x, e.y, cfg.colorLight);
   }
 
+  // Émbolo hijo: se desprende del germen y cae MÁS ADELANTE en el carril.
+  function spawnF2Embolus(parent) {
+    var f = state.f2;
+    var before = state.enemies.length;
+    spawnEnemy("emboloSeptico", 0.45);
+    if (state.enemies.length <= before) return;
+    var child = state.enemies[state.enemies.length - 1];
+    child.heridaIdx = parent.heridaIdx;
+    var total = PATH.totalForBranch[child.heridaIdx | 0] || PATH.total;
+    child.progress = Math.min(total * 0.92, parent.progress + total * (0.10 + Math.random() * 0.14));
+    var p = pathPos(child.progress, child.heridaIdx);
+    child.x = p.x; child.y = p.y;
+    child.state = "walking";
+    child.outsideTimer = 0;
+    child.isFragment = true;
+    child.radiusScale = (child.radiusScale || 1) * 0.75;
+    spawnEffect("escape", parent.x, parent.y, f.cfg.colorLight);
+  }
+
+  // Siembra desde una colección purulenta madura.
+  function spawnF2Seed(abs, cfg) {
+    var pool = cfg.germPool;
+    var typeId = pool[Math.floor(Math.random() * pool.length)];
+    var before = state.enemies.length;
+    spawnEnemy(typeId, 0.55);
+    if (state.enemies.length <= before) return;
+    var e = state.enemies[state.enemies.length - 1];
+    e.heridaIdx = abs.lane;
+    var total = PATH.totalForBranch[abs.lane] || PATH.total;
+    // Nace EN la colección, no en la entrada: ya está pasada tu primera línea.
+    e.progress = Math.max(0, Math.min(total * 0.95, nearestProgressTo(abs.x, abs.y, abs.lane)));
+    e.x = abs.x; e.y = abs.y;
+    e.state = "walking";
+    e.outsideTimer = 0;
+    e.filtered = true;
+    abs.flash = 0.5;
+    state.f2.leakedTotal++;
+  }
+  // Progreso aproximado del punto (x,y) sobre el carril dado.
+  function nearestProgressTo(x, y, lane) {
+    var total = PATH.totalForBranch[lane] || PATH.total || 1;
+    var best = 0, bestD = Infinity;
+    for (var i = 0; i <= 24; i++) {
+      var pr = (i / 24) * total;
+      var p = pathPos(pr, lane);
+      var d = Math.hypot(p.x - x, p.y - y);
+      if (d < bestD) { bestD = d; best = pr; }
+    }
+    return best;
+  }
+
   // ---- MECANISMOS FISIOLÓGICOS POR ÓRGANO --------------------------------
   function updateF2(dt) {
     if (!state.f2) return;
@@ -6255,6 +6689,150 @@
       }
     }
 
+    // --- FASE 3 · EMBOLIA: el germen se fragmenta y siembra adelante -----
+    if (cfg.mechanic === "embolia") {
+      for (var eE = state.enemies.length - 1; eE >= 0; eE--) {
+        var ee = state.enemies[eE];
+        if (ee.dead || ee.absorbing || ee.isFragment) continue;
+        if (ee.emboliCd == null) ee.emboliCd = 7 + Math.random() * 6;
+        ee.emboliCd -= dt;
+        if (ee.emboliCd <= 0) {
+          ee.emboliCd = 9 + Math.random() * 6;
+          // El macrófago alveolar sella el capilar: ahí no se fragmenta nada.
+          if (!f2FragmentBlockedAt(ee.x, ee.y)) spawnF2Embolus(ee);
+        }
+      }
+    }
+
+    // --- FASE 3 · ABSCESO: colecciones de pus que siembran ---------------
+    if (cfg.mechanic === "absceso") {
+      if (!f.abscesses) f.abscesses = [];
+      f.abscessTimer = (f.abscessTimer || (cfg.key === "f3_bact" ? 9 : 14)) - dt;
+      if (f.abscessTimer <= 0 && f.abscesses.length < 5 && state.waveActive) {
+        f.abscessTimer = (cfg.key === "f3_bact" ? 10 : 16) + Math.random() * 6;
+        var lane = Math.floor(Math.random() * cfg.laneXs.length);
+        var prog = (PATH.totalForBranch[lane] || 1) * (0.35 + Math.random() * 0.4);
+        var pp = pathPos(prog, lane);
+        f.abscesses.push({
+          x: pp.x, y: pp.y, lane: lane, r: 20 * U, maxR: 34 * U,
+          hp: 150, maxHp: 150, ripe: 0, seedCd: 8, flash: 0
+        });
+        showMsg("Se formó una colección purulenta — drenala");
+      }
+      for (var ab = f.abscesses.length - 1; ab >= 0; ab--) {
+        var abs = f.abscesses[ab];
+        if (abs.flash > 0) abs.flash -= dt;
+        abs.ripe = Math.min(1, abs.ripe + dt / 12);
+        abs.r = 20 * U + (abs.maxR - 20 * U) * abs.ripe;
+        // Las torres cercanas la van drenando (cualquier daño por proximidad).
+        for (var at = 0; at < state.towers.length; at++) {
+          var atw = state.towers[at];
+          if (atw.dead || !atw.def.levels) continue;
+          var alv = atw.def.levels[atw.level] || atw.def.levels[0];
+          if (!alv.damage) continue;
+          if (Math.hypot(atw.x - abs.x, atw.y - abs.y) <= alv.range * U) {
+            abs.hp -= alv.damage * 0.35 * dt;
+            abs.flash = 0.12;
+          }
+        }
+        if (abs.hp <= 0) {
+          spawnEffect("escape", abs.x, abs.y, cfg.colorLight);
+          f.abscesses.splice(ab, 1);
+          continue;
+        }
+        // El fibroblasto encapsulante drena y CALLA la colección.
+        var sealed = false;
+        for (var fb = 0; fb < state.towers.length; fb++) {
+          var ftw = state.towers[fb];
+          if (!ftw.def || !ftw.def.sealsAbscess || ftw.dead) continue;
+          var fR = (ftw.def.levels[ftw.level] || ftw.def.levels[0]).range * U;
+          if (Math.hypot(ftw.x - abs.x, ftw.y - abs.y) <= fR) {
+            abs.hp -= ftw.def.sealsAbscess * (1 + ftw.level * 0.5) * dt;
+            sealed = true;
+          }
+        }
+        if (sealed) { abs.flash = 0.12; abs.seedCd = Math.max(abs.seedCd, 2); continue; }
+        // Madura → siembra un germen desde adentro.
+        abs.seedCd -= dt;
+        if (abs.ripe >= 1 && abs.seedCd <= 0) {
+          abs.seedCd = 7;
+          spawnF2Seed(abs, cfg);
+        }
+      }
+    }
+
+    // --- FASE 3 · DIFUSIÓN: los gérmenes migran entre carriles -----------
+    if (cfg.mechanic === "difusion") {
+      for (var eD = 0; eD < state.enemies.length; eD++) {
+        var ed = state.enemies[eD];
+        if (ed.dead || ed.absorbing) continue;
+        if (ed.migrateCd == null) ed.migrateCd = 6 + Math.random() * 7;
+        ed.migrateCd -= dt;
+        if (ed.migrateCd <= 0) {
+          ed.migrateCd = 8 + Math.random() * 7;
+          var lanes = cfg.laneXs.length;
+          var to = (ed.heridaIdx + (Math.random() < 0.5 ? -1 : 1) + lanes) % lanes;
+          // Conserva la fracción de avance al saltar de articulación.
+          var fracP = ed.progress / (PATH.totalForBranch[ed.heridaIdx | 0] || 1);
+          ed.heridaIdx = to;
+          ed.progress = fracP * (PATH.totalForBranch[to] || 1);
+          var np = pathPos(ed.progress, to);
+          spawnEffect("escape", ed.x, ed.y, cfg.colorLight);
+          ed.x = np.x; ed.y = np.y;
+          ed.migrateFlash = 0.5;
+        }
+        if ((ed.migrateFlash || 0) > 0) ed.migrateFlash -= dt;
+      }
+      // La dendrítica migratoria marca a los que se mueven entre territorios.
+      for (var tD = 0; tD < state.towers.length; tD++) {
+        var tdc = state.towers[tD];
+        if (!tdc.def || !tdc.def.marksMigrators || tdc.dead) continue;
+        var dR = (tdc.def.levels[tdc.level] || tdc.def.levels[0]).range * U;
+        for (var eM = 0; eM < state.enemies.length; eM++) {
+          var em2 = state.enemies[eM];
+          if (em2.dead) continue;
+          if (Math.hypot(em2.x - tdc.x, em2.y - tdc.y) <= dR) {
+            em2.migrantMark = tdc.def.marksMigrators;   // permanente: viaja con él
+          }
+        }
+      }
+    }
+
+    // --- FASE 4-5 · TORMENTA DE CITOQUINAS -------------------------------
+    if (cfg.mechanic === "tormenta") {
+      // La tormenta sube con cada germen vivo y baja sola despacio.
+      var alive = 0;
+      for (var eS = 0; eS < state.enemies.length; eS++) if (!state.enemies[eS].dead) alive++;
+      f.storm = Math.max(0, Math.min(100, (f.storm || 0) + (alive * 1.6 - 7) * dt));
+      // Por encima de 40 la respuesta empieza a dañar al propio tejido.
+      if (f.storm > 40) {
+        var burn = (f.storm - 40) / 60;            // 0..1
+        for (var tS = 0; tS < state.towers.length; tS++) {
+          var tws = state.towers[tS];
+          if (tws.dead) continue;
+          tws.hp -= tws.maxHp * 0.020 * burn * dt;
+          if (tws.hp <= 0) tws.dead = true;
+        }
+        f2DamageIntegrity(1.1 * burn * dt, null);
+      }
+      // Los Treg bajan la tormenta activamente.
+      for (var tR = 0; tR < state.towers.length; tR++) {
+        var twr = state.towers[tR];
+        if (twr.def && twr.def.calmsStorm && !twr.dead) {
+          f.storm = Math.max(0, f.storm - twr.def.calmsStorm * (1 + twr.level * 0.5) * dt);
+          // Además repara a las que la inflamación está quemando.
+          var hR = (twr.def.levels[twr.level] || twr.def.levels[0]).range * U;
+          for (var hT = 0; hT < state.towers.length; hT++) {
+            var htw = state.towers[hT];
+            if (htw.dead || htw === twr) continue;
+            if (Math.hypot(htw.x - twr.x, htw.y - twr.y) <= hR) {
+              htw.hp = Math.min(htw.maxHp, htw.hp + htw.maxHp * (twr.def.healsTowers || 0) * dt);
+            }
+          }
+        }
+      }
+    }
+
     // --- ARTICULACIÓN: destrucción de cartílago ---------------------------
     if (cfg.mechanic === "cartilago") {
       var eat = 0;
@@ -6279,6 +6857,17 @@
         triggerShake(0.5, 9);
       }
     }
+  }
+
+  // ¿Hay un macrófago alveolar cubriendo este punto? (impide fragmentación)
+  function f2FragmentBlockedAt(x, y) {
+    for (var i = 0; i < state.towers.length; i++) {
+      var t = state.towers[i];
+      if (!t.def || !t.def.stopsFragmentation || t.dead) continue;
+      var rng = (t.def.levels[t.level] || t.def.levels[0]).range * U;
+      if (Math.hypot(t.x - x, t.y - y) <= rng) return true;
+    }
+    return false;
   }
 
   // Suma de "capas de vegetación disueltas por segundo" en un punto.
@@ -6368,6 +6957,50 @@
         spawnEffect("escape", ea.x, ea.y, cfg.colorLight);
       }
       showMsg("LAVADO ARTICULAR — la cavidad se drena");
+    } else if (cfg.mechanic === "embolia") {
+      // Barrido del lecho: daño a todo y los fragmentos se disuelven.
+      for (var i2 = state.enemies.length - 1; i2 >= 0; i2--) {
+        var e2 = state.enemies[i2];
+        if (e2.dead) continue;
+        if (e2.isFragment) { damageEnemy(e2, e2.maxHp, "complemento"); }
+        else damageEnemy(e2, e2.maxHp * 0.22, "complemento");
+        e2.emboliCd = Math.max(e2.emboliCd || 0, 10);
+      }
+      showMsg(cfg.basePowerName + " — el lecho capilar se limpia");
+    } else if (cfg.mechanic === "absceso") {
+      // Drena todas las colecciones y aturde lo que salga.
+      var drained = (f.abscesses || []).length;
+      for (var ab2 = 0; ab2 < (f.abscesses || []).length; ab2++) {
+        spawnEffect("escape", f.abscesses[ab2].x, f.abscesses[ab2].y, cfg.colorLight);
+      }
+      f.abscesses = [];
+      f.abscessTimer = 14;
+      for (var e4 = 0; e4 < state.enemies.length; e4++) {
+        state.enemies[e4].stunTimer = Math.max(state.enemies[e4].stunTimer || 0, 2.5);
+      }
+      showMsg(cfg.basePowerName + " — " + drained + " colecciones drenadas");
+    } else if (cfg.mechanic === "difusion") {
+      // Apaga la migración un rato y castiga a todo el tablero.
+      for (var e5 = 0; e5 < state.enemies.length; e5++) {
+        var em = state.enemies[e5];
+        if (em.dead) continue;
+        em.migrateCd = Math.max(em.migrateCd || 0, 14);
+        em.slowTimer = Math.max(em.slowTimer || 0, 6);
+        damageEnemy(em, em.maxHp * 0.18, "complemento");
+      }
+      showMsg(cfg.basePowerName + " — la dispersión se frena");
+    } else if (cfg.mechanic === "tormenta") {
+      // Baja la tormenta a la mitad, cura torres y castiga al tablero.
+      f.storm = Math.max(0, (f.storm || 0) * 0.4);
+      for (var t3 = 0; t3 < state.towers.length; t3++) {
+        var tw3 = state.towers[t3];
+        if (!tw3.dead) tw3.hp = Math.min(tw3.maxHp, tw3.hp + tw3.maxHp * 0.30);
+      }
+      for (var e6 = 0; e6 < state.enemies.length; e6++) {
+        if (!state.enemies[e6].dead) damageEnemy(state.enemies[e6], state.enemies[e6].maxHp * 0.20, "complemento");
+      }
+      f.integrity = Math.min(cfg.integrityMax, f.integrity + 10);
+      showMsg(cfg.basePowerName + " — perfusión recuperada");
     }
     return true;
   }
@@ -6392,15 +7025,17 @@
   function finishF2Level(mode) {
     var key = state.f2.key;
     var cfg = state.f2.cfg;
-    // Qué foco quedó peor define el nodo F3 que se abre.
-    var f3s = F2_TO_F3[key] || [];
-    var worst = 0, worstV = -1;
-    for (var i = 0; i < state.f2.focusFlash.length; i++) {
-      // focusFlash es momentáneo; usamos el reparto de llegadas por carril si existe.
-      var v = (state.f2.laneArrivals && state.f2.laneArrivals[i]) || 0;
-      if (v > worstV) { worstV = v; worst = i; }
+    // Qué foco quedó peor define el nodo F3 que se abre (solo al cerrar un F2;
+    // los F3 y el final no vuelven a ramificar).
+    var f3s = F2_TO_F3[key];
+    if (f3s) {
+      var worst = 0, worstV = -1;
+      for (var i = 0; i < state.f2.focusFlash.length; i++) {
+        var v = (state.f2.laneArrivals && state.f2.laneArrivals[i]) || 0;
+        if (v > worstV) { worstV = v; worst = i; }
+      }
+      state.activeF3 = f3s[worst % f3s.length] || f3s[0];
     }
-    state.activeF3 = f3s[worst % (f3s.length || 1)] || f3s[0] || null;
     state.lastF2Mode = mode;
     state.lastF2Key = key;
     state.f2 = null;
@@ -9481,6 +10116,12 @@
       if (attackerType === "sinoviocitoA" && def.cartilageEater) {
         amount *= TOWER_DEFS.sinoviocitoA.bonusVsCartilageEater || 1;
       }
+      // El macrófago alveolar está especializado en atrapar émbolos.
+      if (attackerType === "macrofagoAlveolar" && e.isFragment) {
+        amount *= TOWER_DEFS.macrofagoAlveolar.bonusVsFragment || 1;
+      }
+      // Marca de la dendrítica migratoria: viaja con el germen entre carriles.
+      if ((e.migrantMark || 0) > 0) amount *= (1 + e.migrantMark);
     }
     // Marca de Langerhans: amplifica TODO el daño recibido mientras dura.
     if ((e.markTimer || 0) > 0 && (e.markBonus || 0) > 0) amount *= (1 + e.markBonus);
@@ -11735,7 +12376,19 @@
     // Fase 2: los tres focos hematógenos clásicos.
     "endocarditis":  { built: true, launch: function() { enterF2TD("endocarditis"); } },
     "osteomielitis": { built: true, launch: function() { enterF2TD("osteomielitis"); } },
-    "artritis":      { built: true, launch: function() { enterF2TD("artritis"); } }
+    "artritis":      { built: true, launch: function() { enterF2TD("artritis"); } },
+    // Fase 3: las nueve complicaciones. Fase 4-5: sepsis y shock.
+    "f3_pulm":   { built: true, launch: function() { enterF2TD("f3_pulm"); } },
+    "f3_cereb":  { built: true, launch: function() { enterF2TD("f3_cereb"); } },
+    "f3_bazo":   { built: true, launch: function() { enterF2TD("f3_bazo"); } },
+    "f3_epid":   { built: true, launch: function() { enterF2TD("f3_epid"); } },
+    "f3_bact":   { built: true, launch: function() { enterF2TD("f3_bact"); } },
+    "f3_fasc":   { built: true, launch: function() { enterF2TD("f3_fasc"); } },
+    "f3_multi":  { built: true, launch: function() { enterF2TD("f3_multi"); } },
+    "f3_osloc":  { built: true, launch: function() { enterF2TD("f3_osloc"); } },
+    "f3_pust":   { built: true, launch: function() { enterF2TD("f3_pust"); } },
+    "sepsis":    { built: true, launch: function() { enterF2TD("sepsis"); } },
+    "mods":      { built: true, launch: function() { enterF2TD("mods"); } }
   };
 
   // Coords x,y relativas al rect del mapa (mapX, mapY, mapW, mapH).
@@ -16259,6 +16912,10 @@
     else if (t.def.id === "sinoviocitoA") drawSinoviocitoA(t, pulse, expression, blink);
     else if (t.def.id === "sinoviocitoB") drawSinoviocitoB(t, pulse, expression, blink);
     else if (t.def.id === "condrocito") drawCondrocito(t, pulse, expression, blink);
+    else if (t.def.id === "macrofagoAlveolar") drawMacrofagoAlveolar(t, pulse, expression, blink);
+    else if (t.def.id === "fibroblastoEncap") drawFibroblastoEncap(t, pulse, expression, blink);
+    else if (t.def.id === "dendriticaMigratoria") drawDendriticaMigratoria(t, pulse, expression, blink);
+    else if (t.def.id === "tregSepsis") drawTregSepsis(t, pulse, expression, blink);
     else drawLinfocitoT(t, pulse, expression, blink);
     // Level-up sparkles
     if (levelup) {
@@ -18610,6 +19267,169 @@
     ctx.restore();
   }
 
+  // --- Macrófago alveolar: red de captura en el capilar ------------------
+  function drawMacrofagoAlveolar(t, pulse, expression, blink) {
+    var R = 15 * U * pulse, time = state.time, w = (t.idlePhase || 0);
+    ctx.save();
+    ctx.translate(t.x, t.y);
+    // Malla capilar: hexágono de captura que respira.
+    ctx.strokeStyle = "rgba(255,200,214,0.35)";
+    ctx.lineWidth = Math.max(1, 1.3 * U);
+    ctx.beginPath();
+    for (var h = 0; h <= 6; h++) {
+      var ha = (h / 6) * Math.PI * 2;
+      var hr = R * (1.55 + 0.10 * Math.sin(time * 1.6 + w));
+      var hx = Math.cos(ha) * hr, hy = Math.sin(ha) * hr;
+      if (h === 0) ctx.moveTo(hx, hy); else ctx.lineTo(hx, hy);
+    }
+    ctx.closePath(); ctx.stroke();
+    // Cuerpo espumoso (el macrófago alveolar está lleno de surfactante).
+    var g = ctx.createRadialGradient(-R * 0.3, -R * 0.3, R * 0.1, 0, 0, R);
+    g.addColorStop(0, "#ffd8e2");
+    g.addColorStop(0.55, "#e0a0b0");
+    g.addColorStop(1, "#6e3a46");
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = "#4c2530"; ctx.lineWidth = Math.max(1.8, 2.4 * U); ctx.stroke();
+    // Vacuolas de surfactante fagocitado (aspecto espumoso).
+    ctx.fillStyle = "rgba(255,255,255,0.45)";
+    var foam = [[-0.35, -0.28, 0.20], [0.32, -0.30, 0.17], [-0.10, 0.30, 0.22], [0.38, 0.22, 0.15], [0.02, -0.05, 0.13]];
+    for (var i = 0; i < foam.length; i++) {
+      ctx.beginPath();
+      ctx.arc(foam[i][0] * R, foam[i][1] * R, foam[i][2] * R, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    towerFace(R * 0.50, expression, blink);
+    ctx.restore();
+  }
+
+  // --- Fibroblasto encapsulante: teje la pared del absceso ---------------
+  function drawFibroblastoEncap(t, pulse, expression, blink) {
+    var R = 15 * U * pulse, time = state.time;
+    ctx.save();
+    ctx.translate(t.x, t.y);
+    // Malla de colágeno que va cerrándose (la cápsula del absceso).
+    ctx.strokeStyle = "rgba(200,176,136,0.45)";
+    ctx.lineWidth = Math.max(1, 1.2 * U);
+    for (var ring = 0; ring < 3; ring++) {
+      var rr = R * (1.25 + ring * 0.3);
+      ctx.beginPath();
+      for (var a = 0; a <= 20; a++) {
+        var ang = (a / 20) * Math.PI * 2;
+        var wob = 1 + 0.07 * Math.sin(ang * 4 + time * (0.7 + ring * 0.2));
+        var px = Math.cos(ang) * rr * wob, py = Math.sin(ang) * rr * wob;
+        if (a === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+      }
+      ctx.closePath();
+      ctx.stroke();
+    }
+    // Cuerpo fusiforme con prolongaciones largas (fibroblasto clásico).
+    ctx.save();
+    ctx.rotate(-0.4 + Math.sin(time * 0.6) * 0.08);
+    var g = ctx.createLinearGradient(-R, 0, R, 0);
+    g.addColorStop(0, "#f0e2c4");
+    g.addColorStop(0.5, "#c8b088");
+    g.addColorStop(1, "#5e4c2c");
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.moveTo(-R * 1.25, 0);
+    ctx.quadraticCurveTo(-R * 0.3, -R * 0.62, R * 0.35, -R * 0.30);
+    ctx.quadraticCurveTo(R * 1.10, -R * 0.10, R * 1.28, 0);
+    ctx.quadraticCurveTo(R * 1.05, R * 0.14, R * 0.35, R * 0.34);
+    ctx.quadraticCurveTo(-R * 0.3, R * 0.62, -R * 1.25, 0);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = "#3f331a"; ctx.lineWidth = Math.max(1.6, 2.2 * U); ctx.stroke();
+    ctx.fillStyle = "#4a3c1e";
+    ctx.beginPath(); ctx.ellipse(0, 0, R * 0.32, R * 0.22, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+    towerFace(R * 0.46, expression, blink);
+    ctx.restore();
+  }
+
+  // --- Célula dendrítica migratoria --------------------------------------
+  function drawDendriticaMigratoria(t, pulse, expression, blink) {
+    var R = 14 * U * pulse, time = state.time, w = (t.idlePhase || 0);
+    ctx.save();
+    ctx.translate(t.x, t.y);
+    // Dendritas largas y ramificadas, en movimiento constante.
+    ctx.strokeStyle = "#4e8a80";
+    ctx.lineCap = "round";
+    for (var d = 0; d < 8; d++) {
+      var da = (d / 8) * Math.PI * 2 + w + Math.sin(time * 1.4 + d) * 0.2;
+      var len = R * (1.5 + 0.35 * Math.sin(time * 2.2 + d));
+      ctx.lineWidth = Math.max(1.4, 1.9 * U);
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(da) * R * 0.75, Math.sin(da) * R * 0.75);
+      var mx = Math.cos(da) * len * 0.7, my = Math.sin(da) * len * 0.7;
+      ctx.lineTo(mx, my);
+      ctx.stroke();
+      // Bifurcación terminal.
+      ctx.lineWidth = Math.max(1, 1.3 * U);
+      for (var br = -1; br <= 1; br += 2) {
+        ctx.beginPath();
+        ctx.moveTo(mx, my);
+        ctx.lineTo(Math.cos(da + br * 0.35) * len, Math.sin(da + br * 0.35) * len);
+        ctx.stroke();
+      }
+    }
+    // Cuerpo con MHC-II en la superficie (puntitos brillantes).
+    var g = ctx.createRadialGradient(-R * 0.25, -R * 0.28, R * 0.08, 0, 0, R * 0.9);
+    g.addColorStop(0, "#e0f4ee");
+    g.addColorStop(0.55, "#9fd0c8");
+    g.addColorStop(1, "#31615a");
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(0, 0, R * 0.88, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = "#1f3f3a"; ctx.lineWidth = Math.max(1.7, 2.2 * U); ctx.stroke();
+    ctx.fillStyle = "rgba(255,255,255,0.75)";
+    for (var m = 0; m < 7; m++) {
+      var ma = (m / 7) * Math.PI * 2 + time * 0.6;
+      ctx.beginPath();
+      ctx.arc(Math.cos(ma) * R * 0.62, Math.sin(ma) * R * 0.62, R * 0.09, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    towerFace(R * 0.46, expression, blink);
+    ctx.restore();
+  }
+
+  // --- Linfocito T regulador: el freno del sistema -----------------------
+  function drawTregSepsis(t, pulse, expression, blink) {
+    var R = 14 * U * pulse, time = state.time, w = (t.idlePhase || 0);
+    ctx.save();
+    ctx.translate(t.x, t.y);
+    // Onda calmante: anillo verde que se expande lento (IL-10).
+    var calm = (time % 2.4) / 2.4;
+    ctx.strokeStyle = "rgba(143,216,168," + (0.38 * (1 - calm)) + ")";
+    ctx.lineWidth = Math.max(1.4, 2 * U);
+    ctx.beginPath(); ctx.arc(0, 0, R * (1.1 + calm * 1.7), 0, Math.PI * 2); ctx.stroke();
+    // Cuerpo linfocitario: núcleo enorme, citoplasma finito.
+    var g = ctx.createRadialGradient(-R * 0.25, -R * 0.25, R * 0.08, 0, 0, R);
+    g.addColorStop(0, "#d8f4e2");
+    g.addColorStop(0.55, "#8fd8a8");
+    g.addColorStop(1, "#2e6640");
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = "#1c4228"; ctx.lineWidth = Math.max(1.8, 2.4 * U); ctx.stroke();
+    // Núcleo grande y excéntrico.
+    ctx.fillStyle = "#276039";
+    ctx.beginPath(); ctx.arc(-R * 0.08, R * 0.04, R * 0.62, 0, Math.PI * 2); ctx.fill();
+    // FOXP3: el factor que lo define, como un símbolo interno.
+    ctx.strokeStyle = "rgba(220,255,230,0.9)";
+    ctx.lineWidth = Math.max(1.2, 1.6 * U);
+    ctx.beginPath();
+    ctx.arc(-R * 0.08, R * 0.04, R * 0.30, 0.4, 0.4 + Math.PI * 1.5);
+    ctx.stroke();
+    // Barra de "freno" cruzando el núcleo.
+    ctx.strokeStyle = "rgba(255,255,255,0.8)";
+    ctx.lineWidth = Math.max(1.4, 1.9 * U);
+    ctx.beginPath();
+    ctx.moveTo(-R * 0.42, -R * 0.30 + Math.sin(time * 2 + w) * R * 0.03);
+    ctx.lineTo(R * 0.26, -R * 0.30 + Math.sin(time * 2 + w) * R * 0.03);
+    ctx.stroke();
+    towerFace(R * 0.46, expression, blink);
+    ctx.restore();
+  }
+
   function drawILC2(t, pulse, expression, blink) {
     // ILC2 — linfoide innato tipo 2. Amplificador: libera GRÁNULOS de
     // citocinas (IL-5/IL-13) y emite antenas de señalización a las aliadas.
@@ -19532,6 +20352,8 @@
     else if (def.id === "borrelia")          drawBorrelia(e, rad * scale, expression, blink);
     else if (def.id === "pyogenesArt")       drawPyogenesArt(e, rad * scale, expression, blink);
     else if (def.id === "bossPannus")        drawBossPannus(e, rad * scale, expression, blink);
+    else if (def.id === "emboloSeptico")     drawEmboloSeptico(e, rad * scale, expression, blink);
+    else if (def.id === "bacteroides")       drawBacteroides(e, rad * scale, expression, blink);
     else if (kind === "bacteria")       drawBacteria(e, rad * scale, expression, blink);
     else if (kind === "virus")          drawVirus(e, rad * scale, expression, blink);
     else if (kind === "hongo")          drawHongo(e, rad * scale, expression, blink);
@@ -23374,6 +24196,101 @@
     ctx.restore();
   }
 
+  // --- Émbolo séptico: trozo de vegetación viajando por la sangre --------
+  function drawEmboloSeptico(e, rad, expression, blink) {
+    var R = rad, t = state.time, hit = e.hitFlash > 0;
+    ctx.save();
+    ctx.translate(e.x, e.y);
+    // Estela de sangre (viaja rápido por la corriente).
+    ctx.strokeStyle = "rgba(212,120,140,0.30)";
+    ctx.lineWidth = Math.max(1, 1.5 * U);
+    for (var s = 0; s < 3; s++) {
+      ctx.beginPath();
+      ctx.moveTo((s - 1) * R * 0.35, -R * 1.1);
+      ctx.lineTo((s - 1) * R * 0.55, -R * (1.9 + 0.3 * Math.sin(t * 6 + s)));
+      ctx.stroke();
+    }
+    // Cuerpo: coágulo irregular (fibrina + plaquetas + bacterias).
+    ctx.fillStyle = hit ? "#fff" : e.def.colorDark;
+    ctx.beginPath();
+    for (var a = 0; a <= 12; a++) {
+      var ang = (a / 12) * Math.PI * 2;
+      var rr = R * (0.9 + 0.20 * Math.sin(a * 2.7 + t * 1.1));
+      var px = Math.cos(ang) * rr, py = Math.sin(ang) * rr;
+      if (a === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = "#4a1620"; ctx.lineWidth = Math.max(1.4, 1.9 * U); ctx.stroke();
+    // Bacterias atrapadas dentro (puntos claros).
+    ctx.fillStyle = colorAlpha(e.def.colorLight, 0.85);
+    for (var b = 0; b < 6; b++) {
+      var ba = b * 1.05 + t * 0.3;
+      var br = R * (0.20 + 0.30 * ((b % 3) / 2));
+      ctx.beginPath();
+      ctx.arc(Math.cos(ba) * br, Math.sin(ba) * br, R * 0.13, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // Hebras de fibrina desprendiéndose (va a fragmentarse).
+    ctx.strokeStyle = "rgba(255,220,225,0.5)";
+    ctx.lineWidth = Math.max(0.7, 0.9 * U);
+    for (var fz = 0; fz < 5; fz++) {
+      var fa = (fz / 5) * Math.PI * 2 + t * 0.6;
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(fa) * R * 0.9, Math.sin(fa) * R * 0.9);
+      ctx.lineTo(Math.cos(fa) * R * (1.3 + 0.2 * Math.sin(t * 4 + fz)),
+                 Math.sin(fa) * R * (1.3 + 0.2 * Math.sin(t * 4 + fz)));
+      ctx.stroke();
+    }
+    germFace(R * 0.58, expression, blink, R * 0.26);
+    ctx.restore();
+  }
+
+  // --- Bacteroides fragilis: anaerobio capsulado del absceso -------------
+  function drawBacteroides(e, rad, expression, blink) {
+    var R = rad, t = state.time, hit = e.hitFlash > 0;
+    ctx.save();
+    ctx.translate(e.x, e.y);
+    // Cápsula de polisacárido A: halo denso que induce pus.
+    var cap = ctx.createRadialGradient(0, 0, R * 0.7, 0, 0, R * 1.5);
+    cap.addColorStop(0, "rgba(196,176,216,0.28)");
+    cap.addColorStop(1, "rgba(196,176,216,0)");
+    ctx.fillStyle = cap;
+    ctx.beginPath(); ctx.arc(0, 0, R * 1.5, 0, Math.PI * 2); ctx.fill();
+    // Cuerpo: bacilo pleomórfico (irregular, como es en el Gram real).
+    var g = ctx.createLinearGradient(-R * 0.9, -R * 0.5, R * 0.9, R * 0.5);
+    g.addColorStop(0, e.def.colorLight);
+    g.addColorStop(0.5, e.def.color);
+    g.addColorStop(1, e.def.colorDark);
+    ctx.fillStyle = hit ? "#fff" : g;
+    ctx.save();
+    ctx.rotate(Math.sin(t * 1.2) * 0.12);
+    ctx.beginPath();
+    ctx.ellipse(0, 0, R * 0.95, R * 0.62, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = e.def.colorDark; ctx.lineWidth = Math.max(1.4, 1.9 * U); ctx.stroke();
+    // Tinción irregular (vacuolas claras): rasgo típico del pleomorfismo.
+    ctx.fillStyle = "rgba(240,232,250,0.5)";
+    for (var v = 0; v < 3; v++) {
+      ctx.beginPath();
+      ctx.arc((v - 1) * R * 0.42, Math.sin(t * 2 + v) * R * 0.08, R * 0.16, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+    // Burbujas: el anaerobio produce gas en la colección.
+    ctx.fillStyle = "rgba(230,220,245,0.55)";
+    for (var bb = 0; bb < 4; bb++) {
+      var bp = ((t * 0.55 + bb * 0.25) % 1);
+      ctx.globalAlpha = 0.55 * (1 - bp);
+      ctx.beginPath();
+      ctx.arc((bb - 1.5) * R * 0.35, -R * (0.8 + bp * 0.9), R * 0.10, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    germFace(R * 0.60, expression, blink, R * 0.26);
+    ctx.restore();
+  }
+
   function drawLeishmania(e, rad, expression, blink) {
     var R = rad, t = state.time;
     var amastigote = !!e.leishAmastigote;
@@ -24231,6 +25148,10 @@
     else if (typeId === "sinoviocitoA")   drawSinoviocitoA(fakeTower, pulse, "idle", false);
     else if (typeId === "sinoviocitoB")   drawSinoviocitoB(fakeTower, pulse, "idle", false);
     else if (typeId === "condrocito")     drawCondrocito(fakeTower, pulse, "idle", false);
+    else if (typeId === "macrofagoAlveolar") drawMacrofagoAlveolar(fakeTower, pulse, "idle", false);
+    else if (typeId === "fibroblastoEncap") drawFibroblastoEncap(fakeTower, pulse, "idle", false);
+    else if (typeId === "dendriticaMigratoria") drawDendriticaMigratoria(fakeTower, pulse, "idle", false);
+    else if (typeId === "tregSepsis")     drawTregSepsis(fakeTower, pulse, "idle", false);
     else {
       // Fallback al ícono simple si no hay función dedicada.
       ctx.translate(-cx, -cy);
@@ -25054,6 +25975,10 @@
     else if (def.id === "sinoviocitoA") drawSinoviocitoA(fakeTower, 1, "idle", false);
     else if (def.id === "sinoviocitoB") drawSinoviocitoB(fakeTower, 1, "idle", false);
     else if (def.id === "condrocito") drawCondrocito(fakeTower, 1, "idle", false);
+    else if (def.id === "macrofagoAlveolar") drawMacrofagoAlveolar(fakeTower, 1, "idle", false);
+    else if (def.id === "fibroblastoEncap") drawFibroblastoEncap(fakeTower, 1, "idle", false);
+    else if (def.id === "dendriticaMigratoria") drawDendriticaMigratoria(fakeTower, 1, "idle", false);
+    else if (def.id === "tregSepsis") drawTregSepsis(fakeTower, 1, "idle", false);
     else drawLinfocitoT(fakeTower, 1, "idle", false);
     ctx.globalAlpha = 1;
     ctx.restore();
@@ -25386,6 +26311,8 @@
     else if (def.id === "borrelia") { fakeEnemy.vx = 1; fakeEnemy.vy = 0; drawBorrelia(fakeEnemy, R, "idle", false); }
     else if (def.id === "pyogenesArt") drawPyogenesArt(fakeEnemy, R, "idle", false);
     else if (def.id === "bossPannus") drawBossPannus(fakeEnemy, R, "idle", false);
+    else if (def.id === "emboloSeptico") drawEmboloSeptico(fakeEnemy, R, "idle", false);
+    else if (def.id === "bacteroides") drawBacteroides(fakeEnemy, R, "idle", false);
     else if (kind === "bacteria") drawBacteria(fakeEnemy, R, "idle", false);
     else if (kind === "virus") drawVirus(fakeEnemy, R, "idle", false);
     else if (kind === "hongo") drawHongo(fakeEnemy, R, "idle", false);
@@ -27204,6 +28131,48 @@
       ctx.fillRect(-bw / 2, sq.r * 0.82, bw * (sq.hp / sq.maxHp), 3 * U);
       ctx.restore();
     }
+    // Colecciones purulentas (Fase 3, familia absceso).
+    var absList = f.abscesses || [];
+    for (var ai = 0; ai < absList.length; ai++) {
+      var ab = absList[ai];
+      ctx.save();
+      ctx.translate(ab.x, ab.y);
+      // Halo inflamatorio.
+      var hg = ctx.createRadialGradient(0, 0, ab.r * 0.5, 0, 0, ab.r * 1.6);
+      hg.addColorStop(0, "rgba(240, 210, 120, 0.22)");
+      hg.addColorStop(1, "rgba(240, 210, 120, 0)");
+      ctx.fillStyle = hg;
+      ctx.beginPath(); ctx.arc(0, 0, ab.r * 1.6, 0, Math.PI * 2); ctx.fill();
+      // Bolsa de pus, deformada y latiendo con la maduración.
+      ctx.fillStyle = ab.flash > 0 ? "#fff6d0" : "#d8c064";
+      ctx.beginPath();
+      for (var aa = 0; aa <= 14; aa++) {
+        var ang2 = (aa / 14) * Math.PI * 2;
+        var rr2 = ab.r * (1 + 0.12 * Math.sin(ang2 * 3 + f.fxT * 1.4));
+        var px2 = Math.cos(ang2) * rr2, py2 = Math.sin(ang2) * rr2 * 0.85;
+        if (aa === 0) ctx.moveTo(px2, py2); else ctx.lineTo(px2, py2);
+      }
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = ab.ripe >= 1 ? "#ff9a3c" : "#6e5c1e";
+      ctx.lineWidth = Math.max(1.5, 2.1 * U);
+      ctx.stroke();
+      // Burbujas internas.
+      ctx.fillStyle = "rgba(255,252,220,0.6)";
+      for (var bq = 0; bq < 4; bq++) {
+        var bph = (f.fxT * 0.6 + bq * 0.25) % 1;
+        ctx.beginPath();
+        ctx.arc(Math.sin(bq * 2.3) * ab.r * 0.4, ab.r * 0.4 - bph * ab.r * 0.8,
+                ab.r * 0.10, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      // Barra de drenaje.
+      ctx.fillStyle = "rgba(0,0,0,0.45)";
+      ctx.fillRect(-ab.r, ab.r * 0.95, ab.r * 2, 3 * U);
+      ctx.fillStyle = "#ffd24a";
+      ctx.fillRect(-ab.r, ab.r * 0.95, ab.r * 2 * Math.max(0, ab.hp / ab.maxHp), 3 * U);
+      ctx.restore();
+    }
     // Involucros (muros de hueso nuevo del Osteoblasto).
     for (var w = 0; w < f.walls.length; w++) {
       var wl = f.walls[w];
@@ -27305,7 +28274,8 @@
     ctx.save();
     // Fondo translúcido: el HUD se superpone al campo (los rótulos de los
     // focos viven ahí arriba) y sin backing se vuelve ilegible.
-    var panelH = (cfg.cartilageMax ? 3 : 2) * (barH + 16 * U) + 8 * U;
+    var rows = 2 + (cfg.cartilageMax ? 1 : 0) + (cfg.mechanic === "tormenta" ? 1 : 0);
+    var panelH = rows * (barH + 16 * U) + 8 * U;
     ctx.fillStyle = "rgba(12, 8, 14, 0.55)";
     roundRect(x - 6 * U, y - 14 * U, barW + 12 * U, panelH, 4 * U);
     ctx.fill();
@@ -27329,6 +28299,21 @@
       var cFrac = Math.max(0, f.cartilage / cfg.cartilageMax);
       ctx.fillStyle = cFrac > 0.4 ? "#dff0f4" : "#e07070";
       roundRect(x, y, barW * cFrac, barH, 4 * U); ctx.fill();
+      y += barH + 16 * U;
+    }
+    // Tormenta de citoquinas (sepsis / MODS): la barra que puede matarte sola.
+    if (cfg.mechanic === "tormenta") {
+      var storm = f.storm || 0;
+      ctx.fillStyle = storm > 40 ? "#ff9a6a" : "rgba(255,255,255,0.85)";
+      ctx.fillText("TORMENTA  " + Math.round(storm) + "%", x, y - 2 * U);
+      ctx.fillStyle = "rgba(0,0,0,0.45)";
+      roundRect(x, y, barW, barH, 4 * U); ctx.fill();
+      var sFrac = storm / 100;
+      ctx.fillStyle = storm > 66 ? "#ff4d4d" : (storm > 40 ? "#ff9a3c" : "#7ac0e8");
+      roundRect(x, y, barW * sFrac, barH, 4 * U); ctx.fill();
+      // Marca del umbral de daño autoinmune (40%).
+      ctx.fillStyle = "rgba(255,255,255,0.75)";
+      ctx.fillRect(x + barW * 0.4, y - 2 * U, 1.5 * U, barH + 4 * U);
       y += barH + 16 * U;
     }
     // Oleadas + filtrados.

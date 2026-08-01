@@ -5117,6 +5117,7 @@
   state.vistos = loadVistos();
   // Dev hook: permite inspeccionar y mutar state desde DevTools en producción.
   // Es inofensivo — el código del juego ya es público (GitHub Pages + Vercel).
+  var devAutoUlt = false;
   window.__game = {
     get state() { return state; },
     // Salto directo a un nivel de Fase 2 (pruebas): __game.goF2("artritis").
@@ -5128,12 +5129,44 @@
       return state.towers.length;
     },
     // Adelanta la simulación N segundos sin depender del reloj de frames.
+    // Si autoUlt está activo, dispara los ultimates listos en cada frame —
+    // sin eso la simulación juega sin manos y ningún nivel es ganable.
     step: function (seconds, dt) {
       dt = dt || 0.05;
       var n = Math.max(1, Math.round(seconds / dt));
-      for (var i = 0; i < n; i++) loop(0, dt);
+      for (var i = 0; i < n; i++) {
+        loop(0, dt);
+        if (devAutoUlt) window.__game.ults();
+      }
       return state.time;
-    }
+    },
+    // Tap en coordenadas de canvas (las mismas que recibe handleClick).
+    tap: function (x, y) { handleClick(x, y); return { x: x, y: y }; },
+    // Tap en coordenadas normalizadas del canvas (0..1), sin importar el tamaño.
+    tapN: function (nx, ny) {
+      var r = canvas.getBoundingClientRect();
+      return window.__game.tap(nx * r.width, ny * r.height);
+    },
+    // Tap sobre una torre por índice, en su propia posición de mundo.
+    tapTower: function (i) {
+      var t = state.towers[i];
+      if (!t) return null;
+      triggerTowerSpecial(t);
+      return { i: i, tipo: t.typeId || (t.def && t.def.id), disparo: !t.specialReady };
+    },
+    // Dispara TODOS los ultimates listos. Devuelve cuántos salieron.
+    // Cubre también a las torres productoras (Nicho Epitelial): su "turno de
+    // trabajo" usa el mismo specialReady/triggerTowerSpecial que un ultimate.
+    ults: function () {
+      var n = 0;
+      for (var i = 0; i < state.towers.length; i++) {
+        var t = state.towers[i];
+        if (t && t.specialReady) { triggerTowerSpecial(t); n++; }
+      }
+      return n;
+    },
+    // Enciende/apaga el disparo automático de ultimates dentro de step().
+    autoUlt: function (on) { devAutoUlt = (on !== false); return devAutoUlt; }
   };
 
   // Per-wave difficulty (replaces getDifficulty(level)). Speed also receives

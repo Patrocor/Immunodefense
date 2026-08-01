@@ -69,8 +69,12 @@ y MRSA. Detalle de cada uno en su tooltip dentro del juego.
 
 - HTML + CSS + JavaScript vanilla
 - Canvas 2D
-- Sin frameworks, sin build, sin npm
-- Compatible con GitHub Pages
+- Sin frameworks ni bundler: la web se sirve tal cual desde la raíz
+  (`index.html` + `game.js` + `assets/`), así que GitHub Pages y Vercel no
+  necesitan build.
+- Para móvil sí hay un paso: `npm run build` copia esos mismos fuentes a
+  `www/` (generado, fuera de git) y `npm run sync|android|ios` lo empaqueta
+  con Capacitor.
 
 ## Roadmap corto
 

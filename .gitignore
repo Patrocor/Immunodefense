@@ -18,3 +18,14 @@ dist/
 build/
 .vercel
 .superpowers/
+
+# Build web (generado por: npm run build). Los fuentes son index.html/game.js/assets.
+www/
+
+# Volcados de preview de desarrollo (scripts/)
+scripts/*preview*.png
+scripts/*preview*.txt
+scripts/zoneprev.png
+scripts/gpreview*.txt
+scripts/tpreview.txt
+scripts/tooltips-output.txt

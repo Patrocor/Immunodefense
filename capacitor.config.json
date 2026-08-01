@@ -1,0 +1,15 @@
+{
+  "appId": "com.patrocor.immunodefense",
+  "appName": "ImmunoDefense",
+  "webDir": "www",
+  "android": {
+    "backgroundColor": "#1a0e12"
+  },
+  "ios": {
+    "backgroundColor": "#1a0e12",
+    "contentInset": "never"
+  },
+  "server": {
+    "androidScheme": "https"
+  }
+}

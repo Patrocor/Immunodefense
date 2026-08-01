@@ -4455,6 +4455,306 @@
   };
   var RESPONSE_ORDER = ["netosis"];
 
+  // Composición de la oleada que VIENE, en cualquiera de los tres motores
+  // (Fase 1, Diseminación y niveles de órgano). Devuelve [{type, count}] o
+  // null si no hay próxima (última ola ya lanzada o final del nivel).
+  function nextWaveGroups() {
+    var raw = null;
+    if (state.f2) {
+      if (state.f2.over) return null;
+      raw = state.f2.cfg.waves[state.f2.waveIdx];
+    } else if (state.dissemination) {
+      if (state.disseminationOver) return null;
+      raw = DISSEMINATION_WAVE_TABLE[state.disseminationWaveIdx];
+    } else {
+      if (state.cinematicEnd) return null;
+      var wd = getWaveDef(state.waveIdx + 1);
+      return wd ? wd.groups.map(function (g) { return { type: g.type, count: g.count }; }) : null;
+    }
+    if (!raw) return null;
+    return raw.map(function (g) { return { type: g[0], count: g[1] }; });
+  }
+
+  // Número de la próxima ola y total del nivel, para el encabezado.
+  function nextWaveNumbers() {
+    if (state.f2) return { n: state.f2.waveIdx + 1, total: state.f2.cfg.waves.length };
+    if (state.dissemination) {
+      return { n: (state.disseminationWaveIdx || 0) + 1, total: DISSEMINATION_WAVE_TABLE.length };
+    }
+    return { n: state.waveIdx + 1, total: 0 };
+  }
+
+  // Línea de oleadas del nivel: cuántas son, cuáles ya pasaron y en cuáles
+  // hay jefe. Devuelve null si el motor no tiene una tabla cerrada.
+  function levelWaveTrack() {
+    function tieneBoss(w) {
+      for (var i = 0; i < w.length; i++) if (/^boss/.test(w[i][0])) return true;
+      return false;
+    }
+    var tabla = null, cur = 0;
+    if (state.f2) { tabla = state.f2.cfg.waves; cur = state.f2.waveIdx; }
+    else if (state.dissemination) {
+      tabla = DISSEMINATION_WAVE_TABLE; cur = state.disseminationWaveIdx || 0;
+    } else {
+      var keys = [];
+      for (var k in WAVE_TABLE) if (WAVE_TABLE.hasOwnProperty(k)) keys.push(Number(k));
+      keys.sort(function (a, b) { return a - b; });
+      tabla = keys.map(function (kk) { return WAVE_TABLE[kk]; });
+      cur = state.waveIdx;
+    }
+    if (!tabla || !tabla.length) return null;
+    return { cur: cur, bosses: tabla.map(tieneBoss) };
+  }
+
+  // Panel de intel del dock: ocupa la columna que quedaba vacía con las dos
+  // cosas que durante la partida no se pueden consultar en ningún lado — la
+  // mecánica del nivel (solo se veía en la placa de entrada) y qué gérmenes
+  // trae la oleada que viene. Cada fila abre el Dex de ese germen.
+  function drawDockIntel() {
+    var box = UI.dockIntel;
+    if (!box || state.compendiumOpen) return;
+    var y = box.y;
+    var pad = 5;
+    var innerX = box.x + pad;
+    var innerW = box.w - pad * 2;
+    ctx.save();
+    // Clip a la columna: los sprites de germen tienen flagelos y colas que si
+    // no se salen del dock y se dibujan encima del campo.
+    ctx.beginPath();
+    ctx.rect(box.x, box.y, box.w, box.h);
+    ctx.clip();
+    ctx.textBaseline = "top";
+
+    // --- Mecánica del nivel (solo niveles de órgano) ---------------------
+    var cfg = state.f2 ? state.f2.cfg : null;
+    if (cfg && cfg.mechanicName && box.h >= 96) {
+      // El nombre de la mecánica son palabras largas ("TRANSCORTICAL") en una
+      // columna de ~55 px: primero se busca el cuerpo con el que entra la
+      // palabra más larga, recién después se parte en líneas.
+      var palabras = cfg.mechanicName.split(" ");
+      var masLarga = palabras[0];
+      for (var wI = 1; wI < palabras.length; wI++) {
+        if (palabras[wI].length > masLarga.length) masLarga = palabras[wI];
+      }
+      var mechPx = fitFont(masLarga, innerW - 2, 10, 6);
+      ctx.font = "bold " + mechPx + "px Fredoka, sans-serif";
+      var mechLines = wrapTextLines(cfg.mechanicName, innerW - 2);
+      if (mechLines.length > 3) mechLines = mechLines.slice(0, 3);
+      var lineH = mechPx + 2;
+      var mechH = 16 + mechLines.length * lineH + 6;
+      ctx.fillStyle = "rgba(20, 12, 16, 0.85)";
+      ctx.fillRect(box.x, y, box.w, mechH);
+      ctx.fillStyle = colorAlpha(cfg.color, 0.9);
+      ctx.fillRect(box.x, y, 2, mechH);
+      ctx.textAlign = "left";
+      ctx.fillStyle = "rgba(255,255,255,0.42)";
+      ctx.font = "bold 8px Fredoka, sans-serif";
+      ctx.fillText("MECÁNICA", innerX, y + 4);
+      ctx.fillStyle = cfg.colorLight || "#ffd6c4";
+      ctx.font = "bold " + mechPx + "px Fredoka, sans-serif";
+      for (var mi = 0; mi < mechLines.length; mi++) {
+        ctx.fillText(ellipsizeToWidth(mechLines[mi], innerW), innerX, y + 15 + mi * lineH);
+      }
+      UI.intelMechBtn = { x: box.x, y: y, w: box.w, h: mechH };
+      y += mechH + 6;
+    }
+
+    // --- Próxima oleada ---------------------------------------------------
+    var groups = nextWaveGroups();
+    if (!groups || !groups.length) { ctx.restore(); return; }
+    var num = nextWaveNumbers();
+    var restante = box.y + box.h - y;
+    if (restante < 40) { ctx.restore(); return; }
+
+    ctx.textAlign = "left";
+    ctx.fillStyle = "rgba(255,255,255,0.42)";
+    ctx.font = "bold 8px Fredoka, sans-serif";
+    ctx.fillText("VIENE", innerX, y);
+    ctx.textAlign = "right";
+    ctx.fillStyle = "rgba(255,255,255,0.62)";
+    ctx.fillText(num.total ? (num.n + "/" + num.total) : ("#" + num.n), innerX + innerW, y);
+    y += 12;
+
+    // Junta repetidos y deja los jefes al final (son el remate de la ola).
+    var merged = [];
+    for (var gi = 0; gi < groups.length; gi++) {
+      var g = groups[gi];
+      var prev = null;
+      for (var mj = 0; mj < merged.length; mj++) if (merged[mj].type === g.type) { prev = merged[mj]; break; }
+      if (prev) prev.count += g.count;
+      else merged.push({ type: g.type, count: g.count });
+    }
+    merged.sort(function (a, b) {
+      var ba = /^boss/.test(a.type) ? 1 : 0, bb = /^boss/.test(b.type) ? 1 : 0;
+      return ba - bb;
+    });
+
+    // Las filas CRECEN para ocupar el hueco disponible (en tablet sobran 800
+    // px de columna) hasta un techo, y solo entonces se reserva sitio para el
+    // bloque de estado. Así el dock no queda con un vacío al medio.
+    var libre = box.y + box.h - y;
+    var rowMin = Math.round(Math.max(22, Math.min(30, innerW * 0.46)));
+    var statsH = (libre > rowMin * merged.length + 78) ? 62 : 0;
+    libre -= statsH;
+    var rowH = rowMin;
+    if (merged.length > 0) {
+      rowH = Math.max(rowMin, Math.min(46, Math.floor(libre / merged.length) - 3));
+    }
+    var maxRows = Math.floor(libre / (rowH + 3));
+    var shown = Math.min(merged.length, Math.max(0, maxRows));
+    for (var ri = 0; ri < shown; ri++) {
+      var it = merged[ri];
+      var def = ENEMY_DEFS[it.type];
+      if (!def) continue;
+      var ry = y + ri * (rowH + 3);
+      var esBoss = !!def.boss || /^boss/.test(it.type);
+      ctx.fillStyle = esBoss ? "rgba(120, 26, 34, 0.55)" : "rgba(255,255,255,0.05)";
+      ctx.fillRect(box.x, ry, box.w, rowH);
+      // Sprite del germen. Si todavía no lo viste, va en silueta: la oleada
+      // avisa que viene algo nuevo sin regalarte cuál es.
+      var visto = !(state.vistos && !state.vistos[def.id]);
+      var spR = rowH * 0.36;
+      ctx.save();
+      if (!visto) ctx.filter = "brightness(0.12)";
+      drawTooltipSprite(def, box.x + rowH * 0.52, ry + rowH * 0.5, spR);
+      ctx.restore();
+      if (!visto) {
+        ctx.fillStyle = "rgba(255,255,255,0.65)";
+        ctx.font = "bold 11px Fredoka, sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText("?", box.x + rowH * 0.52, ry + rowH * 0.5 - 6);
+      }
+      ctx.textAlign = "right";
+      ctx.textBaseline = "middle";
+      ctx.fillStyle = esBoss ? "#ffd0c0" : "rgba(255,255,255,0.88)";
+      ctx.font = "bold " + (esBoss ? 11 : 10) + "px Fredoka, sans-serif";
+      ctx.fillText("×" + it.count, box.x + box.w - 5, ry + rowH * 0.5);
+      ctx.textBaseline = "top";
+      UI.intelRows.push({ x: box.x, y: ry, w: box.w, h: rowH, typeId: def.id });
+    }
+    var trasFilas = y + shown * (rowH + 3);
+    // Si no entraron todas, se avisa cuántas faltan en vez de recortar mudo.
+    if (shown < merged.length) {
+      if (trasFilas + 10 <= box.y + box.h) {
+        ctx.textAlign = "center";
+        ctx.fillStyle = "rgba(255,255,255,0.45)";
+        ctx.font = "bold 9px Fredoka, sans-serif";
+        ctx.fillText("+" + (merged.length - shown) + " más", box.x + box.w / 2, trasFilas);
+        trasFilas += 12;
+      }
+    }
+
+    // --- Línea de oleadas (se estira para tapar el hueco que quede) -------
+    // Es lo único de la columna que quiere alto: en tablet ocupa 600 px y en
+    // un teléfono desaparece sola. Muestra cuántas olas faltan y dónde caen
+    // los jefes — información que si no hay que memorizar.
+    var pistaTop = trasFilas + 6;
+    var pistaBottom = box.y + box.h - (statsH > 0 ? statsH : 0) - 4;
+    var track = levelWaveTrack();
+    if (track && pistaBottom - pistaTop >= 54) {
+      var nW = track.bosses.length;
+      var pistaH = pistaBottom - pistaTop - 12;
+      var paso = pistaH / Math.max(1, nW - 1);
+      var ejeX = box.x + 14;
+      ctx.textAlign = "left";
+      ctx.fillStyle = "rgba(255,255,255,0.42)";
+      ctx.font = "bold 8px Fredoka, sans-serif";
+      ctx.fillText("OLEADAS", innerX, pistaTop);
+      var y0 = pistaTop + 12;
+      // Riel completo + tramo ya jugado.
+      ctx.fillStyle = "rgba(255,255,255,0.12)";
+      ctx.fillRect(ejeX - 1, y0, 2, pistaH);
+      if (track.cur > 0) {
+        ctx.fillStyle = "rgba(255, 210, 74, 0.55)";
+        ctx.fillRect(ejeX - 1, y0, 2, Math.min(pistaH, paso * (track.cur - 1) + 1));
+      }
+      for (var wi = 0; wi < nW; wi++) {
+        var wy = y0 + paso * wi;
+        var hecha = (wi < track.cur - 1);
+        var actual = (wi === track.cur - 1);
+        var esB = track.bosses[wi];
+        var col = actual ? "#ffd24a" : hecha ? "rgba(255,210,74,0.45)" : "rgba(255,255,255,0.28)";
+        if (esB) {
+          // Jefe: rombo, siempre legible aunque falte mucho para llegar.
+          var rB = actual ? 6 : 5;
+          ctx.fillStyle = hecha || actual ? col : "rgba(255,120,110,0.55)";
+          ctx.beginPath();
+          ctx.moveTo(ejeX, wy - rB); ctx.lineTo(ejeX + rB, wy);
+          ctx.lineTo(ejeX, wy + rB); ctx.lineTo(ejeX - rB, wy);
+          ctx.closePath(); ctx.fill();
+        } else {
+          ctx.fillStyle = col;
+          ctx.beginPath(); ctx.arc(ejeX, wy, actual ? 4.5 : 3, 0, Math.PI * 2); ctx.fill();
+        }
+        if (actual) {
+          ctx.strokeStyle = "rgba(255,230,150,0.85)";
+          ctx.lineWidth = 1.5;
+          ctx.beginPath(); ctx.arc(ejeX, wy, 8, 0, Math.PI * 2); ctx.stroke();
+        }
+        // Número de ola cuando hay sitio de sobra entre pips.
+        if (paso >= 16) {
+          ctx.textAlign = "left";
+          ctx.fillStyle = actual ? "#ffd24a" : "rgba(255,255,255,0.40)";
+          ctx.font = (actual ? "bold " : "") + "9px Fredoka, sans-serif";
+          ctx.textBaseline = "middle";
+          ctx.fillText(esB ? (wi + 1) + " ♦" : String(wi + 1), ejeX + 12, wy);
+          ctx.textBaseline = "top";
+        }
+      }
+    }
+
+    // --- Estado de la partida (llena el resto de la columna) --------------
+    // Lo que hay que mirar sin despegar la vista del campo: cuántas células
+    // te quedan de pie, cuántos gérmenes hay sueltos y cuántos se filtraron.
+    if (statsH > 0 && box.y + box.h - trasFilas >= 52) {
+      var vivas = 0;
+      for (var tV = 0; tV < state.towers.length; tV++) if (!state.towers[tV].dead) vivas++;
+      var sueltos = 0;
+      for (var eV = 0; eV < state.enemies.length; eV++) if (!state.enemies[eV].dead) sueltos++;
+      // Cada etiqueta lleva su versión corta: en un dock de 54 px la larga se
+      // recortaba a "CÉL..." y no se entendía nada.
+      var filas = [
+        ["CÉLULAS", "CÉLS", String(vivas), "#8fe3a0"],
+        ["EN CAMPO", "CAMPO", String(sueltos), sueltos > 0 ? "#ffb08a" : "rgba(255,255,255,0.6)"]
+      ];
+      // Tercer dato: el que mide cómo vas perdiendo en ESTE motor. En órgano
+      // son los que se filtraron por detrás; en Fase 1, la carga viral.
+      if (state.f2) {
+        var filt = state.f2.leakedTotal || 0;
+        filas.push(["FILTRADOS", "FUGAS", String(filt), filt > 0 ? "#ff8a8a" : "rgba(255,255,255,0.6)"]);
+      } else if (!state.dissemination) {
+        var carga = Math.round(100 * state.viralLoad / Math.max(1, state.viralThreshold));
+        filas.push(["CARGA", "CARG", carga + "%", carga > 50 ? "#ff8a8a" : "rgba(255,255,255,0.6)"]);
+      }
+      var sy = box.y + box.h - (filas.length * 17 + 5);
+      ctx.fillStyle = "rgba(20, 12, 16, 0.7)";
+      ctx.fillRect(box.x, sy - 4, box.w, filas.length * 17 + 9);
+      for (var si = 0; si < filas.length; si++) {
+        var fy = sy + si * 17;
+        ctx.textAlign = "left";
+        ctx.textBaseline = "middle";
+        ctx.fillStyle = "rgba(255,255,255,0.42)";
+        ctx.font = "bold 8px Fredoka, sans-serif";
+        // Espacio real para la etiqueta = ancho menos lo que ocupa el número.
+        ctx.save();
+        ctx.font = "bold 11px Fredoka, sans-serif";
+        var numW = ctx.measureText(filas[si][2]).width;
+        ctx.restore();
+        ctx.font = "bold 8px Fredoka, sans-serif";
+        var labMax = innerW - numW - 6;
+        var lab = filas[si][0];
+        if (ctx.measureText(lab).width > labMax) lab = filas[si][1];
+        ctx.fillText(ellipsizeToWidth(lab, labMax), innerX, fy + 6);
+        ctx.textAlign = "right";
+        ctx.fillStyle = filas[si][3];
+        ctx.font = "bold 11px Fredoka, sans-serif";
+        ctx.fillText(filas[si][2], box.x + box.w - 5, fy + 6);
+      }
+      ctx.textBaseline = "top";
+    }
+    ctx.restore();
+  }
+
   function drawImmuneResponsePanel() {
     if (!state.dissemination || !UI.responsePanel) return;
     var rp = UI.responsePanel;
@@ -5653,9 +5953,26 @@
       };
     }
 
+    // Columna muerta del dock: entre donde terminan las cartas y donde
+    // empieza el bloque de info + respuestas. En un teléfono son ~200 px y en
+    // tablet más de 800: ahí va el panel de intel (mecánica + próxima oleada).
+    // Sin cartas (loadout vacío) el strip medía 0 y el aviso de "pausá y
+    // elegí tu loadout" no llegaba a dibujarse nunca: se reserva alto para
+    // que el jugador nuevo vea qué tiene que hacer.
+    var stripShownH = (contentH > 0)
+      ? Math.min(stripRegionH, contentH)
+      : Math.min(stripRegionH, 150);
+    var intelTop = stripTop + stripShownH + 8;
+    var intelBottom = infoY - 8;
+    UI.dockIntel = (intelBottom - intelTop >= 56)
+      ? { x: contentX, y: intelTop, w: contentW, h: intelBottom - intelTop }
+      : null;
+    UI.intelMechBtn = null;
+    UI.intelRows = [];
+
     UI.cardStrip = {
       x: contentX, y: stripTop, w: cardW,
-      h: Math.min(stripRegionH, contentH),
+      h: stripShownH,
       contentH: contentH
     };
 
@@ -15372,6 +15689,21 @@
     if (UI.compendiumBtn && inRect(x, y, UI.compendiumBtn)) {
       openCompendium();
       return;
+    }
+    // Panel de intel del dock: la mecánica recuerda qué hace el nivel y cada
+    // germen de la próxima oleada abre su ficha del Dex.
+    if (UI.intelMechBtn && state.f2 && inRect(x, y, UI.intelMechBtn)) {
+      showMsg(state.f2.cfg.mechanicName + " — " + state.f2.cfg.mechanicDesc);
+      sfx("tick");
+      return;
+    }
+    if (UI.intelRows) {
+      for (var iR = 0; iR < UI.intelRows.length; iR++) {
+        if (inRect(x, y, UI.intelRows[iR])) {
+          openCompendium(UI.intelRows[iR].typeId);   // typeId de germen → tab "germs"
+          return;
+        }
+      }
     }
     // End overlay (legacy victory screen no longer used; restart goes to level 1).
     if (state.gameOver || state.victory) {
@@ -26184,6 +26516,34 @@
       statusText = "PRÓXIMA OLEADA EN " + Math.max(0, Math.ceil(state.nextWaveAt)) + "s";
     }
     var nb = UI.nextWaveBtn;
+    // Con la oleada EN CURSO no hay contador y la franja quedaba vacía (en
+    // portrait ocupa todo el ancho). Ahí va el avance real de la oleada:
+    // cuánto falta por entrar y cuántos gérmenes siguen sueltos.
+    if (nb && !statusText && state.waveActive) {
+      var faltanSpawn = (state.pendingSpawns && state.pendingSpawns.length) || 0;
+      var sueltosHud = 0;
+      for (var eH = 0; eH < state.enemies.length; eH++) if (!state.enemies[eH].dead) sueltosHud++;
+      var totalOla = Math.max(1, faltanSpawn + sueltosHud);
+      var entrados = Math.max(0, totalOla - faltanSpawn);
+      ctx.fillStyle = "rgba(20, 14, 18, 0.55)";
+      ctx.fillRect(nb.x, nb.y, nb.w, nb.h);
+      // Barra de avance del spawn de la ola.
+      var pbH = Math.max(3, Math.min(5, nb.h * 0.18));
+      var pbY = nb.y + nb.h - pbH - 2;
+      ctx.fillStyle = "rgba(255,255,255,0.12)";
+      ctx.fillRect(nb.x + 4, pbY, nb.w - 8, pbH);
+      ctx.fillStyle = "rgba(255, 150, 120, 0.75)";
+      ctx.fillRect(nb.x + 4, pbY, (nb.w - 8) * (entrados / totalOla), pbH);
+      var olaTxt = "OLEADA EN CURSO · " + sueltosHud + " en campo"
+                 + (faltanSpawn > 0 ? " · faltan " + faltanSpawn : "");
+      ctx.fillStyle = "rgba(255, 214, 196, 0.92)";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      var olaPx = fitFont(olaTxt, nb.w - 12, Math.max(10, Math.min(13, nb.h * 0.42)), 8);
+      ctx.font = "bold " + olaPx + "px Fredoka, sans-serif";
+      ctx.fillText(ellipsizeToWidth(olaTxt, nb.w - 8),
+                   nb.x + nb.w / 2, nb.y + (nb.h - pbH) / 2 + 1);
+    }
     if (nb && statusText) {
       ctx.fillStyle = "rgba(20, 14, 18, 0.55)";
       ctx.fillRect(nb.x, nb.y, nb.w, nb.h);
@@ -26360,24 +26720,40 @@
     var dockHasCards = UI.cards && UI.cards.length > 0;
     if (!dockHasCards && strip && strip.h > 0) {
       ctx.save();
+      // Todo el aviso vive DENTRO del strip: antes las últimas líneas se
+      // salían por la derecha del dock y se montaban sobre lo que hubiera
+      // debajo. Cada línea se ajusta al ancho y se corta lo que no entre.
       var hintX = strip.x + strip.w / 2;
-      var hintY = strip.y + Math.min(strip.h * 0.40, 80);
+      var maxHintW = strip.w - 4;
       var pulseH = 0.5 + 0.5 * Math.sin(state.time * 2.5);
-      // Pause icon glow grande
+      var linePx = fitFont("Y ELEGÍ TU", maxHintW, Math.floor(11 * U), 7);
+      var lineGap = linePx + 6;
+      var iconPx = Math.floor(Math.min(28 * U, strip.h * 0.22));
+      var bloqueH = iconPx + lineGap * 3 + 4;
+      var conDetalle = (strip.h >= bloqueH + lineGap * 2 + 10);
+      if (conDetalle) bloqueH += lineGap * 2 + 6;
+      var hintY = strip.y + Math.max(iconPx * 0.6, (strip.h - bloqueH) / 2 + iconPx * 0.5);
       ctx.fillStyle = "rgba(255, 220, 100, " + (0.55 + pulseH * 0.30) + ")";
-      ctx.font = "bold " + Math.floor(28 * U) + "px Fredoka, sans-serif";
+      ctx.font = "bold " + iconPx + "px Fredoka, sans-serif";
       ctx.textAlign = "center"; ctx.textBaseline = "middle";
       ctx.fillText("⏸", hintX, hintY);
-      // Texto
       ctx.fillStyle = "#ffd24a";
-      ctx.font = "bold " + Math.floor(11 * U) + "px Fredoka, sans-serif";
-      ctx.fillText("PAUSÁ", hintX, hintY + 30);
-      ctx.fillText("Y ELEGÍ TU", hintX, hintY + 48);
-      ctx.fillText("LOADOUT", hintX, hintY + 66);
-      ctx.fillStyle = "rgba(255,255,255,0.55)";
-      ctx.font = "10px Fredoka, sans-serif";
-      ctx.fillText("(5 torres + 2 tanques", hintX, hintY + 92);
-      ctx.fillText("+ 1 barrera)", hintX, hintY + 106);
+      ctx.font = "bold " + linePx + "px Fredoka, sans-serif";
+      var hy = hintY + iconPx * 0.6 + lineGap;
+      ctx.fillText(ellipsizeToWidth("PAUSÁ", maxHintW), hintX, hy);
+      ctx.fillText(ellipsizeToWidth("Y ELEGÍ TU", maxHintW), hintX, hy + lineGap);
+      ctx.fillText(ellipsizeToWidth("LOADOUT", maxHintW), hintX, hy + lineGap * 2);
+      if (conDetalle) {
+        ctx.fillStyle = "rgba(255,255,255,0.55)";
+        var detPx = fitFont("5 torres", maxHintW, 10, 7);
+        ctx.font = detPx + "px Fredoka, sans-serif";
+        // En un dock angosto el desglose largo no entra: se cae a "5+2+1".
+        var det1 = "5 torres · 2 tanques", det2 = "1 barrera";
+        if (ctx.measureText(det1).width > maxHintW) { det1 = "5 torres + 2 tanques"; }
+        if (ctx.measureText(det1).width > maxHintW) { det1 = "5 + 2 + 1"; det2 = ""; }
+        ctx.fillText(det1, hintX, hy + lineGap * 3 + 6);
+        if (det2) ctx.fillText(det2, hintX, hy + lineGap * 4 + 6);
+      }
       ctx.restore();
     }
     if (strip && strip.h > 0 && dockHasCards) {
@@ -28422,6 +28798,8 @@
       drawHUD();
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       drawPanel();
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      safeDraw("DockIntel", drawDockIntel);
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       drawCompendiumButton();
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);

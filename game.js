@@ -19291,8 +19291,25 @@
   // --- Osteoclasto: multinucleado con borde en cepillo -------------------
   function drawOsteoclasto(t, pulse, expression, blink) {
     var R = 17 * U * pulse, time = state.time, w = (t.idlePhase || 0);
+    // Telegraph: la célula ACIDIFICA antes de soltar la Laguna de Howship.
+    var cf = Math.max(0, Math.min(1, t.specialCharge || 0));
+    var firing = (t.specialAnim || 0) > 0;
     ctx.save();
     ctx.translate(t.x, t.y);
+    // (3) Halo ácido que asoma bajo la célula antes del estallido.
+    if (cf > 0.15 && !firing) {
+      ctx.fillStyle = "rgba(255,190,70," + (0.16 * cf) + ")";
+      ctx.beginPath();
+      ctx.ellipse(0, R * 0.9, R * (1.1 + cf * 0.6), R * (0.3 + cf * 0.25), 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    if (firing) {
+      var fa = Math.min(1, t.specialAnim);
+      ctx.fillStyle = "rgba(255,215,120," + (0.5 * fa) + ")";
+      ctx.beginPath();
+      ctx.ellipse(0, R * 0.9, R * (1.2 + (1 - fa) * 2.2), R * (0.32 + (1 - fa) * 0.9), 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
     // Cuerpo grande y aplanado.
     var g = ctx.createRadialGradient(-R * 0.3, -R * 0.35, R * 0.1, 0, 0, R * 1.1);
     g.addColorStop(0, "#f0c88c");
@@ -19302,18 +19319,23 @@
     ctx.beginPath(); ctx.ellipse(0, -R * 0.10, R * 1.15, R * 0.92, 0, 0, Math.PI * 2); ctx.fill();
     ctx.strokeStyle = "#3f2708"; ctx.lineWidth = Math.max(1.8, 2.4 * U); ctx.stroke();
     // BORDE EN CEPILLO (ruffled border): flecos densos en la cara inferior.
-    ctx.strokeStyle = "#8a5c22"; ctx.lineWidth = Math.max(1, 1.3 * U);
+    // (1) El borde en cepillo se ALARGA y se agita con la carga: la célula
+    // extiende su superficie de resorción antes de morder el hueso.
+    ctx.strokeStyle = "#8a5c22";
+    ctx.lineWidth = Math.max(1, (1.3 + cf * 0.9) * U);
     for (var i = 0; i < 13; i++) {
       var fx = -R * 0.95 + (i / 12) * R * 1.9;
-      var fl = R * (0.30 + 0.12 * Math.sin(time * 6 + i));
+      var fl = R * (0.30 + cf * 0.45 + 0.12 * Math.sin(time * (6 + cf * 8) + i));
       ctx.beginPath();
       ctx.moveTo(fx, R * 0.68);
-      ctx.lineTo(fx + Math.sin(time * 5 + i) * R * 0.06, R * 0.68 + fl);
+      ctx.lineTo(fx + Math.sin(time * (5 + cf * 9) + i) * R * (0.06 + cf * 0.09), R * 0.68 + fl);
       ctx.stroke();
     }
-    // Laguna de Howship: mancha ácida bajo el borde en cepillo.
-    ctx.fillStyle = "rgba(255,200,90,0.22)";
-    ctx.beginPath(); ctx.ellipse(0, R * 1.02, R * 1.0, R * 0.26, 0, 0, Math.PI * 2); ctx.fill();
+    // Laguna de Howship: se agranda y se enciende a medida que carga.
+    ctx.fillStyle = "rgba(255,200,90," + (0.22 + cf * 0.30) + ")";
+    ctx.beginPath();
+    ctx.ellipse(0, R * 1.02, R * (1.0 + cf * 0.35), R * (0.26 + cf * 0.16), 0, 0, Math.PI * 2);
+    ctx.fill();
     // MÚLTIPLES núcleos (es una célula multinucleada, su rasgo distintivo).
     ctx.fillStyle = "#6b4415";
     var nuclei = [[-0.45, -0.25], [0, -0.42], [0.45, -0.25], [-0.25, 0.12], [0.28, 0.14]];
@@ -19322,13 +19344,15 @@
       ctx.arc(nuclei[n][0] * R, nuclei[n][1] * R, R * 0.19, 0, Math.PI * 2);
       ctx.fill();
     }
-    // Burbujas de protón (bomba H+ acidificando).
+    // (2) Bombas de protón: con la carga salen más burbujas y más rápido.
+    // Es la acidificación subiendo antes de la descarga.
+    var nb = 4 + Math.round(cf * 5);
     ctx.fillStyle = "rgba(255,240,180,0.7)";
-    for (var b = 0; b < 4; b++) {
-      var bp = ((time * 0.8 + b * 0.25) % 1);
-      ctx.globalAlpha = 0.7 * (1 - bp);
+    for (var b = 0; b < nb; b++) {
+      var bp = ((time * (0.8 + cf * 1.6) + b * 0.25) % 1);
+      ctx.globalAlpha = (0.7 + cf * 0.25) * (1 - bp);
       ctx.beginPath();
-      ctx.arc((b - 1.5) * R * 0.4, R * 0.75 + bp * R * 0.5, R * 0.08, 0, Math.PI * 2);
+      ctx.arc((b - (nb - 1) / 2) * R * 0.4, R * 0.75 + bp * R * 0.5, R * (0.08 + cf * 0.05), 0, Math.PI * 2);
       ctx.fill();
     }
     ctx.globalAlpha = 1;
@@ -19339,12 +19363,24 @@
   // --- Osteoblasto: cúbico, deposita matriz osteoide ---------------------
   function drawOsteoblasto(t, pulse, expression, blink) {
     var R = 15 * U * pulse, time = state.time;
+    // Telegraph: la célula se CARGA de matriz antes de levantar el Involucro.
+    var cf = Math.max(0, Math.min(1, t.specialCharge || 0));
+    var firing = (t.specialAnim || 0) > 0;
     ctx.save();
     ctx.translate(t.x, t.y);
-    // Matriz osteoide recién depositada bajo la célula.
-    ctx.fillStyle = "rgba(240,225,175,0.35)";
-    roundRect(-R * 1.15, R * 0.62, R * 2.3, R * 0.44, 4 * U);
+    // (1) La matriz osteoide bajo la célula ENGROSA con la carga: el hueso
+    // nuevo se está acumulando a la vista antes de levantarse.
+    ctx.fillStyle = "rgba(240,225,175," + (0.35 + cf * 0.35) + ")";
+    roundRect(-R * (1.15 + cf * 0.3), R * 0.62, R * (2.3 + cf * 0.6), R * (0.44 + cf * 0.5), 4 * U);
     ctx.fill();
+    if (firing) {
+      var fa = Math.min(1, t.specialAnim);
+      ctx.strokeStyle = "rgba(255,245,205," + (0.75 * fa) + ")";
+      ctx.lineWidth = Math.max(2, 3 * U * fa);
+      roundRect(-R * (1.2 + (1 - fa) * 1.4), -R * (0.9 + (1 - fa) * 1.2),
+                R * (2.4 + (1 - fa) * 2.8), R * (2.0 + (1 - fa) * 2.4), 5 * U);
+      ctx.stroke();
+    }
     // Cuerpo CÚBICO (el osteoblasto activo es cuboidal, no redondo).
     var g = ctx.createLinearGradient(-R, -R, R, R);
     g.addColorStop(0, "#f4ecce");
@@ -19357,22 +19393,24 @@
     roundRect(-R * 0.88, -R * 0.82, R * 1.76, R * 1.5, 4 * U);
     ctx.stroke();
     // Retículo endoplásmico abundante (célula secretora): líneas internas.
-    ctx.strokeStyle = "rgba(120,100,50,0.5)";
-    ctx.lineWidth = Math.max(0.8, 1.1 * U);
+    // (2) Retículo endoplásmico: la fábrica se acelera con la carga.
+    ctx.strokeStyle = "rgba(120,100,50," + (0.5 + cf * 0.35) + ")";
+    ctx.lineWidth = Math.max(0.8, (1.1 + cf * 0.8) * U);
     for (var i = 0; i < 3; i++) {
       var yy = -R * 0.36 + i * R * 0.34;
       ctx.beginPath();
       ctx.moveTo(-R * 0.62, yy);
-      ctx.quadraticCurveTo(0, yy + Math.sin(time * 2 + i) * R * 0.10, R * 0.62, yy);
+      ctx.quadraticCurveTo(0, yy + Math.sin(time * (2 + cf * 6) + i) * R * (0.10 + cf * 0.10), R * 0.62, yy);
       ctx.stroke();
     }
-    // Gránulos de colágeno saliendo hacia la matriz.
+    // (3) Gránulos de colágeno: más, más grandes y más rápidos al cargar.
+    var ng = 3 + Math.round(cf * 4);
     ctx.fillStyle = "rgba(255,250,220,0.8)";
-    for (var k = 0; k < 3; k++) {
-      var kp = ((time * 0.9 + k * 0.33) % 1);
-      ctx.globalAlpha = 0.8 * (1 - kp);
+    for (var k = 0; k < ng; k++) {
+      var kp = ((time * (0.9 + cf * 1.5) + k * 0.33) % 1);
+      ctx.globalAlpha = (0.8 + cf * 0.2) * (1 - kp);
       ctx.beginPath();
-      ctx.arc((k - 1) * R * 0.42, R * 0.7 + kp * R * 0.3, R * 0.09, 0, Math.PI * 2);
+      ctx.arc((k - (ng - 1) / 2) * R * 0.42, R * 0.7 + kp * R * 0.3, R * (0.09 + cf * 0.05), 0, Math.PI * 2);
       ctx.fill();
     }
     ctx.globalAlpha = 1;
@@ -19385,15 +19423,19 @@
   // --- Osteocito: estrellado, con dendritas por los canalículos ----------
   function drawOsteocito(t, pulse, expression, blink) {
     var R = 13 * U * pulse, time = state.time, w = (t.idlePhase || 0);
+    var cf = Math.max(0, Math.min(1, t.specialCharge || 0));
+    var firing = (t.specialAnim || 0) > 0;
     ctx.save();
     ctx.translate(t.x, t.y);
-    // Red canalicular: dendritas largas y finas en todas direcciones.
-    ctx.strokeStyle = "rgba(159,176,196,0.75)";
+    // (1)(2) Red canalicular: al cargar la Red Canalicular, las dendritas se
+    // ESTIRAN y los pulsos de señal viajan más rápido y más brillantes. La
+    // célula está tendiendo la red antes de encenderla.
+    ctx.strokeStyle = "rgba(159,176,196," + (0.75 + cf * 0.25) + ")";
     ctx.lineCap = "round";
     for (var d = 0; d < 12; d++) {
       var da = (d / 12) * Math.PI * 2 + w;
-      var len = R * (1.7 + 0.35 * Math.sin(time * 1.6 + d));
-      ctx.lineWidth = Math.max(0.8, 1.2 * U);
+      var len = R * (1.7 + cf * 0.9 + 0.35 * Math.sin(time * 1.6 + d));
+      ctx.lineWidth = Math.max(0.8, (1.2 + cf * 0.9) * U);
       ctx.beginPath();
       ctx.moveTo(Math.cos(da) * R * 0.7, Math.sin(da) * R * 0.7);
       var bend = Math.sin(time * 1.2 + d) * 0.25;
@@ -19401,12 +19443,24 @@
                            Math.cos(da) * len, Math.sin(da) * len);
       ctx.stroke();
       // Pulso de señal viajando por la dendrita.
-      var sp = ((time * 0.7 + d * 0.12) % 1);
-      ctx.fillStyle = "rgba(210,235,255," + (0.8 * (1 - sp)) + ")";
+      var sp = ((time * (0.7 + cf * 2.2) + d * 0.12) % 1);
+      ctx.fillStyle = "rgba(210,235,255," + ((0.8 + cf * 0.2) * (1 - sp)) + ")";
       ctx.beginPath();
       ctx.arc(Math.cos(da) * (R * 0.7 + sp * (len - R * 0.7)),
-              Math.sin(da) * (R * 0.7 + sp * (len - R * 0.7)), R * 0.10, 0, Math.PI * 2);
+              Math.sin(da) * (R * 0.7 + sp * (len - R * 0.7)), R * (0.10 + cf * 0.06), 0, Math.PI * 2);
       ctx.fill();
+    }
+    // (3) Al llenarse, la red entera se enciende como un circuito.
+    if (cf > 0.15 && !firing) {
+      ctx.strokeStyle = "rgba(190,225,255," + (0.22 * cf) + ")";
+      ctx.lineWidth = Math.max(1, (1 + cf * 2) * U);
+      ctx.beginPath(); ctx.arc(0, 0, R * (1.9 + cf * 0.8), 0, Math.PI * 2); ctx.stroke();
+    }
+    if (firing) {
+      var fa = Math.min(1, t.specialAnim);
+      ctx.strokeStyle = "rgba(225,245,255," + (0.8 * fa) + ")";
+      ctx.lineWidth = Math.max(1.5, 2.8 * U * fa);
+      ctx.beginPath(); ctx.arc(0, 0, R * (1.8 + (1 - fa) * 3.4), 0, Math.PI * 2); ctx.stroke();
     }
     // Laguna ósea que lo contiene.
     ctx.strokeStyle = "rgba(120,132,150,0.55)";
@@ -19427,14 +19481,30 @@
   // --- Sinoviocito A (macrofágico): limpia la cavidad --------------------
   function drawSinoviocitoA(t, pulse, expression, blink) {
     var R = 15 * U * pulse, time = state.time, w = (t.idlePhase || 0);
+    // Telegraph del Aclaramiento sinovial: la célula ABRE su superficie de
+    // captura y llena de lisosomas antes de barrer la cavidad.
+    var cf = Math.max(0, Math.min(1, t.specialCharge || 0));
+    var firing = (t.specialAnim || 0) > 0;
     ctx.save();
     ctx.translate(t.x, t.y);
-    // Cuerpo redondeado con microvellosidades cortas.
-    ctx.strokeStyle = "rgba(111,168,176,0.8)";
-    ctx.lineWidth = Math.max(1, 1.4 * U);
+    // (3) Corona de succión que asoma antes del barrido.
+    if (cf > 0.15 && !firing) {
+      ctx.strokeStyle = "rgba(160,225,235," + (0.24 * cf) + ")";
+      ctx.lineWidth = Math.max(1, (1 + cf * 2.2) * U);
+      ctx.beginPath(); ctx.arc(0, 0, R * (1.5 + cf * 0.6), 0, Math.PI * 2); ctx.stroke();
+    }
+    if (firing) {
+      var fa = Math.min(1, t.specialAnim);
+      ctx.strokeStyle = "rgba(200,245,250," + (0.8 * fa) + ")";
+      ctx.lineWidth = Math.max(1.5, 3 * U * fa);
+      ctx.beginPath(); ctx.arc(0, 0, R * (1.4 + (1 - fa) * 3.2), 0, Math.PI * 2); ctx.stroke();
+    }
+    // (1) Microvellosidades: se alargan y se agitan con la carga.
+    ctx.strokeStyle = "rgba(111,168,176," + (0.8 + cf * 0.2) + ")";
+    ctx.lineWidth = Math.max(1, (1.4 + cf * 0.8) * U);
     for (var m = 0; m < 16; m++) {
       var ma = (m / 16) * Math.PI * 2 + w * 0.5;
-      var ml = R * (1.02 + 0.13 * Math.sin(time * 5 + m));
+      var ml = R * (1.02 + cf * 0.45 + 0.13 * Math.sin(time * (5 + cf * 7) + m));
       ctx.beginPath();
       ctx.moveTo(Math.cos(ma) * R * 0.95, Math.sin(ma) * R * 0.95);
       ctx.lineTo(Math.cos(ma) * ml * 1.15, Math.sin(ma) * ml * 1.15);
@@ -19447,13 +19517,15 @@
     ctx.fillStyle = g;
     ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2); ctx.fill();
     ctx.strokeStyle = "#1a3a40"; ctx.lineWidth = Math.max(1.8, 2.4 * U); ctx.stroke();
-    // Lisosomas: gránulos oscuros de digestión.
-    ctx.fillStyle = "rgba(30,70,78,0.75)";
-    for (var l = 0; l < 5; l++) {
-      var la = w + l * 1.26 + time * 0.5;
+    // (2) Lisosomas: se multiplican y giran más rápido — la maquinaria de
+    // digestión cargándose.
+    var nl = 5 + Math.round(cf * 4);
+    ctx.fillStyle = "rgba(30,70,78," + (0.75 + cf * 0.2) + ")";
+    for (var l = 0; l < nl; l++) {
+      var la = w + l * (Math.PI * 2 / nl) + time * (0.5 + cf * 1.8);
       var lr = R * (0.30 + 0.14 * ((l % 3) / 2));
       ctx.beginPath();
-      ctx.arc(Math.cos(la) * lr, Math.sin(la) * lr, R * 0.14, 0, Math.PI * 2);
+      ctx.arc(Math.cos(la) * lr, Math.sin(la) * lr, R * (0.14 + cf * 0.05), 0, Math.PI * 2);
       ctx.fill();
     }
     towerFace(R * 0.52, expression, blink);
@@ -19463,22 +19535,33 @@
   // --- Sinoviocito B (fibroblástico): fabrica hialurónico ----------------
   function drawSinoviocitoB(t, pulse, expression, blink) {
     var R = 15 * U * pulse, time = state.time, w = (t.idlePhase || 0);
+    // Telegraph del Bolo de hialurónico: el líquido se ESPESA a la vista.
+    var cf = Math.max(0, Math.min(1, t.specialCharge || 0));
+    var firing = (t.specialAnim || 0) > 0;
     ctx.save();
     ctx.translate(t.x, t.y);
-    // Halo viscoso: el líquido espesado alrededor.
-    var visc = ctx.createRadialGradient(0, 0, R * 0.8, 0, 0, R * 2.1);
-    visc.addColorStop(0, "rgba(185,212,106,0.16)");
+    // (1) Halo viscoso: se agranda y se opaca con la carga.
+    var vr = R * (2.1 + cf * 0.7);
+    var visc = ctx.createRadialGradient(0, 0, R * 0.8, 0, 0, vr);
+    visc.addColorStop(0, "rgba(185,212,106," + (0.16 + cf * 0.22) + ")");
     visc.addColorStop(1, "rgba(185,212,106,0)");
     ctx.fillStyle = visc;
-    ctx.beginPath(); ctx.arc(0, 0, R * 2.1, 0, Math.PI * 2); ctx.fill();
-    // Hebras de ácido hialurónico girando lentamente.
-    ctx.strokeStyle = "rgba(210,235,140,0.5)";
-    ctx.lineWidth = Math.max(1, 1.3 * U);
-    for (var h = 0; h < 3; h++) {
+    ctx.beginPath(); ctx.arc(0, 0, vr, 0, Math.PI * 2); ctx.fill();
+    if (firing) {
+      var fa = Math.min(1, t.specialAnim);
+      ctx.strokeStyle = "rgba(225,245,160," + (0.75 * fa) + ")";
+      ctx.lineWidth = Math.max(2, 3.2 * U * fa);
+      ctx.beginPath(); ctx.arc(0, 0, R * (1.6 + (1 - fa) * 3.4), 0, Math.PI * 2); ctx.stroke();
+    }
+    // (2) Hebras de hialurónico: se suman, se enroscan más y giran más rápido.
+    var nh = 3 + Math.round(cf * 3);
+    ctx.strokeStyle = "rgba(210,235,140," + (0.5 + cf * 0.3) + ")";
+    ctx.lineWidth = Math.max(1, (1.3 + cf * 0.9) * U);
+    for (var h = 0; h < nh; h++) {
       ctx.beginPath();
       for (var s = 0; s <= 24; s++) {
         var sa = (s / 24) * Math.PI * 2;
-        var sr = R * (1.35 + 0.22 * Math.sin(sa * 3 + time * 1.1 + h * 2.1));
+        var sr = R * (1.35 + cf * 0.25 + (0.22 + cf * 0.16) * Math.sin(sa * 3 + time * (1.1 + cf * 1.9) + h * 2.1));
         var px = Math.cos(sa) * sr, py = Math.sin(sa) * sr;
         if (s === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
       }
@@ -19505,23 +19588,36 @@
   // --- Condrocito: dentro de su laguna, reparando cartílago --------------
   function drawCondrocito(t, pulse, expression, blink) {
     var R = 14 * U * pulse, time = state.time, w = (t.idlePhase || 0);
+    // Telegraph de la Matriz de colágeno II: la matriz territorial se HINCHA
+    // y las fibras se tejen más rápido antes de soltar la reparación grande.
+    var cf = Math.max(0, Math.min(1, t.specialCharge || 0));
+    var firing = (t.specialAnim || 0) > 0;
     ctx.save();
     ctx.translate(t.x, t.y);
-    // Matriz territorial: halo de colágeno II que va creciendo.
-    var grow = 0.5 + 0.5 * Math.sin(time * 0.9 + w);
-    ctx.fillStyle = "rgba(235,245,248,0.18)";
-    ctx.beginPath(); ctx.arc(0, 0, R * (1.5 + 0.15 * grow), 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = "rgba(200,220,228,0.55)";
-    ctx.lineWidth = Math.max(1, 1.4 * U);
-    ctx.beginPath(); ctx.arc(0, 0, R * (1.5 + 0.15 * grow), 0, Math.PI * 2); ctx.stroke();
-    // Fibras de colágeno irradiando (la reparación en curso).
-    ctx.strokeStyle = "rgba(220,235,240,0.45)";
-    ctx.lineWidth = Math.max(0.8, 1.0 * U);
-    for (var i = 0; i < 10; i++) {
-      var ia = (i / 10) * Math.PI * 2 + time * 0.25;
+    // (1) Matriz territorial: crece con la carga, no solo con el reloj.
+    var grow = 0.5 + 0.5 * Math.sin(time * (0.9 + cf * 1.6) + w);
+    var mr = R * (1.5 + cf * 0.5 + 0.15 * grow);
+    ctx.fillStyle = "rgba(235,245,248," + (0.18 + cf * 0.20) + ")";
+    ctx.beginPath(); ctx.arc(0, 0, mr, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = "rgba(200,220,228," + (0.55 + cf * 0.3) + ")";
+    ctx.lineWidth = Math.max(1, (1.4 + cf * 1.1) * U);
+    ctx.beginPath(); ctx.arc(0, 0, mr, 0, Math.PI * 2); ctx.stroke();
+    if (firing) {
+      var fa = Math.min(1, t.specialAnim);
+      ctx.strokeStyle = "rgba(255,255,255," + (0.8 * fa) + ")";
+      ctx.lineWidth = Math.max(2, 3 * U * fa);
+      ctx.beginPath(); ctx.arc(0, 0, R * (1.6 + (1 - fa) * 3), 0, Math.PI * 2); ctx.stroke();
+    }
+    // (2)(3) Fibras de colágeno: se suman, se alargan y giran más rápido.
+    var nf = 10 + Math.round(cf * 8);
+    ctx.strokeStyle = "rgba(220,235,240," + (0.45 + cf * 0.35) + ")";
+    ctx.lineWidth = Math.max(0.8, (1.0 + cf * 0.8) * U);
+    for (var i = 0; i < nf; i++) {
+      var ia = (i / nf) * Math.PI * 2 + time * (0.25 + cf * 1.1);
       ctx.beginPath();
       ctx.moveTo(Math.cos(ia) * R * 1.05, Math.sin(ia) * R * 1.05);
-      ctx.lineTo(Math.cos(ia) * R * (1.45 + 0.12 * grow), Math.sin(ia) * R * (1.45 + 0.12 * grow));
+      ctx.lineTo(Math.cos(ia) * R * (1.45 + cf * 0.5 + 0.12 * grow),
+                 Math.sin(ia) * R * (1.45 + cf * 0.5 + 0.12 * grow));
       ctx.stroke();
     }
     // Laguna (condroplasto).

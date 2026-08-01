@@ -24091,8 +24091,17 @@
   // --- Streptococcus viridans: CADENA de cocos + vegetación --------------
   function drawViridans(e, rad, expression, blink) {
     var R = rad, t = state.time, w = e.wobble || 0, hit = e.hitFlash > 0;
+    // Estados que este germen SÍ tiene y hasta ahora no se veían en el cuerpo:
+    // cuántas capas de vegetación lleva tejidas, si ya maduró, y si el
+    // corazón está en sístole empujándolo hacia atrás.
+    var capas = e.vegLayers || 0;
+    var maduro = !!e.vegMature;
+    var sist = !!(state.f2 && state.f2.inSystole);
     ctx.save();
     ctx.translate(e.x, e.y);
+    // En sístole se AGACHA y se aplasta contra el endotelio para aguantar el
+    // chorro. Es la lectura visual de por qué unos resisten y otros no.
+    if (sist) ctx.scale(1.10, 0.88);
     drawVegetationLayers(e, R);
     // Cadena de 5 cocos en arco (los estreptococos crecen en cadena).
     var n = 5;
@@ -24116,16 +24125,35 @@
       ctx.fillStyle = "rgba(255,255,255,0.35)";
       ctx.beginPath(); ctx.arc(cx - rr * 0.28, cy - rr * 0.32, rr * 0.26, 0, Math.PI * 2); ctx.fill();
     }
-    // Adhesinas FimA: hilitos pegajosos hacia abajo (al endotelio).
-    ctx.strokeStyle = colorAlpha(e.def.colorLight, 0.55);
-    ctx.lineWidth = Math.max(0.7, 0.9 * U);
-    for (var p = 0; p < 6; p++) {
-      var px2 = (-0.5 + p / 5) * R * 1.5;
-      var sway = Math.sin(t * 3 + p) * R * 0.10;
+    // Adhesinas FimA: cuantas más capas teje, más se AGARRAN. De hilitos
+    // sueltos que ondean a cables tensos y rectos clavados al endotelio.
+    var agarre = Math.min(1, capas / 3);
+    var nAdh = 6 + Math.round(agarre * 4);
+    ctx.strokeStyle = colorAlpha(e.def.colorLight, 0.55 + agarre * 0.35);
+    ctx.lineWidth = Math.max(0.7, (0.9 + agarre * 1.3) * U);
+    for (var p = 0; p < nAdh; p++) {
+      var px2 = (-0.5 + p / (nAdh - 1)) * R * (1.5 + agarre * 0.5);
+      // Con agarre alto casi no ondean: están tensas.
+      var sway = Math.sin(t * 3 + p) * R * 0.10 * (1 - agarre * 0.85);
+      var largo = R * (1.10 + agarre * 0.45);
       ctx.beginPath();
       ctx.moveTo(px2, R * 0.55);
-      ctx.quadraticCurveTo(px2 + sway, R * 0.85, px2 + sway * 1.6, R * 1.10);
+      ctx.quadraticCurveTo(px2 + sway, R * 0.85, px2 + sway * 1.6, largo);
       ctx.stroke();
+    }
+    // Maduro: costra de fibrina endurecida por encima de todo. Ya no es un
+    // coco más de la cadena, es un problema instalado en la valva.
+    if (maduro) {
+      ctx.strokeStyle = "rgba(245,232,214,0.85)";
+      ctx.lineWidth = Math.max(1.5, 2.2 * U);
+      ctx.beginPath();
+      for (var cr = 0; cr <= 16; cr++) {
+        var ca = (cr / 16) * Math.PI * 2;
+        var crr = R * (1.02 + 0.09 * Math.sin(ca * 5 + t * 0.6));
+        var cxp = Math.cos(ca) * crr * 1.15, cyp = Math.sin(ca) * crr * 0.85;
+        if (cr === 0) ctx.moveTo(cxp, cyp); else ctx.lineTo(cxp, cyp);
+      }
+      ctx.closePath(); ctx.stroke();
     }
     germFace(R * 0.70, expression, blink, R * 0.28);
     ctx.restore();
@@ -24134,12 +24162,35 @@
   // --- Enterococcus faecalis: diplococo coriáceo que se auto-repara ------
   function drawEnterococo(e, rad, expression, blink) {
     var R = rad, t = state.time, w = e.wobble || 0, hit = e.hitFlash > 0;
+    // Su identidad es "coriáceo que se auto-repara", pero el daño no se veía
+    // en ningún lado: la pared se agrieta con las heridas y las grietas se
+    // cierran solas al regenerar. Ahora el jugador ve si está ganando.
+    var vida = Math.max(0, Math.min(1, e.hp / (e.maxHp || e.def.hp)));
+    var dano = 1 - vida;
+    var sist = !!(state.f2 && state.f2.inSystole);
     ctx.save();
     ctx.translate(e.x, e.y);
+    if (sist) ctx.scale(1.08, 0.92);
     drawVegetationLayers(e, R);
     // Pared celular gruesa gram-positiva: anillo exterior mate.
     ctx.fillStyle = colorAlpha(e.def.colorDark, 0.45);
     ctx.beginPath(); ctx.arc(0, 0, R * 1.06, 0, Math.PI * 2); ctx.fill();
+    // Grietas en la pared: más y más abiertas cuanto peor está.
+    if (dano > 0.12) {
+      var ng = 1 + Math.round(dano * 5);
+      ctx.strokeStyle = "rgba(40,26,6," + (0.35 + dano * 0.5) + ")";
+      ctx.lineWidth = Math.max(1, (1 + dano * 1.8) * U);
+      ctx.lineCap = "round";
+      for (var cg = 0; cg < ng; cg++) {
+        var ga = w + cg * 2.4;
+        var g0 = R * 0.55, g1 = R * (0.75 + dano * 0.32);
+        ctx.beginPath();
+        ctx.moveTo(Math.cos(ga) * g0, Math.sin(ga) * g0);
+        ctx.lineTo(Math.cos(ga + 0.18) * g1, Math.sin(ga + 0.18) * g1);
+        ctx.lineTo(Math.cos(ga - 0.10) * g1 * 1.12, Math.sin(ga - 0.10) * g1 * 1.12);
+        ctx.stroke();
+      }
+    }
     // Par de cocos ovoides, uno arriba y otro abajo.
     var throb = 1 + Math.sin(t * 2.2 + w) * 0.05;
     for (var s = -1; s <= 1; s += 2) {
@@ -24178,14 +24229,20 @@
     ctx.save();
     ctx.translate(e.x, e.y);
     ctx.rotate(ang + Math.sin(t * 7) * 0.12);
-    // Estela de flujo (va montado en la corriente).
-    ctx.strokeStyle = colorAlpha(e.def.colorLight, 0.4);
-    ctx.lineWidth = Math.max(0.8, 1.1 * U);
-    for (var s = 0; s < 3; s++) {
-      var off = (s - 1) * R * 0.35;
+    // Estela de flujo: este bicho SURFEA la sístole en vez de sufrirla, así
+    // que cuando el corazón se contrae su estela se dispara. Es la lectura de
+    // por qué avanza justo cuando los demás retroceden.
+    var surf = (state.f2 && state.f2.inSystole) ? 1 : 0;
+    var carga = (state.f2 && state.f2.pulseCharge) ? state.f2.pulseCharge : 0;
+    var emp = surf ? 1 : carga * 0.5;
+    var nEst = 3 + Math.round(emp * 3);
+    ctx.strokeStyle = colorAlpha(e.def.colorLight, 0.4 + emp * 0.45);
+    ctx.lineWidth = Math.max(0.8, (1.1 + emp * 1.2) * U);
+    for (var s = 0; s < nEst; s++) {
+      var off = (s - (nEst - 1) / 2) * R * 0.35;
       ctx.beginPath();
       ctx.moveTo(-R * 1.1, off);
-      ctx.lineTo(-R * (2.0 + 0.4 * Math.sin(t * 8 + s)), off * 1.5);
+      ctx.lineTo(-R * (2.0 + emp * 1.8 + 0.4 * Math.sin(t * 8 + s)), off * 1.5);
       ctx.stroke();
     }
     // Cuerpo: bacilo corto (cocobacilo).

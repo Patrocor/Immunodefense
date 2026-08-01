@@ -6165,7 +6165,7 @@
   var F3_LEVELS = {
     // ---- Familia EMBOLIA (hijas de Endocarditis) ------------------------
     f3_pulm: f3Level({
-      key: "f3_pulm", label: "ÉMBOLOS PULMONARES", organLabel: "LECHO CAPILAR PULMONAR",
+      key: "f3_pulm", ambient: "alveolo", label: "ÉMBOLOS PULMONARES", organLabel: "LECHO CAPILAR PULMONAR",
       subtitle: "La vegetación se soltó y viajó a los pulmones",
       color: "#e8a3b3", colorDark: "#6e3a46", colorLight: "#ffd8e2",
       tint: "rgba(232, 163, 179, 0.10)", bg: ["#2a1a20", "#4a2c36", "#6e4450"],
@@ -6185,7 +6185,7 @@
       leak: F3_LEAK
     }),
     f3_cereb: f3Level({
-      key: "f3_cereb", label: "ÉMBOLOS CEREBRALES", organLabel: "CIRCULACIÓN CEREBRAL",
+      key: "f3_cereb", ambient: "cerebro", label: "ÉMBOLOS CEREBRALES", organLabel: "CIRCULACIÓN CEREBRAL",
       subtitle: "La siembra alcanzó la barrera hematoencefálica",
       color: "#a8b8e8", colorDark: "#3a4468", colorLight: "#dde5ff",
       tint: "rgba(168, 184, 232, 0.10)", bg: ["#141828", "#252d48", "#3a4468"],
@@ -6205,7 +6205,7 @@
       leak: F3_LEAK
     }),
     f3_bazo: f3Level({
-      key: "f3_bazo", label: "INFARTOS ESPLÉNICOS", organLabel: "PULPA ROJA DEL BAZO",
+      key: "f3_bazo", ambient: "bazo", label: "INFARTOS ESPLÉNICOS", organLabel: "PULPA ROJA DEL BAZO",
       subtitle: "El filtro del cuerpo quedó tapado de émbolos",
       color: "#a85090", colorDark: "#4a1c40", colorLight: "#e8b0da",
       tint: "rgba(168, 80, 144, 0.10)", bg: ["#1e1020", "#3a1c38", "#5c2c54"],
@@ -6226,7 +6226,7 @@
     }),
     // ---- Familia ABSCESO (hijas de Osteomielitis) -----------------------
     f3_epid: f3Level({
-      key: "f3_epid", label: "ABSCESO EPIDURAL", organLabel: "ESPACIO EPIDURAL",
+      key: "f3_epid", ambient: "epidural", label: "ABSCESO EPIDURAL", organLabel: "ESPACIO EPIDURAL",
       subtitle: "El pus comprime la médula espinal",
       color: "#a08070", colorDark: "#40302a", colorLight: "#dcc4b4",
       tint: "rgba(160, 128, 112, 0.10)", bg: ["#181210", "#332822", "#4e3c33"],
@@ -6246,7 +6246,7 @@
       leak: F3_LEAK
     }),
     f3_bact: f3Level({
-      key: "f3_bact", label: "BACTERIEMIA PERSISTENTE", organLabel: "TORRENTE SANGUÍNEO",
+      key: "f3_bact", ambient: "sangre", label: "BACTERIEMIA PERSISTENTE", organLabel: "TORRENTE SANGUÍNEO",
       subtitle: "Los hemocultivos siguen positivos",
       color: "#b8232a", colorDark: "#4e0d10", colorLight: "#ff8a90",
       tint: "rgba(184, 35, 42, 0.10)", bg: ["#20080c", "#420f16", "#661822"],
@@ -6266,7 +6266,7 @@
       leak: [2, 2, 3, 3, 4, 4, 3]
     }),
     f3_fasc: f3Level({
-      key: "f3_fasc", label: "FASCITIS NECROSANTE", organLabel: "FASCIA PROFUNDA",
+      key: "f3_fasc", ambient: "fascia", label: "FASCITIS NECROSANTE", organLabel: "FASCIA PROFUNDA",
       subtitle: "El plano fascial se está licuando",
       color: "#c87090", colorDark: "#521c30", colorLight: "#ffb0c8",
       tint: "rgba(200, 112, 144, 0.10)", bg: ["#200c14", "#421826", "#66283c"],
@@ -6287,7 +6287,7 @@
     }),
     // ---- Familia DIFUSIÓN (hijas de Artritis) ---------------------------
     f3_multi: f3Level({
-      key: "f3_multi", label: "PIOARTRITIS DISEMINADA", organLabel: "VARIAS ARTICULACIONES",
+      key: "f3_multi", ambient: "articulacion", label: "PIOARTRITIS DISEMINADA", organLabel: "VARIAS ARTICULACIONES",
       subtitle: "Ya no es una rodilla: son todas",
       color: "#8ec5d0", colorDark: "#2a4e56", colorLight: "#d8f2f8",
       tint: "rgba(142, 197, 208, 0.10)", bg: ["#0e1c20", "#1c363e", "#2c545e"],
@@ -6307,7 +6307,7 @@
       leak: F3_LEAK
     }),
     f3_osloc: f3Level({
-      key: "f3_osloc", label: "OSTEOMIELITIS ADYACENTE", organLabel: "HUESO SUBCONDRAL",
+      key: "f3_osloc", ambient: "hueso", label: "OSTEOMIELITIS ADYACENTE", organLabel: "HUESO SUBCONDRAL",
       subtitle: "La infección cruzó del cartílago al hueso",
       color: "#c8a070", colorDark: "#5a4424", colorLight: "#f0dcb8",
       tint: "rgba(200, 160, 112, 0.10)", bg: ["#1a1610", "#332c1e", "#4e4430"],
@@ -6327,7 +6327,7 @@
       leak: F3_LEAK
     }),
     f3_pust: f3Level({
-      key: "f3_pust", label: "PUSTULOSIS DISEMINADA", organLabel: "PIEL DE TODO EL CUERPO",
+      key: "f3_pust", ambient: "piel", label: "PUSTULOSIS DISEMINADA", organLabel: "PIEL DE TODO EL CUERPO",
       subtitle: "La siembra volvió a la superficie",
       color: "#e8b09a", colorDark: "#6a4034", colorLight: "#ffdccc",
       tint: "rgba(232, 176, 154, 0.10)", bg: ["#241812", "#452e24", "#6a4838"],
@@ -6351,7 +6351,7 @@
   // ==================== FASE 4-5 · SEPSIS Y SHOCK =========================
   var F45_LEVELS = {
     sepsis: {
-      key: "sepsis", label: "SEPSIS SISTÉMICA", organLabel: "TODO EL ORGANISMO",
+      key: "sepsis", ambient: "tormenta", label: "SEPSIS SISTÉMICA", organLabel: "TODO EL ORGANISMO",
       subtitle: "La respuesta se volvió contra el huésped",
       color: "#ff5550", colorDark: "#5e1210", colorLight: "#ffb0a8",
       tint: "rgba(255, 85, 80, 0.10)", bg: ["#1c0808", "#4a1410", "#7a2418"],
@@ -6383,7 +6383,7 @@
       leak: [2, 3, 3, 4, 4, 5, 5, 3]
     },
     mods: {
-      key: "mods", label: "SHOCK SÉPTICO · MODS", organLabel: "FALLA MULTIORGÁNICA",
+      key: "mods", ambient: "colapso", label: "SHOCK SÉPTICO · MODS", organLabel: "FALLA MULTIORGÁNICA",
       subtitle: "Último acto — todo o nada",
       color: "#7a0010", colorDark: "#2e0006", colorLight: "#ff6a70",
       tint: "rgba(122, 0, 16, 0.12)", bg: ["#12000a", "#33020e", "#5c0614"],
@@ -28590,7 +28590,11 @@
     function rnd() { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; }
     var W = dsWorldW(), H = dsWorldH();
     var a = { motas: [], eventos: [], t: 0 };
-    var n = f.cfg.ambient === 'hueso' ? 34 : 42;
+    var amb = f.cfg.ambient;
+    var n = amb === 'hueso' ? 34
+          : (amb === 'tormenta' || amb === 'colapso') ? 58
+          : (amb === 'sangre') ? 52
+          : 42;
     for (var i = 0; i < n; i++) {
       a.motas.push({
         nx: rnd(), ny: rnd(),
@@ -28705,7 +28709,11 @@
       // LIQUIDO SINOVIAL: hebras de hialuronico ondulando, detritus de
       // cartilago desprendido y burbujas de derrame. El detritus AUMENTA a
       // medida que el cartilago se pierde: el ambiente cuenta el marcador.
-      var perdido = 1 - Math.max(0, Math.min(1, f.cartilage / (cfg.cartilageMax || 100)));
+      // f3_multi reusa este ambiente (mismo tejido) pero no lleva marcador de
+      // cartílago: ahí el detritus se mantiene en un fondo constante.
+      var perdido = (f.cartilage == null)
+        ? 0.30
+        : 1 - Math.max(0, Math.min(1, f.cartilage / (cfg.cartilageMax || 100)));
       for (var q = 0; q < a.motas.length; q++) {
         var d = a.motas[q];
         var dx = FIELD_LEFT + ((d.nx + Math.sin(a.t * 0.25 + d.fase) * 0.012) % 1) * W;
@@ -28738,8 +28746,321 @@
           ctx.beginPath(); ctx.arc(dx, dy, dr * 1.2, 0, Math.PI * 2); ctx.stroke();
         }
       }
+
+    } else if (cfg.ambient === 'alveolo') {
+      // LECHO ALVEOLAR: manda la respiración. Los sacos se inflan y desinflan
+      // en ciclo lento y el surfactante destella al estirarse. Cada émbolo
+      // vivo encaja una cuña en un capilar: el pulmón se tapa a la vista.
+      var resp = 0.5 + 0.5 * Math.sin(a.t * 0.55);
+      var frags = organAmbientFragments();
+      for (var iA = 0; iA < a.motas.length; iA++) {
+        var mA = a.motas[iA];
+        var ax = FIELD_LEFT + mA.nx * W;
+        var ay = FIELD_TOP + ((mA.ny + a.t * 0.003 * mA.vel) % 1) * H;
+        var ar = mA.r * U;
+        if (mA.tipo < 0.52) {
+          ctx.strokeStyle = 'rgba(255,214,222,' + (0.09 + resp * 0.07) + ')';
+          ctx.lineWidth = Math.max(0.7, 1.1 * U);
+          ctx.beginPath(); ctx.arc(ax, ay, ar * (3.0 + resp * 0.8), 0, Math.PI * 2); ctx.stroke();
+        } else if (mA.tipo < 0.84) {
+          ctx.fillStyle = 'rgba(255,246,250,' + (0.09 + resp * 0.14) + ')';
+          ctx.save(); ctx.translate(ax, ay); ctx.rotate(mA.fase);
+          ctx.beginPath(); ctx.ellipse(0, 0, ar * 1.6, ar * (0.45 + resp * 0.5), 0, 0, Math.PI * 2); ctx.fill();
+          ctx.restore();
+        } else if (frags > 0) {
+          // Cuña embólica encajada: cuantos más fragmentos vivos, más tapones.
+          var cuña = Math.min(1, frags / 6);
+          ctx.fillStyle = 'rgba(96,28,40,' + (0.30 * cuña) + ')';
+          ctx.save(); ctx.translate(ax, ay); ctx.rotate(mA.fase);
+          ctx.beginPath();
+          ctx.moveTo(-ar * 1.4, -ar * 0.5); ctx.lineTo(ar * 1.4, 0); ctx.lineTo(-ar * 1.4, ar * 0.5);
+          ctx.closePath(); ctx.fill();
+          ctx.restore();
+        }
+      }
+
+    } else if (cfg.ambient === 'cerebro') {
+      // PARÉNQUIMA CEREBRAL: astrocitos quietos vigilando y potenciales que
+      // recorren la sustancia blanca. Cada émbolo apaga un trozo: donde hubo
+      // microinfarto el tejido queda gris y deja de dispararse.
+      var fragsC = organAmbientFragments();
+      var apagado = Math.min(0.75, fragsC * 0.12);
+      for (var iC = 0; iC < a.motas.length; iC++) {
+        var mC = a.motas[iC];
+        var cx2 = FIELD_LEFT + mC.nx * W;
+        var cy2 = FIELD_TOP + ((mC.ny + a.t * 0.0012 * mC.vel) % 1) * H;
+        var cr = mC.r * U;
+        var muerto = (mC.tipo < apagado);
+        if (mC.tipo < 0.50) {
+          // Astrocito: cuerpo con prolongaciones cortas en estrella.
+          ctx.strokeStyle = muerto ? 'rgba(150,150,155,0.16)' : 'rgba(178,196,240,0.22)';
+          ctx.lineWidth = Math.max(0.7, 1 * U);
+          ctx.beginPath();
+          for (var pC = 0; pC < 6; pC++) {
+            var paC = mC.fase + pC * Math.PI / 3;
+            ctx.moveTo(cx2, cy2);
+            ctx.lineTo(cx2 + Math.cos(paC) * cr * 1.9, cy2 + Math.sin(paC) * cr * 1.9);
+          }
+          ctx.stroke();
+          ctx.fillStyle = muerto ? 'rgba(150,150,155,0.14)' : 'rgba(178,196,240,0.20)';
+          ctx.beginPath(); ctx.arc(cx2, cy2, cr * 0.55, 0, Math.PI * 2); ctx.fill();
+        } else if (!muerto) {
+          // Potencial de acción: chispa que viaja por un tramo y se apaga.
+          var recor = (a.t * 0.5 * mC.vel + mC.fase) % 1;
+          var largo = cr * 9;
+          var sx = cx2 - Math.cos(mC.fase) * largo * 0.5 + Math.cos(mC.fase) * largo * recor;
+          var sy = cy2 - Math.sin(mC.fase) * largo * 0.5 + Math.sin(mC.fase) * largo * recor;
+          var vivo = Math.sin(recor * Math.PI);
+          ctx.fillStyle = 'rgba(200,225,255,' + (0.40 * vivo) + ')';
+          ctx.beginPath(); ctx.arc(sx, sy, cr * 0.4, 0, Math.PI * 2); ctx.fill();
+        }
+      }
+
+    } else if (cfg.ambient === 'bazo') {
+      // PULPA ROJA: los eritrocitos tienen que EXPRIMIRSE para cruzar la
+      // pared del sinusoide — el bazo filtra apretando. Los macrófagos
+      // residentes se quedan quietos digiriendo lo que no pasó.
+      var fragsB = organAmbientFragments();
+      for (var iB = 0; iB < a.motas.length; iB++) {
+        var mB = a.motas[iB];
+        var bnx = (mB.nx + a.t * 0.010 * mB.vel) % 1;
+        var bx2 = FIELD_LEFT + bnx * W;
+        var by2 = FIELD_TOP + mB.ny * H;
+        var brr = mB.r * U;
+        if (mB.tipo < 0.62) {
+          // El apretón: la ranura está cada 0.2 de ancho de mundo.
+          var ranura = Math.abs(Math.sin(bnx * Math.PI * 5));
+          var aplast = 1 - 0.62 * (1 - ranura);
+          ctx.save(); ctx.translate(bx2, by2); ctx.scale(aplast, 1 / aplast);
+          ctx.fillStyle = 'rgba(168,40,52,0.42)';
+          ctx.beginPath(); ctx.arc(0, 0, brr, 0, Math.PI * 2); ctx.fill();
+          ctx.restore();
+        } else if (mB.tipo < 0.86) {
+          // Macrófago de pulpa: masa quieta que late digiriendo.
+          var dig = 0.5 + 0.5 * Math.sin(a.t * 0.7 + mB.fase);
+          ctx.fillStyle = 'rgba(120,52,120,' + (0.16 + dig * 0.10) + ')';
+          ctx.beginPath(); ctx.arc(bx2, by2, brr * (1.8 + dig * 0.25), 0, Math.PI * 2); ctx.fill();
+        } else {
+          // Detritus filtrado: se acumula con cada fragmento que llegó.
+          var acum = Math.min(1, 0.25 + fragsB * 0.14);
+          ctx.fillStyle = 'rgba(70,30,34,' + (0.30 * acum) + ')';
+          ctx.beginPath(); ctx.arc(bx2, by2, brr * 0.8, 0, Math.PI * 2); ctx.fill();
+        }
+      }
+
+    } else if (cfg.ambient === 'epidural') {
+      // ESPACIO EPIDURAL: grasa laxa y hebras de duramadre tensas en
+      // vertical, todo bañado en líquido quieto. Cada colección purulenta
+      // enturbia lo que la rodea.
+      var absE = (f.abscesses && f.abscesses.length) || 0;
+      var turbio = Math.min(1, absE / 4);
+      for (var iE = 0; iE < a.motas.length; iE++) {
+        var mE = a.motas[iE];
+        var ex = FIELD_LEFT + mE.nx * W;
+        var ey = FIELD_TOP + ((mE.ny + a.t * 0.0018 * mE.vel) % 1) * H;
+        var er = mE.r * U;
+        if (mE.tipo < 0.42) {
+          // Lobulillo graso: gota amarilla blanda.
+          ctx.fillStyle = 'rgba(224,206,140,' + (0.20 + turbio * 0.10) + ')';
+          ctx.beginPath(); ctx.arc(ex, ey, er * 1.7, 0, Math.PI * 2); ctx.fill();
+        } else if (mE.tipo < 0.72) {
+          // Hebra dural: línea vertical que vibra apenas.
+          ctx.strokeStyle = 'rgba(206,190,180,0.18)';
+          ctx.lineWidth = Math.max(0.7, 1 * U);
+          ctx.beginPath();
+          ctx.moveTo(ex + Math.sin(a.t * 0.6 + mE.fase) * er * 0.4, ey - er * 5);
+          ctx.lineTo(ex - Math.sin(a.t * 0.6 + mE.fase) * er * 0.4, ey + er * 5);
+          ctx.stroke();
+        } else {
+          // Turbidez del líquido: solo si hay colecciones sin drenar.
+          if (turbio <= 0.02) continue;
+          ctx.fillStyle = 'rgba(220,214,170,' + (0.22 * turbio) + ')';
+          ctx.beginPath(); ctx.arc(ex, ey, er * 0.9, 0, Math.PI * 2); ctx.fill();
+        }
+      }
+
+    } else if (cfg.ambient === 'sangre') {
+      // TORRENTE: bacteriemia persistente. Los eritrocitos pasan rápido, el
+      // complemento destella al activarse y las bacterias libres se
+      // multiplican con cada foco que no drenaste.
+      var absS = (f.abscesses && f.abscesses.length) || 0;
+      var carga = Math.min(1, absS / 4);
+      for (var iS = 0; iS < a.motas.length; iS++) {
+        var mS = a.motas[iS];
+        var sx2 = FIELD_LEFT + ((mS.nx + a.t * 0.022 * mS.vel) % 1) * W;
+        var sy2 = FIELD_TOP + mS.ny * H;
+        var sr = mS.r * U;
+        if (mS.tipo < 0.60) {
+          ctx.save(); ctx.translate(sx2, sy2); ctx.scale(1.25, 0.8);
+          ctx.fillStyle = 'rgba(178,38,46,0.45)';
+          ctx.beginPath(); ctx.arc(0, 0, sr, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = 'rgba(124,18,26,0.40)';
+          ctx.beginPath(); ctx.arc(0, 0, sr * 0.45, 0, Math.PI * 2); ctx.fill();
+          ctx.restore();
+        } else if (mS.tipo < 0.60 + carga * 0.30) {
+          // Bacteria libre: bastón chico que gira.
+          ctx.save(); ctx.translate(sx2, sy2); ctx.rotate(mS.fase + a.t * mS.giro);
+          ctx.fillStyle = 'rgba(140,220,150,0.42)';
+          ctx.beginPath(); ctx.ellipse(0, 0, sr * 0.9, sr * 0.4, 0, 0, Math.PI * 2); ctx.fill();
+          ctx.restore();
+        } else {
+          // Complemento: destello corto de la cascada activándose.
+          var act = Math.pow(Math.abs(Math.sin(a.t * 1.6 + mS.fase)), 8);
+          if (act < 0.05) continue;
+          ctx.fillStyle = 'rgba(255,240,180,' + (0.42 * act) + ')';
+          ctx.beginPath(); ctx.arc(sx2, sy2, sr * 0.6, 0, Math.PI * 2); ctx.fill();
+        }
+      }
+
+    } else if (cfg.ambient === 'fascia') {
+      // PLANO FASCIAL: láminas paralelas que se van despegando y GAS entre
+      // ellas. El gas es el sello de la gangrena: crece con cada foco vivo.
+      var absF = (f.abscesses && f.abscesses.length) || 0;
+      var gas = Math.min(1, 0.15 + absF * 0.22);
+      for (var iF = 0; iF < a.motas.length; iF++) {
+        var mF = a.motas[iF];
+        var fx = FIELD_LEFT + mF.nx * W;
+        var fy = FIELD_TOP + mF.ny * H;
+        var fr = mF.r * U;
+        if (mF.tipo < 0.40) {
+          // Lámina de fascia: línea larga que se despega por un extremo.
+          var despeg = 0.5 + 0.5 * Math.sin(a.t * 0.35 + mF.fase);
+          ctx.strokeStyle = 'rgba(226,208,190,0.16)';
+          ctx.lineWidth = Math.max(0.8, 1.3 * U);
+          ctx.beginPath();
+          ctx.moveTo(fx - fr * 7, fy);
+          ctx.quadraticCurveTo(fx, fy - fr * 1.6 * despeg, fx + fr * 7, fy);
+          ctx.stroke();
+        } else if (mF.tipo < 0.40 + gas * 0.42) {
+          // Burbuja de gas: sube, crece y se rompe arriba.
+          var sube = (a.t * 0.18 * mF.vel + mF.fase) % 1;
+          var gy2 = FIELD_TOP + ((mF.ny - sube + 1) % 1) * H;
+          var gr = fr * (0.6 + sube * 1.5);
+          ctx.strokeStyle = 'rgba(240,238,215,' + (0.30 * (1 - sube * 0.7)) + ')';
+          ctx.lineWidth = Math.max(0.7, 1 * U);
+          ctx.beginPath(); ctx.arc(fx, gy2, gr, 0, Math.PI * 2); ctx.stroke();
+        } else {
+          // Detritus necrótico: mancha oscura que no se mueve.
+          ctx.fillStyle = 'rgba(60,36,34,0.28)';
+          ctx.beginPath(); ctx.arc(fx, fy, fr * 1.1, 0, Math.PI * 2); ctx.fill();
+        }
+      }
+
+    } else if (cfg.ambient === 'piel') {
+      // TEGUMENTO: mosaico de queratinocitos, sebo y pústulas. Cada germen
+      // que salta de región abre un brote nuevo: el ambiente sigue la
+      // dispersión que define el nivel.
+      var saltos = 0;
+      for (var eP = 0; eP < state.enemies.length; eP++) {
+        if (!state.enemies[eP].dead && (state.enemies[eP].migrateFlash || 0) > 0) saltos++;
+      }
+      var brote = Math.min(1, saltos / 3);
+      for (var iP = 0; iP < a.motas.length; iP++) {
+        var mP = a.motas[iP];
+        var px2 = FIELD_LEFT + mP.nx * W;
+        var py2 = FIELD_TOP + mP.ny * H;
+        var pr = mP.r * U;
+        if (mP.tipo < 0.55) {
+          // Queratinocito: placa poligonal apenas dibujada.
+          ctx.strokeStyle = 'rgba(255,214,190,0.16)';
+          ctx.lineWidth = Math.max(0.6, 0.9 * U);
+          ctx.beginPath();
+          for (var kP = 0; kP <= 6; kP++) {
+            var kaP = mP.fase + (kP / 6) * Math.PI * 2;
+            var kxP = px2 + Math.cos(kaP) * pr * 2.1;
+            var kyP = py2 + Math.sin(kaP) * pr * 1.7;
+            if (kP === 0) ctx.moveTo(kxP, kyP); else ctx.lineTo(kxP, kyP);
+          }
+          ctx.closePath(); ctx.stroke();
+        } else if (mP.tipo < 0.80) {
+          // Gota de sebo: se desliza lento hacia abajo.
+          var sy3 = FIELD_TOP + ((mP.ny + a.t * 0.004 * mP.vel) % 1) * H;
+          ctx.fillStyle = 'rgba(250,228,160,0.22)';
+          ctx.beginPath(); ctx.arc(px2, sy3, pr * 0.9, 0, Math.PI * 2); ctx.fill();
+        } else {
+          // Pústula: late y se llena mientras haya gérmenes saltando.
+          var lat = 0.5 + 0.5 * Math.sin(a.t * 1.5 + mP.fase);
+          var lleno = 0.25 + brote * 0.75;
+          ctx.fillStyle = 'rgba(255,236,190,' + (0.16 + 0.22 * lleno * lat) + ')';
+          ctx.beginPath(); ctx.arc(px2, py2, pr * (1.2 + lleno * 0.9), 0, Math.PI * 2); ctx.fill();
+          ctx.strokeStyle = 'rgba(214,120,110,' + (0.20 + 0.20 * lleno) + ')';
+          ctx.lineWidth = Math.max(0.6, 0.9 * U);
+          ctx.beginPath(); ctx.arc(px2, py2, pr * (1.2 + lleno * 0.9), 0, Math.PI * 2); ctx.stroke();
+        }
+      }
+
+    } else if (cfg.ambient === 'tormenta' || cfg.ambient === 'colapso') {
+      // TORMENTA DE CITOQUINAS: el aire mismo es el enemigo. Todo vibra más
+      // rápido cuanto más alta está la tormenta, y pasado el umbral en que
+      // empieza a quemar tejido aparecen las hebras de fibrina de la CID.
+      var st = Math.max(0, Math.min(100, f.storm || 0)) / 100;
+      var furia = 0.25 + st * 1.75;
+      var cid = Math.max(0, (st - 0.40) / 0.60);
+      var finalCol = (cfg.ambient === 'colapso');
+      // Lavado de calor sobre todo el mundo: la tormenta se SIENTE antes de
+      // que se lean las partículas. Late más rápido cuanto más alta está, y
+      // por encima del umbral de quemado (40) el latido se vuelve rojo vivo.
+      if (st > 0.05) {
+        var latido = 0.5 + 0.5 * Math.sin(a.t * (1.2 + st * 4));
+        var quema = Math.max(0, (st - 0.40) / 0.60);
+        ctx.fillStyle = 'rgba(' + Math.round(180 + quema * 75) + ',30,26,'
+                      + (0.04 + st * 0.10 + latido * (0.02 + quema * 0.06)) + ')';
+        ctx.fillRect(FIELD_LEFT, FIELD_TOP, W, H);
+      }
+      for (var iT = 0; iT < a.motas.length; iT++) {
+        var mT = a.motas[iT];
+        var jitX = Math.sin(a.t * 5 * furia + mT.fase) * mT.r * U * 0.5 * furia;
+        var jitY = Math.cos(a.t * 4.4 * furia + mT.fase * 1.7) * mT.r * U * 0.5 * furia;
+        var tx = FIELD_LEFT + ((mT.nx + a.t * 0.006 * mT.vel * furia) % 1) * W + jitX;
+        var ty = FIELD_TOP + ((mT.ny + a.t * 0.004 * mT.vel) % 1) * H + jitY;
+        var tr = mT.r * U;
+        if (mT.tipo < 0.58) {
+          // Citoquina: brasa con halo. Cuanto más alta la tormenta, más
+          // grande y más blanca por dentro — de rescoldo a chispa.
+          var brasa = tr * (0.5 + st * 0.8);
+          var lat2 = 0.6 + 0.4 * Math.sin(a.t * 3 + mT.fase);
+          ctx.fillStyle = 'rgba(255,' + Math.round(130 - st * 80) + ',70,' + (0.10 + st * 0.18) + ')';
+          ctx.beginPath(); ctx.arc(tx, ty, brasa * 2.4, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = 'rgba(255,' + Math.round(210 - st * 60) + ',' + Math.round(180 - st * 120)
+                        + ',' + (0.30 + st * 0.45 * lat2) + ')';
+          ctx.beginPath(); ctx.arc(tx, ty, brasa, 0, Math.PI * 2); ctx.fill();
+        } else if (mT.tipo < 0.58 + cid * 0.30) {
+          // Hebra de fibrina (CID): la sangre coagulando donde no debe.
+          ctx.strokeStyle = 'rgba(240,220,225,' + (0.14 + cid * 0.20) + ')';
+          ctx.lineWidth = Math.max(0.6, 0.9 * U);
+          ctx.beginPath();
+          for (var hT2 = 0; hT2 <= 6; hT2++) {
+            var hxT = tx + (hT2 - 3) * tr * 1.2;
+            var hyT = ty + Math.sin(a.t * 2 + hT2 * 0.9 + mT.fase) * tr * 0.8;
+            if (hT2 === 0) ctx.moveTo(hxT, hyT); else ctx.lineTo(hxT, hyT);
+          }
+          ctx.stroke();
+        } else if (finalCol) {
+          // MODS: ceniza de tejido que ya no vuelve. Cae despacio, no flota:
+          // es lo único del ambiente que no reacciona — ya está perdido.
+          var cae = ((mT.ny + a.t * 0.012 * mT.vel) % 1);
+          var cy3 = FIELD_TOP + cae * H;
+          ctx.save(); ctx.translate(tx, cy3); ctx.rotate(mT.fase + a.t * mT.giro * 0.5);
+          ctx.fillStyle = 'rgba(28,10,14,' + (0.30 + st * 0.30) + ')';
+          ctx.fillRect(-tr * 1.1, -tr * 0.6, tr * 2.2, tr * 1.2);
+          ctx.fillStyle = 'rgba(120,60,40,' + (0.10 + st * 0.16) + ')';
+          ctx.fillRect(-tr * 1.1, -tr * 0.6, tr * 2.2, tr * 0.3);
+          ctx.restore();
+        }
+      }
     }
     ctx.restore();
+  }
+
+  // Fragmentos embólicos vivos: el ambiente de los tres niveles de siembra
+  // reacciona a cuántos hay dando vueltas.
+  function organAmbientFragments() {
+    var n = 0;
+    for (var i = 0; i < state.enemies.length; i++) {
+      var e = state.enemies[i];
+      if (e && !e.dead && e.isFragment) n++;
+    }
+    return n;
   }
 
   function drawF2Field() {

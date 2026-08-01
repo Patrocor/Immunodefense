@@ -5925,10 +5925,15 @@
       towers: ["endotelial", "monocito", "macrofagoCardiaco"],
       germPool: ["viridans", "enterococo", "hacek"],
       startAtp: 220,
+      // 135 gérmenes en total, igualado con las otras dos ramas de Fase 2:
+      // se juega UNA sola por partida, así que el volumen tiene que ser
+      // parejo — la diferencia la pone la forma del ambiente, no la cantidad.
+      // Los 7 que se sumaron van al arranque, que estaba muy flaco (la ola 1
+      // tenía 4 gérmenes), no al final, que ya viene cargado.
       waves: [
-        [["viridans", 4, 1.9]],
-        [["viridans", 5, 1.6], ["hacek", 3, 1.3]],
-        [["viridans", 5, 1.5], ["hacek", 4, 1.1], ["enterococo", 2, 2.0]],
+        [["viridans", 6, 1.9]],
+        [["viridans", 6, 1.6], ["hacek", 4, 1.3]],
+        [["viridans", 6, 1.5], ["hacek", 5, 1.1], ["enterococo", 3, 2.0]],
         [["viridans", 6, 1.3], ["hacek", 5, 1.0], ["enterococo", 3, 1.7], ["saureus", 2, 1.6]],
         [["viridans", 6, 1.2], ["hacek", 6, 0.95], ["enterococo", 4, 1.5], ["bossPyogenes", 1, 4.0]],
         [["viridans", 7, 1.1], ["hacek", 6, 0.9], ["enterococo", 5, 1.35], ["saureus", 4, 1.3]],
@@ -6691,8 +6696,11 @@
           if (en.def && en.def.bloodSurf) {            // los HACEK SURFEAN la sístole
             en.progress += push0 * 0.65 * U;
           } else {
+            // Se lleva como mucho el 45% de lo avanzado: el germen SIEMPRE
+            // conserva más de la mitad del terreno. Con 75% los lentos
+            // quedaban arrastrándose y la ola tardaba una eternidad.
             var ganado = Math.max(0, en.progress - (en.progAtLastBeat || 0));
-            var push = Math.min(push0 * U, ganado * 0.75);
+            var push = Math.min(push0 * U, ganado * 0.45);
             en.progress = Math.max(0, en.progress - push);
           }
           en.progAtLastBeat = en.progress;
@@ -6727,8 +6735,9 @@
           ev.vegMature = true;
           ev.maxHp = Math.round((ev.maxHp || ev.def.hp) * 1.6);
           ev.hp += Math.round((ev.def.hp) * 0.6);
-          // speedMultLevel ya entra en el cálculo real de velocidad.
-          ev.speedMultLevel = (ev.speedMultLevel || 1) * 0.7;
+          // Frenarlo apenas: con 0.7 el germen maduro se quedaba flotando y
+          // la ola no cerraba. Que sea duro, no que sea eterno.
+          ev.speedMultLevel = (ev.speedMultLevel || 1) * 0.9;
           showMsg("¡VEGETACIÓN MADURA! " + (ev.def.shortName || ev.def.name) + " se blindó");
         }
         // El boss rompe la valva si su vegetación llega al máximo.
@@ -28039,24 +28048,45 @@
     if (cfg.mechanic === "pulso")     drawValveAnatomy(worldW, worldH, cfg);
     if (cfg.mechanic === "secuestro") drawBoneAnatomy(worldW, worldH, cfg);
     if (cfg.mechanic === "cartilago") drawJointAnatomy(worldW, worldH, cfg);
-    // Bandas de carril.
+    // Bandas de carril. Con embudo (`converge`) no son rectángulos: se
+    // inclinan y se angostan siguiendo el camino real, si no la banda recta
+    // contradice a la línea curva y el espacio no se lee como que se cierra.
     var laneW = worldW * 0.155;
     var bandTop = FIELD_TOP + worldH * 0.03;
     var bandBottom = FIELD_TOP + worldH * 0.97;
+    var conv = cfg.converge || 0;
+    var laneWBot = laneW * (1 - conv * 0.45);
+    function bandaCarril(i) {
+      var xTop = FIELD_LEFT + PATH.laneXs[i] * worldW;
+      var xBot = (PATH.organDoors[i] && PATH.organDoors[i].x != null) ? PATH.organDoors[i].x : xTop;
+      ctx.beginPath();
+      ctx.moveTo(xTop - laneW / 2, bandTop);
+      ctx.lineTo(xTop + laneW / 2, bandTop);
+      ctx.lineTo(xBot + laneWBot / 2, bandBottom);
+      ctx.lineTo(xBot - laneWBot / 2, bandBottom);
+      ctx.closePath();
+    }
     for (var i = 0; i < PATH.laneXs.length; i++) {
-      var xc = FIELD_LEFT + PATH.laneXs[i] * worldW;
       ctx.fillStyle = cfg.tint;
-      ctx.fillRect(xc - laneW / 2, bandTop, laneW, bandBottom - bandTop);
+      bandaCarril(i); ctx.fill();
       var fl = f.focusFlash[i] || 0;
       if (fl > 0) {
         ctx.fillStyle = colorAlpha(cfg.colorLight, 0.16 * Math.min(1, fl / 0.6));
-        ctx.fillRect(xc - laneW / 2, bandTop, laneW, bandBottom - bandTop);
+        bandaCarril(i); ctx.fill();
       }
     }
-    // Marco del área jugable.
+    // Marco del área jugable: también se cierra, para que el contorno del
+    // espacio cuente lo mismo que los carriles.
     ctx.strokeStyle = colorAlpha(cfg.colorLight, 0.16);
     ctx.lineWidth = 1.5;
-    ctx.strokeRect(FIELD_LEFT + worldW * 0.02, bandTop, worldW * 0.96, bandBottom - bandTop);
+    var mL = FIELD_LEFT + worldW * 0.02, mR = FIELD_LEFT + worldW * 0.98;
+    var cxW = FIELD_LEFT + worldW * 0.5;
+    var mLb = cxW + (mL - cxW) * (1 - conv), mRb = cxW + (mR - cxW) * (1 - conv);
+    ctx.beginPath();
+    ctx.moveTo(mL, bandTop); ctx.lineTo(mR, bandTop);
+    ctx.lineTo(mRb, bandBottom); ctx.lineTo(mLb, bandBottom);
+    ctx.closePath();
+    ctx.stroke();
     // Entradas (siembra hematógena) y focos del órgano.
     for (var k = 0; k < PATH.wounds.length; k++) {
       var w = PATH.wounds[k];
@@ -28111,16 +28141,44 @@
     ctx.ellipse(FIELD_LEFT + worldW * 0.5, FIELD_TOP + worldH * 0.035,
                 worldW * 0.44, worldH * 0.03, 0, 0, Math.PI * 2);
     ctx.stroke();
-    // Cuerdas tendinosas: hilos verticales sutiles entre carriles.
+    // Cuerdas tendinosas: cuelgan del anillo y CONVERGEN hacia la valva,
+    // igual que los carriles. Son las que sostienen el embudo.
+    var conv = cfg.converge || 0;
+    var cxV = FIELD_LEFT + worldW * 0.5;
     ctx.strokeStyle = colorAlpha("#f0d0d8", 0.10);
     ctx.lineWidth = 1;
     for (var i = 0; i < 26; i++) {
       var xx = FIELD_LEFT + worldW * (0.04 + (i / 25) * 0.92);
+      var xxBot = cxV + (xx - cxV) * (1 - conv);
       var sway = Math.sin(f.fxT * 1.6 + i) * 5 * U * (beat ? 2.2 : 1);
       ctx.beginPath();
       ctx.moveTo(xx, FIELD_TOP + worldH * 0.10);
-      ctx.quadraticCurveTo(xx + sway, FIELD_TOP + worldH * 0.55,
-                           xx + sway * 0.4, FIELD_TOP + worldH * 0.90);
+      ctx.quadraticCurveTo(xx + (xxBot - xx) * 0.45 + sway, FIELD_TOP + worldH * 0.55,
+                           xxBot + sway * 0.4, FIELD_TOP + worldH * 0.90);
+      ctx.stroke();
+    }
+    // LOS VELOS. En el extremo angosto del embudo, donde todo converge.
+    // La mitral se CIERRA en sístole — por eso la sístole empuja hacia atrás.
+    // El telegraph (pulseCharge) los va tensando antes del golpe, así el
+    // jugador ve venir el latido en la anatomía, no en un contador.
+    var cierre = f.inSystole ? 1 : Math.min(1, f.pulseCharge || 0);
+    var vy = FIELD_TOP + worldH * 0.905;
+    var boca = worldW * 0.5 * (1 - conv) * 1.05;      // media boca de la valva
+    var hueco = boca * (1 - cierre) * 0.5;             // separación entre velos
+    var caida = worldH * 0.055 * (1 - cierre * 0.55);  // cuánto cuelgan
+    for (var lado = -1; lado <= 1; lado += 2) {
+      var xOut = cxV + lado * boca;
+      var xIn  = cxV + lado * hueco;
+      ctx.beginPath();
+      ctx.moveTo(xOut, vy);
+      ctx.quadraticCurveTo(cxV + lado * boca * 0.55, vy + caida, xIn, vy + caida * 0.92);
+      ctx.lineTo(xIn, vy + caida * 0.92 - 2 * U);
+      ctx.quadraticCurveTo(cxV + lado * boca * 0.6, vy + caida * 0.5, xOut, vy - 2 * U);
+      ctx.closePath();
+      ctx.fillStyle = colorAlpha(cfg.colorLight, 0.10 + cierre * 0.10);
+      ctx.fill();
+      ctx.strokeStyle = colorAlpha(cfg.colorLight, 0.26 + cierre * 0.22);
+      ctx.lineWidth = 2 * U;
       ctx.stroke();
     }
     // Miocardio de fondo latiendo (bandas curvas).

@@ -24270,10 +24270,65 @@
   }
 
   // --- S. aureus valvular (BOSS de endocarditis) -------------------------
+  // Fases de jefe: los tres bosses de Fase 2 se dibujaban igual con vida
+  // llena que agonizando. Un jefe tiene que ENFURECERSE -- que el jugador
+  // sepa que le esta ganando sin mirar la barra. Tres fases por vida
+  // restante, con aura, temblor y grietas que crecen.
+  function bossFase(e) {
+    var vida = Math.max(0, Math.min(1, e.hp / (e.maxHp || e.def.hp)));
+    return { vida: vida, furia: 1 - vida, fase: vida > 0.66 ? 0 : (vida > 0.33 ? 1 : 2) };
+  }
+
+  function drawBossRage(e, R, tinte) {
+    var b = bossFase(e);
+    if (b.furia < 0.08) return b;
+    var t = state.time;
+    ctx.save();
+    // Aura que late mas rapido y mas fuerte cuanto peor esta.
+    var pul = 0.5 + 0.5 * Math.sin(t * (2 + b.furia * 6));
+    ctx.strokeStyle = tinte.replace('ALPHA', String((0.18 + b.furia * 0.40) * (0.6 + 0.4 * pul)));
+    ctx.lineWidth = Math.max(1.5, (2 + b.furia * 3.5) * U);
+    ctx.beginPath();
+    ctx.arc(0, 0, R * (1.30 + b.furia * 0.30 + 0.06 * pul), 0, Math.PI * 2);
+    ctx.stroke();
+    // Grietas: aparecen en fase 1 y se abren en fase 2.
+    if (b.fase >= 1) {
+      ctx.strokeStyle = 'rgba(20,8,8,' + (0.35 + b.furia * 0.4) + ')';
+      ctx.lineWidth = Math.max(1, (1.2 + b.furia * 2) * U);
+      ctx.lineCap = 'round';
+      var ng = b.fase === 1 ? 3 : 6;
+      for (var i = 0; i < ng; i++) {
+        var a = (e.wobble || 0) + i * (Math.PI * 2 / ng);
+        var jit = b.furia * Math.sin(t * 9 + i) * R * 0.05;
+        ctx.beginPath();
+        ctx.moveTo(Math.cos(a) * R * 0.25, Math.sin(a) * R * 0.25);
+        ctx.lineTo(Math.cos(a + 0.22) * R * 0.68 + jit, Math.sin(a + 0.22) * R * 0.68);
+        ctx.lineTo(Math.cos(a - 0.10) * R * 1.02, Math.sin(a - 0.10) * R * 1.02 + jit);
+        ctx.stroke();
+      }
+    }
+    // Fase final: brasas desprendiendose. Se esta cayendo a pedazos.
+    if (b.fase === 2) {
+      for (var k = 0; k < 5; k++) {
+        var kp = ((t * 1.3 + k * 0.2 + (e.wobble || 0)) % 1);
+        var ka = (e.wobble || 0) + k * 1.26;
+        ctx.fillStyle = tinte.replace('ALPHA', String(0.5 * (1 - kp)));
+        ctx.beginPath();
+        ctx.arc(Math.cos(ka) * R * (1.0 + kp * 0.8), Math.sin(ka) * R * (1.0 + kp * 0.8) - kp * R * 0.5,
+                R * 0.10 * (1 - kp), 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    ctx.restore();
+    return b;
+  }
+
   function drawBossEndocarditis(e, rad, expression, blink) {
     var R = rad, t = state.time, hit = e.hitFlash > 0;
     ctx.save();
     ctx.translate(e.x, e.y);
+    var _bf = drawBossRage(e, R, 'rgba(255,90,112,ALPHA)');
+    if (_bf && _bf.fase === 2) ctx.rotate(Math.sin(state.time * 22) * 0.035 * _bf.furia);
     drawVegetationLayers(e, R);
     // Halo de destrucción valvular: anillo dentado que gira.
     ctx.save();
@@ -24455,6 +24510,8 @@
     var R = rad, t = state.time, hit = e.hitFlash > 0;
     ctx.save();
     ctx.translate(e.x, e.y);
+    var _bf = drawBossRage(e, R, 'rgba(255,214,140,ALPHA)');
+    if (_bf && _bf.fase === 2) ctx.rotate(Math.sin(state.time * 22) * 0.035 * _bf.furia);
     // Hueso esclerótico: cápsula gruesa e irregular alrededor de la cavidad.
     ctx.fillStyle = hit ? "#fff" : "#a89a68";
     ctx.beginPath();
@@ -24497,10 +24554,55 @@
   }
 
   // --- Gonococo articular: diplococo con pili, versión articular ---------
+  // La regla que define la camara: TODO germen vivo come cartilago, llegue o
+  // no al fondo. Eso no se veia en ningun lado -- solo bajaba una barra. Ahora
+  // el germen suelta enzimas hacia el nucleo cartilaginoso, y si un Sinoviocito
+  // B lo esta conteniendo se le ven las hebras viscosas frenandolo.
+  function drawCartilageDigestion(e, R) {
+    var f = state.f2;
+    if (!f || f.cfg.mechanic !== 'cartilago' || !e.def.cartilageEater) return;
+    var t = state.time, w = e.wobble || 0;
+    var prot = f2ViscosityAt(e.x, e.y);          // 0..0.9 de proteccion
+    var muerde = e.def.cartilageEater * (1 - prot);
+    ctx.save();
+    if (muerde > 0.02) {
+      // Enzimas cayendo hacia el centro de la camara (donde esta el cartilago).
+      var cx = FIELD_LEFT + dsWorldW() * 0.5, cy = FIELD_TOP + dsWorldH() * 0.52;
+      var ang = Math.atan2(cy - e.y, cx - e.x);
+      var n = 2 + Math.round(muerde * 3);
+      for (var i = 0; i < n; i++) {
+        var fase = ((t * 1.5 + i * 0.31 + w) % 1);
+        var d = R * (0.8 + fase * 1.5);
+        ctx.fillStyle = 'rgba(255,232,150,' + (0.55 * (1 - fase) * muerde) + ')';
+        ctx.beginPath();
+        ctx.arc(Math.cos(ang) * d + Math.sin(ang + i) * R * 0.25,
+                Math.sin(ang) * d + Math.cos(ang + i) * R * 0.25,
+                R * 0.11 * (1 - fase * 0.4), 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    if (prot > 0.05) {
+      // Hebras de hialuronico pegadas: el germen esta empantanado.
+      ctx.strokeStyle = 'rgba(200,232,140,' + (0.30 + prot * 0.45) + ')';
+      ctx.lineWidth = Math.max(1, (1.1 + prot * 1.4) * U);
+      ctx.lineCap = 'round';
+      for (var h = 0; h < 5; h++) {
+        var ha = w + h * 1.26 + Math.sin(t * 0.9 + h) * 0.2;
+        ctx.beginPath();
+        ctx.moveTo(Math.cos(ha) * R * 0.9, Math.sin(ha) * R * 0.9);
+        ctx.quadraticCurveTo(Math.cos(ha + 0.5) * R * 1.5, Math.sin(ha + 0.5) * R * 1.5,
+                             Math.cos(ha + 0.2) * R * 1.9, Math.sin(ha + 0.2) * R * 1.9);
+        ctx.stroke();
+      }
+    }
+    ctx.restore();
+  }
+
   function drawGonoArticular(e, rad, expression, blink) {
     var R = rad, t = state.time, hit = e.hitFlash > 0;
     ctx.save();
     ctx.translate(e.x, e.y);
+    drawCartilageDigestion(e, R);
     // Halo inflamatorio (la artritis gonocócica es MUY inflamatoria).
     var infl = 0.5 + 0.5 * Math.sin(t * 2.4);
     var hg = ctx.createRadialGradient(0, 0, R * 0.7, 0, 0, R * 1.5);
@@ -24542,6 +24644,7 @@
     var sp = e.def.spirochete || { coils: 7, amplitude: 26, frequency: 2.2 };
     ctx.save();
     ctx.translate(e.x, e.y);
+    drawCartilageDigestion(e, R);
     var heading = Math.atan2(e.vy || 0, e.vx || 0.001);
     ctx.rotate(heading);
     // Cuerpo helicoidal: onda sinusoidal gruesa que "avanza" con el tiempo.
@@ -24585,6 +24688,7 @@
     var R = rad, t = state.time, hit = e.hitFlash > 0;
     ctx.save();
     ctx.translate(e.x, e.y);
+    drawCartilageDigestion(e, R);
     // Cápsula de ácido hialurónico: halo gelatinoso.
     var cap = ctx.createRadialGradient(0, 0, R * 0.6, 0, 0, R * 1.35);
     cap.addColorStop(0, "rgba(250,190,205,0.22)");
@@ -24627,6 +24731,8 @@
     var R = rad, t = state.time, hit = e.hitFlash > 0;
     ctx.save();
     ctx.translate(e.x, e.y);
+    var _bf = drawBossRage(e, R, 'rgba(255,150,190,ALPHA)');
+    if (_bf && _bf.fase === 2) ctx.rotate(Math.sin(state.time * 22) * 0.035 * _bf.furia);
     // Masa de tejido de granulación: lóbulos irregulares que reptan.
     ctx.fillStyle = hit ? "#fff" : e.def.colorDark;
     ctx.beginPath();

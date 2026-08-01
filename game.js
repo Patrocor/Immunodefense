@@ -24305,11 +24305,46 @@
   }
 
   // --- S. aureus SCV: colonia pequeña que se esconde en el hueso ---------
+  // Coraza de secuestro: el germen que pisa hueso muerto es INTOCABLE salvo
+  // para el Osteoclasto. Esa regla decide toda la partida en el pozo y no se
+  // veia en ningun cuerpo, solo en la isla del suelo. Ahora el germen mismo
+  // lleva puesta la placa de hueso que lo protege.
+  function drawSequestrumShell(e, R) {
+    if (!e.inSequestrum) return;
+    var t = state.time, w = e.wobble || 0;
+    ctx.save();
+    // Esquirlas de hueso muerto orbitando pegadas al cuerpo.
+    ctx.fillStyle = "rgba(214,198,150,0.55)";
+    ctx.strokeStyle = "rgba(120,104,62,0.75)";
+    ctx.lineWidth = Math.max(1, 1.2 * U);
+    for (var i = 0; i < 6; i++) {
+      var a = w + i * (Math.PI * 2 / 6) + t * 0.35;
+      var rr = R * (1.18 + 0.06 * Math.sin(t * 2 + i));
+      ctx.save();
+      ctx.translate(Math.cos(a) * rr, Math.sin(a) * rr);
+      ctx.rotate(a + 0.4);
+      ctx.beginPath();
+      ctx.moveTo(-R * 0.30, 0);
+      ctx.lineTo(-R * 0.06, -R * 0.20);
+      ctx.lineTo(R * 0.30, -R * 0.04);
+      ctx.lineTo(R * 0.04, R * 0.20);
+      ctx.closePath();
+      ctx.fill(); ctx.stroke();
+      ctx.restore();
+    }
+    // Halo mate: la senal de "aca tus balas no entran".
+    ctx.strokeStyle = "rgba(235,220,170," + (0.30 + 0.12 * Math.sin(t * 3 + w)) + ")";
+    ctx.lineWidth = Math.max(1.4, 2 * U);
+    ctx.beginPath(); ctx.arc(0, 0, R * 1.34, 0, Math.PI * 2); ctx.stroke();
+    ctx.restore();
+  }
+
   function drawAureusSCV(e, rad, expression, blink) {
     var R = rad, t = state.time, hit = e.hitFlash > 0;
     var hidden = !e.revealed;
     ctx.save();
     ctx.translate(e.x, e.y);
+    drawSequestrumShell(e, R);
     if (hidden) ctx.globalAlpha = 0.42;
     // Nicho intracelular: contorno de la laguna ósea que lo aloja.
     if (hidden) {
@@ -24345,6 +24380,7 @@
     var R = rad, t = state.time, hit = e.hitFlash > 0;
     ctx.save();
     ctx.translate(e.x, e.y);
+    drawSequestrumShell(e, R);
     // Flagelos perítricos: hebras onduladas alrededor de todo el cuerpo.
     ctx.strokeStyle = colorAlpha(e.def.colorLight, 0.7);
     ctx.lineWidth = Math.max(0.8, 1.0 * U);
@@ -24383,6 +24419,7 @@
     var R = rad, t = state.time, hit = e.hitFlash > 0;
     ctx.save();
     ctx.translate(e.x, e.y);
+    drawSequestrumShell(e, R);
     var bob = Math.sin(t * 5 + (e.wobble || 0)) * R * 0.10;
     for (var i = 0; i < 3; i++) {
       var cx = (i - 1) * R * 0.62;

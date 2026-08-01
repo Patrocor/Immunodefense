@@ -758,12 +758,30 @@
     // arrancan separados arriba y se juntan hacia el fondo. converge es cuánto
     // se cierra el abanico: 0 = paralelo (como siempre), 1 = todos al centro.
     var converge = cfg.converge || 0;
+    // CÁMARA: en un recinto cerrado no hay "arriba y abajo", hay borde y
+    // centro. Con `radial`, las entradas se reparten sobre el arco superior
+    // de la cápsula (izquierda → techo → derecha) y todas apuntan al medio,
+    // donde está el cartílago. El resto del sistema no se entera: siguen
+    // siendo carriles con su entrada, su salida y su curva.
+    var radial = !!cfg.radial;
+    var cxR = FIELD_LEFT + 0.5 * worldW, cyR = FIELD_TOP + 0.52 * worldH;
+    var rxOut = worldW * 0.46, ryOut = worldH * 0.44;
+    var rxIn  = worldW * (cfg.radialCore || 0.13), ryIn = worldH * (cfg.radialCore || 0.13);
     for (var i = 0; i < laneXs.length; i++) {
       var xPx = FIELD_LEFT + laneXs[i] * worldW;
       var cx = FIELD_LEFT + 0.5 * worldW;
       var xExit = cx + (xPx - cx) * (1 - converge);
-      var entry = { x: xPx,   y: FIELD_TOP + entryYn * worldH };
-      var exit  = { x: xExit, y: FIELD_TOP + exitYn  * worldH };
+      var entry, exit;
+      if (radial) {
+        var span = (cfg.radialSpanDeg || 150) * Math.PI / 180;
+        var a0 = Math.PI + (Math.PI - span) / 2;      // arranca por la izquierda
+        var ang = a0 + (laneXs.length > 1 ? (i / (laneXs.length - 1)) * span : span / 2);
+        entry = { x: cxR + Math.cos(ang) * rxOut, y: cyR + Math.sin(ang) * ryOut };
+        exit  = { x: cxR + Math.cos(ang) * rxIn,  y: cyR + Math.sin(ang) * ryIn  };
+      } else {
+        entry = { x: xPx,   y: FIELD_TOP + entryYn * worldH };
+        exit  = { x: xExit, y: FIELD_TOP + exitYn  * worldH };
+      }
       PATH.wounds.push({ x: entry.x, y: entry.y, phase: i * 0.4, active: true });
       PATH.organDoors.push({
         x: exit.x, y: exit.y, laneX: xExit,
@@ -773,9 +791,20 @@
       // alrededor de la anatomía (cuerdas tendinosas, trabéculas, pliegues).
       // Con embudo, el serpenteo va montado sobre la línea que ya se cierra.
       var bow = (i % 2 === 0 ? 1 : -1) * cfg.bow * worldW;
-      var xAt = function (f) { return xPx + (xExit - xPx) * f; };
-      var midA = { x: xAt(0.35) + bow,       y: FIELD_TOP + (entryYn + (exitYn - entryYn) * 0.35) * worldH };
-      var midB = { x: xAt(0.72) - bow * 0.6, y: FIELD_TOP + (entryYn + (exitYn - entryYn) * 0.72) * worldH };
+      var midA, midB;
+      if (radial) {
+        // El serpenteo va perpendicular al radio, así el germen entra a la
+        // cavidad describiendo una curva y no una línea recta al centro.
+        var dxR = exit.x - entry.x, dyR = exit.y - entry.y;
+        var len = Math.hypot(dxR, dyR) || 1;
+        var px = -dyR / len, py = dxR / len;   // normal al segmento
+        midA = { x: entry.x + dxR * 0.35 + px * bow,       y: entry.y + dyR * 0.35 + py * bow };
+        midB = { x: entry.x + dxR * 0.72 - px * bow * 0.6, y: entry.y + dyR * 0.72 - py * bow * 0.6 };
+      } else {
+        var xAt = function (f) { return xPx + (xExit - xPx) * f; };
+        midA = { x: xAt(0.35) + bow,       y: FIELD_TOP + (entryYn + (exitYn - entryYn) * 0.35) * worldH };
+        midB = { x: xAt(0.72) - bow * 0.6, y: FIELD_TOP + (entryYn + (exitYn - entryYn) * 0.72) * worldH };
+      }
       PATH.branches.push(buildBezierPath([entry, midA, midB, exit]));
       var t = PATH.branches[i].length;
       PATH.totalForBranch.push(t);
@@ -6011,7 +6040,14 @@
       color: "#8ec5d0", colorDark: "#2e565e", colorLight: "#d4eef4",
       tint: "rgba(142, 197, 208, 0.10)",
       bg: ["#0e1e22", "#1d3a42", "#2f5c66"],
-      stretchX: 1.45, stretchY: 1.45,
+      // LA CÁMARA: recinto cerrado, ancho y bajo. Casi todo entra de una sola
+      // vista — no es un túnel que se recorre, es un espacio que se vigila.
+      // Los gérmenes entran por el borde de la cápsula y van todos al centro,
+      // donde está el cartílago.
+      stretchX: 1.00, stretchY: 1.20,
+      radial: true,
+      radialSpanDeg: 165,        // arco de entradas: izquierda → techo → derecha
+      radialCore: 0.12,          // radio del núcleo cartilaginoso
       laneXs: [0.12, 0.31, 0.50, 0.69, 0.88],
       foci: ["Receso suprapatelar", "Compartimento medial", "Escotadura intercondílea", "Compartimento lateral", "Bursa poplítea"],
       bow: 0.034,
@@ -6032,10 +6068,13 @@
       startAtp: 230,
       cartilageMax: 100,
       cartilageRate: 0.55,       // puntos/seg por cada germen "cartilageEater 1.0"
+      // 135 gérmenes, igualado con las otras dos ramas. Los 6 que entran van
+      // al arranque: en la cámara el cartílago se come desde el primer germen
+      // vivo, así que las olas iniciales flacas no enseñaban la mecánica.
       waves: [
-        [["gonoArticular", 4, 1.7]],
-        [["gonoArticular", 5, 1.5], ["borrelia", 3, 1.6]],
-        [["gonoArticular", 5, 1.4], ["borrelia", 4, 1.4], ["pyogenesArt", 2, 1.9]],
+        [["gonoArticular", 6, 1.7]],
+        [["gonoArticular", 6, 1.5], ["borrelia", 4, 1.6]],
+        [["gonoArticular", 6, 1.4], ["borrelia", 5, 1.4], ["pyogenesArt", 3, 1.9]],
         [["gonoArticular", 6, 1.25], ["borrelia", 5, 1.3], ["pyogenesArt", 3, 1.7], ["bossPyogenes", 1, 4.0]],
         [["gonoArticular", 7, 1.15], ["borrelia", 6, 1.2], ["pyogenesArt", 4, 1.5], ["neisseria", 3, 1.4]],
         [["gonoArticular", 8, 1.05], ["borrelia", 6, 1.1], ["pyogenesArt", 5, 1.4], ["bossPseudomonas", 1, 3.5]],
@@ -28093,14 +28132,21 @@
     var bandBottom = FIELD_TOP + worldH * 0.97;
     var conv = cfg.converge || 0;
     var laneWBot = laneW * (1 - conv * 0.45);
+    // La banda va de la entrada real a la salida real y se angosta al final.
+    // Sirve igual para el túnel vertical, para el embudo y para la cámara
+    // radial: en los tres casos un carril es un segmento entrada→salida.
     function bandaCarril(i) {
-      var xTop = FIELD_LEFT + PATH.laneXs[i] * worldW;
-      var xBot = (PATH.organDoors[i] && PATH.organDoors[i].x != null) ? PATH.organDoors[i].x : xTop;
+      var w = PATH.wounds[i], d = PATH.organDoors[i];
+      if (!w || !d) return;
+      var dx = d.x - w.x, dy = d.y - w.y;
+      var len = Math.hypot(dx, dy) || 1;
+      var px = -dy / len, py = dx / len;      // normal al carril
+      var h1 = laneW / 2, h2 = laneWBot / 2;
       ctx.beginPath();
-      ctx.moveTo(xTop - laneW / 2, bandTop);
-      ctx.lineTo(xTop + laneW / 2, bandTop);
-      ctx.lineTo(xBot + laneWBot / 2, bandBottom);
-      ctx.lineTo(xBot - laneWBot / 2, bandBottom);
+      ctx.moveTo(w.x + px * h1, w.y + py * h1);
+      ctx.lineTo(w.x - px * h1, w.y - py * h1);
+      ctx.lineTo(d.x - px * h2, d.y - py * h2);
+      ctx.lineTo(d.x + px * h2, d.y + py * h2);
       ctx.closePath();
     }
     for (var i = 0; i < PATH.laneXs.length; i++) {
@@ -28116,14 +28162,21 @@
     // espacio cuente lo mismo que los carriles.
     ctx.strokeStyle = colorAlpha(cfg.colorLight, 0.16);
     ctx.lineWidth = 1.5;
-    var mL = FIELD_LEFT + worldW * 0.02, mR = FIELD_LEFT + worldW * 0.98;
     var cxW = FIELD_LEFT + worldW * 0.5;
-    var mLb = cxW + (mL - cxW) * (1 - conv), mRb = cxW + (mR - cxW) * (1 - conv);
-    ctx.beginPath();
-    ctx.moveTo(mL, bandTop); ctx.lineTo(mR, bandTop);
-    ctx.lineTo(mRb, bandBottom); ctx.lineTo(mLb, bandBottom);
-    ctx.closePath();
-    ctx.stroke();
+    if (cfg.radial) {
+      // La cámara no tiene marco rectangular: tiene cápsula.
+      ctx.beginPath();
+      ctx.ellipse(cxW, FIELD_TOP + worldH * 0.52, worldW * 0.48, worldH * 0.46, 0, 0, Math.PI * 2);
+      ctx.stroke();
+    } else {
+      var mL = FIELD_LEFT + worldW * 0.02, mR = FIELD_LEFT + worldW * 0.98;
+      var mLb = cxW + (mL - cxW) * (1 - conv), mRb = cxW + (mR - cxW) * (1 - conv);
+      ctx.beginPath();
+      ctx.moveTo(mL, bandTop); ctx.lineTo(mR, bandTop);
+      ctx.lineTo(mRb, bandBottom); ctx.lineTo(mLb, bandBottom);
+      ctx.closePath();
+      ctx.stroke();
+    }
     // Entradas (siembra hematógena) y focos del órgano.
     for (var k = 0; k < PATH.wounds.length; k++) {
       var w = PATH.wounds[k];

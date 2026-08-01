@@ -5939,6 +5939,7 @@
       integrityLabel: "VÁLVULA",
       integrityMax: 100,
       arrivalDamage: 7,          // cuánta integridad cuesta cada germen que llega
+      ambient: "corazon",
       mechanic: "pulso",
       // Latido lento y contable: ~23 lpm. Avisa medio segundo antes (telegraph)
       // y pega fuerte. Entre sístole y sístole hay tiempo real para decidir.
@@ -6008,6 +6009,7 @@
       integrityLabel: "CORTICAL",
       integrityMax: 100,
       arrivalDamage: 6,
+      ambient: "hueso",
       mechanic: "secuestro",
       mechanicName: "SECUESTRO ÓSEO",
       mechanicDesc: "Siete islas de hueso muerto, siempre en el mismo lugar, protegen a los gérmenes que las pisan. Decidí de antemano: ¿las rompés con el Osteoclasto o convivís y revelás con el Osteocito?",
@@ -6055,6 +6057,7 @@
       integrityLabel: "CÁPSULA",
       integrityMax: 100,
       arrivalDamage: 6,
+      ambient: "articulacion",
       mechanic: "cartilago",
       mechanicName: "CARTÍLAGO ARTICULAR",
       mechanicDesc: "Cada germen VIVO en la cavidad va comiendo cartílago, llegue o no al fondo. Si el cartílago se agota, perdés la articulación.",
@@ -28112,7 +28115,10 @@
     }
     safeDraw("Ambient", drawAmbient);
     if (!state.dissemination) { safeDraw("Mitosis", drawMitosis); safeDraw("Patrol", drawPatrol); }
-    safeDraw("Tissue", drawTissue);
+    // El tejido de PIEL solo corresponde a Fase 1 y Diseminacion. En los
+    // niveles de organo va el ambiente fisiologico propio de cada uno.
+    if (state.f2) safeDraw("OrganAmbient", drawOrganAmbient);
+    else safeDraw("Tissue", drawTissue);
     safeDraw("Inflammation", drawInflammation);
     safeDraw("Path", drawPath);
     if (!state.dissemination) {
@@ -28380,6 +28386,173 @@
 
   // -------- NIVEL PUENTE: RENDER -------------------------------------------
   // ============ RENDER DE FASE 2 (niveles de órgano) ======================
+
+  // ================= AMBIENTE FISIOLOGICO POR ORGANO =====================
+  // Hasta ahora los tres niveles de organo compartian el tejido de la PIEL
+  // (plaquetas, fibroblastos, epiteliales) porque generateTissue() se llama
+  // igual para todos. Habia fibroblastos de piel flotando dentro de un hueso.
+  // Cada organo tiene ahora lo suyo, y reacciona al estado real del nivel.
+  function ensureOrganAmbient() {
+    var f = state.f2;
+    if (!f || !f.cfg.ambient) return null;
+    if (f.ambient) return f.ambient;
+    // Semilla estable: el ambiente no baila entre frames ni entre partidas.
+    var seed = 4211;
+    function rnd() { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; }
+    var W = dsWorldW(), H = dsWorldH();
+    var a = { motas: [], eventos: [], t: 0 };
+    var n = f.cfg.ambient === 'hueso' ? 34 : 42;
+    for (var i = 0; i < n; i++) {
+      a.motas.push({
+        nx: rnd(), ny: rnd(),
+        r: (2.5 + rnd() * 5),
+        fase: rnd() * Math.PI * 2,
+        vel: 0.35 + rnd() * 0.9,
+        tipo: rnd(),
+        giro: (rnd() - 0.5) * 1.4
+      });
+    }
+    f.ambient = a;
+    return a;
+  }
+
+  function drawOrganAmbient() {
+    var f = state.f2;
+    if (!f || !f.cfg.ambient) return;
+    var a = ensureOrganAmbient();
+    if (!a) return;
+    var W = dsWorldW(), H = dsWorldH(), t = state.time, cfg = f.cfg;
+    a.t += 0.016;
+    ctx.save();
+
+    if (cfg.ambient === 'corazon') {
+      // SANGRE: globulos rojos arrastrados por el flujo. En sistole el chorro
+      // los ACELERA de golpe -- el ambiente late con el organo.
+      var sist = f.inSystole ? 1 : 0;
+      var carga = f.pulseCharge || 0;
+      for (var i = 0; i < a.motas.length; i++) {
+        var m = a.motas[i];
+        var vy = m.vel * (0.5 + sist * 3.2 + carga * 0.6);
+        m.ny = (m.ny + vy * 0.0016) % 1;
+        var x = FIELD_LEFT + m.nx * W, y = FIELD_TOP + m.ny * H;
+        var rr = m.r * U * (1 + sist * 0.12);
+        if (m.tipo < 0.72) {
+          // Eritrocito: disco biconcavo, se estira con la corriente.
+          ctx.save(); ctx.translate(x, y); ctx.scale(1, 1 - sist * 0.28);
+          ctx.fillStyle = 'rgba(176,44,54,0.50)';
+          ctx.beginPath(); ctx.arc(0, 0, rr, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = 'rgba(120,20,30,0.45)';
+          ctx.beginPath(); ctx.arc(0, 0, rr * 0.45, 0, Math.PI * 2); ctx.fill();
+          ctx.restore();
+        } else {
+          // MICROTROMBO: se agrega, viaja y se disuelve. Ciclo propio.
+          var ciclo = (a.t * 0.25 + m.fase) % 1;
+          var vida = Math.sin(ciclo * Math.PI);
+          if (vida > 0.05) {
+            ctx.fillStyle = 'rgba(210,180,170,' + (0.30 * vida) + ')';
+            ctx.beginPath();
+            for (var k = 0; k <= 7; k++) {
+              var ka = (k / 7) * Math.PI * 2;
+              var kr = rr * (1.5 + 0.35 * Math.sin(ka * 3 + m.fase)) * vida;
+              var px = x + Math.cos(ka) * kr, py = y + Math.sin(ka) * kr;
+              if (k === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+            }
+            ctx.closePath(); ctx.fill();
+          }
+        }
+      }
+    } else if (cfg.ambient === 'hueso') {
+      // MEDULA OSEA: adipocitos casi quietos, precursores que se dividen y
+      // cristales de hidroxiapatita. El metabolismo del hueso a la vista.
+      for (var j = 0; j < a.motas.length; j++) {
+        var b = a.motas[j];
+        var bx = FIELD_LEFT + b.nx * W;
+        var by = FIELD_TOP + ((b.ny + a.t * 0.004 * b.vel) % 1) * H;
+        var br = b.r * U;
+        if (b.tipo < 0.42) {
+          // Adipocito medular: gota grande, amarilla, con brillo.
+          ctx.fillStyle = 'rgba(232,206,120,0.30)';
+          ctx.beginPath(); ctx.arc(bx, by, br * 1.9, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = 'rgba(255,240,190,0.30)';
+          ctx.beginPath(); ctx.arc(bx - br * 0.6, by - br * 0.7, br * 0.5, 0, Math.PI * 2); ctx.fill();
+        } else if (b.tipo < 0.78) {
+          // Precursor hematopoyetico: late y de a ratos se DIVIDE en dos.
+          var div = (a.t * 0.22 + b.fase) % 1;
+          var sep = div > 0.72 ? (div - 0.72) / 0.28 : 0;
+          ctx.fillStyle = 'rgba(190,170,210,0.34)';
+          ctx.beginPath(); ctx.arc(bx - br * sep * 1.3, by, br * (1 - sep * 0.22), 0, Math.PI * 2); ctx.fill();
+          if (sep > 0) {
+            ctx.beginPath(); ctx.arc(bx + br * sep * 1.3, by, br * (1 - sep * 0.22), 0, Math.PI * 2); ctx.fill();
+          }
+        } else {
+          // Cristal de hidroxiapatita: destella al girar.
+          var bril = 0.18 + 0.30 * Math.pow(Math.abs(Math.sin(a.t * 1.1 + b.fase)), 6);
+          ctx.save(); ctx.translate(bx, by); ctx.rotate(b.fase + a.t * b.giro * 0.3);
+          ctx.fillStyle = 'rgba(255,252,235,' + bril + ')';
+          ctx.beginPath();
+          ctx.moveTo(0, -br * 1.5); ctx.lineTo(br * 0.7, 0);
+          ctx.lineTo(0, br * 1.5); ctx.lineTo(-br * 0.7, 0);
+          ctx.closePath(); ctx.fill();
+          ctx.restore();
+        }
+      }
+      // Calcio liberado por la resorcion: chispas que SUBEN desde los
+      // secuestros rotos. Solo aparecen si de verdad rompiste alguno.
+      if (f.sequestra) {
+        for (var s = 0; s < f.sequestra.length; s++) {
+          var sq = f.sequestra[s];
+          if (!sq.broken) continue;
+          for (var c = 0; c < 3; c++) {
+            var cp = ((a.t * 0.55 + c * 0.33 + s * 0.17) % 1);
+            ctx.fillStyle = 'rgba(255,246,210,' + (0.45 * (1 - cp)) + ')';
+            ctx.beginPath();
+            ctx.arc(sq.x + Math.sin(cp * 6 + c) * sq.r * 0.4, sq.y - cp * sq.r * 2.2,
+                    2.2 * U * (1 - cp * 0.5), 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+      }
+    } else if (cfg.ambient === 'articulacion') {
+      // LIQUIDO SINOVIAL: hebras de hialuronico ondulando, detritus de
+      // cartilago desprendido y burbujas de derrame. El detritus AUMENTA a
+      // medida que el cartilago se pierde: el ambiente cuenta el marcador.
+      var perdido = 1 - Math.max(0, Math.min(1, f.cartilage / (cfg.cartilageMax || 100)));
+      for (var q = 0; q < a.motas.length; q++) {
+        var d = a.motas[q];
+        var dx = FIELD_LEFT + ((d.nx + Math.sin(a.t * 0.25 + d.fase) * 0.012) % 1) * W;
+        var dy = FIELD_TOP + ((d.ny + a.t * 0.006 * d.vel) % 1) * H;
+        var dr = d.r * U;
+        if (d.tipo < 0.45) {
+          // Hebra de hialuronico: serpentea despacio, el liquido es espeso.
+          ctx.strokeStyle = 'rgba(190,225,232,0.22)';
+          ctx.lineWidth = Math.max(0.8, 1.1 * U);
+          ctx.beginPath();
+          for (var h = 0; h <= 8; h++) {
+            var hx = dx + (h - 4) * dr * 0.9;
+            var hy = dy + Math.sin(a.t * 0.8 + h * 0.7 + d.fase) * dr * 0.7;
+            if (h === 0) ctx.moveTo(hx, hy); else ctx.lineTo(hx, hy);
+          }
+          ctx.stroke();
+        } else if (d.tipo < 0.45 + perdido * 0.42) {
+          // Escama de cartilago desprendido: solo si se esta perdiendo.
+          ctx.save(); ctx.translate(dx, dy); ctx.rotate(d.fase + a.t * d.giro * 0.5);
+          ctx.fillStyle = 'rgba(238,246,248,0.38)';
+          ctx.beginPath();
+          ctx.moveTo(-dr, -dr * 0.4); ctx.lineTo(dr * 0.8, -dr * 0.7);
+          ctx.lineTo(dr, dr * 0.5); ctx.lineTo(-dr * 0.6, dr * 0.8);
+          ctx.closePath(); ctx.fill();
+          ctx.restore();
+        } else {
+          // Burbuja de derrame.
+          ctx.strokeStyle = 'rgba(215,240,246,0.20)';
+          ctx.lineWidth = Math.max(0.7, 1 * U);
+          ctx.beginPath(); ctx.arc(dx, dy, dr * 1.2, 0, Math.PI * 2); ctx.stroke();
+        }
+      }
+    }
+    ctx.restore();
+  }
+
   function drawF2Field() {
     if (!state.f2 || !PATH.laneXs) return;
     var f = state.f2, cfg = f.cfg;

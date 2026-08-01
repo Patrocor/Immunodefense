@@ -4512,6 +4512,10 @@
   // trae la oleada que viene. Cada fila abre el Dex de ese germen.
   function drawDockIntel() {
     var box = UI.dockIntel;
+    // Los hit-rects se rehacen en CADA frame: si solo se limpiaran en
+    // layoutUI el array crecería sin techo entre relayouts.
+    UI.intelRows = [];
+    UI.intelMechBtn = null;
     if (!box || state.compendiumOpen) return;
     var y = box.y;
     var pad = 5;

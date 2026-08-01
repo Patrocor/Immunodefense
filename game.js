@@ -1313,10 +1313,14 @@
       bonusVsStructure: 2.0,
       specialChargeSec: 26,
       specialName: "Laguna de Howship",
+      // El Osteoclasto es el ÚNICO cañón del pozo: el Osteoblasto produce y el
+      // Osteocito revela, ninguno de los dos hace daño. Con el reparto de
+      // Endocarditis (dos armas) el nivel quedaba dos olas corto, así que el
+      // arma única pega más fuerte y más seguido para emparejar la rama.
       levels: [
-        { range: 125, damage: 40, fireRate: 0.6, projectileSpeed: 300, splash: 34, hp: 190 },
-        { range: 145, damage: 62, fireRate: 0.75, projectileSpeed: 330, splash: 42, hp: 245 },
-        { range: 165, damage: 92, fireRate: 0.9, projectileSpeed: 360, splash: 52, hp: 310 }
+        { range: 125, damage: 50, fireRate: 0.72, projectileSpeed: 300, splash: 34, hp: 190 },
+        { range: 145, damage: 78, fireRate: 0.90, projectileSpeed: 330, splash: 42, hp: 245 },
+        { range: 165, damage: 115, fireRate: 1.08, projectileSpeed: 360, splash: 52, hp: 310 }
       ],
       upgradeCost: [105, 175]
     },
@@ -5952,9 +5956,24 @@
       color: "#c8a070", colorDark: "#5e4620", colorLight: "#efdcb4",
       tint: "rgba(200, 160, 112, 0.10)",
       bg: ["#1c1710", "#3a3020", "#5e5030"],
-      stretchX: 1.30, stretchY: 1.70,
-      laneXs: [0.14, 0.33, 0.52, 0.71, 0.88],
-      foci: ["Canal de Havers I", "Canal de Havers II", "Cavidad medular", "Canal de Volkmann", "Periostio"],
+      // EL POZO: el canal medular es angosto y hondo. Tres carriles en vez de
+      // cinco, mucha profundidad, cortical gruesa a los costados. Entra todo a
+      // lo ancho — no se arrastra de lado, solo se baja.
+      stretchX: 1.00, stretchY: 2.00,
+      laneXs: [0.27, 0.50, 0.73],
+      foci: ["Canal de Havers", "Cavidad medular", "Canal de Volkmann"],
+      // Secuestros FIJOS: se ven desde el arranque y siempre están donde
+      // mismo. El canal central es el más obstruido; los laterales tienen
+      // menos, pero uno bien profundo cada uno.
+      sequestra: [
+        { lane: 1, yn: 0.24, r: 34, hp: 140 },
+        { lane: 0, yn: 0.34, r: 28, hp: 110 },
+        { lane: 2, yn: 0.34, r: 28, hp: 110 },
+        { lane: 1, yn: 0.52, r: 38, hp: 160 },
+        { lane: 0, yn: 0.68, r: 30, hp: 130 },
+        { lane: 2, yn: 0.68, r: 30, hp: 130 },
+        { lane: 1, yn: 0.80, r: 32, hp: 150 }
+      ],
       bow: 0.022,
       entryYn: 0.04, exitYn: 0.96,
       integrityLabel: "CORTICAL",
@@ -5962,7 +5981,7 @@
       arrivalDamage: 6,
       mechanic: "secuestro",
       mechanicName: "SECUESTRO ÓSEO",
-      mechanicDesc: "Islas de hueso muerto protegen a los gérmenes que las pisan. Rompelas con el Osteoclasto o revelalos con el Osteocito.",
+      mechanicDesc: "Siete islas de hueso muerto, siempre en el mismo lugar, protegen a los gérmenes que las pisan. Decidí de antemano: ¿las rompés con el Osteoclasto o convivís y revelás con el Osteocito?",
       baseName: "Canal Nutricio",
       baseShort: "Canal",
       basePowerName: "BROTE VASCULAR",
@@ -5977,9 +5996,9 @@
         [["kingella", 6, 1.2], ["aureusSCV", 4, 1.6], ["salmonelaOsea", 3, 1.5]],
         [["kingella", 7, 1.1], ["aureusSCV", 5, 1.4], ["salmonelaOsea", 4, 1.35], ["bossClostridium", 1, 4.0]],
         [["kingella", 8, 1.0], ["aureusSCV", 6, 1.3], ["salmonelaOsea", 5, 1.25], ["saureus", 3, 1.4]],
-        [["kingella", 9, 0.95], ["aureusSCV", 7, 1.2], ["salmonelaOsea", 6, 1.15], ["bossMRSA", 1, 3.5]],
-        [["kingella", 10, 0.9], ["aureusSCV", 8, 1.1], ["salmonelaOsea", 6, 1.1], ["saureus", 5, 1.25]],
-        [["kingella", 10, 0.85], ["aureusSCV", 9, 1.0], ["salmonelaOsea", 7, 1.05], ["bossBrodie", 1, 4.0]]
+        [["kingella", 8, 0.95], ["aureusSCV", 7, 1.2], ["salmonelaOsea", 6, 1.15], ["bossMRSA", 1, 3.5]],
+        [["kingella", 8, 0.9], ["aureusSCV", 7, 1.1], ["salmonelaOsea", 5, 1.1], ["saureus", 4, 1.25]],
+        [["kingella", 8, 0.85], ["aureusSCV", 8, 1.0], ["salmonelaOsea", 6, 1.05], ["bossBrodie", 1, 4.0]]
       ],
       leak: [1, 2, 2, 3, 3, 4, 4, 2]
     },
@@ -6454,6 +6473,24 @@
     var f = state.f2, cfg = f.cfg;
     f.sequestra = [];
     var worldW = dsWorldW(), worldH = dsWorldH();
+    // Si el nivel declara sus secuestros, van en posiciones FIJAS. Es a
+    // propósito: el jugador tiene que poder aprenderlas y decidir de antemano
+    // si las rompe o convive con ellas. Un campo que cambia cada partida no
+    // se planifica, se sufre.
+    if (cfg.sequestra && cfg.sequestra.length) {
+      for (var s = 0; s < cfg.sequestra.length; s++) {
+        var d = cfg.sequestra[s];
+        var lx = cfg.laneXs[d.lane] != null ? cfg.laneXs[d.lane] : 0.5;
+        f.sequestra.push({
+          x: FIELD_LEFT + (lx + (d.dx || 0)) * worldW,
+          y: FIELD_TOP + d.yn * worldH,
+          r: (d.r || 30) * U,
+          hp: d.hp || 120, maxHp: d.hp || 120,
+          lane: d.lane, broken: false, flash: 0
+        });
+      }
+      return;
+    }
     for (var i = 0; i < cfg.laneXs.length; i++) {
       var n = 1 + (i % 2);
       for (var k = 0; k < n; k++) {
@@ -28199,10 +28236,21 @@
   function drawBoneAnatomy(worldW, worldH, cfg) {
     var f = state.f2;
     ctx.save();
-    // Cortical a los costados.
-    ctx.fillStyle = colorAlpha("#8a7c58", 0.30);
-    ctx.fillRect(FIELD_LEFT, FIELD_TOP, worldW * 0.055, worldH);
-    ctx.fillRect(FIELD_LEFT + worldW * 0.945, FIELD_TOP, worldW * 0.055, worldH);
+    // Cortical a los costados: su grosor sale del espacio que queda libre
+    // fuera de los carriles. Con el canal angosto (3 carriles) el hueso se
+    // ve grueso de verdad y el pozo se siente cerrado.
+    var xs = cfg.laneXs || [0.1, 0.9];
+    var margen = Math.max(0.055, Math.min(xs[0], 1 - xs[xs.length - 1]) - 0.10);
+    var gr = ctx.createLinearGradient(FIELD_LEFT, 0, FIELD_LEFT + worldW * margen, 0);
+    gr.addColorStop(0, colorAlpha("#8a7c58", 0.42));
+    gr.addColorStop(1, colorAlpha("#8a7c58", 0.16));
+    ctx.fillStyle = gr;
+    ctx.fillRect(FIELD_LEFT, FIELD_TOP, worldW * margen, worldH);
+    var gl = ctx.createLinearGradient(FIELD_LEFT + worldW, 0, FIELD_LEFT + worldW * (1 - margen), 0);
+    gl.addColorStop(0, colorAlpha("#8a7c58", 0.42));
+    gl.addColorStop(1, colorAlpha("#8a7c58", 0.16));
+    ctx.fillStyle = gl;
+    ctx.fillRect(FIELD_LEFT + worldW * (1 - margen), FIELD_TOP, worldW * margen, worldH);
     // Osteonas: círculos concéntricos repartidos.
     ctx.strokeStyle = colorAlpha(cfg.colorLight, 0.10);
     ctx.lineWidth = 1;

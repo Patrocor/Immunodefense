@@ -754,20 +754,28 @@
     PATH.laneXs = laneXs;
     PATH.entryYn = entryYn;
     PATH.exitYn = exitYn;
+    // EMBUDO: si el nivel define `converge`, los carriles no bajan rectos —
+    // arrancan separados arriba y se juntan hacia el fondo. converge es cuánto
+    // se cierra el abanico: 0 = paralelo (como siempre), 1 = todos al centro.
+    var converge = cfg.converge || 0;
     for (var i = 0; i < laneXs.length; i++) {
       var xPx = FIELD_LEFT + laneXs[i] * worldW;
-      var entry = { x: xPx, y: FIELD_TOP + entryYn * worldH };
-      var exit  = { x: xPx, y: FIELD_TOP + exitYn  * worldH };
+      var cx = FIELD_LEFT + 0.5 * worldW;
+      var xExit = cx + (xPx - cx) * (1 - converge);
+      var entry = { x: xPx,   y: FIELD_TOP + entryYn * worldH };
+      var exit  = { x: xExit, y: FIELD_TOP + exitYn  * worldH };
       PATH.wounds.push({ x: entry.x, y: entry.y, phase: i * 0.4, active: true });
       PATH.organDoors.push({
-        x: exit.x, y: exit.y, laneX: xPx,
+        x: exit.x, y: exit.y, laneX: xExit,
         organ: { id: cfg.key + "_" + i, label: cfg.foci[i], color: cfg.color, tint: cfg.tint }
       });
       // Serpenteo suave: los carriles de órgano no son rectos, se curvan
       // alrededor de la anatomía (cuerdas tendinosas, trabéculas, pliegues).
+      // Con embudo, el serpenteo va montado sobre la línea que ya se cierra.
       var bow = (i % 2 === 0 ? 1 : -1) * cfg.bow * worldW;
-      var midA = { x: xPx + bow, y: FIELD_TOP + (entryYn + (exitYn - entryYn) * 0.35) * worldH };
-      var midB = { x: xPx - bow * 0.6, y: FIELD_TOP + (entryYn + (exitYn - entryYn) * 0.72) * worldH };
+      var xAt = function (f) { return xPx + (xExit - xPx) * f; };
+      var midA = { x: xAt(0.35) + bow,       y: FIELD_TOP + (entryYn + (exitYn - entryYn) * 0.35) * worldH };
+      var midB = { x: xAt(0.72) - bow * 0.6, y: FIELD_TOP + (entryYn + (exitYn - entryYn) * 0.72) * worldH };
       PATH.branches.push(buildBezierPath([entry, midA, midB, exit]));
       var t = PATH.branches[i].length;
       PATH.totalForBranch.push(t);
@@ -5886,17 +5894,29 @@
       color: "#c1416a", colorDark: "#5e1730", colorLight: "#f0a0b8",
       tint: "rgba(193, 65, 106, 0.10)",
       bg: ["#2a0d16", "#4a1526", "#7a2038"],
-      stretchX: 1.55, stretchY: 1.35,
-      laneXs: [0.11, 0.30, 0.50, 0.70, 0.89],
+      // EMBUDO: entra todo a lo ancho (sin arrastre lateral) y se navega solo
+      // hacia abajo. Los 5 carriles nacen abiertos en la aurícula y se cierran
+      // sobre la valva: el espacio se angosta a medida que el germen avanza.
+      stretchX: 1.00, stretchY: 1.60,
+      converge: 0.55,
+      laneXs: [0.08, 0.29, 0.50, 0.71, 0.92],
       foci: ["Velo anterior", "Comisura anterior", "Cuerda tendinosa", "Comisura posterior", "Velo posterior"],
       bow: 0.030,
-      entryYn: 0.06, exitYn: 0.94,
+      entryYn: 0.05, exitYn: 0.95,
       integrityLabel: "VÁLVULA",
       integrityMax: 100,
       arrivalDamage: 7,          // cuánta integridad cuesta cada germen que llega
       mechanic: "pulso",
+      // Latido lento y contable: ~23 lpm. Avisa medio segundo antes (telegraph)
+      // y pega fuerte. Entre sístole y sístole hay tiempo real para decidir.
+      pulseCycle: 2.6,
+      pulseSystoleFrac: 0.18,
+      pulseTelegraph: 0.19,      // fracción del ciclo en que la valva se tensa
+      pulsePush: 20,
+      vegBeatsPerLayer: 2,       // dos latidos aguantado = una capa
+      vegBossAt: 3,              // tres capas = vegetación madura
       mechanicName: "FLUJO PULSÁTIL",
-      mechanicDesc: "Cada sístole empuja a los gérmenes hacia atrás. Los que se adhieren tejen VEGETACIÓN y se blindan.",
+      mechanicDesc: "Cada sístole empuja a los gérmenes hacia atrás. El que aguanta dos latidos teje una capa de VEGETACIÓN; a las tres capas madura y se blinda.",
       baseName: "Nódulo Sinusal",
       baseShort: "Marcapasos",
       basePowerName: "SÍSTOLE FORZADA",
@@ -6639,28 +6659,78 @@
 
     // --- CORAZÓN: sístole periódica + vegetación -------------------------
     if (cfg.mechanic === "pulso") {
-      var cycle = 1.15;                       // ~52 lpm de juego
+      // El latido es LENTO a propósito: tenés que poder contarlo y jugar entre
+      // sístole y sístole. Un pulso rápido es ruido de fondo; uno lento que
+      // avisa antes de golpear es una decisión.
+      var cycle = cfg.pulseCycle || 1.15;
       var phase = (f.pulseT % cycle) / cycle;
+      var sysFrac = cfg.pulseSystoleFrac || 0.22;
       var wasSystole = f.inSystole;
-      f.inSystole = phase < 0.22;
+      f.inSystole = phase < sysFrac;
+      // Telegraph: fracción 0..1 de "carga" en la diástole previa al golpe.
+      // El arte la usa para tensar la valva antes de que empuje.
+      var tel = cfg.pulseTelegraph || 0;
+      f.pulseCharge = (tel > 0 && !f.inSystole && phase > 1 - tel)
+        ? (phase - (1 - tel)) / tel : 0;
       if (f.inSystole && !wasSystole) {
-        // Cada sístole empuja levemente hacia atrás a todo lo que flota.
+        f.pulseBeat = (f.pulseBeat || 0) + 1;
+        f.basePulse = 1.0;                    // el Nódulo Sinusal late a la vista
+        // Cada sístole empuja hacia atrás a todo lo que flota. Al ser más
+        // espaciada que antes, el empujón es proporcionalmente más grande.
+        //
+        // TOPE IMPORTANTE: el empujón nunca puede superar lo que el germen
+        // avanzó desde el latido anterior. Sin ese tope, un germen lento
+        // (Enterococo avanza menos de 20 por ciclo) queda ANCLADO en la
+        // entrada: no muere porque está fuera del alcance de las torres y no
+        // llega nunca, así que la ola no cierra jamás. Con el tope, siempre
+        // conserva una parte del terreno ganado y la ola siempre progresa.
+        var push0 = cfg.pulsePush || 9;
         for (var e1 = 0; e1 < state.enemies.length; e1++) {
           var en = state.enemies[e1];
           if (en.dead || en.absorbing) continue;
-          var push = (en.def && en.def.bloodSurf) ? -6 : 9;   // los HACEK SURFEAN la sístole
-          en.progress = Math.max(0, en.progress - push * U);
+          if (en.def && en.def.bloodSurf) {            // los HACEK SURFEAN la sístole
+            en.progress += push0 * 0.65 * U;
+          } else {
+            var ganado = Math.max(0, en.progress - (en.progAtLastBeat || 0));
+            var push = Math.min(push0 * U, ganado * 0.75);
+            en.progress = Math.max(0, en.progress - push);
+          }
+          en.progAtLastBeat = en.progress;
+        }
+        // La vegetación se teje LATIDO A LATIDO, no por goteo continuo: el
+        // germen que aguanta adherido varias sístoles es el que se blinda.
+        var perLayer = cfg.vegBeatsPerLayer || 2;
+        for (var e3 = 0; e3 < state.enemies.length; e3++) {
+          var eb = state.enemies[e3];
+          if (eb.dead || !eb.def || !eb.def.vegetation) continue;
+          eb.vegBeats = (eb.vegBeats || 0) + 1;
+          if (eb.vegBeats % perLayer === 0) {
+            eb.vegLayers = Math.min(eb.def.vegetation.maxLayers, (eb.vegLayers || 0) + 1);
+          }
         }
       }
-      // Vegetación: los gérmenes adherentes acumulan capas que los blindan.
+      // Las torres anti-vegetación siguen despegando capas de forma continua:
+      // el jugador raspa mientras el corazón teje.
       for (var e2 = 0; e2 < state.enemies.length; e2++) {
         var ev = state.enemies[e2];
         if (ev.dead || !ev.def || !ev.def.vegetation) continue;
         if (ev.vegLayers == null) ev.vegLayers = 0;
         var veg = ev.def.vegetation;
         var strip = f2AntiVegetationAt(ev.x, ev.y) * dt;
-        ev.vegLayers = Math.max(0, Math.min(veg.maxLayers, ev.vegLayers + veg.buildRate * dt - strip));
+        if (strip > 0) ev.vegLayers = Math.max(0, ev.vegLayers - strip);
         ev.dmgReduction = Math.min(0.72, ev.vegLayers * veg.dmgReducPerLayer);
+        // Blindado: al alcanzar el umbral de capas el germen MADURA — más
+        // duro y más lento. Deja de ser uno más de la ola y pasa a ser un
+        // problema que hay que atender.
+        var bossAt = cfg.vegBossAt || 0;
+        if (bossAt && !ev.vegMature && ev.vegLayers >= bossAt) {
+          ev.vegMature = true;
+          ev.maxHp = Math.round((ev.maxHp || ev.def.hp) * 1.6);
+          ev.hp += Math.round((ev.def.hp) * 0.6);
+          // speedMultLevel ya entra en el cálculo real de velocidad.
+          ev.speedMultLevel = (ev.speedMultLevel || 1) * 0.7;
+          showMsg("¡VEGETACIÓN MADURA! " + (ev.def.shortName || ev.def.name) + " se blindó");
+        }
         // El boss rompe la valva si su vegetación llega al máximo.
         if (ev.def.valveDestroyer && ev.vegLayers >= veg.maxLayers - 0.01) {
           f2DamageIntegrity(6 * dt, ev.heridaIdx | 0);

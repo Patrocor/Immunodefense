@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#1a0e12">
+<title>ImmunoDefense · banco de pruebas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; padding: 0;
+    overflow: hidden;
+    background: #1a0e12;
+    width: 100%;
+    height: 100%;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Fredoka, sans-serif;
+    color: #fff;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: none;
+    overscroll-behavior: none;
+  }
+  #canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    background: #1a0e12;
+    touch-action: none;
+  }
+  #__safe_probe {
+    position: fixed;
+    top: 0; left: 0;
+    width: 0; height: 0;
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+    visibility: hidden;
+    pointer-events: none;
+  }
+
+  /* ---- Panel de pruebas. Solo existe en esta página, no en index.html ---- */
+  #pt {
+    position: fixed; top: 8px; left: 8px; z-index: 9999;
+    display: flex; flex-direction: column; gap: 6px;
+    padding: 8px;
+    background: rgba(12, 8, 10, .82);
+    border: 1px solid rgba(255,255,255,.14);
+    border-radius: 4px;
+    font: 12px/1.3 ui-monospace, SFMono-Regular, Menlo, monospace;
+    backdrop-filter: blur(6px);
+    max-width: 232px;
+  }
+  #pt.oculto > *:not(#pt-toggle) { display: none; }
+  #pt-toggle {
+    align-self: flex-end; cursor: pointer; opacity: .55;
+    padding: 0 4px; font-size: 14px; line-height: 1;
+  }
+  #pt-toggle:hover { opacity: 1; }
+  #pt .fila { display: flex; gap: 4px; flex-wrap: wrap; }
+  #pt button {
+    flex: 1 1 auto;
+    padding: 5px 7px;
+    background: rgba(255,255,255,.07);
+    color: #fff;
+    border: 1px solid rgba(255,255,255,.16);
+    border-radius: 3px;
+    font: inherit;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  #pt button:hover { background: rgba(255,255,255,.16); }
+  #pt button:active { transform: translateY(1px); }
+  #pt .titulo { opacity: .5; letter-spacing: .06em; font-size: 10px; }
+  #pt .lectura { opacity: .8; font-variant-numeric: tabular-nums; white-space: pre-line; }
+</style>
+</head>
+<body>
+<canvas id="canvas"></canvas>
+<div id="__safe_probe"></div>
+
+<div id="pt">
+  <div id="pt-toggle" title="ocultar / mostrar">◧</div>
+  <div class="titulo">NIVEL</div>
+  <div class="fila">
+    <button data-nivel="endocarditis">endocard</button>
+    <button data-nivel="osteomielitis">osteo</button>
+    <button data-nivel="artritis">artritis</button>
+  </div>
+  <div class="fila">
+    <button data-nivel="sepsis">sepsis</button>
+    <button data-nivel="mods">MODS</button>
+    <button id="pt-mapa">mapa</button>
+  </div>
+  <div class="titulo">AYUDAS</div>
+  <div class="fila">
+    <button id="pt-atp">+ATP</button>
+    <button id="pt-base">base lista</button>
+    <button id="pt-ult">ultimates</button>
+  </div>
+  <div class="fila">
+    <button id="pt-maxear">torres al máx</button>
+    <button id="pt-recargar">reiniciar</button>
+  </div>
+  <div class="lectura" id="pt-lectura">—</div>
+</div>
+
+<script>
+// El navegador cachea game.js con fuerza y en desarrollo eso hace perder
+// tiempo: recargás y seguís viendo el build viejo. Acá lo pedimos siempre
+// con una marca de tiempo, así cada recarga trae el código recién guardado.
+// index.html NO hace esto — en producción el cache es deseable.
+(function () {
+  var sc = document.createElement("script");
+  sc.src = "game.js?t=" + Date.now();
+  sc.async = false;          // preserva el orden y dispara load después
+  document.head.appendChild(sc);
+})();
+</script>
+<script>
+// Panel de pruebas: vive solo en playtest.html. No toca game.js ni index.html.
+// Todo sale del hook window.__game, así que no duplica lógica del juego.
+window.addEventListener("load", function () {
+  var panel   = document.getElementById("pt");
+  var lectura = document.getElementById("pt-lectura");
+
+  function g() { return window.__game; }
+  function st() { return g() && g().state; }
+
+  document.getElementById("pt-toggle").onclick = function () {
+    panel.classList.toggle("oculto");
+  };
+
+  // Saltar a un nivel de Fase 2 / Fase 3 / final.
+  var botones = document.querySelectorAll("#pt button[data-nivel]");
+  for (var i = 0; i < botones.length; i++) {
+    botones[i].onclick = function () { g().goF2(this.getAttribute("data-nivel")); };
+  }
+  document.getElementById("pt-mapa").onclick = function () { g().goMap(); };
+
+  document.getElementById("pt-atp").onclick  = function () { st().atp = 9999; };
+  document.getElementById("pt-ult").onclick  = function () { g().ults(); };
+  document.getElementById("pt-base").onclick = function () {
+    if (st().f2) st().f2.baseCd = 0;
+  };
+  document.getElementById("pt-maxear").onclick = function () {
+    var ts = st().towers;
+    for (var k = 0; k < ts.length; k++) {
+      var t = ts[k], max = t.def.levels.length - 1;
+      t.level = max;
+      var b = t.def.levels[max];
+      t.maxHp = b.hp; t.hp = b.hp;
+    }
+  };
+  document.getElementById("pt-recargar").onclick = function () { location.reload(); };
+
+  // Atajos de teclado: 1/2/3 nivel, A=atp, U=ultimates, B=base, M=máx.
+  window.addEventListener("keydown", function (e) {
+    if (!g()) return;
+    var k = e.key.toLowerCase();
+    if (k === "1") g().goF2("endocarditis");
+    else if (k === "2") g().goF2("osteomielitis");
+    else if (k === "3") g().goF2("artritis");
+    else if (k === "a") st().atp = 9999;
+    else if (k === "u") g().ults();
+    else if (k === "b") { if (st().f2) st().f2.baseCd = 0; }
+    else if (k === "m") document.getElementById("pt-maxear").click();
+  });
+
+  // Lectura en vivo: lo que hay que mirar mientras se juega.
+  setInterval(function () {
+    var s = st();
+    if (!s) { lectura.textContent = "cargando…"; return; }
+    if (!s.f2) { lectura.textContent = "sin nivel de órgano activo"; return; }
+    var listas = 0, ts = s.towers;
+    for (var k = 0; k < ts.length; k++) if (ts[k].specialReady) listas++;
+    lectura.textContent =
+      "ola " + s.waveIdx + "/" + s.f2.cfg.waves.length +
+      " · integridad " + Math.round(s.f2.integrity) +
+      "\nbase " + (s.f2.baseCd > 0 ? Math.ceil(s.f2.baseCd) + "s" : "LISTA") +
+      " · ults listos " + listas +
+      "\ntorres " + ts.length + " · atp " + Math.round(s.atp);
+  }, 250);
+});
+</script>
+</body>
+</html>

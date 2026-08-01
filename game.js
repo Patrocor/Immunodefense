@@ -5161,6 +5161,15 @@
   var devAutoUlt = false;
   window.__game = {
     get state() { return state; },
+    // Rects de layout (dock, HUD, botones) — para depurar responsive.
+    get ui() { return UI; },
+    get metrics() {
+      return { VW: VW, VH: VH, dpr: dpr, isPortrait: isPortrait, U: U,
+               HUD_H: HUD_H, SIDE_W: SIDE_W,
+               FIELD: { top: FIELD_TOP, bottom: FIELD_BOTTOM, left: FIELD_LEFT,
+                        right: FIELD_RIGHT, w: FIELD_W, h: FIELD_H },
+               safe: { top: safeTop, bottom: safeBottom, left: safeLeft, right: safeRight } };
+    },
     // Salto directo a un nivel de Fase 2 (pruebas): __game.goF2("artritis").
     goF2: function (key) { state.showTitle = false; state.showIntro = false; enterF2TD(key); },
     goMap: function () { state.showTitle = false; state.showIntro = false; enterBodyMapForState(); },
@@ -5482,12 +5491,23 @@
     UI.muteBtn = { x: UI.restartBtn.x - btnH - 4, y: topY, w: btnH, h: btnH };
     // Botón de PAUSA — abre el Dex en modo loadout para elegir 5+2+1 torres.
     UI.pauseBtn = { x: UI.muteBtn.x - btnH - 4, y: topY, w: btnH, h: btnH };
-    // Next-wave button width: portrait keeps it tight so stats fit beside it.
-    var nwMaxByStats = isPortrait
-      ? VW - safeLeft - safeRight - btnH * 2 - 28 - 165
-      : VW * 0.4;
-    var nwW = Math.min(220, Math.max(110, nwMaxByStats));
-    UI.nextWaveBtn = { x: UI.pauseBtn.x - nwW - 8, y: topY, w: nwW, h: btnH };
+    // Banda de estado ("PRÓXIMA OLEADA EN Ns").
+    // Portrait: NO cabe en la misma fila que ATP + los tres botones — en un
+    // teléfono angosto el texto terminaba pisando el botón de pausa. Va en su
+    // propia franja, debajo de los botones y a todo el ancho del HUD.
+    // Landscape: sigue a la izquierda de los botones, que ahí sobra ancho.
+    if (isPortrait) {
+      var bandY = topY + btnH + 2;
+      UI.nextWaveBtn = {
+        x: safeLeft + 8,
+        y: bandY,
+        w: Math.max(80, VW - safeLeft - safeRight - 16),
+        h: Math.max(16, HUD_H - bandY - 4)
+      };
+    } else {
+      var nwW = Math.min(220, Math.max(110, VW * 0.4));
+      UI.nextWaveBtn = { x: UI.pauseBtn.x - nwW - 8, y: topY, w: nwW, h: btnH };
+    }
 
     // Dock lateral derecho. UI.cards guarda posiciones en CONTENT-SPACE
     // vertical (contentY); el render aplica scroll vertical y clipping, y el
@@ -5529,24 +5549,7 @@
       responsesReservedH += rpH;
     }
 
-    // Zona info/acciones: empujada hacia arriba si hay NETosis abajo.
     var btnH = Math.round(Math.max(32, Math.min(42, contentW * 0.36)));
-    var infoH = Math.min(96 + btnH * 2, Math.round(dockH * 0.52));
-    var infoY = dockBottom - infoH - responsesReservedH;
-
-    // Panel NETosis al fondo del dock (debajo del info zone).
-    UI.responsePanel = null;
-    if (state && state.dissemination) {
-      UI.responsePanel = {
-        x: contentX,
-        y: dockBottom - rpH,
-        w: contentW,
-        h: rpH,
-        cardH: Math.round(44 * U),
-        gap: Math.round(4 * U),
-        pad: Math.round(5 * U)
-      };
-    }
 
     // Botón "Dex" arriba del dock (vertical: ícono arriba + nombre).
     var compBtnH = Math.round(Math.max(38, Math.min(52, contentW * 0.62)));
@@ -5554,10 +5557,11 @@
 
     // Cartilla por GRUPOS DESPLEGABLES: cada categoría (cabecera) se abre/cierra
     // de forma independiente. Sin abrir, solo se ven las cabeceras (no satura).
+    // OJO con el orden: las cartas se miden ANTES de repartir el alto del dock.
+    // Con la zona de info fija (160 px) primero, en pantallas bajas (landscape
+    // de teléfono, 393 px de alto) al strip le quedaban 11 px y NO se veía
+    // ninguna torre.
     var stripTop = dockTop + compBtnH + 6;
-    // infoY ya tiene restado responsesReservedH (línea más arriba). El strip
-    // llega hasta infoY menos un padding mínimo — más espacio para torres.
-    var stripRegionH = Math.max(0, (infoY - dockPad) - stripTop);
     var headerH = 28, groupSpacing = 6;
     // Cartas verticales: nombre arriba, ícono al medio, costo abajo.
     // Altura ajustada para que los 3 elementos respiren.
@@ -5615,6 +5619,40 @@
     }
     var contentH = cyc;
 
+    // Reparto del alto del dock, ya sabiendo cuánto ocupan las cartas.
+    // La zona de info cede espacio hasta su mínimo antes que el strip se quede
+    // sin ninguna carta visible: siempre queda sitio para una cabecera + carta.
+    var stripFloor = Math.min(contentH, headerH + cardH + cardGap);
+    var freeH = Math.max(0, (dockBottom - responsesReservedH - dockPad) - stripTop);
+    // La zona de info solo dibuja algo cuando hay torre seleccionada o carta
+    // elegida para construir. Sin selección no reserva nada y el alto entero
+    // del dock es para las cartas.
+    var hasInfo = !!(state && (state.selectedTower || state.selectedToBuild));
+    var infoWant = hasInfo ? Math.min(96 + btnH * 2, Math.round(dockH * 0.52)) : 0;
+    // El piso de la zona de info tiene que dar para el texto + los dos botones.
+    var infoFloor = hasInfo
+      ? Math.min(infoWant, Math.round(Math.max(btnH * 2 + 8 + 34, dockH * 0.26))) : 0;
+    var infoH = Math.max(infoFloor, Math.min(infoWant, freeH - stripFloor));
+    // Si ni con el mínimo entra todo, el strip se queda con lo que sobre
+    // (scrolleable) en vez de tapar los botones de mejorar/vender.
+    infoH = Math.min(infoH, Math.max(0, freeH));
+    var infoY = dockBottom - infoH - responsesReservedH;
+    var stripRegionH = Math.max(0, (infoY - dockPad) - stripTop);
+
+    // Panel NETosis al fondo del dock (debajo del info zone).
+    UI.responsePanel = null;
+    if (state && state.dissemination) {
+      UI.responsePanel = {
+        x: contentX,
+        y: dockBottom - rpH,
+        w: contentW,
+        h: rpH,
+        cardH: Math.round(44 * U),
+        gap: Math.round(4 * U),
+        pad: Math.round(5 * U)
+      };
+    }
+
     UI.cardStrip = {
       x: contentX, y: stripTop, w: cardW,
       h: Math.min(stripRegionH, contentH),
@@ -5626,9 +5664,12 @@
     UI.infoW = contentW;
     UI.infoH = infoH;
 
-    // Botones apilados verticalmente, ancho completo del dock, al fondo.
-    UI.upgradeBtn = { x: contentX, y: dockBottom - btnH, w: contentW, h: btnH };
-    UI.sellBtn = { x: contentX, y: dockBottom - btnH * 2 - 8, w: contentW, h: btnH };
+    // Botones apilados verticalmente, ancho completo del dock, al PIE DE LA
+    // ZONA DE INFO — no del dock. Clavados a dockBottom se montaban encima de
+    // la tarjeta del Arpón y del medidor de C3b, y en pantallas bajas el botón
+    // de Mejorar se salía por debajo del borde.
+    UI.upgradeBtn = { x: contentX, y: infoY + infoH - btnH, w: contentW, h: btnH };
+    UI.sellBtn = { x: contentX, y: infoY + infoH - btnH * 2 - 8, w: contentW, h: btnH };
     var dsz = 22;
     UI.deselectBtn = { x: contentRight - dsz, y: infoY, w: dsz, h: dsz };
 
@@ -12725,6 +12766,13 @@
   }
 
   // Dibuja un nodo (círculo + label). State: "done" | "current" | "possible" | "future" | "hidden"
+  // Escala tipográfica del mapa-mundo. NO usa U: U sale del tamaño del campo
+  // de juego, y el mapa es un overlay a pantalla completa — en portrait U cae
+  // tanto que los nombres de nodo quedaban más chicos que sus subtítulos.
+  function mapScale() {
+    return Math.max(0.78, Math.min(1.35, Math.min(VW, VH) / 420));
+  }
+
   function drawMapNode(mapX, mapY, mapW, mapH, node, nodeState) {
     if (nodeState === "hidden") return;
     var x = mapX + mapW * node.x;
@@ -12795,7 +12843,8 @@
     }
     // Label (1.3× size para mejor legibilidad)
     ctx.globalAlpha = bodyAlpha;
-    var fontPx = isF3 ? Math.floor(12 * U) : Math.floor(14 * U);
+    var mu = mapScale();
+    var fontPx = Math.round((isF3 ? 11 : 13) * mu);
     ctx.font = "bold " + fontPx + "px Fredoka, sans-serif";
     // Label position depends on branch.
     var labelX = x, labelY, labelAlign, labelBaseline;
@@ -12839,11 +12888,11 @@
                      node.branch === "h_complic" || node.branch === "f3" ||
                      node.branch === "converge" || node.branch === "boss" ||
                      node.branch === "h_converge" || node.branch === "h_boss")) {
-      // 1.3× size para sub-labels también
-      var subFontPx = isF3 ? 9 : 12;
+      // Siempre por debajo del label principal, con la misma escala.
+      var subFontPx = Math.max(8, Math.round(fontPx * 0.78));
       ctx.font = subFontPx + "px Fredoka, sans-serif";
       ctx.fillStyle = "rgba(120, 120, 140, 0.65)";
-      var subYOff = isF3 ? 12 : 17;
+      var subYOff = Math.round(fontPx * 1.25);
       ctx.fillText("· " + node.sub, labelX, labelY + subYOff);
     }
     ctx.restore();
@@ -12869,10 +12918,24 @@
     var mapW = Math.max(viewW, 940);   // contenido amplio (1.3× del original)
     var mapH = Math.max(viewH, 680);   // contenido amplio vertical (1.3× del original)
     // Scroll offset (clamped a límites)
-    if (b.scrollX == null) b.scrollX = 0;
-    if (b.scrollY == null) b.scrollY = 0;
     var maxScrollX = Math.max(0, mapW - viewW);
     var maxScrollY = Math.max(0, mapH - viewH);
+    if (b.scrollX == null || b.scrollY == null) {
+      // Arranca CENTRADO en lo que el jugador tiene que mirar. En un teléfono
+      // el viewport es mucho más angosto que el mapa: empezar en 0,0 dejaba la
+      // vista en una zona vacía y había que adivinar que se arrastra.
+      var focusKey = (b.availableNodes && b.availableNodes.length)
+        ? b.availableNodes[0] : b.currentNode;
+      var focusNode = focusKey ? mapNodeByKey(focusKey) : null;
+      if (b.scrollX == null) {
+        b.scrollX = focusNode
+          ? Math.max(0, Math.min(maxScrollX, mapW * focusNode.x - viewW / 2)) : 0;
+      }
+      if (b.scrollY == null) {
+        b.scrollY = focusNode
+          ? Math.max(0, Math.min(maxScrollY, mapH * focusNode.y - viewH / 2)) : 0;
+      }
+    }
     if (b.scrollX > maxScrollX) b.scrollX = maxScrollX;
     if (b.scrollX < 0) b.scrollX = 0;
     if (b.scrollY > maxScrollY) b.scrollY = maxScrollY;
@@ -12883,14 +12946,18 @@
     UI.bodyMapView = { x: viewX, y: viewY, w: viewW, h: viewH, mapW: mapW, mapH: mapH };
 
     // Título arriba
+    var muT = mapScale();
+    var titlePx = Math.round(20 * muT);
     ctx.fillStyle = "#ffd24a";
-    ctx.font = "bold " + Math.floor(22 * U) + "px Fredoka, sans-serif";
     ctx.textAlign = "center"; ctx.textBaseline = "middle";
-    ctx.fillText(b.title, VW / 2, VH * 0.09);
+    var titleMaxW = VW - 24;
+    ctx.font = "bold " + fitFont(b.title, titleMaxW, titlePx, 11) + "px Fredoka, sans-serif";
+    ctx.fillText(ellipsizeToWidth(b.title, titleMaxW), VW / 2, VH * 0.09);
     if (b.subtitle) {
       ctx.fillStyle = "rgba(255,255,255,0.78)";
-      ctx.font = "bold " + Math.floor(12 * U) + "px Fredoka, sans-serif";
-      ctx.fillText(b.subtitle, VW / 2, VH * 0.09 + 22);
+      var subPx = Math.max(10, Math.round(titlePx * 0.6));
+      ctx.font = "bold " + fitFont(b.subtitle, titleMaxW, subPx, 9) + "px Fredoka, sans-serif";
+      ctx.fillText(ellipsizeToWidth(b.subtitle, titleMaxW), VW / 2, VH * 0.09 + titlePx + 4);
     }
 
     // CLIP al viewport para que el contenido scrolleado no se salga
@@ -26070,8 +26137,14 @@
       cx += atpWp + 14;
       ctx.font = "600 12px Fredoka, sans-serif";
       ctx.fillStyle = "rgba(220, 200, 200, 0.9)";
-      var phaseLabel = state.dissemination ? "DISEMINACIÓN" : "FASE 1";
-      ctx.fillText(phaseLabel, cx, midY);
+      // En un nivel de órgano manda el nombre del nivel: state.dissemination
+      // sigue en true porque F2 corre sobre ese motor, pero el jugador no está
+      // en la diseminación.
+      var phaseLabel = state.f2 ? state.f2.cfg.label
+                     : (state.dissemination ? "DISEMINACIÓN" : "FASE 1");
+      // Recortado al hueco real que queda hasta los botones de la derecha.
+      var phaseMaxW = Math.max(24, (UI.pauseBtn ? UI.pauseBtn.x : VW) - 8 - cx);
+      ctx.fillText(ellipsizeToWidth(phaseLabel, phaseMaxW), cx, midY);
     } else {
       var statsY = safeTop + 8;
       var fontStat = Math.max(14, Math.min(20, VW * 0.018));
@@ -26115,10 +26188,14 @@
       ctx.fillStyle = "rgba(20, 14, 18, 0.55)";
       ctx.fillRect(nb.x, nb.y, nb.w, nb.h);
       ctx.fillStyle = "#ffd6c4";
-      ctx.font = "bold " + Math.max(11, Math.min(13, nb.h * 0.36)) + "px Fredoka, sans-serif";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.fillText(statusText, nb.x + nb.w / 2, nb.y + nb.h / 2);
+      // El texto se ajusta a la caja: antes se desbordaba por los costados y
+      // en portrait terminaba debajo del botón de pausa.
+      var nbBase = Math.max(11, Math.min(14, nb.h * 0.52));
+      var nbPx = fitFont(statusText, nb.w - 12, nbBase, 9);
+      ctx.font = "bold " + nbPx + "px Fredoka, sans-serif";
+      ctx.fillText(ellipsizeToWidth(statusText, nb.w - 8), nb.x + nb.w / 2, nb.y + nb.h / 2);
     }
 
     // Restart y Mute como rectángulos planos (sin borde).
@@ -26243,10 +26320,12 @@
     ctx.stroke();
     ctx.fillStyle = enabled ? "#fff" : "rgba(255,255,255,0.55)";
     var fs = Math.max(11, Math.min(14, r.h * 0.36));
-    ctx.font = "bold " + fs + "px Fredoka, sans-serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText(text, r.x + r.w / 2, r.y + r.h / 2);
+    // El dock es angosto en teléfonos (54 px de contenido a 360 de ancho):
+    // la etiqueta se encoge y, si aun así no entra, se recorta.
+    ctx.font = "bold " + fitFont(text, r.w - 8, fs, 8) + "px Fredoka, sans-serif";
+    ctx.fillText(ellipsizeToWidth(text, r.w - 6), r.x + r.w / 2, r.y + r.h / 2);
   }
 
   function roundRect(x, y, w, h, r) {
@@ -26449,17 +26528,21 @@
       var stats = towerStats(t);
       ctx.fillStyle = t.def.color;
       var nm = (t.def.shortName || t.def.name);
-      fitFont(nm, infoW - 2, 13, 8);
-      ctx.fillText(ellipsizeToWidth(nm, infoW - 2), infoX, infoY + 2);
+      // Deja libre la esquina del botón ✕ de deseleccionar.
+      var nmMaxW = Math.max(24, infoW - (UI.deselectBtn ? UI.deselectBtn.w + 6 : 2));
+      fitFont(nm, nmMaxW, 13, 8);
+      ctx.fillText(ellipsizeToWidth(nm, nmMaxW), infoX, infoY + 2);
       ctx.fillStyle = "rgba(255,255,255,0.7)";
       ctx.font = "11px Fredoka, sans-serif";
       ctx.fillText("Nivel " + (t.level + 1) + "/3", infoX, infoY + 18);
 
       ctx.font = "11px Fredoka, sans-serif";
       ctx.fillStyle = "rgba(255,255,255,0.85)";
-      ctx.fillText("Dmg " + stats.damage + (stats.splash > 0 ? " AOE" : ""), infoX, infoY + 36);
-      ctx.fillText("Rango " + stats.range, infoX, infoY + 50);
-      ctx.fillText("Cad. " + stats.fireRate.toFixed(1) + "/s", infoX, infoY + 64);
+      // Recortadas al ancho del dock: en teléfonos angostos "Dmg 30 AOE" se
+      // salía por la derecha de la pantalla.
+      ctx.fillText(ellipsizeToWidth("Dmg " + stats.damage + (stats.splash > 0 ? " AOE" : ""), infoW), infoX, infoY + 36);
+      ctx.fillText(ellipsizeToWidth("Rango " + stats.range, infoW), infoX, infoY + 50);
+      ctx.fillText(ellipsizeToWidth("Cad. " + stats.fireRate.toFixed(1) + "/s", infoW), infoX, infoY + 64);
 
       // X deseleccionar (esquina sup-der de la zona info).
       ctx.fillStyle = "rgba(255,255,255,0.12)";
@@ -29739,6 +29822,7 @@
   var lastT = performance.now();
   // forcedDt: solo lo usa el hook de desarrollo __game.step() para adelantar
   // la simulación sin depender del reloj de frames (tests automatizados).
+  var lastSelSig = -1;
   function loop(now, forcedDt) {
     var realDt = forcedDt != null ? forcedDt : Math.min(0.05, (now - lastT) / 1000);
     if (forcedDt == null) lastT = now;
@@ -29748,6 +29832,11 @@
     if ((state.hitstop || 0) > 0) state.hitstop = Math.max(0, state.hitstop - realDt);
     var dt = (state.hitstop || 0) > 0 ? realDt * 0.06 : realDt;
     state.time += dt;
+    // El dock reparte su alto según haya o no selección (la zona de info solo
+    // ocupa lugar cuando muestra algo). La selección se asigna desde muchos
+    // sitios, así que en vez de tocar cada uno se vigila el cambio acá.
+    var selSig = (state.selectedTower ? 2 : 0) + (state.selectedToBuild ? 1 : 0);
+    if (selSig !== lastSelSig) { lastSelSig = selSig; layoutUI(); }
     // Auto-degradado de calidad: si el FPS se sostiene bajo mientras se juega,
     // bajamos a modo low (apaga shadowBlur) de forma PERMANENTE — one-way,
     // para no oscilar. Cubre iOS y cualquier equipo que la heurística de

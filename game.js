@@ -19076,8 +19076,29 @@
   // --- Célula endotelial valvular: pavimento que sella la valva ----------
   function drawEndotelial(t, pulse, expression, blink) {
     var R = 15 * U * pulse, time = state.time, w = (t.idlePhase || 0);
+    // Telegraph de carga: la monocapa se va SELLANDO a medida que junta
+    // Reendotelización. El jugador ve la reparación venir en el cuerpo.
+    var cf = Math.max(0, Math.min(1, t.specialCharge || 0));
+    var firing = (t.specialAnim || 0) > 0;
     ctx.save();
     ctx.translate(t.x, t.y);
+    // (3) Halo de monocapa nueva asomando ANTES del estallido post-disparo.
+    if (cf > 0.15 && !firing) {
+      ctx.strokeStyle = "rgba(168,224,234," + (0.30 * cf) + ")";
+      ctx.lineWidth = Math.max(1, (1 + cf * 2.4) * U);
+      ctx.beginPath();
+      ctx.ellipse(0, 0, R * (1.5 + cf * 0.35), R * (1.0 + cf * 0.25), 0, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    // Onda de reendotelización al disparar.
+    if (firing) {
+      var fa = Math.min(1, t.specialAnim);
+      ctx.strokeStyle = "rgba(200,245,255," + (0.75 * fa) + ")";
+      ctx.lineWidth = Math.max(2, 3.2 * U * fa);
+      ctx.beginPath();
+      ctx.ellipse(0, 0, R * (1.4 + (1 - fa) * 2.6), R * (0.95 + (1 - fa) * 1.8), 0, 0, Math.PI * 2);
+      ctx.stroke();
+    }
     // Monocapa: la célula endotelial es aplanada y poligonal, no redonda.
     var g = ctx.createLinearGradient(-R, -R, R, R);
     g.addColorStop(0, "#a8e0ea");
@@ -19094,20 +19115,25 @@
     ctx.closePath();
     ctx.fill();
     ctx.strokeStyle = "#14343d"; ctx.lineWidth = Math.max(1.6, 2.2 * U); ctx.stroke();
-    // Uniones estrechas con las vecinas: guiones en el borde.
-    ctx.strokeStyle = "rgba(200,245,255,0.65)";
-    ctx.lineWidth = Math.max(1, 1.3 * U);
-    ctx.setLineDash([2.5 * U, 2.5 * U]);
+    // (1) Uniones estrechas: los guiones se CIERRAN con la carga. De borde
+    // punteado y flojo a sello continuo — la barrera se está reconstruyendo.
+    var hueco = (2.5 - cf * 2.2) * U;
+    ctx.strokeStyle = "rgba(200,245,255," + (0.65 + cf * 0.30) + ")";
+    ctx.lineWidth = Math.max(1, (1.3 + cf * 1.1) * U);
+    ctx.setLineDash([(2.5 + cf * 3) * U, Math.max(0.1, hueco)]);
     ctx.beginPath(); ctx.ellipse(0, 0, R * 1.30, R * 0.86, 0, 0, Math.PI * 2); ctx.stroke();
     ctx.setLineDash([]);
-    // Cuerpos de Weibel-Palade: gránulos alargados internos.
-    ctx.fillStyle = "rgba(255,255,255,0.55)";
+    // (2) Cuerpos de Weibel-Palade: con la carga crecen, brillan y vibran.
+    // Son los gránulos que la célula está por volcar.
     for (var k = 0; k < 4; k++) {
-      var ka = w + k * 1.57 + time * 0.5;
+      var ka = w + k * 1.57 + time * (0.5 + cf * 1.8);
+      var jit = cf * (Math.random() - 0.5) * R * 0.09;
+      ctx.fillStyle = "rgba(255,255,255," + (0.55 + cf * 0.42) + ")";
       ctx.save();
-      ctx.translate(Math.cos(ka) * R * 0.45, Math.sin(ka) * R * 0.3);
+      ctx.translate(Math.cos(ka) * R * 0.45 + jit, Math.sin(ka) * R * 0.3 + jit);
       ctx.rotate(ka);
-      roundRect(-R * 0.22, -R * 0.06, R * 0.44, R * 0.12, R * 0.06);
+      var gw = R * (0.44 + cf * 0.22), gh = R * (0.12 + cf * 0.07);
+      roundRect(-gw / 2, -gh / 2, gw, gh, R * 0.06);
       ctx.fill();
       ctx.restore();
     }
@@ -19121,14 +19147,35 @@
   // --- Monocito patrullero: rueda sobre el endotelio ---------------------
   function drawMonocito(t, pulse, expression, blink) {
     var R = 14 * U * pulse, time = state.time, w = (t.idlePhase || 0);
+    var cf = Math.max(0, Math.min(1, t.specialCharge || 0));
+    var firing = (t.specialAnim || 0) > 0;
     ctx.save();
     ctx.translate(t.x, t.y);
-    // Estela de rodamiento (rolling adhesion).
-    ctx.strokeStyle = "rgba(138,127,200,0.30)";
-    ctx.lineWidth = Math.max(1, 1.4 * U);
-    for (var s = 1; s <= 3; s++) {
+    // (3) Halo de adhesión que asoma con la carga, antes del arranque.
+    if (cf > 0.15 && !firing) {
+      ctx.strokeStyle = "rgba(180,168,255," + (0.26 * cf) + ")";
+      ctx.lineWidth = Math.max(1, (1 + cf * 2) * U);
+      ctx.beginPath(); ctx.arc(0, 0, R * (1.45 + cf * 0.4), 0, Math.PI * 2); ctx.stroke();
+    }
+    // Al disparar: ráfaga de rodamiento hacia adelante.
+    if (firing) {
+      var fa = Math.min(1, t.specialAnim);
+      ctx.strokeStyle = "rgba(200,190,255," + (0.7 * fa) + ")";
+      ctx.lineWidth = Math.max(1.5, 2.6 * U * fa);
+      for (var rb = 0; rb < 3; rb++) {
+        ctx.beginPath();
+        ctx.arc(-(rb + 1) * R * (0.6 + (1 - fa) * 1.4), R * 0.75, R * 0.30, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    }
+    // (1) Estela de rodamiento: más marcas y más rápidas con la carga — la
+    // célula está tomando impulso sobre el endotelio.
+    var estelas = 3 + Math.round(cf * 3);
+    for (var s = 1; s <= estelas; s++) {
+      ctx.strokeStyle = "rgba(138,127,200," + (0.30 + cf * 0.35) + ")";
+      ctx.lineWidth = Math.max(1, (1.4 + cf * 0.9) * U);
       ctx.beginPath();
-      ctx.arc(-s * R * 0.5, R * 0.75, R * 0.30, 0, Math.PI * 2);
+      ctx.arc(-s * R * (0.5 + cf * 0.12), R * 0.75, R * (0.30 + cf * 0.08), 0, Math.PI * 2);
       ctx.stroke();
     }
     // Cuerpo con el clásico núcleo ARRIÑONADO del monocito.
@@ -19146,11 +19193,13 @@
     ctx.arc(0, 0, R * 0.26, Math.PI * 1.55, Math.PI * 0.25, true);
     ctx.closePath();
     ctx.fill();
-    // Seudópodos que "arrancan" gérmenes: 3 ganchos que se estiran.
-    ctx.strokeStyle = "#6d61ad"; ctx.lineWidth = Math.max(1.6, 2.1 * U); ctx.lineCap = "round";
+    // (2) Seudópodos: con la carga se ESTIRAN y se tensan, listos para
+    // engancharse. Es el telegraph más legible de esta torre.
+    ctx.strokeStyle = "#6d61ad";
+    ctx.lineWidth = Math.max(1.6, (2.1 + cf * 1.4) * U); ctx.lineCap = "round";
     for (var p = 0; p < 3; p++) {
-      var pa = w + p * 2.09 + Math.sin(time * 3 + p) * 0.25;
-      var len = R * (1.1 + 0.25 * Math.sin(time * 4 + p));
+      var pa = w + p * 2.09 + Math.sin(time * (3 + cf * 5) + p) * (0.25 + cf * 0.2);
+      var len = R * (1.1 + cf * 0.75 + 0.25 * Math.sin(time * 4 + p));
       ctx.beginPath();
       ctx.moveTo(Math.cos(pa) * R * 0.9, Math.sin(pa) * R * 0.9);
       ctx.quadraticCurveTo(Math.cos(pa + 0.4) * len, Math.sin(pa + 0.4) * len,
@@ -19164,13 +19213,32 @@
   // --- Macrófago cardíaco residente: fagocita y CONDUCE ------------------
   function drawMacrofagoCardiaco(t, pulse, expression, blink) {
     var R = 16 * U * pulse, time = state.time, w = (t.idlePhase || 0);
+    var cf = Math.max(0, Math.min(1, t.specialCharge || 0));
+    var firing = (t.specialAnim || 0) > 0;
     ctx.save();
     ctx.translate(t.x, t.y);
-    // Onda de conducción: anillo que se expande al ritmo del latido.
-    var beat = (time % 1.15) / 1.15;
+    // Onda de conducción atada al latido REAL del nivel. Antes usaba un ciclo
+    // fijo de 1.15s y quedaba desfasada del corazón, que ahora late a 2.6s:
+    // el macrófago cardíaco conduce el impulso, tiene que ir con la sístole.
+    var f2 = state.f2;
+    var ciclo = (f2 && f2.cfg && f2.cfg.pulseCycle) ? f2.cfg.pulseCycle : 1.15;
+    var reloj = (f2 && f2.pulseT != null) ? f2.pulseT : time;
+    var beat = (reloj % ciclo) / ciclo;
     ctx.strokeStyle = "rgba(240,140,110," + (0.42 * (1 - beat)) + ")";
     ctx.lineWidth = Math.max(1.4, 2 * U);
     ctx.beginPath(); ctx.arc(0, 0, R * (1.2 + beat * 1.5), 0, Math.PI * 2); ctx.stroke();
+    // (3) Con la carga aparece un segundo anillo, más apretado y dorado.
+    if (cf > 0.15 && !firing) {
+      ctx.strokeStyle = "rgba(255,225,150," + (0.35 * cf) + ")";
+      ctx.lineWidth = Math.max(1, (1 + cf * 2.2) * U);
+      ctx.beginPath(); ctx.arc(0, 0, R * (1.15 + cf * 0.5), 0, Math.PI * 2); ctx.stroke();
+    }
+    if (firing) {
+      var fa = Math.min(1, t.specialAnim);
+      ctx.strokeStyle = "rgba(255,240,180," + (0.8 * fa) + ")";
+      ctx.lineWidth = Math.max(2, 3.4 * U * fa);
+      ctx.beginPath(); ctx.arc(0, 0, R * (1.2 + (1 - fa) * 3), 0, Math.PI * 2); ctx.stroke();
+    }
     // Cuerpo ameboide con prolongaciones (macrófago residente ramificado).
     var g = ctx.createRadialGradient(-R * 0.3, -R * 0.3, R * 0.1, 0, 0, R * 1.05);
     g.addColorStop(0, "#f0a08c");
@@ -19195,15 +19263,27 @@
       ctx.arc(Math.cos(va) * R * 0.42, Math.sin(va) * R * 0.42, R * (0.15 + 0.03 * Math.sin(time * 3 + v)), 0, Math.PI * 2);
       ctx.fill();
     }
-    // Chispa eléctrica de conducción en el centro.
-    ctx.strokeStyle = "rgba(255,235,160,0.9)";
-    ctx.lineWidth = Math.max(1.2, 1.6 * U);
+    // (1)(2) Chispa de conducción: con la carga se engorda, se ramifica y
+    // tiembla. Es la descarga acumulándose antes de soltarse.
+    ctx.strokeStyle = "rgba(255,235,160," + (0.9 * (0.7 + cf * 0.3)) + ")";
+    ctx.lineWidth = Math.max(1.2, (1.6 + cf * 2.2) * U);
+    var jx = function () { return cf * (Math.random() - 0.5) * R * 0.12; };
     ctx.beginPath();
-    ctx.moveTo(-R * 0.30, R * 0.10);
-    ctx.lineTo(-R * 0.06, -R * 0.14);
-    ctx.lineTo(R * 0.04, R * 0.06);
-    ctx.lineTo(R * 0.28, -R * 0.18);
+    ctx.moveTo(-R * 0.30 + jx(), R * 0.10 + jx());
+    ctx.lineTo(-R * 0.06 + jx(), -R * 0.14 + jx());
+    ctx.lineTo(R * 0.04 + jx(), R * 0.06 + jx());
+    ctx.lineTo(R * 0.28 + jx(), -R * 0.18 + jx());
     ctx.stroke();
+    if (cf > 0.4) {
+      ctx.lineWidth = Math.max(0.8, 1.1 * U);
+      ctx.strokeStyle = "rgba(255,250,210," + (0.6 * cf) + ")";
+      ctx.beginPath();
+      ctx.moveTo(-R * 0.06, -R * 0.14);
+      ctx.lineTo(-R * 0.20 + jx(), -R * 0.34 + jx());
+      ctx.moveTo(R * 0.04, R * 0.06);
+      ctx.lineTo(R * 0.16 + jx(), R * 0.30 + jx());
+      ctx.stroke();
+    }
     towerFace(R * 0.55, expression, blink);
     ctx.restore();
   }

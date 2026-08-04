@@ -3698,7 +3698,9 @@
   // por compatibilidad de código viejo, pero NUNCA se spawnean (no están
   // en WAVE_TABLE ni DISSEMINATION_WAVE_TABLE) y no tienen sprite dedicado.
   // El Dex no debe listarlos: son ruido, no contenido real del juego.
-  var COMPENDIUM_LEGACY_IDS = ["bacteria", "virus", "hongo", "boss", "bossBacteria", "bossVirus", "bossHongo", "bossPrimordial"];
+  // bossPrimordial SÍ es real (jefe final de MODS, está en F45_LEVELS.mods.waves)
+  // — estaba mezclado acá con los alias muertos y el Dex nunca lo mostraba.
+  var COMPENDIUM_LEGACY_IDS = ["bacteria", "virus", "hongo", "boss", "bossBacteria", "bossVirus", "bossHongo"];
   function compendiumGerms() {
     // TODOS los gérmenes REALES del juego (ENEMY_DEFS orden de declaración,
     // sin los alias legacy de arriba). Los no vistos se muestran en GRIS
@@ -4458,32 +4460,6 @@
   // Composición de la oleada que VIENE, en cualquiera de los tres motores
   // (Fase 1, Diseminación y niveles de órgano). Devuelve [{type, count}] o
   // null si no hay próxima (última ola ya lanzada o final del nivel).
-  function nextWaveGroups() {
-    var raw = null;
-    if (state.f2) {
-      if (state.f2.over) return null;
-      raw = state.f2.cfg.waves[state.f2.waveIdx];
-    } else if (state.dissemination) {
-      if (state.disseminationOver) return null;
-      raw = DISSEMINATION_WAVE_TABLE[state.disseminationWaveIdx];
-    } else {
-      if (state.cinematicEnd) return null;
-      var wd = getWaveDef(state.waveIdx + 1);
-      return wd ? wd.groups.map(function (g) { return { type: g.type, count: g.count }; }) : null;
-    }
-    if (!raw) return null;
-    return raw.map(function (g) { return { type: g[0], count: g[1] }; });
-  }
-
-  // Número de la próxima ola y total del nivel, para el encabezado.
-  function nextWaveNumbers() {
-    if (state.f2) return { n: state.f2.waveIdx + 1, total: state.f2.cfg.waves.length };
-    if (state.dissemination) {
-      return { n: (state.disseminationWaveIdx || 0) + 1, total: DISSEMINATION_WAVE_TABLE.length };
-    }
-    return { n: state.waveIdx + 1, total: 0 };
-  }
-
   // Línea de oleadas del nivel: cuántas son, cuáles ya pasaron y en cuáles
   // hay jefe. Devuelve null si el motor no tiene una tabla cerrada.
   function levelWaveTrack() {
@@ -4563,90 +4539,12 @@
       y += mechH + 6;
     }
 
-    // --- Próxima oleada ---------------------------------------------------
-    var groups = nextWaveGroups();
-    if (!groups || !groups.length) { ctx.restore(); return; }
-    var num = nextWaveNumbers();
-    var restante = box.y + box.h - y;
-    if (restante < 40) { ctx.restore(); return; }
-
-    ctx.textAlign = "left";
-    ctx.fillStyle = "rgba(255,255,255,0.42)";
-    ctx.font = "bold 8px Fredoka, sans-serif";
-    ctx.fillText("VIENE", innerX, y);
-    ctx.textAlign = "right";
-    ctx.fillStyle = "rgba(255,255,255,0.62)";
-    ctx.fillText(num.total ? (num.n + "/" + num.total) : ("#" + num.n), innerX + innerW, y);
-    y += 12;
-
-    // Junta repetidos y deja los jefes al final (son el remate de la ola).
-    var merged = [];
-    for (var gi = 0; gi < groups.length; gi++) {
-      var g = groups[gi];
-      var prev = null;
-      for (var mj = 0; mj < merged.length; mj++) if (merged[mj].type === g.type) { prev = merged[mj]; break; }
-      if (prev) prev.count += g.count;
-      else merged.push({ type: g.type, count: g.count });
-    }
-    merged.sort(function (a, b) {
-      var ba = /^boss/.test(a.type) ? 1 : 0, bb = /^boss/.test(b.type) ? 1 : 0;
-      return ba - bb;
-    });
-
-    // Las filas CRECEN para ocupar el hueco disponible (en tablet sobran 800
-    // px de columna) hasta un techo, y solo entonces se reserva sitio para el
-    // bloque de estado. Así el dock no queda con un vacío al medio.
-    var libre = box.y + box.h - y;
-    var rowMin = Math.round(Math.max(22, Math.min(30, innerW * 0.46)));
-    var statsH = (libre > rowMin * merged.length + 78) ? 62 : 0;
-    libre -= statsH;
-    var rowH = rowMin;
-    if (merged.length > 0) {
-      rowH = Math.max(rowMin, Math.min(46, Math.floor(libre / merged.length) - 3));
-    }
-    var maxRows = Math.floor(libre / (rowH + 3));
-    var shown = Math.min(merged.length, Math.max(0, maxRows));
-    for (var ri = 0; ri < shown; ri++) {
-      var it = merged[ri];
-      var def = ENEMY_DEFS[it.type];
-      if (!def) continue;
-      var ry = y + ri * (rowH + 3);
-      var esBoss = !!def.boss || /^boss/.test(it.type);
-      ctx.fillStyle = esBoss ? "rgba(120, 26, 34, 0.55)" : "rgba(255,255,255,0.05)";
-      ctx.fillRect(box.x, ry, box.w, rowH);
-      // Sprite del germen. Si todavía no lo viste, va en silueta: la oleada
-      // avisa que viene algo nuevo sin regalarte cuál es.
-      var visto = !(state.vistos && !state.vistos[def.id]);
-      var spR = rowH * 0.36;
-      ctx.save();
-      if (!visto) ctx.filter = "brightness(0.12)";
-      drawTooltipSprite(def, box.x + rowH * 0.52, ry + rowH * 0.5, spR);
-      ctx.restore();
-      if (!visto) {
-        ctx.fillStyle = "rgba(255,255,255,0.65)";
-        ctx.font = "bold 11px Fredoka, sans-serif";
-        ctx.textAlign = "center";
-        ctx.fillText("?", box.x + rowH * 0.52, ry + rowH * 0.5 - 6);
-      }
-      ctx.textAlign = "right";
-      ctx.textBaseline = "middle";
-      ctx.fillStyle = esBoss ? "#ffd0c0" : "rgba(255,255,255,0.88)";
-      ctx.font = "bold " + (esBoss ? 11 : 10) + "px Fredoka, sans-serif";
-      ctx.fillText("×" + it.count, box.x + box.w - 5, ry + rowH * 0.5);
-      ctx.textBaseline = "top";
-      UI.intelRows.push({ x: box.x, y: ry, w: box.w, h: rowH, typeId: def.id });
-    }
-    var trasFilas = y + shown * (rowH + 3);
-    // Si no entraron todas, se avisa cuántas faltan en vez de recortar mudo.
-    if (shown < merged.length) {
-      if (trasFilas + 10 <= box.y + box.h) {
-        ctx.textAlign = "center";
-        ctx.fillStyle = "rgba(255,255,255,0.45)";
-        ctx.font = "bold 9px Fredoka, sans-serif";
-        ctx.fillText("+" + (merged.length - shown) + " más", box.x + box.w / 2, trasFilas);
-        trasFilas += 12;
-      }
-    }
+    // El aviso de "qué germen viene" (sprite + contador por tipo) se sacó
+    // a pedido: no debía ocupar columna del dock. Lo que sigue (pista de
+    // oleadas + estado de la partida) usa directo el espacio libre desde
+    // donde terminó el bloque de MECÁNICA, sin ese panel en el medio.
+    var trasFilas = y + 4;
+    var statsH = (box.y + box.h - trasFilas >= 130) ? 62 : 0;
 
     // --- Línea de oleadas (se estira para tapar el hueco que quede) -------
     // Es lo único de la columna que quiere alto: en tablet ocupa 600 px y en
@@ -7399,6 +7297,40 @@
           }
         }
       }
+      // MODS (no Sepsis): la tormenta ya no solo escala números — a partir
+      // de cierto nivel, órganos EMPIEZAN A FALLAR de a uno, en serio: la
+      // torre más cercana a ese carril pierde cadencia real mientras dura.
+      // Es la diferencia real entre "sepsis" y "falla multiorgánica", no
+      // solo un fondo distinto.
+      if (cfg.key === "mods") {
+        var nFoci = (cfg.foci || []).length;
+        if (!f.orgFailing || f.orgFailing.length !== nFoci) {
+          f.orgFailing = []; for (var oi = 0; oi < nFoci; oi++) f.orgFailing.push(0);
+        }
+        if (f.storm > 55) {
+          f.orgFailTimer = (f.orgFailTimer == null ? 6 : f.orgFailTimer) - dt;
+          if (f.orgFailTimer <= 0) {
+            f.orgFailTimer = 9 + Math.random() * 6;
+            var pickLane = Math.floor(Math.random() * nFoci);
+            f.orgFailing[pickLane] = 7;   // segundos que dura la falla
+            showMsg("¡" + (cfg.foci[pickLane] || "Un órgano") + " está fallando!");
+            triggerShake(0.2, 4);
+          }
+        }
+        // Reset primero: si no se reafirma abajo, la torre vuelve a cadencia normal.
+        for (var tr0 = 0; tr0 < state.towers.length; tr0++) state.towers[tr0].modsFailPenalty = 0;
+        for (var of = 0; of < nFoci; of++) {
+          if (f.orgFailing[of] <= 0) continue;
+          f.orgFailing[of] = Math.max(0, f.orgFailing[of] - dt);
+          var laneX = PATH.laneXs ? FIELD_LEFT + PATH.laneXs[of] * dsWorldW() : null;
+          if (laneX == null) continue;
+          for (var tf = 0; tf < state.towers.length; tf++) {
+            var twf = state.towers[tf];
+            if (twf.dead || Math.abs(twf.x - laneX) > dsWorldW() * 0.12) continue;
+            twf.modsFailPenalty = 0.5;   // leído por towerStats: -50% cadencia mientras dura
+          }
+        }
+      }
     }
 
     // --- ARTICULACIÓN: destrucción de cartílago ---------------------------
@@ -9743,7 +9675,8 @@
     // Fase 2 · corazón: conducción del macrófago cardíaco residente (aura
     // pasiva) y su descarga puntual (conductionBoost, temporal).
     var hasConduct = (t.conductionAura || 0) > 0 || (t.conductionBoost || 0) > 0;
-    if (!t.synBuff && !hasLangerBuff && !hasKcBuff && !hasIfnBuff && !hasIl17Buff && !hasIlc2Eosin && !hasIlc2Lang && !hasCitoBuff && !hasCombo && !corneum && !swarm && !hasAlarm && !hasConduct) return base;
+    var hasModsFail = (t.modsFailPenalty || 0) > 0;   // MODS: órgano fallando cerca
+    if (!t.synBuff && !hasLangerBuff && !hasKcBuff && !hasIfnBuff && !hasIl17Buff && !hasIlc2Eosin && !hasIlc2Lang && !hasCitoBuff && !hasCombo && !corneum && !swarm && !hasAlarm && !hasConduct && !hasModsFail) return base;
     // Devuelve una copia con multiplicadores aplicados.
     var out = {};
     for (var k in base) { if (base.hasOwnProperty(k)) out[k] = base[k]; }
@@ -9777,6 +9710,9 @@
       var cm = 1 + Math.min(0.75, (t.conductionAura || 0) + ((t.conductionBoost || 0) > 0 ? 0.5 : 0));
       out.fireRate = out.fireRate * cm;
     }
+    // MODS: mientras el órgano de su carril está fallando, la torre pierde
+    // cadencia real — la falla multiorgánica se siente, no solo se ve.
+    if (hasModsFail && out.fireRate != null) out.fireRate = out.fireRate * (1 - t.modsFailPenalty);
     // Combos permanentes de Diseminación (+10% acumulativo por stack).
     if (hasCombo) {
       if (out.damage != null)   out.damage   = out.damage   * comboMult("atk");
@@ -21299,6 +21235,7 @@
     else if (def.id === "bossPannus")        drawBossPannus(e, rad * scale, expression, blink);
     else if (def.id === "emboloSeptico")     drawEmboloSeptico(e, rad * scale, expression, blink);
     else if (def.id === "bacteroides")       drawBacteroides(e, rad * scale, expression, blink);
+    else if (def.id === "bossPrimordial") drawBossPrimordial(e, rad * scale, expression, blink);
     else if (kind === "bacteria")       drawBacteria(e, rad * scale, expression, blink);
     else if (kind === "virus")          drawVirus(e, rad * scale, expression, blink);
     else if (kind === "hongo")          drawHongo(e, rad * scale, expression, blink);
@@ -25583,6 +25520,110 @@
     ctx.restore();
   }
 
+  // Patógeno Primordial — jefe final del juego (cierra MODS). Antes caía
+  // en el fallback genérico drawBoss (misma elipse que cualquier boss sin
+  // sprite propio) — el enemigo más importante del juego tenía la silueta
+  // menos distintiva. Diseño: quimera de resistencia — biofilm fusionado,
+  // plásmidos de resistencia visibles (transferencia horizontal real, la
+  // base molecular del multirresistente) y bombas de eflujo activas.
+  function drawBossPrimordial(e, rad, expression, blink) {
+    var hit = e.hitFlash > 0;
+    var t = state.time;
+    ctx.save();
+    ctx.translate(e.x, e.y);
+    // Halo necrótico: pesado, lento, oscuro — deliberadamente distinto del
+    // halo rojo genérico de drawBoss (esto no es "un boss más").
+    var slow = 0.5 + 0.5 * Math.sin(t * 1.6);
+    var haloR = rad * (1.7 + slow * 0.25);
+    var haloGrad = ctx.createRadialGradient(0, 0, rad * 0.8, 0, 0, haloR);
+    haloGrad.addColorStop(0, "rgba(60, 10, 70, " + (0.30 + slow * 0.15) + ")");
+    haloGrad.addColorStop(1, "rgba(20, 0, 20, 0)");
+    ctx.fillStyle = haloGrad;
+    ctx.beginPath(); ctx.arc(0, 0, haloR, 0, Math.PI * 2); ctx.fill();
+
+    // CUERPO: silueta IRREGULAR asimétrica (no óvalo/círculo) — biofilm
+    // fusionado de múltiples cepas convergiendo en un solo organismo.
+    var nPts = 11;
+    var contour = [];
+    for (var i = 0; i < nPts; i++) {
+      var a = (i / nPts) * Math.PI * 2;
+      var bump = 1 + 0.22 * Math.sin(a * 3.3 + e.wobble) + 0.10 * Math.sin(t * 0.7 + a * 5);
+      contour.push({ x: Math.cos(a) * rad * bump, y: Math.sin(a) * rad * 0.88 * bump });
+    }
+    var bodyGrad = ctx.createRadialGradient(-rad * 0.3, -rad * 0.3, rad * 0.2, 0, 0, rad * 1.3);
+    bodyGrad.addColorStop(0, "#4a3a4e");
+    bodyGrad.addColorStop(0.55, e.def.color || "#2A2424");
+    bodyGrad.addColorStop(1, "#0a0608");
+    ctx.fillStyle = hit ? "#ffffff" : bodyGrad;
+    ctx.beginPath();
+    ctx.moveTo(contour[0].x, contour[0].y);
+    for (var k = 1; k <= nPts; k++) {
+      var cur = contour[k % nPts], prev = contour[k - 1];
+      ctx.quadraticCurveTo(prev.x, prev.y, (prev.x + cur.x) / 2, (prev.y + cur.y) / 2);
+    }
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = "#1a0a1a";
+    ctx.lineWidth = Math.max(2, 2.6 * U);
+    ctx.stroke();
+
+    // BOMBAS DE EFLUJO: espículas oscuras pulsantes alrededor del borde —
+    // expulsando antibiótico activamente, siempre presentes (no telegraph).
+    for (var s = 0; s < 8; s++) {
+      var sa = (s / 8) * Math.PI * 2 + e.wobble * 0.4;
+      var spR = rad * (1.02 + 0.10 * Math.sin(t * 3 + s * 1.7));
+      var spx = Math.cos(sa) * spR, spy = Math.sin(sa) * spR * 0.88;
+      var tipx = Math.cos(sa) * rad * 1.32, tipy = Math.sin(sa) * rad * 1.16;
+      ctx.fillStyle = "rgba(20,5,20,0.85)";
+      ctx.beginPath();
+      ctx.moveTo(spx + Math.cos(sa + 1.5) * 4 * U, spy + Math.sin(sa + 1.5) * 4 * U);
+      ctx.lineTo(tipx, tipy);
+      ctx.lineTo(spx + Math.cos(sa - 1.5) * 4 * U, spy + Math.sin(sa - 1.5) * 4 * U);
+      ctx.closePath(); ctx.fill();
+    }
+
+    // VENTANA DE PLÁSMIDOS: tejido de resistencia (ADN circular) visible
+    // a través de un parche translúcido — la razón biológica real de por
+    // qué este organismo es intratable con cualquier antibiótico único.
+    ctx.save();
+    ctx.beginPath(); ctx.ellipse(-rad * 0.15, rad * 0.35, rad * 0.42, rad * 0.30, 0.3, 0, Math.PI * 2); ctx.clip();
+    ctx.fillStyle = "rgba(10,4,12,0.55)";
+    ctx.fillRect(-rad, -rad, rad * 2, rad * 2);
+    ctx.strokeStyle = "rgba(200,120,220,0.75)";
+    ctx.lineWidth = Math.max(0.8, 1 * U);
+    for (var pl = 0; pl < 3; pl++) {
+      ctx.beginPath();
+      var plR = rad * (0.10 + pl * 0.09);
+      ctx.arc(-rad * 0.15 + Math.sin(t * 0.9 + pl) * 3 * U, rad * 0.35 + Math.cos(t * 0.8 + pl) * 3 * U, plR, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    // Cara feroz — igual de amenazante que cualquier boss, sobre la
+    // silueta nueva.
+    var eyeR = rad * 0.24;
+    if (expression === "dying") drawHurtEyes(0, -rad * 0.15, eyeR, rad * 0.42, "#c060d0");
+    else {
+      ctx.fillStyle = "rgba(230,120,255,0.55)";
+      ctx.beginPath();
+      ctx.arc(-rad * 0.42, -rad * 0.15, eyeR * 1.4, 0, Math.PI * 2);
+      ctx.arc( rad * 0.42, -rad * 0.15, eyeR * 1.4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#fff";
+      ctx.beginPath();
+      ctx.ellipse(-rad * 0.42, -rad * 0.15, eyeR, eyeR * 1.05, 0, 0, Math.PI * 2);
+      ctx.ellipse( rad * 0.42, -rad * 0.15, eyeR, eyeR * 1.05, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#2a0a2a";
+      ctx.beginPath();
+      ctx.arc(-rad * 0.42, -rad * 0.15, eyeR * 0.55, 0, Math.PI * 2);
+      ctx.arc( rad * 0.42, -rad * 0.15, eyeR * 0.55, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    drawAnimeMouth(0, rad * 0.42, rad * 0.60, rad * 0.42, "fanged");
+    ctx.restore();
+  }
+
   function drawProjectile(p) {
     var ang = p.target ? Math.atan2(p.target.y - p.y, p.target.x - p.x) : 0;
     if (p.towerId === "linfocitoB") {
@@ -27766,6 +27807,7 @@
     else if (def.id === "bossPannus") drawBossPannus(fakeEnemy, R, "idle", false);
     else if (def.id === "emboloSeptico") drawEmboloSeptico(fakeEnemy, R, "idle", false);
     else if (def.id === "bacteroides") drawBacteroides(fakeEnemy, R, "idle", false);
+    else if (def.id === "bossPrimordial") drawBossPrimordial(fakeEnemy, R, "idle", false);
     else if (kind === "bacteria") drawBacteria(fakeEnemy, R, "idle", false);
     else if (kind === "virus") drawVirus(fakeEnemy, R, "idle", false);
     else if (kind === "hongo") drawHongo(fakeEnemy, R, "idle", false);
@@ -29870,6 +29912,14 @@
     if (cfg.mechanic === "pulso")     drawValveAnatomy(worldW, worldH, cfg);
     if (cfg.mechanic === "secuestro") drawBoneAnatomy(worldW, worldH, cfg);
     if (cfg.mechanic === "cartilago") drawJointAnatomy(worldW, worldH, cfg);
+    // Fase 3 y Sepsis/MODS corrían sin NINGUNA anatomía de fondo (solo el
+    // degradé de color de arriba) — 11 niveles se leían como "el mismo
+    // fondo con otro tinte". Una anatomía propia por familia de mecanismo,
+    // variada por nivel via cfg.anatomyVariant.
+    if (cfg.mechanic === "embolia")  drawEmboliaAnatomy(worldW, worldH, cfg);
+    if (cfg.mechanic === "absceso")  drawAbscesoAnatomy(worldW, worldH, cfg);
+    if (cfg.mechanic === "difusion") drawDifusionAnatomy(worldW, worldH, cfg);
+    if (cfg.mechanic === "tormenta") drawTormentaAnatomy(worldW, worldH, cfg);
     // Bandas de carril. Con embudo (`converge`) no son rectángulos: se
     // inclinan y se angostan siguiendo el camino real, si no la banda recta
     // contradice a la línea curva y el espacio no se lee como que se cierra.
@@ -30142,6 +30192,269 @@
                          FIELD_LEFT, FIELD_TOP + worldH * 0.965);
     ctx.closePath();
     ctx.fill();
+    ctx.restore();
+  }
+
+  // ==== ANATOMÍA DE FONDO — FASE 3 Y SEPSIS/MODS ==========================
+  // Antes estos 11 niveles corrían con SOLO el degradé de color de arriba:
+  // se leían como "el mismo fondo con otro tinte". Una anatomía propia por
+  // FAMILIA de mecanismo (embolia/absceso/difusión/tormenta), y dentro de
+  // cada familia un motivo distinto por nivel (switch en cfg.ambient o
+  // cfg.key, según cuál sea único en ese nivel).
+
+  function drawEmboliaAnatomy(worldW, worldH, cfg) {
+    var t = state.time;
+    ctx.save();
+    if (cfg.ambient === "alveolo") {
+      // LECHO CAPILAR PULMONAR: racimos de alvéolos (burbujas chicas en
+      // grupo) envueltos en malla capilar fina — textura esponjosa.
+      for (var a = 0; a < 26; a++) {
+        var acx = FIELD_LEFT + worldW * ((a * 53 % 97) / 97);
+        var acy = FIELD_TOP + worldH * ((a * 71 % 89) / 89);
+        var breathe = 1 + 0.06 * Math.sin(t * 1.2 + a);
+        for (var b = 0; b < 4; b++) {
+          var ba = (b / 4) * Math.PI * 2 + a;
+          var bx = acx + Math.cos(ba) * 9 * U, by = acy + Math.sin(ba) * 7 * U;
+          ctx.strokeStyle = colorAlpha(cfg.colorLight, 0.16);
+          ctx.lineWidth = 1;
+          ctx.beginPath(); ctx.arc(bx, by, 7 * U * breathe, 0, Math.PI * 2); ctx.stroke();
+        }
+      }
+      ctx.strokeStyle = colorAlpha(cfg.colorLight, 0.08);
+      ctx.lineWidth = 1;
+      for (var c = 0; c < 10; c++) {
+        var cy = FIELD_TOP + worldH * (c / 10);
+        ctx.beginPath();
+        ctx.moveTo(FIELD_LEFT, cy);
+        ctx.quadraticCurveTo(FIELD_LEFT + worldW * 0.5, cy + 14 * U * Math.sin(t * 0.3 + c), FIELD_LEFT + worldW, cy);
+        ctx.stroke();
+      }
+    } else if (cfg.ambient === "cerebro") {
+      // CIRCULACIÓN CEREBRAL: árbol arterial que se ramifica desde un
+      // polígono superior (análogo al polígono de Willis) hacia abajo.
+      function rama(x, y, ang, len, gen) {
+        if (gen > 4 || len < 12) return;
+        var ex = x + Math.cos(ang) * len, ey = y + Math.sin(ang) * len;
+        ctx.strokeStyle = colorAlpha(cfg.colorLight, 0.20 - gen * 0.03);
+        ctx.lineWidth = Math.max(0.8, (4 - gen) * U);
+        ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(ex, ey); ctx.stroke();
+        rama(ex, ey, ang - 0.45 - gen * 0.05, len * 0.72, gen + 1);
+        rama(ex, ey, ang + 0.45 + gen * 0.05, len * 0.72, gen + 1);
+      }
+      var polyY = FIELD_TOP + worldH * 0.08;
+      ctx.strokeStyle = colorAlpha(cfg.colorLight, 0.22);
+      ctx.lineWidth = 2 * U;
+      ctx.beginPath();
+      for (var p = 0; p <= 6; p++) {
+        var pa = (p / 6) * Math.PI * 2;
+        var px = FIELD_LEFT + worldW * 0.5 + Math.cos(pa) * worldW * 0.10;
+        var py = polyY + Math.sin(pa) * worldH * 0.03;
+        if (p === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+      }
+      ctx.closePath(); ctx.stroke();
+      for (var r = 0; r < 5; r++) {
+        var ra = Math.PI / 2 + (r - 2) * 0.5;
+        rama(FIELD_LEFT + worldW * 0.5, polyY, ra, worldH * 0.16, 0);
+      }
+    } else if (cfg.ambient === "bazo") {
+      // PULPA ROJA DEL BAZO: cordones esplénicos ondulados tejidos entre
+      // sí, con folículos (nódulos) de pulpa blanca dispersos.
+      ctx.strokeStyle = colorAlpha(cfg.colorLight, 0.14);
+      ctx.lineWidth = 1.4 * U;
+      for (var w = 0; w < 14; w++) {
+        var wy0 = FIELD_TOP + worldH * (w / 14);
+        ctx.beginPath();
+        for (var wx = 0; wx <= 20; wx++) {
+          var wxp = FIELD_LEFT + worldW * (wx / 20);
+          var wyp = wy0 + Math.sin(wx * 0.8 + w * 1.3 + t * 0.4) * 10 * U;
+          if (wx === 0) ctx.moveTo(wxp, wyp); else ctx.lineTo(wxp, wyp);
+        }
+        ctx.stroke();
+      }
+      for (var n = 0; n < 16; n++) {
+        var nx = FIELD_LEFT + worldW * ((n * 61 % 100) / 100);
+        var ny = FIELD_TOP + worldH * ((n * 37 % 100) / 100);
+        ctx.fillStyle = colorAlpha("#e8a0c0", 0.16);
+        ctx.beginPath(); ctx.arc(nx, ny, 12 * U, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+    ctx.restore();
+  }
+
+  function drawAbscesoAnatomy(worldW, worldH, cfg) {
+    var t = state.time;
+    ctx.save();
+    if (cfg.ambient === "epidural") {
+      // ESPACIO EPIDURAL: cuerpos vertebrales enmarcando el canal a los
+      // costados (arcos óseos), el espacio real donde se acumula el pus.
+      var margen = worldW * 0.10;
+      for (var side = -1; side <= 1; side += 2) {
+        var bx = side < 0 ? FIELD_LEFT : FIELD_LEFT + worldW - margen;
+        for (var v = 0; v < 8; v++) {
+          var vy = FIELD_TOP + worldH * (v / 8);
+          ctx.fillStyle = colorAlpha("#c8a878", 0.18);
+          roundRect(bx, vy, margen, worldH / 8 - 4 * U, 6 * U);
+          ctx.fill();
+          ctx.strokeStyle = colorAlpha("#8a6c48", 0.30);
+          ctx.lineWidth = 1;
+          roundRect(bx, vy, margen, worldH / 8 - 4 * U, 6 * U);
+          ctx.stroke();
+        }
+      }
+    } else if (cfg.ambient === "sangre") {
+      // TORRENTE SANGUÍNEO: paredes de un vaso grande, flujo turbulento
+      // (a diferencia de Diseminación, acá NO hay carriles limpios: es
+      // bacteriemia persistente, el vaso entero está sucio).
+      ctx.strokeStyle = colorAlpha("#c8323a", 0.20);
+      ctx.lineWidth = 6 * U;
+      ctx.beginPath(); ctx.moveTo(FIELD_LEFT + 4 * U, FIELD_TOP); ctx.lineTo(FIELD_LEFT + 4 * U, FIELD_TOP + worldH); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(FIELD_LEFT + worldW - 4 * U, FIELD_TOP); ctx.lineTo(FIELD_LEFT + worldW - 4 * U, FIELD_TOP + worldH); ctx.stroke();
+      for (var fl = 0; fl < 18; fl++) {
+        var fx = FIELD_LEFT + worldW * ((fl * 43 % 100) / 100);
+        var fy = FIELD_TOP + ((fl * 91 + t * 40) % worldH);
+        ctx.fillStyle = colorAlpha("#8a1c22", 0.22);
+        ctx.beginPath(); ctx.ellipse(fx, fy, 5 * U, 9 * U, 0, 0, Math.PI * 2); ctx.fill();
+      }
+    } else if (cfg.ambient === "fascia") {
+      // FASCIA PROFUNDA: planos de tejido conectivo fibroso, bandas
+      // diagonales tejidas — la lámina que la fascitis necrosante devora.
+      ctx.strokeStyle = colorAlpha(cfg.colorLight, 0.14);
+      ctx.lineWidth = 1.2 * U;
+      for (var d1 = -4; d1 < 24; d1++) {
+        ctx.beginPath();
+        ctx.moveTo(FIELD_LEFT + worldW * (d1 / 20), FIELD_TOP);
+        ctx.lineTo(FIELD_LEFT + worldW * (d1 / 20) + worldH * 0.5, FIELD_TOP + worldH);
+        ctx.stroke();
+      }
+      for (var d2 = -4; d2 < 24; d2++) {
+        ctx.beginPath();
+        ctx.moveTo(FIELD_LEFT + worldW * (d2 / 20), FIELD_TOP + worldH);
+        ctx.lineTo(FIELD_LEFT + worldW * (d2 / 20) + worldH * 0.5, FIELD_TOP);
+        ctx.stroke();
+      }
+    }
+    ctx.restore();
+  }
+
+  function drawDifusionAnatomy(worldW, worldH, cfg) {
+    var t = state.time;
+    ctx.save();
+    if (cfg.key === "f3_multi") {
+      // VARIAS ARTICULACIONES: mapa de sitios (no una sola cámara) —
+      // pequeños iconos de articulación repartidos, unidos por líneas de
+      // migración punteadas. Comunica "diseminado", no "un cuarto".
+      var sitios = [];
+      for (var s = 0; s < 6; s++) {
+        sitios.push({
+          x: FIELD_LEFT + worldW * (0.12 + (s % 3) * 0.38),
+          y: FIELD_TOP + worldH * (0.18 + Math.floor(s / 3) * 0.55)
+        });
+      }
+      ctx.strokeStyle = colorAlpha(cfg.colorLight, 0.12);
+      ctx.lineWidth = 1;
+      ctx.setLineDash([4 * U, 5 * U]);
+      for (var i = 0; i < sitios.length; i++) {
+        for (var j = i + 1; j < sitios.length; j++) {
+          ctx.beginPath(); ctx.moveTo(sitios[i].x, sitios[i].y); ctx.lineTo(sitios[j].x, sitios[j].y); ctx.stroke();
+        }
+      }
+      ctx.setLineDash([]);
+      for (var k = 0; k < sitios.length; k++) {
+        var si = sitios[k];
+        ctx.strokeStyle = colorAlpha(cfg.colorLight, 0.35);
+        ctx.lineWidth = 2 * U;
+        ctx.beginPath(); ctx.arc(si.x, si.y, 16 * U, 0.3, Math.PI * 1.5); ctx.stroke();
+        ctx.beginPath(); ctx.arc(si.x, si.y, 9 * U, Math.PI * 1.3, Math.PI * 2.6); ctx.stroke();
+      }
+    } else if (cfg.key === "f3_osloc") {
+      // HUESO SUBCONDRAL: lámina DELGADA justo bajo el cartílago (no el
+      // canal medular profundo del Osteomielitis principal — acá es
+      // superficial, la infección bajó desde la articulación de al lado).
+      var slabH = worldH * 0.10;
+      ctx.fillStyle = colorAlpha("#c8a070", 0.22);
+      ctx.fillRect(FIELD_LEFT, FIELD_TOP, worldW, slabH);
+      ctx.strokeStyle = colorAlpha("#efdcb4", 0.30);
+      ctx.lineWidth = 2 * U;
+      ctx.beginPath(); ctx.moveTo(FIELD_LEFT, FIELD_TOP + slabH); ctx.lineTo(FIELD_LEFT + worldW, FIELD_TOP + slabH); ctx.stroke();
+      for (var tr = 0; tr < 24; tr++) {
+        var trx = FIELD_LEFT + worldW * (tr / 24);
+        ctx.strokeStyle = colorAlpha("#8a7040", 0.18);
+        ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(trx, FIELD_TOP); ctx.lineTo(trx + worldW * 0.02, FIELD_TOP + slabH); ctx.stroke();
+      }
+    } else if (cfg.key === "f3_pust") {
+      // PUSTULOSIS DISEMINADA: silueta corporal esquemática salpicada de
+      // pústulas por TODO el cuerpo — la escala "todo el cuerpo" a la vista.
+      var bcx = FIELD_LEFT + worldW * 0.5, bTop = FIELD_TOP + worldH * 0.06, bH = worldH * 0.88;
+      ctx.strokeStyle = colorAlpha(cfg.colorLight, 0.18);
+      ctx.lineWidth = 2 * U;
+      ctx.beginPath();
+      ctx.ellipse(bcx, bTop + bH * 0.06, worldW * 0.06, bH * 0.05, 0, 0, Math.PI * 2); ctx.stroke();
+      roundRect(bcx - worldW * 0.10, bTop + bH * 0.12, worldW * 0.20, bH * 0.55, worldW * 0.06);
+      ctx.stroke();
+      for (var limb = -1; limb <= 1; limb += 2) {
+        ctx.beginPath();
+        ctx.moveTo(bcx + limb * worldW * 0.10, bTop + bH * 0.18);
+        ctx.lineTo(bcx + limb * worldW * 0.24, bTop + bH * 0.62);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(bcx + limb * worldW * 0.05, bTop + bH * 0.66);
+        ctx.lineTo(bcx + limb * worldW * 0.09, bTop + bH * 0.95);
+        ctx.stroke();
+      }
+      for (var pu = 0; pu < 30; pu++) {
+        var pux = bcx + (Math.sin(pu * 12.9) * 0.5) * worldW * 0.30;
+        var puy = bTop + bH * (0.10 + (pu * 0.031) % 0.85);
+        ctx.fillStyle = colorAlpha("#e8b09a", 0.30 + 0.10 * Math.sin(t * 2 + pu));
+        ctx.beginPath(); ctx.arc(pux, puy, 3.5 * U, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+    ctx.restore();
+  }
+
+  function drawTormentaAnatomy(worldW, worldH, cfg) {
+    var t = state.time;
+    var isMods = (cfg.key === "mods");
+    ctx.save();
+    // Red sistémica: iconos de órgano (uno por foco del nivel) conectados
+    // por vasos que laten con la tormenta real (f.storm), no decorativos.
+    var f = state.f2;
+    var storm = f ? (f.storm || 0) : 0;
+    var foci = cfg.foci || [];
+    var nodos = [];
+    for (var i = 0; i < foci.length; i++) {
+      nodos.push({
+        x: FIELD_LEFT + worldW * (0.14 + (i / Math.max(1, foci.length - 1)) * 0.72),
+        y: FIELD_TOP + worldH * (0.14 + (i % 2) * 0.10)
+      });
+    }
+    ctx.strokeStyle = colorAlpha("#ff6a60", 0.10 + (storm / 100) * 0.18);
+    ctx.lineWidth = 1.4 * U;
+    for (var j = 0; j < nodos.length; j++) {
+      var nx = nodos[j], ny2 = nodos[(j + 1) % nodos.length];
+      ctx.beginPath(); ctx.moveTo(nx.x, nx.y); ctx.lineTo(ny2.x, ny2.y); ctx.stroke();
+    }
+    for (var k = 0; k < nodos.length; k++) {
+      var no = nodos[k];
+      var falla = isMods && f && f.orgFailing && f.orgFailing[k] > 0;
+      ctx.fillStyle = falla ? colorAlpha("#3a0006", 0.55) : colorAlpha(cfg.colorLight, 0.16);
+      ctx.beginPath(); ctx.arc(no.x, no.y, 20 * U, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = falla ? "rgba(140,20,20,0.7)" : colorAlpha(cfg.colorLight, 0.35);
+      ctx.lineWidth = 2 * U;
+      ctx.beginPath(); ctx.arc(no.x, no.y, 20 * U, 0, Math.PI * 2); ctx.stroke();
+      if (falla) {
+        // MODS: el órgano se ve FALLANDO — quiebre en cruz, no solo tinte.
+        ctx.strokeStyle = "rgba(255,80,70,0.8)"; ctx.lineWidth = 1.5 * U;
+        ctx.beginPath();
+        ctx.moveTo(no.x - 10 * U, no.y - 10 * U); ctx.lineTo(no.x + 10 * U, no.y + 10 * U);
+        ctx.moveTo(no.x + 10 * U, no.y - 10 * U); ctx.lineTo(no.x - 10 * U, no.y + 10 * U);
+        ctx.stroke();
+      }
+    }
+    // Bruma inflamatoria de fondo: MODS más densa y oscura que Sepsis.
+    var hazeA = (0.05 + (storm / 100) * 0.10) * (isMods ? 1.6 : 1);
+    ctx.fillStyle = colorAlpha(isMods ? "#3a0008" : "#7a0010", hazeA);
+    ctx.fillRect(FIELD_LEFT, FIELD_TOP, worldW, worldH);
     ctx.restore();
   }
 

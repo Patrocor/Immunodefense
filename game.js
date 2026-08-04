@@ -6366,7 +6366,11 @@
         { lane: 2, yn: 0.68, r: 30, hp: 130 },
         { lane: 1, yn: 0.80, r: 32, hp: 150 }
       ],
-      bow: 0.022,
+      // El pozo NO serpentea: es un canal recto y angosto (ver comentario de
+      // arriba, "solo se baja") — cualquier wobble contradice esa anatomía.
+      // Los otros órganos (embudo valvular, cámara articular) sí curvan
+      // porque su propia estructura lo pide; este no.
+      bow: 0,
       entryYn: 0.04, exitYn: 0.96,
       integrityLabel: "CORTICAL",
       integrityMax: 100,
@@ -6419,6 +6423,14 @@
       integrityLabel: "CÁPSULA",
       integrityMax: 100,
       arrivalDamage: 6,
+      // BARRERA CAPSULAR (estilo Zuma): la cámara es cerrada y los gérmenes
+      // entran por todo el arco a la vez — sin esto, "por todos lados" no
+      // tiene ningún obstáculo físico, solo torres. Cada tanto, un pliegue
+      // de la cápsula se tensa y bloquea un carril entero hasta que algo lo
+      // rompe (los propios gérmenes lo muerden al chocar, igual que un
+      // Involucro) — obliga a reencauzar el enjambre en vez de dejarlo
+      // avanzar en línea recta al cartílago.
+      capsuleBarrier: { intervalSec: 15, hp: 85, w: 34, h: 34, maxActive: 2, atFrac: 0.30 },
       ambient: "articulacion",
       mechanic: "cartilago",
       mechanicName: "CARTÍLAGO ARTICULAR",
@@ -7224,20 +7236,23 @@
           if (Math.hypot(eb.x - sq2.x, eb.y - sq2.y) < sq2.r) { eb.inSequestrum = true; break; }
         }
       }
-      // Involucros (muros del Osteoblasto): expiran y frenan gérmenes.
-      for (var w = f.walls.length - 1; w >= 0; w--) {
-        var wl = f.walls[w];
-        wl.life -= dt;
-        if (wl.life <= 0 || wl.hp <= 0) { f.walls.splice(w, 1); continue; }
-        for (var e4 = 0; e4 < state.enemies.length; e4++) {
-          var ew = state.enemies[e4];
-          if (ew.dead || ew.absorbing) continue;
-          if (Math.abs(ew.x - wl.x) < wl.w / 2 && Math.abs(ew.y - wl.y) < wl.h) {
-            // El muro bloquea: el germen se detiene y lo muerde.
-            ew.progress = Math.max(0, ew.progress - 24 * U * dt);
-            wl.hp -= (ew.def.attack || 5) * dt;
-            wl.flash = 0.2;
-          }
+    }
+    // Muros físicos (f.walls): expiran y frenan gérmenes. Antes vivía
+    // adentro del bloque "secuestro" (solo Involucro del Osteoblasto en
+    // Osteomielitis) — se saca de ahí para que CUALQUIER mecanismo pueda
+    // tener muros, empezando por la barrera capsular de Artritis más abajo.
+    for (var w = f.walls.length - 1; w >= 0; w--) {
+      var wl = f.walls[w];
+      wl.life -= dt;
+      if (wl.life <= 0 || wl.hp <= 0) { f.walls.splice(w, 1); continue; }
+      for (var e4 = 0; e4 < state.enemies.length; e4++) {
+        var ew = state.enemies[e4];
+        if (ew.dead || ew.absorbing) continue;
+        if (Math.abs(ew.x - wl.x) < wl.w / 2 && Math.abs(ew.y - wl.y) < wl.h) {
+          // El muro bloquea: el germen se detiene y lo muerde.
+          ew.progress = Math.max(0, ew.progress - 24 * U * dt);
+          wl.hp -= (ew.def.attack || 5) * dt;
+          wl.flash = 0.2;
         }
       }
     }
@@ -7408,6 +7423,29 @@
         state.waveActive = false;
         state.pendingSpawns = [];
         triggerShake(0.5, 9);
+      }
+      // BARRERA CAPSULAR (estilo Zuma): la cápsula se pliega cada tanto y
+      // bloquea un carril entero hasta que los propios gérmenes la rompan
+      // mordiéndola (mismo mecanismo que el Involucro, ver f.walls arriba).
+      if (cfg.capsuleBarrier) {
+        var cb = cfg.capsuleBarrier;
+        if (f.capsuleTimer == null) f.capsuleTimer = cb.intervalSec * 0.6;
+        f.capsuleTimer -= dt;
+        var activeCaps = 0;
+        for (var wc = 0; wc < f.walls.length; wc++) if (f.walls[wc].kind === "capsula") activeCaps++;
+        if (f.capsuleTimer <= 0 && activeCaps < cb.maxActive && state.waveActive) {
+          f.capsuleTimer = cb.intervalSec;
+          var laneIdx = Math.floor(Math.random() * cfg.laneXs.length);
+          var laneLen = PATH.totalForBranch[laneIdx] || 1;
+          var cpt = pathPos(laneLen * cb.atFrac, laneIdx);
+          var chp = cb.hp * (1 + (f.waveIdx || 0) * 0.12);
+          f.walls.push({
+            x: cpt.x, y: cpt.y, w: cb.w * U, h: cb.h * U,
+            hp: chp, maxHp: chp, life: Infinity, flash: 0, kind: "capsula"
+          });
+          pushEffect({ kind: "place", x: cpt.x, y: cpt.y, life: 0.6, max: 0.6, color: cfg.colorLight || "#8ec5d0" });
+          showMsg("¡La cápsula se pliega y bloquea un carril!");
+        }
       }
     }
   }
@@ -7624,32 +7662,50 @@
     }
     if (id === "endotelial") {
       // REENDOTELIZACIÓN: repara la válvula y disuelve la vegetación cercana.
+      // Visual: anillo que se CIERRA hacia adentro (sealPulse, único entre los
+      // ultimates F2 en ir hacia adentro) + lascas de vegetación arrancada
+      // flotando desde cada germen tocado — el sellado se ve, no solo se lee.
       f.integrity = Math.min(cfg.integrityMax, f.integrity + 4 + t.level * 2);
       for (var i = 0; i < state.enemies.length; i++) {
         var e = state.enemies[i];
         if (e.dead || !inRange(e)) continue;
-        if (e.vegLayers) e.vegLayers = Math.max(0, e.vegLayers - 2);
+        if (e.vegLayers) {
+          e.vegLayers = Math.max(0, e.vegLayers - 2);
+          for (var vf = 0; vf < 4; vf++) {
+            var vfa = Math.random() * Math.PI * 2, vfs = (10 + Math.random() * 14) * U;
+            pushEffect({ kind: "particle", x: e.x, y: e.y, vx: Math.cos(vfa) * vfs, vy: Math.sin(vfa) * vfs - 14 * U,
+              life: 0.6, max: 0.7, color: "#c8e8ec" });
+          }
+        }
         e.speedBoost = Math.min(e.speedBoost || 1, 0.55);
         e.antiAdhesionTimer = 5;
       }
-      pushEffect({ kind: "defensinWave", x: t.x, y: t.y, r: rng * 0.9, life: 0.8, max: 0.8 });
+      pushEffect({ kind: "sealPulse", x: t.x, y: t.y, r: rng * 0.9, life: 0.9, max: 0.9 });
       consume(1.4, "REENDOTELIZACIÓN — velo valvular reparado");
       return true;
     }
     if (id === "monocito") {
       // RODAMIENTO ADHESIVO: barre la vegetación de todo lo que toca.
+      // Visual: rastro lineal (no anillo) con marcas de raspado en cada
+      // impacto real — se lee como un rodamiento que arrastra, no como
+      // una onda genérica centrada en la torre.
+      var scrapeHits = [];
       for (var m = 0; m < state.enemies.length; m++) {
         var em = state.enemies[m];
         if (em.dead || !inRange(em)) continue;
         if (em.vegLayers) em.vegLayers = Math.max(0, em.vegLayers - 3);
         damageEnemy(em, st.damage * 1.8, "monocito");
+        scrapeHits.push({ x: em.x, y: em.y });
       }
-      pushEffect({ kind: "defensinWave", x: t.x, y: t.y, r: rng, life: 0.6, max: 0.6 });
+      pushEffect({ kind: "scrapeTrail", x: t.x, y: t.y, r: rng, hits: scrapeHits, life: 0.5, max: 0.5 });
       consume(1.2, "RODAMIENTO — gérmenes despegados del endotelio");
       return true;
     }
     if (id === "macrofagoCardiaco") {
       // DESCARGA DE CONDUCCIÓN: todas las torres en rango disparan YA.
+      // Visual: rayos de conducción reales, uno por torre despertada —
+      // el sistema de conducción cardíaco propagándose célula a célula,
+      // no un anillo abstracto.
       var n = 0;
       for (var c = 0; c < state.towers.length; c++) {
         var tw = state.towers[c];
@@ -7657,13 +7713,16 @@
         tw.cooldown = 0;
         tw.conductionBoost = 6;      // 6s de cadencia acelerada
         n++;
+        pushEffect({ kind: "conductionBolt", x1: t.x, y1: t.y, x2: tw.x, y2: tw.y, life: 0.5, max: 0.5 });
       }
-      pushEffect({ kind: "defensinWave", x: t.x, y: t.y, r: rng, life: 0.7, max: 0.7 });
+      pushEffect({ kind: "novaRing", x: t.x, y: t.y, r: rng * 0.35, color: "#f0946a", life: 0.5, max: 0.5 });
       consume(1.5, "CONDUCCIÓN — " + n + " células disparan a la vez");
       return true;
     }
     if (id === "osteoclasto") {
       // LAGUNA DE HOWSHIP: resorbe el secuestro más cercano y daña alrededor.
+      // Visual: el daño en área ya no queda mudo cuando no hay secuestro
+      // cerca — un cráter ácido irregular (no un círculo) marca el golpe.
       var best = null, bestD = Infinity;
       for (var s = 0; s < f.sequestra.length; s++) {
         var sq = f.sequestra[s];
@@ -7682,6 +7741,7 @@
         if (eo.dead || !inRange(eo)) continue;
         damageEnemy(eo, st.damage * 2.2, "osteoclasto");
       }
+      pushEffect({ kind: "acidCrater", x: t.x, y: t.y, r: rng, life: 0.8, max: 0.8 });
       consume(1.6, best && bestD <= rng * 1.6 ? "HOWSHIP — secuestro resorbido" : "HOWSHIP — resorción ósea");
       return true;
     }
@@ -7693,7 +7753,7 @@
       var hp = wcfg.hp * (1 + t.level * 0.45);
       f.walls.push({
         x: pt.x, y: pt.y, w: wcfg.w * U, h: wcfg.h * U,
-        hp: hp, maxHp: hp, life: wcfg.life + t.level * 6, flash: 0
+        hp: hp, maxHp: hp, life: wcfg.life + t.level * 6, flash: 0, kind: "hueso"
       });
       pushEffect({ kind: "place", x: pt.x, y: pt.y, life: 0.6, max: 0.6, color: "#e0d2a4" });
       consume(1.4, "INVOLUCRO — hueso nuevo bloquea el carril");
@@ -7701,6 +7761,8 @@
     }
     if (id === "osteocito") {
       // RED CANALICULAR: revela y marca todo lo que hay en el radio.
+      // Visual: un pulso viaja por la red hasta CADA germen revelado real
+      // (no un anillo genérico) — la señal llegando célula a célula.
       var cnt = 0;
       for (var r = 0; r < state.enemies.length; r++) {
         var er = state.enemies[r];
@@ -7709,19 +7771,21 @@
         er.canalicularMark = t.def.markAmplify;
         er.canalicularTimer = 10;
         cnt++;
+        pushEffect({ kind: "networkPing", x1: t.x, y1: t.y, x2: er.x, y2: er.y, life: 0.6, max: 0.6 });
       }
-      pushEffect({ kind: "defensinWave", x: t.x, y: t.y, r: rng, life: 0.9, max: 0.9 });
       consume(1.3, "RED CANALICULAR — " + cnt + " gérmenes revelados");
       return true;
     }
     if (id === "sinoviocitoA") {
       // ACLARAMIENTO SINOVIAL: golpe de limpieza en toda la cavidad cercana.
+      // Visual: vórtice que succiona hacia adentro (no expande) — la
+      // aspiración real de la maquinaria lisosomal, no un impacto genérico.
       for (var a = 0; a < state.enemies.length; a++) {
         var ea = state.enemies[a];
         if (ea.dead || !inRange(ea)) continue;
         damageEnemy(ea, st.damage * 2.4, "sinoviocitoA");
       }
-      pushEffect({ kind: "defensinWave", x: t.x, y: t.y, r: rng, life: 0.7, max: 0.7 });
+      pushEffect({ kind: "suctionBurst", x: t.x, y: t.y, r: rng, life: 0.7, max: 0.7 });
       consume(1.4, "ACLARAMIENTO SINOVIAL");
       return true;
     }
@@ -7742,11 +7806,82 @@
     }
     if (id === "condrocito") {
       // MATRIZ DE COLÁGENO II: recupera un bloque de cartílago.
+      // Visual: fibras de colágeno brotando y CRECIENDO hacia afuera (no un
+      // anillo) — la misma familia de fibras que ya respiran en su cuerpo
+      // en reposo, pero como brote masivo de una sola vez.
       if (cfg.cartilageMax) {
         f.cartilage = Math.min(cfg.cartilageMax, f.cartilage + 8 + t.level * 4);
       }
-      pushEffect({ kind: "defensinWave", x: t.x, y: t.y, r: rng * 0.8, life: 0.9, max: 0.9 });
+      pushEffect({ kind: "matrixGrow", x: t.x, y: t.y, r: rng * 0.8, life: 0.9, max: 0.9 });
       consume(1.5, "COLÁGENO II — cartílago regenerado");
+      return true;
+    }
+    // ---- ULTIMATES F3 QUE NUNCA SE HABÍAN IMPLEMENTADO -------------------
+    // Estas 4 residentes (macrofagoAlveolar, fibroblastoEncap,
+    // dendriticaMigratoria, tregSepsis) ya tenían su aura pasiva funcionando
+    // (ver updateF2/F3 más arriba: sealsAbscess, marksMigrators, calmsStorm,
+    // healsTowers, stopsFragmentation), pero specialChargeSec/specialName
+    // nunca tenían un caso acá — el ultimate cargaba, el jugador tocaba, y
+    // caía al fallback silencioso al final de triggerTowerSpecial sin hacer
+    // nada. Cada una ahora hace una versión de RÁFAGA de su propio mecanismo.
+    if (id === "macrofagoAlveolar") {
+      // BARRIDO CAPILAR: la malla se cierra de golpe sobre todo fragmento
+      // en rango y lo revienta con daño masivo (ya no solo daño pasivo).
+      var fragHits = [];
+      for (var mf = 0; mf < state.enemies.length; mf++) {
+        var emf = state.enemies[mf];
+        if (emf.dead || !emf.isFragment || !inRange(emf)) continue;
+        damageEnemy(emf, st.damage * (t.def.bonusVsFragment || 2.2) * 1.4, "macrofagoAlveolar");
+        fragHits.push({ x: emf.x, y: emf.y });
+      }
+      pushEffect({ kind: "netSnap", x: t.x, y: t.y, r: rng, hits: fragHits, life: 0.7, max: 0.7 });
+      consume(1.4, "BARRIDO CAPILAR — " + fragHits.length + " émbolos atrapados");
+      return true;
+    }
+    if (id === "fibroblastoEncap") {
+      // ENCAPSULACIÓN: sella de golpe todas las colecciones en rango, en vez
+      // de esperar el drenaje pasivo segundo a segundo.
+      var sealedNow = [];
+      if (f.abscesses) {
+        for (var fa = 0; fa < f.abscesses.length; fa++) {
+          var absC = f.abscesses[fa];
+          if (Math.hypot(absC.x - t.x, absC.y - t.y) > rng) continue;
+          absC.hp -= (t.def.sealsAbscess || 22) * 14;
+          absC.flash = 0.5;
+          sealedNow.push({ x: absC.x, y: absC.y });
+        }
+      }
+      pushEffect({ kind: "collagenCinch", x: t.x, y: t.y, r: rng, hits: sealedNow, life: 0.8, max: 0.8 });
+      consume(1.4, "ENCAPSULACIÓN — " + sealedNow.length + " colecciones selladas");
+      return true;
+    }
+    if (id === "dendriticaMigratoria") {
+      // PRESENTACIÓN CRUZADA: marca a TODO enemigo en rango (no solo a los
+      // que están migrando en este instante) con el bonus al máximo.
+      var markedNow = [];
+      for (var dm = 0; dm < state.enemies.length; dm++) {
+        var edm = state.enemies[dm];
+        if (edm.dead || !inRange(edm)) continue;
+        edm.migrantMark = Math.max(edm.migrantMark || 0, t.def.marksMigrators || 0.45);
+        markedNow.push({ x: edm.x, y: edm.y });
+      }
+      pushEffect({ kind: "dendriteReach", x: t.x, y: t.y, hits: markedNow, life: 0.6, max: 0.6 });
+      consume(1.3, "PRESENTACIÓN CRUZADA — " + markedNow.length + " marcados");
+      return true;
+    }
+    if (id === "tregSepsis") {
+      // DESCARGA DE IL-10: baja la tormenta de golpe y cura de una a las
+      // aliadas en rango, en vez del goteo pasivo por segundo.
+      f.storm = Math.max(0, (f.storm || 0) - (t.def.calmsStorm || 3.5) * 10);
+      var healedN = 0;
+      for (var th = 0; th < state.towers.length; th++) {
+        var twh = state.towers[th];
+        if (twh === t || twh.dead || !inRange(twh)) continue;
+        twh.hp = Math.min(twh.maxHp, twh.hp + twh.maxHp * 0.25);
+        healedN++;
+      }
+      pushEffect({ kind: "calmWave", x: t.x, y: t.y, r: rng * 1.3, life: 1.0, max: 1.0 });
+      consume(1.5, "IL-10 — tormenta calmada, " + healedN + " aliadas curadas");
       return true;
     }
     return false;
@@ -19584,19 +19719,31 @@
       ctx.arc(-s * R * (0.5 + cf * 0.12), R * 0.75, R * (0.30 + cf * 0.08), 0, Math.PI * 2);
       ctx.stroke();
     }
-    // Cuerpo con el clásico núcleo ARRIÑONADO del monocito.
+    // Cuerpo APLANADO Y ALARGADO (no círculo liso): el monocito rodando
+    // sobre el endotelio bajo cizalla se achata en la dirección del
+    // rodamiento — silueta de "rueda" distinta de cualquier otra residente.
     var g = ctx.createRadialGradient(-R * 0.3, -R * 0.3, R * 0.1, 0, 0, R);
     g.addColorStop(0, "#cfc6ff");
     g.addColorStop(0.55, "#8a7fc8");
     g.addColorStop(1, "#3b3470");
     ctx.fillStyle = g;
-    ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(0, 0, R * 1.28, R * 0.86, 0, 0, Math.PI * 2); ctx.fill();
     ctx.strokeStyle = "#231d4a"; ctx.lineWidth = Math.max(1.8, 2.4 * U); ctx.stroke();
+    // Bandas de rodamiento (tread) en la cara inferior: el rasgo que la
+    // separa de un óvalo genérico y lee como "rueda que avanza".
+    ctx.strokeStyle = "rgba(35,29,74,0.55)";
+    ctx.lineWidth = Math.max(1, 1.3 * U);
+    for (var tr = -2; tr <= 2; tr++) {
+      ctx.beginPath();
+      ctx.moveTo(tr * R * 0.42, R * 0.62);
+      ctx.lineTo(tr * R * 0.42 + R * 0.14, R * 0.82);
+      ctx.stroke();
+    }
     // Núcleo en herradura.
     ctx.fillStyle = "#372c6e";
     ctx.beginPath();
-    ctx.arc(0, 0, R * 0.60, Math.PI * 0.25, Math.PI * 1.55);
-    ctx.arc(0, 0, R * 0.26, Math.PI * 1.55, Math.PI * 0.25, true);
+    ctx.ellipse(0, 0, R * 0.62, R * 0.50, 0, Math.PI * 0.25, Math.PI * 1.55);
+    ctx.ellipse(0, 0, R * 0.30, R * 0.24, 0, Math.PI * 1.55, Math.PI * 0.25, true);
     ctx.closePath();
     ctx.fill();
     // (2) Seudópodos: con la carga se ESTIRAN y se tensan, listos para
@@ -20184,14 +20331,30 @@
     ctx.strokeStyle = "rgba(143,216,168," + (0.38 * (1 - calm)) + ")";
     ctx.lineWidth = Math.max(1.4, 2 * U);
     ctx.beginPath(); ctx.arc(0, 0, R * (1.1 + calm * 1.7), 0, Math.PI * 2); ctx.stroke();
-    // Cuerpo linfocitario: núcleo enorme, citoplasma finito.
+    // Cuerpo linfocitario APACIGUADO: óvalo achatado (no círculo pleno) con
+    // 3 ganchos inhibitorios cortos curvándose HACIA ADENTRO en el borde —
+    // el freno de CTLA-4/receptores inhibitorios que define al Treg, visible
+    // por fuera y no solo en la barra interna. Distinto de cualquier otro
+    // linfocito redondo del roster.
     var g = ctx.createRadialGradient(-R * 0.25, -R * 0.25, R * 0.08, 0, 0, R);
     g.addColorStop(0, "#d8f4e2");
     g.addColorStop(0.55, "#8fd8a8");
     g.addColorStop(1, "#2e6640");
     ctx.fillStyle = g;
-    ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(0, 0, R * 1.08, R * 0.88, 0, 0, Math.PI * 2); ctx.fill();
     ctx.strokeStyle = "#1c4228"; ctx.lineWidth = Math.max(1.8, 2.4 * U); ctx.stroke();
+    ctx.strokeStyle = "rgba(28,66,40,0.8)";
+    ctx.lineWidth = Math.max(1.4, 1.8 * U);
+    ctx.lineCap = "round";
+    for (var hkI = 0; hkI < 3; hkI++) {
+      var hkA = w + hkI * (Math.PI * 2 / 3) + Math.PI / 6;
+      var hkOx = Math.cos(hkA) * R * 1.05, hkOy = Math.sin(hkA) * R * 0.86;
+      var hkIx = Math.cos(hkA) * R * 0.55, hkIy = Math.sin(hkA) * R * 0.45;
+      ctx.beginPath();
+      ctx.moveTo(hkOx, hkOy);
+      ctx.quadraticCurveTo(Math.cos(hkA + 0.5) * R * 0.95, Math.sin(hkA + 0.5) * R * 0.78, hkIx, hkIy);
+      ctx.stroke();
+    }
     // Núcleo grande y excéntrico.
     ctx.fillStyle = "#276039";
     ctx.beginPath(); ctx.arc(-R * 0.08, R * 0.04, R * 0.62, 0, Math.PI * 2); ctx.fill();
@@ -26057,6 +26220,254 @@
       ctx.fillStyle = mwGrad;
       ctx.beginPath(); ctx.arc(ef.x, ef.y, mwR * 0.55, 0, Math.PI * 2); ctx.fill();
       ctx.restore();
+    } else if (ef.kind === "sealPulse") {
+      // Reendotelización: a diferencia de las demás ondas F2 (expansivas),
+      // ésta se CIERRA hacia adentro — lee como sellado, no como impacto.
+      var spT = 1 - ef.life / ef.max;
+      var spR = ef.r * (1 - spT * 0.85);
+      ctx.save();
+      ctx.globalAlpha = (1 - spT) * 0.85;
+      ctx.strokeStyle = "rgba(200,236,240," + (1 - spT) + ")";
+      ctx.lineWidth = (2 + spT * 3) * Math.max(1, U);
+      ctx.beginPath(); ctx.arc(ef.x, ef.y, spR, 0, Math.PI * 2); ctx.stroke();
+      ctx.strokeStyle = "rgba(255,255,255," + ((1 - spT) * 0.6) + ")";
+      ctx.lineWidth = 1.5 * Math.max(1, U);
+      ctx.beginPath(); ctx.arc(ef.x, ef.y, spR * 0.6, 0, Math.PI * 2); ctx.stroke();
+      // Puntadas radiales cerrándose (sutura de tejido nuevo).
+      for (var spI = 0; spI < 10; spI++) {
+        var spA = spI * Math.PI / 5;
+        var spX1 = ef.x + Math.cos(spA) * spR * 1.05, spY1 = ef.y + Math.sin(spA) * spR * 1.05;
+        var spX2 = ef.x + Math.cos(spA) * spR * 0.82, spY2 = ef.y + Math.sin(spA) * spR * 0.82;
+        ctx.strokeStyle = "rgba(230,250,252," + ((1 - spT) * 0.7) + ")";
+        ctx.lineWidth = 1 * Math.max(1, U);
+        ctx.beginPath(); ctx.moveTo(spX1, spY1); ctx.lineTo(spX2, spY2); ctx.stroke();
+      }
+      ctx.restore();
+    } else if (ef.kind === "scrapeTrail") {
+      // Rodamiento del monocito: rastro LINEAL (no anillo) con marcas de
+      // raspado exactamente donde arrancó vegetación de verdad.
+      var stT = 1 - ef.life / ef.max;
+      ctx.save();
+      ctx.globalAlpha = (1 - stT) * 0.8;
+      ctx.strokeStyle = "rgba(180,168,255," + (1 - stT) + ")";
+      ctx.lineWidth = (3 - stT * 1.5) * Math.max(1, U);
+      ctx.beginPath();
+      ctx.moveTo(ef.x - ef.r, ef.y);
+      ctx.lineTo(ef.x + ef.r, ef.y);
+      ctx.stroke();
+      if (ef.hits) {
+        for (var shI = 0; shI < ef.hits.length; shI++) {
+          var hpt = ef.hits[shI];
+          ctx.strokeStyle = "rgba(220,210,255," + ((1 - stT) * 0.9) + ")";
+          ctx.lineWidth = 2 * Math.max(1, U);
+          for (var scr = -1; scr <= 1; scr += 2) {
+            ctx.beginPath();
+            ctx.moveTo(hpt.x - 6 * U, hpt.y + scr * 5 * U);
+            ctx.lineTo(hpt.x + 6 * U, hpt.y - scr * 5 * U);
+            ctx.stroke();
+          }
+        }
+      }
+      ctx.restore();
+    } else if (ef.kind === "conductionBolt") {
+      // Descarga de conducción: un rayo real célula-a-célula (no un anillo
+      // centrado en la torre) — el sistema de conducción cardíaco
+      // propagándose visiblemente hacia cada torre que despierta.
+      var cbT = 1 - ef.life / ef.max;
+      var cbA = 1 - cbT;
+      ctx.save();
+      ctx.globalAlpha = cbA;
+      ctx.strokeStyle = "rgba(255,225,140," + cbA + ")";
+      ctx.lineWidth = 2.2 * Math.max(1, U);
+      ctx.lineCap = "round";
+      var cbDx = ef.x2 - ef.x1, cbDy = ef.y2 - ef.y1;
+      var cbLen = Math.hypot(cbDx, cbDy) || 1;
+      var cbNx = -cbDy / cbLen, cbNy = cbDx / cbLen;
+      var cbSegs = 6;
+      ctx.beginPath();
+      ctx.moveTo(ef.x1, ef.y1);
+      for (var cbI = 1; cbI < cbSegs; cbI++) {
+        var cbF = cbI / cbSegs;
+        var jag = (cbI % 2 === 0 ? 1 : -1) * cbLen * 0.045;
+        ctx.lineTo(ef.x1 + cbDx * cbF + cbNx * jag, ef.y1 + cbDy * cbF + cbNy * jag);
+      }
+      ctx.lineTo(ef.x2, ef.y2);
+      ctx.stroke();
+      ctx.fillStyle = "rgba(255,235,170," + (cbA * 0.6) + ")";
+      ctx.beginPath(); ctx.arc(ef.x2, ef.y2, (5 + cbA * 6) * U, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    } else if (ef.kind === "acidCrater") {
+      // Osteoclasto sin secuestro cerca: el daño en área ya no queda mudo.
+      // Cráter IRREGULAR (no un círculo) — la resorción ácida comiendo hueso
+      // de forma pareja.
+      var acT = 1 - ef.life / ef.max;
+      var acR = ef.r * (0.3 + 0.7 * acT);
+      ctx.save();
+      ctx.globalAlpha = (1 - acT) * 0.75;
+      ctx.fillStyle = "rgba(255,200,90,0.35)";
+      ctx.beginPath();
+      for (var acI = 0; acI <= 14; acI++) {
+        var acA = (acI / 14) * Math.PI * 2;
+        var acRad = acR * (0.75 + 0.25 * Math.sin(acA * 5 + acI));
+        var acx = ef.x + Math.cos(acA) * acRad, acy = ef.y + Math.sin(acA) * acRad;
+        if (acI === 0) ctx.moveTo(acx, acy); else ctx.lineTo(acx, acy);
+      }
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = "rgba(255,225,140," + (1 - acT) + ")";
+      ctx.lineWidth = (2 + acT * 2) * Math.max(1, U);
+      ctx.stroke();
+      ctx.restore();
+    } else if (ef.kind === "networkPing") {
+      // Red canalicular del osteocito: una señal viaja por la red hasta
+      // CADA germen revelado real (línea curva + pulso viajero).
+      var npT = 1 - ef.life / ef.max;
+      ctx.save();
+      ctx.globalAlpha = 1 - npT;
+      ctx.strokeStyle = "rgba(159,176,196,0.55)";
+      ctx.lineWidth = Math.max(1, 1.4 * U);
+      var npMx = (ef.x1 + ef.x2) / 2 + (ef.y1 - ef.y2) * 0.08;
+      var npMy = (ef.y1 + ef.y2) / 2 + (ef.x2 - ef.x1) * 0.08;
+      ctx.beginPath();
+      ctx.moveTo(ef.x1, ef.y1);
+      ctx.quadraticCurveTo(npMx, npMy, ef.x2, ef.y2);
+      ctx.stroke();
+      var npP = Math.min(1, npT * 1.3);
+      var npIt = 1 - npP;
+      var npx = npIt * npIt * ef.x1 + 2 * npIt * npP * npMx + npP * npP * ef.x2;
+      var npy = npIt * npIt * ef.y1 + 2 * npIt * npP * npMy + npP * npP * ef.y2;
+      ctx.fillStyle = "rgba(210,235,255," + (1 - npT) + ")";
+      ctx.beginPath(); ctx.arc(npx, npy, 3 * U, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    } else if (ef.kind === "suctionBurst") {
+      // Aclaramiento sinovial: vórtice que succiona HACIA ADENTRO — la
+      // dirección opuesta a cualquier otro impacto F2, se lee como
+      // aspiración, no como choque.
+      var sbkT = 1 - ef.life / ef.max;
+      ctx.save();
+      ctx.globalAlpha = (1 - sbkT) * 0.8;
+      ctx.strokeStyle = "rgba(111,168,176," + (1 - sbkT) + ")";
+      ctx.lineWidth = Math.max(1, 2 * U);
+      for (var svI = 0; svI < 3; svI++) {
+        ctx.beginPath();
+        for (var svA = 0; svA <= 20; svA++) {
+          var svAng = (svA / 20) * Math.PI * 2.4 + svI * (Math.PI * 2 / 3) + sbkT * 5;
+          var svR = ef.r * (1 - sbkT) * (1 - svA / 24);
+          var svx = ef.x + Math.cos(svAng) * svR, svy = ef.y + Math.sin(svAng) * svR;
+          if (svA === 0) ctx.moveTo(svx, svy); else ctx.lineTo(svx, svy);
+        }
+        ctx.stroke();
+      }
+      ctx.restore();
+    } else if (ef.kind === "netSnap") {
+      // Macrófago alveolar: la malla capilar (el mismo hexágono de su
+      // cuerpo en reposo) se CIERRA de golpe atrapando cada fragmento real.
+      var nsT = 1 - ef.life / ef.max;
+      var nsR = ef.r * (1 - nsT * 0.8);
+      ctx.save();
+      ctx.globalAlpha = (1 - nsT) * 0.85;
+      ctx.strokeStyle = "rgba(255,200,214," + (1 - nsT) + ")";
+      ctx.lineWidth = (2.5 - nsT * 1.2) * Math.max(1, U);
+      ctx.beginPath();
+      for (var nsI = 0; nsI <= 6; nsI++) {
+        var nsA = (nsI / 6) * Math.PI * 2;
+        var nsx = ef.x + Math.cos(nsA) * nsR, nsy = ef.y + Math.sin(nsA) * nsR;
+        if (nsI === 0) ctx.moveTo(nsx, nsy); else ctx.lineTo(nsx, nsy);
+      }
+      ctx.closePath();
+      ctx.stroke();
+      if (ef.hits) {
+        for (var nsH = 0; nsH < ef.hits.length; nsH++) {
+          ctx.fillStyle = "rgba(255,220,230," + ((1 - nsT) * 0.8) + ")";
+          ctx.beginPath(); ctx.arc(ef.hits[nsH].x, ef.hits[nsH].y, (4 + nsT * 5) * U, 0, Math.PI * 2); ctx.fill();
+        }
+      }
+      ctx.restore();
+    } else if (ef.kind === "collagenCinch") {
+      // Fibroblasto encapsulante: los anillos de colágeno de su halo se
+      // CIERRAN de golpe sobre cada colección sellada real.
+      var ccT = 1 - ef.life / ef.max;
+      ctx.save();
+      ctx.globalAlpha = (1 - ccT) * 0.85;
+      ctx.strokeStyle = "rgba(200,176,136," + (1 - ccT) + ")";
+      ctx.lineWidth = Math.max(1, (2.4 - ccT * 1.5) * U);
+      for (var ccR = 0; ccR < 3; ccR++) {
+        var ccRad = ef.r * (0.35 + ccR * 0.25) * (1 - ccT * 0.6);
+        ctx.beginPath(); ctx.arc(ef.x, ef.y, ccRad, 0, Math.PI * 2); ctx.stroke();
+      }
+      if (ef.hits) {
+        for (var ccH = 0; ccH < ef.hits.length; ccH++) {
+          ctx.fillStyle = "rgba(255,245,225," + ((1 - ccT) * 0.75) + ")";
+          ctx.beginPath(); ctx.arc(ef.hits[ccH].x, ef.hits[ccH].y, (5 + ccT * 6) * U, 0, Math.PI * 2); ctx.fill();
+        }
+      }
+      ctx.restore();
+    } else if (ef.kind === "dendriteReach") {
+      // Dendrítica migratoria: dendritas RAMIFICADAS llegando a cada germen
+      // marcado real — no un anillo, una red que se extiende.
+      var drT = 1 - ef.life / ef.max;
+      ctx.save();
+      ctx.globalAlpha = 1 - drT;
+      ctx.strokeStyle = "#4e8a80";
+      ctx.lineWidth = Math.max(1.2, 1.8 * U);
+      ctx.lineCap = "round";
+      if (ef.hits) {
+        for (var drH = 0; drH < ef.hits.length; drH++) {
+          var hpt2 = ef.hits[drH];
+          var mxr = ef.x + (hpt2.x - ef.x) * 0.6, myr = ef.y + (hpt2.y - ef.y) * 0.6;
+          ctx.beginPath();
+          ctx.moveTo(ef.x, ef.y);
+          ctx.lineTo(mxr, myr);
+          ctx.stroke();
+          for (var drB = -1; drB <= 1; drB += 2) {
+            ctx.beginPath();
+            ctx.moveTo(mxr, myr);
+            ctx.lineTo(mxr + (hpt2.x - mxr) + drB * (hpt2.y - myr) * 0.2,
+                       myr + (hpt2.y - myr) - drB * (hpt2.x - mxr) * 0.2);
+            ctx.stroke();
+          }
+          ctx.fillStyle = "rgba(255,255,255,0.75)";
+          ctx.beginPath(); ctx.arc(hpt2.x, hpt2.y, 3 * U, 0, Math.PI * 2); ctx.fill();
+        }
+      }
+      ctx.restore();
+    } else if (ef.kind === "calmWave") {
+      // Treg: ráfaga grande de la misma onda calmante que ya respira en su
+      // cuerpo en reposo — versión de una sola vez, mucho más intensa.
+      var cwT = 1 - ef.life / ef.max;
+      var cwR = ef.r * (0.1 + 0.9 * cwT);
+      ctx.save();
+      ctx.globalAlpha = (1 - cwT) * 0.7;
+      ctx.strokeStyle = "rgba(143,216,168," + (1 - cwT) + ")";
+      ctx.lineWidth = (5 - cwT * 3) * Math.max(1, U);
+      ctx.beginPath(); ctx.arc(ef.x, ef.y, cwR, 0, Math.PI * 2); ctx.stroke();
+      var cwGrad = ctx.createRadialGradient(ef.x, ef.y, 0, ef.x, ef.y, cwR);
+      cwGrad.addColorStop(0, "rgba(143,216,168," + ((1 - cwT) * 0.22) + ")");
+      cwGrad.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.fillStyle = cwGrad;
+      ctx.beginPath(); ctx.arc(ef.x, ef.y, cwR, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    } else if (ef.kind === "matrixGrow") {
+      // Condrocito: fibras de colágeno CRECIENDO hacia afuera de una sola
+      // vez — brote de matriz, no un impacto ni un anillo genérico.
+      var mgT = 1 - ef.life / ef.max;
+      ctx.save();
+      ctx.globalAlpha = (1 - mgT) * 0.85;
+      ctx.strokeStyle = "rgba(220,235,240," + (1 - mgT) + ")";
+      ctx.lineWidth = Math.max(0.8, 1.3 * U);
+      var mgN = 14;
+      for (var mgI = 0; mgI < mgN; mgI++) {
+        var mgA = (mgI / mgN) * Math.PI * 2;
+        var mgLen = ef.r * mgT;
+        ctx.beginPath();
+        ctx.moveTo(ef.x + Math.cos(mgA) * ef.r * 0.15, ef.y + Math.sin(mgA) * ef.r * 0.15);
+        ctx.lineTo(ef.x + Math.cos(mgA) * (ef.r * 0.15 + mgLen), ef.y + Math.sin(mgA) * (ef.r * 0.15 + mgLen));
+        ctx.stroke();
+      }
+      ctx.strokeStyle = "rgba(255,255,255," + ((1 - mgT) * 0.6) + ")";
+      ctx.lineWidth = Math.max(1, 1.6 * U);
+      ctx.beginPath(); ctx.arc(ef.x, ef.y, ef.r * 0.15 + ef.r * mgT, 0, Math.PI * 2); ctx.stroke();
+      ctx.restore();
     }
   }
 
@@ -29591,12 +30002,19 @@
     var boca = worldW * 0.5 * (1 - conv) * 1.05;      // media boca de la valva
     var hueco = boca * (1 - cierre) * 0.5;             // separación entre velos
     var caida = worldH * 0.055 * (1 - cierre * 0.55);  // cuánto cuelgan
+    // BARRERA FÍSICA QUE SE CARCOME: la válvula es un tejido con integridad
+    // real (f.integrity/cfg.integrityMax), igual que el cartílago articular
+    // (ver drawJointAnatomy). erosion 0 = velo intacto, 1 = casi perforado.
+    // No toca el latido (cierre/beat siguen intactos) — solo cuánto se ve
+    // comido el borde libre del velo.
+    var erosion = cfg.integrityMax ? Math.max(0, Math.min(1, 1 - (f.integrity / cfg.integrityMax))) : 0;
     for (var lado = -1; lado <= 1; lado += 2) {
       var xOut = cxV + lado * boca;
       var xIn  = cxV + lado * hueco;
+      var cpx = cxV + lado * boca * 0.55, cpy = vy + caida;
       ctx.beginPath();
       ctx.moveTo(xOut, vy);
-      ctx.quadraticCurveTo(cxV + lado * boca * 0.55, vy + caida, xIn, vy + caida * 0.92);
+      ctx.quadraticCurveTo(cpx, cpy, xIn, vy + caida * 0.92);
       ctx.lineTo(xIn, vy + caida * 0.92 - 2 * U);
       ctx.quadraticCurveTo(cxV + lado * boca * 0.6, vy + caida * 0.5, xOut, vy - 2 * U);
       ctx.closePath();
@@ -29605,6 +30023,24 @@
       ctx.strokeStyle = colorAlpha(cfg.colorLight, 0.26 + cierre * 0.22);
       ctx.lineWidth = 2 * U;
       ctx.stroke();
+      // Mordidas de erosión sobre el BORDE LIBRE (la curva xOut→xIn de
+      // arriba, donde asienta la vegetación real): mismo patrón que el
+      // cartílago, escaladas por daño acumulado, no por el latido.
+      if (erosion > 0.04) {
+        ctx.fillStyle = colorAlpha(cfg.colorDark, 0.55 + erosion * 0.25);
+        for (var bi = 1; bi < 9; bi++) {
+          var bt = bi / 9;
+          var it = 1 - bt;
+          var bx = it * it * xOut + 2 * it * bt * cpx + bt * bt * xIn;
+          var by = it * it * vy + 2 * it * bt * cpy + bt * bt * (vy + caida * 0.92);
+          var biteSeed = (bi * 7 + (lado > 0 ? 3 : 0)) % 5;
+          var biteR = erosion * (2.2 + biteSeed * 0.9) * U;
+          if (biteR < 0.6 * U) continue;
+          ctx.beginPath();
+          ctx.arc(bx, by, biteR, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
     }
     // Miocardio de fondo latiendo (bandas curvas).
     ctx.strokeStyle = colorAlpha(cfg.color, 0.13 + beat * 0.06);
@@ -29782,22 +30218,48 @@
       ctx.fillRect(-ab.r, ab.r * 0.95, ab.r * 2 * Math.max(0, ab.hp / ab.maxHp), 3 * U);
       ctx.restore();
     }
-    // Involucros (muros de hueso nuevo del Osteoblasto).
+    // Muros físicos: Involucros de hueso (Osteoblasto) y barreras
+    // capsulares (Artritis, estilo Zuma) — misma mecánica, look distinto.
     for (var w = 0; w < f.walls.length; w++) {
       var wl = f.walls[w];
       ctx.save();
       ctx.translate(wl.x, wl.y);
-      ctx.fillStyle = colorAlpha("#e0d2a4", 0.92);
-      roundRect(-wl.w / 2, -wl.h / 2, wl.w, wl.h, 4 * U);
-      ctx.fill();
-      ctx.strokeStyle = colorAlpha(wl.flash > 0 ? "#fff0c0" : "#7a6c40", 0.95);
-      ctx.lineWidth = 2;
-      roundRect(-wl.w / 2, -wl.h / 2, wl.w, wl.h, 4 * U);
-      ctx.stroke();
-      ctx.fillStyle = "rgba(0,0,0,0.40)";
-      ctx.fillRect(-wl.w / 2, wl.h / 2 + 2 * U, wl.w, 3 * U);
-      ctx.fillStyle = "#f0e0a8";
-      ctx.fillRect(-wl.w / 2, wl.h / 2 + 2 * U, wl.w * Math.max(0, wl.hp / wl.maxHp), 3 * U);
+      if (wl.kind === "capsula") {
+        // Pliegue de cápsula sinovial: tejido fibroso translúcido en
+        // tensión, no una tabla sólida — se lee como membrana, no hueso.
+        ctx.fillStyle = colorAlpha("#bfe8ee", 0.30 + (wl.flash > 0 ? 0.25 : 0));
+        roundRect(-wl.w / 2, -wl.h / 2, wl.w, wl.h, wl.w * 0.4);
+        ctx.fill();
+        ctx.strokeStyle = colorAlpha(wl.flash > 0 ? "#ffffff" : "#8ec5d0", 0.9);
+        ctx.lineWidth = 2;
+        roundRect(-wl.w / 2, -wl.h / 2, wl.w, wl.h, wl.w * 0.4);
+        ctx.stroke();
+        // Fibras en tensión cruzando el pliegue.
+        ctx.strokeStyle = colorAlpha("#eaf8fa", 0.55);
+        ctx.lineWidth = 1;
+        for (var fbI = -1; fbI <= 1; fbI++) {
+          ctx.beginPath();
+          ctx.moveTo(-wl.w / 2, fbI * wl.h * 0.3);
+          ctx.lineTo(wl.w / 2, -fbI * wl.h * 0.3);
+          ctx.stroke();
+        }
+        ctx.fillStyle = "rgba(0,0,0,0.35)";
+        ctx.fillRect(-wl.w / 2, wl.h / 2 + 2 * U, wl.w, 3 * U);
+        ctx.fillStyle = "#d8f4f8";
+        ctx.fillRect(-wl.w / 2, wl.h / 2 + 2 * U, wl.w * Math.max(0, wl.hp / wl.maxHp), 3 * U);
+      } else {
+        ctx.fillStyle = colorAlpha("#e0d2a4", 0.92);
+        roundRect(-wl.w / 2, -wl.h / 2, wl.w, wl.h, 4 * U);
+        ctx.fill();
+        ctx.strokeStyle = colorAlpha(wl.flash > 0 ? "#fff0c0" : "#7a6c40", 0.95);
+        ctx.lineWidth = 2;
+        roundRect(-wl.w / 2, -wl.h / 2, wl.w, wl.h, 4 * U);
+        ctx.stroke();
+        ctx.fillStyle = "rgba(0,0,0,0.40)";
+        ctx.fillRect(-wl.w / 2, wl.h / 2 + 2 * U, wl.w, 3 * U);
+        ctx.fillStyle = "#f0e0a8";
+        ctx.fillRect(-wl.w / 2, wl.h / 2 + 2 * U, wl.w * Math.max(0, wl.hp / wl.maxHp), 3 * U);
+      }
       ctx.restore();
       if (wl.flash > 0) wl.flash -= 0.016;
     }

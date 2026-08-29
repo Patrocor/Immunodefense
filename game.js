@@ -4460,28 +4460,6 @@
   // Composición de la oleada que VIENE, en cualquiera de los tres motores
   // (Fase 1, Diseminación y niveles de órgano). Devuelve [{type, count}] o
   // null si no hay próxima (última ola ya lanzada o final del nivel).
-  // Línea de oleadas del nivel: cuántas son, cuáles ya pasaron y en cuáles
-  // hay jefe. Devuelve null si el motor no tiene una tabla cerrada.
-  function levelWaveTrack() {
-    function tieneBoss(w) {
-      for (var i = 0; i < w.length; i++) if (/^boss/.test(w[i][0])) return true;
-      return false;
-    }
-    var tabla = null, cur = 0;
-    if (state.f2) { tabla = state.f2.cfg.waves; cur = state.f2.waveIdx; }
-    else if (state.dissemination) {
-      tabla = DISSEMINATION_WAVE_TABLE; cur = state.disseminationWaveIdx || 0;
-    } else {
-      var keys = [];
-      for (var k in WAVE_TABLE) if (WAVE_TABLE.hasOwnProperty(k)) keys.push(Number(k));
-      keys.sort(function (a, b) { return a - b; });
-      tabla = keys.map(function (kk) { return WAVE_TABLE[kk]; });
-      cur = state.waveIdx;
-    }
-    if (!tabla || !tabla.length) return null;
-    return { cur: cur, bosses: tabla.map(tieneBoss) };
-  }
-
   // Panel de intel del dock: ocupa la columna que quedaba vacía con las dos
   // cosas que durante la partida no se pueden consultar en ningún lado — la
   // mecánica del nivel (solo se veía en la placa de entrada) y qué gérmenes
@@ -4545,65 +4523,6 @@
     // donde terminó el bloque de MECÁNICA, sin ese panel en el medio.
     var trasFilas = y + 4;
     var statsH = (box.y + box.h - trasFilas >= 130) ? 62 : 0;
-
-    // --- Línea de oleadas (se estira para tapar el hueco que quede) -------
-    // Es lo único de la columna que quiere alto: en tablet ocupa 600 px y en
-    // un teléfono desaparece sola. Muestra cuántas olas faltan y dónde caen
-    // los jefes — información que si no hay que memorizar.
-    var pistaTop = trasFilas + 6;
-    var pistaBottom = box.y + box.h - (statsH > 0 ? statsH : 0) - 4;
-    var track = levelWaveTrack();
-    if (track && pistaBottom - pistaTop >= 54) {
-      var nW = track.bosses.length;
-      var pistaH = pistaBottom - pistaTop - 12;
-      var paso = pistaH / Math.max(1, nW - 1);
-      var ejeX = box.x + 14;
-      ctx.textAlign = "left";
-      ctx.fillStyle = "rgba(255,255,255,0.42)";
-      ctx.font = "bold 8px Fredoka, sans-serif";
-      ctx.fillText("OLEADAS", innerX, pistaTop);
-      var y0 = pistaTop + 12;
-      // Riel completo + tramo ya jugado.
-      ctx.fillStyle = "rgba(255,255,255,0.12)";
-      ctx.fillRect(ejeX - 1, y0, 2, pistaH);
-      if (track.cur > 0) {
-        ctx.fillStyle = "rgba(255, 210, 74, 0.55)";
-        ctx.fillRect(ejeX - 1, y0, 2, Math.min(pistaH, paso * (track.cur - 1) + 1));
-      }
-      for (var wi = 0; wi < nW; wi++) {
-        var wy = y0 + paso * wi;
-        var hecha = (wi < track.cur - 1);
-        var actual = (wi === track.cur - 1);
-        var esB = track.bosses[wi];
-        var col = actual ? "#ffd24a" : hecha ? "rgba(255,210,74,0.45)" : "rgba(255,255,255,0.28)";
-        if (esB) {
-          // Jefe: rombo, siempre legible aunque falte mucho para llegar.
-          var rB = actual ? 6 : 5;
-          ctx.fillStyle = hecha || actual ? col : "rgba(255,120,110,0.55)";
-          ctx.beginPath();
-          ctx.moveTo(ejeX, wy - rB); ctx.lineTo(ejeX + rB, wy);
-          ctx.lineTo(ejeX, wy + rB); ctx.lineTo(ejeX - rB, wy);
-          ctx.closePath(); ctx.fill();
-        } else {
-          ctx.fillStyle = col;
-          ctx.beginPath(); ctx.arc(ejeX, wy, actual ? 4.5 : 3, 0, Math.PI * 2); ctx.fill();
-        }
-        if (actual) {
-          ctx.strokeStyle = "rgba(255,230,150,0.85)";
-          ctx.lineWidth = 1.5;
-          ctx.beginPath(); ctx.arc(ejeX, wy, 8, 0, Math.PI * 2); ctx.stroke();
-        }
-        // Número de ola cuando hay sitio de sobra entre pips.
-        if (paso >= 16) {
-          ctx.textAlign = "left";
-          ctx.fillStyle = actual ? "#ffd24a" : "rgba(255,255,255,0.40)";
-          ctx.font = (actual ? "bold " : "") + "9px Fredoka, sans-serif";
-          ctx.textBaseline = "middle";
-          ctx.fillText(esB ? (wi + 1) + " ♦" : String(wi + 1), ejeX + 12, wy);
-          ctx.textBaseline = "top";
-        }
-      }
-    }
 
     // --- Estado de la partida (llena el resto de la columna) --------------
     // Lo que hay que mirar sin despegar la vista del campo: cuántas células

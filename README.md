@@ -13,6 +13,18 @@ Prototipo jugable en HTML5 + Canvas 2D. Vanilla JS, sin dependencias, un
 - Online (Vercel): https://immunodefense.vercel.app
 - Local: clona el repo y abre `index.html` directamente en el navegador.
 
+## Progreso de campaña
+
+El juego guarda progreso localmente en el navegador/dispositivo mediante
+`localStorage`. Al volver a abrir ImmunoDefense, la pantalla de título muestra
+**Continuar**, **Nueva partida** y **Ver mapa** si ya existe una campaña en
+curso. El guardado ocurre en hitos narrativos: Fase 1 superada, Diseminación
+resuelta y niveles de órgano completados.
+
+También hay logros persistentes con notificaciones en pantalla para hitos como
+primera eliminación, oleadas alcanzadas, Diseminación resuelta, llegada a
+Sepsis y final de Shock/MODS.
+
 ## Cómo jugar
 
 - **Click / Tap** en una carta del panel inferior para elegir una célula

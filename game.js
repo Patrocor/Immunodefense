@@ -5153,7 +5153,8 @@
   var META = {
     totalPathogensDefeated: 0,
     totalPathogensInfiltrated: 0,
-    wavesReached: 1
+    wavesReached: 1,
+    highestLevelReached: 1
   };
   function loadMeta() {
     try {
@@ -5163,6 +5164,7 @@
         META.totalPathogensDefeated = parseInt(p.totalPathogensDefeated) || 0;
         META.totalPathogensInfiltrated = parseInt(p.totalPathogensInfiltrated) || 0;
         META.wavesReached = Math.max(1, parseInt(p.wavesReached) || 1);
+        META.highestLevelReached = Math.max(1, parseInt(p.highestLevelReached) || 1);
       }
     } catch (e) {}
   }
@@ -5172,6 +5174,139 @@
     } catch (e) {}
   }
   loadMeta();
+
+  // ---- Campaña persistente (producto móvil) -----------------------------
+  // Guarda hitos narrativos en localStorage: no intenta congelar una oleada
+  // a mitad de combate, sino continuar desde el próximo nodo del mapa.
+  var CAMPAIGN_KEY = "immunodefense_campaign_v1";
+  function clonePlain(obj) {
+    var out = {};
+    if (!obj) return out;
+    for (var k in obj) if (Object.prototype.hasOwnProperty.call(obj, k)) out[k] = !!obj[k];
+    return out;
+  }
+  function campaignSnapshotFrom(st) {
+    return {
+      version: 1,
+      savedAt: Date.now(),
+      completedMapNodes: clonePlain(st.completedMapNodes),
+      unlockedF2: st.unlockedF2 || null,
+      activeF3: st.activeF3 || null,
+      lastDisseminationMode: st.lastDisseminationMode || null,
+      lastF2Mode: st.lastF2Mode || null,
+      lastF2Key: st.lastF2Key || null
+    };
+  }
+  function campaignHasProgress(save) {
+    if (!save) return false;
+    var done = save.completedMapNodes || {};
+    for (var k in done) if (done[k]) return true;
+    return !!(save.unlockedF2 || save.activeF3);
+  }
+  function getCampaignSave() {
+    try {
+      var raw = localStorage.getItem(CAMPAIGN_KEY);
+      if (!raw) return null;
+      var save = JSON.parse(raw);
+      return campaignHasProgress(save) ? save : null;
+    } catch (e) { return null; }
+  }
+  function saveCampaignProgress() {
+    try {
+      localStorage.setItem(CAMPAIGN_KEY, JSON.stringify(campaignSnapshotFrom(state)));
+    } catch (e) {}
+  }
+  function clearCampaignProgress() {
+    try { localStorage.removeItem(CAMPAIGN_KEY); } catch (e) {}
+  }
+  function applyCampaignSaveTo(st, save) {
+    if (!campaignHasProgress(save)) return false;
+    st.completedMapNodes = clonePlain(save.completedMapNodes);
+    st.unlockedF2 = save.unlockedF2 || null;
+    st.activeF3 = save.activeF3 || null;
+    st.lastDisseminationMode = save.lastDisseminationMode || null;
+    st.lastF2Mode = save.lastF2Mode || null;
+    st.lastF2Key = save.lastF2Key || null;
+    return true;
+  }
+  function campaignSummary(save) {
+    if (!save) return "Sin campaña guardada";
+    var done = save.completedMapNodes || {};
+    if (done.mods) return "Campaña completa · Shock/MODS resuelto";
+    if (done.sepsis) return "Siguiente: Shock séptico / MODS";
+    if (done.f3_pulm || done.f3_cereb || done.f3_bazo || done.f3_epid || done.f3_bact || done.f3_fasc || done.f3_multi || done.f3_osloc || done.f3_pust) return "Siguiente: Sepsis sistémica";
+    if (done.endocarditis || done.osteomielitis || done.artritis) return "Siguiente: complicación Fase 3";
+    if (done.dissem) return "Siguiente: " + ((save.unlockedF2 || "endocarditis") + "").toUpperCase();
+    if (done.fase1) return "Siguiente: Diseminación sanguínea";
+    return "Campaña iniciada";
+  }
+
+  // ---- Logros persistentes ------------------------------------------------
+  // Pequeña capa de retención: los logros se desbloquean por hitos globales
+  // y de campaña. No afectan balance; solo dan feedback y objetivos claros.
+  var ACHIEVEMENTS_KEY = "immunodefense_achievements_v1";
+  var ACHIEVEMENTS = [
+    { id: "first_kill", icon: "🧫", title: "Primera neutralización", desc: "Elimina tu primer patógeno" },
+    { id: "wave_5", icon: "🛡️", title: "Primera línea firme", desc: "Alcanza la oleada 5" },
+    { id: "wave_10", icon: "🔥", title: "Respuesta sostenida", desc: "Alcanza la oleada 10" },
+    { id: "hundred_kills", icon: "⚔️", title: "Barrido inmunológico", desc: "Elimina 100 patógenos en total" },
+    { id: "first_bacteremia", icon: "🩸", title: "Bacteriemia detectada", desc: "Un patógeno alcanza el torrente sanguíneo" },
+    { id: "fase1_done", icon: "🧱", title: "Barrera cutánea superada", desc: "Completa la Fase 1" },
+    { id: "dissem_done", icon: "🌊", title: "Diseminación resuelta", desc: "Cierra el puente sanguíneo" },
+    { id: "organ_done", icon: "🫀", title: "Órgano comprometido", desc: "Completa un nivel de órgano" },
+    { id: "sepsis_reached", icon: "🚨", title: "Alerta sistémica", desc: "Llega a Sepsis" },
+    { id: "mods_done", icon: "🏁", title: "Final clínico", desc: "Completa Shock/MODS" }
+  ];
+  function achievementById(id) {
+    for (var i = 0; i < ACHIEVEMENTS.length; i++) if (ACHIEVEMENTS[i].id === id) return ACHIEVEMENTS[i];
+    return null;
+  }
+  function loadAchievements() {
+    try {
+      var raw = localStorage.getItem(ACHIEVEMENTS_KEY);
+      var map = raw ? JSON.parse(raw) : {};
+      return map && typeof map === "object" ? map : {};
+    } catch (e) { return {}; }
+  }
+  var ACHIEVEMENTS_UNLOCKED = loadAchievements();
+  function saveAchievements() {
+    try { localStorage.setItem(ACHIEVEMENTS_KEY, JSON.stringify(ACHIEVEMENTS_UNLOCKED)); } catch (e) {}
+  }
+  function achievementCount() {
+    var n = 0;
+    for (var i = 0; i < ACHIEVEMENTS.length; i++) if (ACHIEVEMENTS_UNLOCKED[ACHIEVEMENTS[i].id]) n++;
+    return n;
+  }
+  function unlockAchievement(id) {
+    if (ACHIEVEMENTS_UNLOCKED[id]) return false;
+    var a = achievementById(id);
+    if (!a) return false;
+    ACHIEVEMENTS_UNLOCKED[id] = Date.now();
+    saveAchievements();
+    saveMeta();
+    if (state) {
+      if (!state.achievementToasts) state.achievementToasts = [];
+      state.achievementToasts.push({ id: id, t: 0, life: 4.0, icon: a.icon, title: a.title, desc: a.desc });
+      if (state.achievementToasts.length > 4) state.achievementToasts.shift();
+    }
+    return true;
+  }
+  function checkAchievements() {
+    if (!state) return;
+    if (META.totalPathogensDefeated >= 1 || state.pathogensDefeated >= 1) unlockAchievement("first_kill");
+    if (META.wavesReached >= 5 || state.waveIdx >= 5) unlockAchievement("wave_5");
+    if (META.wavesReached >= 10 || state.waveIdx >= 10) unlockAchievement("wave_10");
+    if (META.totalPathogensDefeated >= 100) unlockAchievement("hundred_kills");
+    if (META.totalPathogensInfiltrated >= 1 || state.pathogensReached >= 1) unlockAchievement("first_bacteremia");
+    var done = state.completedMapNodes || {};
+    if (done.fase1) unlockAchievement("fase1_done");
+    if (done.dissem) unlockAchievement("dissem_done");
+    if (done.endocarditis || done.osteomielitis || done.artritis ||
+        done.f3_pulm || done.f3_cereb || done.f3_bazo || done.f3_epid || done.f3_bact || done.f3_fasc ||
+        done.f3_multi || done.f3_osloc || done.f3_pust) unlockAchievement("organ_done");
+    if (done.sepsis || done.mods) unlockAchievement("sepsis_reached");
+    if (done.mods) unlockAchievement("mods_done");
+  }
 
   function newState() {
     return {
@@ -5243,6 +5378,7 @@
       lastPlaceFailedAt: -10,
       msg: "",
       msgTimer: 0,
+      achievementToasts: [],
       gameOver: false,
       victory: false,
       time: 0,
@@ -5309,6 +5445,8 @@
       introScene: 0,
       introOutroT: null,   // != null durante la transición final (zoom continuo hacia el juego)
       tutorialOpen: false,
+      achievementsOpen: false,
+      achievementCards: [],
       tutorialScroll: 0,
       tutorialMomentum: 0,
       tutorialUserScrolled: false,
@@ -5375,6 +5513,11 @@
     // Salto directo a un nivel de Fase 2 (pruebas): __game.goF2("artritis").
     goF2: function (key) { state.showTitle = false; state.showIntro = false; enterF2TD(key); },
     goMap: function () { state.showTitle = false; state.showIntro = false; enterBodyMapForState(); },
+    saveCampaign: saveCampaignProgress,
+    clearCampaign: clearCampaignProgress,
+    continueCampaign: continueCampaign,
+    achievements: function () { return { unlocked: ACHIEVEMENTS_UNLOCKED, count: achievementCount(), total: ACHIEVEMENTS.length }; },
+    unlockAchievement: unlockAchievement,
     // Coloca una torre en coordenadas normalizadas del MUNDO (0..1).
     place: function (typeId, wnx, wny) {
       placeTower(FIELD_LEFT + wnx * dsWorldW(), FIELD_TOP + wny * dsWorldH(), typeId);
@@ -7565,6 +7708,7 @@
     state.dissemination = false;
     state.completedMapNodes = state.completedMapNodes || {};
     state.completedMapNodes[key] = true;
+    saveCampaignProgress();
     state.enemies.length = 0;
     state.pendingSpawns = [];
     state.waveActive = false;
@@ -14135,6 +14279,37 @@
     layoutDrip();
   }
 
+  function startNewCampaign() {
+    clearCampaignProgress();
+    state = newState();
+    state.vistos = loadVistos();
+    state.showTitle = false;
+    state.showIntro = true;
+    state.introScene = 0;
+    state.introT = 0;
+    state.introOutroT = null;
+    rebuildPath();
+    layoutDrip();
+    ensureAudio();
+  }
+
+  function continueCampaign() {
+    var save = getCampaignSave();
+    if (!save) { startNewCampaign(); return; }
+    state = newState();
+    state.vistos = loadVistos();
+    applyCampaignSaveTo(state, save);
+    state.showTitle = false;
+    state.showIntro = false;
+    rebuildPath();
+    layoutDrip();
+    ensureAudio();
+    enterBodyMapForState({
+      title: "CAMPAÑA RESTAURADA",
+      subtitle: campaignSummary(save)
+    });
+  }
+
   function updateEffects(dt) {
     for (var i = 0; i < state.effects.length; i++) {
       var ef = state.effects[i];
@@ -15652,6 +15827,14 @@
   }
 
   function handleClick(x, y) {
+    // Logros: modal accesible desde la portada.
+    if (state.achievementsOpen) {
+      if (UI.achievementClose && inRect(x, y, UI.achievementClose)) {
+        state.achievementsOpen = false;
+        UI.achievementCards = [];
+      }
+      return;
+    }
     // Tutorial: "Cerrar" vuelve a la pantalla de título. Cualquier otro
     // tap dentro (que no fue drag) es un no-op sobre una tarjeta.
     if (state.tutorialOpen) {
@@ -15666,11 +15849,20 @@
       }
       return;
     }
-    // Pantalla de título: un clic en cualquier lado arranca el cómic.
+    // Pantalla de título: ahora distingue Continuar / Nueva partida / Mapa.
     if (state.showTitle) {
-      state.showTitle = false;
-      state.introScene = 0; state.introT = 0;
-      ensureAudio();
+      if (UI.titleAchievementsBtn && inRect(x, y, UI.titleAchievementsBtn)) { state.achievementsOpen = true; return; }
+      if (UI.titleContinueBtn && inRect(x, y, UI.titleContinueBtn)) { continueCampaign(); return; }
+      if (UI.titleMapBtn && inRect(x, y, UI.titleMapBtn)) { continueCampaign(); return; }
+      if (UI.titleNewBtn && inRect(x, y, UI.titleNewBtn)) { startNewCampaign(); return; }
+      if (UI.startBtn && inRect(x, y, UI.startBtn)) {
+        if (getCampaignSave()) continueCampaign();
+        else startNewCampaign();
+        return;
+      }
+      // Tap fuera de botones: continuar si hay progreso; si no, arrancar intro.
+      if (getCampaignSave()) continueCampaign();
+      else startNewCampaign();
       return;
     }
     // Comic intro: "Saltar" cierra todo, "Tutorial" abre el carrusel,
@@ -16327,6 +16519,11 @@
     ensureAudio();
     var p = canvasPosFromEvent(evt);
     state.pointer.x = p.x; state.pointer.y = p.y; state.pointer.isOver = true;
+    // Logros: modal completo, sin propagar taps a la portada.
+    if (state.achievementsOpen) {
+      handleClick(p.x, p.y);
+      return;
+    }
     // Tutorial: atrapa todo el input. Tap sobre "Cerrar" se procesa en
     // handleClick (UI.tutorialClose); cualquier otro tap dentro de la tira
     // de tarjetas arranca un drag de scroll horizontal (mismo patrón que
@@ -16582,7 +16779,7 @@
       e.preventDefault();
       ensureAudio();
       if (state.tutorialOpen) return;
-      if (state.showTitle) { state.showTitle = false; state.introScene = 0; state.introT = 0; return; }
+      if (state.showTitle) { if (getCampaignSave()) continueCampaign(); else startNewCampaign(); return; }
       if (state.showIntro) { introAdvance(); return; }
       if (state.confirmRestart) { state.confirmRestart = false; return; }
       // Waves auto-spawn now; SPACE skips countdown if any.
@@ -16590,7 +16787,8 @@
         state.nextWaveAt = 0;
       }
     } else if (e.key === "Escape") {
-      if (state.confirmRestart) state.confirmRestart = false;
+      if (state.achievementsOpen) state.achievementsOpen = false;
+      else if (state.confirmRestart) state.confirmRestart = false;
       else {
         state.selectedToBuild = null; state.selectedTower = null; clearRangeHint();
         state.armedResponse = null; state.armedMacrofago = false;
@@ -28496,6 +28694,98 @@
     ctx.restore();
   }
 
+  // -------- LOGROS Y ESTADÍSTICAS --------------------------------------
+  function drawAchievementsScreen() {
+    if (!state.achievementsOpen) { UI.achievementCards = []; UI.achievementClose = null; return; }
+    ctx.save();
+    ctx.fillStyle = "rgba(5, 2, 5, 0.93)";
+    ctx.fillRect(0, 0, VW, VH);
+
+    var modalW = Math.min(VW * 0.92, 560);
+    var modalH = Math.min(VH * 0.88, 650);
+    var modalX = (VW - modalW) / 2;
+    var modalY = Math.max(safeTop + 12, (VH - modalH) / 2);
+    ctx.fillStyle = "rgba(27, 14, 20, 0.98)";
+    roundRect(modalX, modalY, modalW, modalH, 0); ctx.fill();
+    ctx.strokeStyle = "rgba(255, 210, 74, 0.55)"; ctx.lineWidth = 1.5;
+    roundRect(modalX, modalY, modalW, modalH, 0); ctx.stroke();
+
+    var closeW = 76, closeH = 34;
+    UI.achievementClose = { x: modalX + modalW - closeW - 14, y: modalY + 14, w: closeW, h: closeH };
+    ctx.fillStyle = "#24171b"; ctx.fillRect(UI.achievementClose.x, UI.achievementClose.y, closeW, closeH);
+    ctx.strokeStyle = "rgba(255,255,255,0.38)"; ctx.lineWidth = 1; ctx.strokeRect(UI.achievementClose.x, UI.achievementClose.y, closeW, closeH);
+    ctx.fillStyle = "#fff"; ctx.font = "bold 13px Fredoka, sans-serif";
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillText("CERRAR", UI.achievementClose.x + closeW / 2, UI.achievementClose.y + closeH / 2);
+
+    ctx.fillStyle = "#ffd24a";
+    ctx.font = "bold " + fitFont("LOGROS", modalW - 120, 25, 16) + "px Fredoka, sans-serif";
+    ctx.fillText("LOGROS", modalX + modalW / 2, modalY + 29);
+    ctx.fillStyle = "rgba(255,245,230,0.78)";
+    ctx.font = "13px Fredoka, sans-serif";
+    ctx.fillText(achievementCount() + " de " + ACHIEVEMENTS.length + " desbloqueados", modalX + modalW / 2, modalY + 52);
+
+    // Resumen de actividad: hace que la pantalla sea útil aunque aún no haya
+    // logros desbloqueados.
+    var statY = modalY + 76;
+    var statH = 42;
+    ctx.fillStyle = "rgba(10, 5, 9, 0.62)";
+    ctx.fillRect(modalX + 14, statY, modalW - 28, statH);
+    ctx.strokeStyle = "rgba(255,255,255,0.12)"; ctx.strokeRect(modalX + 14, statY, modalW - 28, statH);
+    ctx.font = "bold 11px Fredoka, sans-serif";
+    ctx.fillStyle = "#f5d79a"; ctx.textAlign = "left";
+    ctx.fillText("ESTADÍSTICAS GLOBALES", modalX + 24, statY + 13);
+    ctx.font = "12px Fredoka, sans-serif"; ctx.fillStyle = "rgba(255,245,230,0.82)";
+    ctx.fillText("Eliminados " + META.totalPathogensDefeated + "   ·   Infiltrados " + META.totalPathogensInfiltrated + "   ·   Mejor oleada " + META.wavesReached, modalX + 24, statY + 30);
+
+    var contentX = modalX + 14;
+    var contentY = statY + statH + 14;
+    var contentW = modalW - 28;
+    // Dos columnas también en portrait: los 10 logros deben caber en una
+    // sola vista de teléfono, sin obligar al jugador a descubrir un scroll
+    // oculto dentro del modal.
+    var cols = contentW >= 300 ? 2 : 1;
+    var gap = 8;
+    var cardW = (contentW - gap * (cols - 1)) / cols;
+    var cardH = cols === 2 ? 76 : 62;
+    UI.achievementCards = [];
+    for (var i = 0; i < ACHIEVEMENTS.length; i++) {
+      var a = ACHIEVEMENTS[i];
+      var col = i % cols, row = Math.floor(i / cols);
+      var card = { x: contentX + col * (cardW + gap), y: contentY + row * (cardH + gap), w: cardW, h: cardH };
+      UI.achievementCards.push(card);
+      var unlocked = !!ACHIEVEMENTS_UNLOCKED[a.id];
+      ctx.fillStyle = unlocked ? "rgba(73, 53, 22, 0.72)" : "rgba(18, 15, 21, 0.82)";
+      roundRect(card.x, card.y, card.w, card.h, 0); ctx.fill();
+      ctx.strokeStyle = unlocked ? "rgba(255,210,74,0.62)" : "rgba(150,150,165,0.28)";
+      ctx.lineWidth = unlocked ? 1.4 : 1; roundRect(card.x, card.y, card.w, card.h, 0); ctx.stroke();
+      ctx.globalAlpha = unlocked ? 1 : 0.62;
+      ctx.font = "27px Fredoka, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText(unlocked ? a.icon : "?", card.x + 25, card.y + card.h / 2);
+      ctx.textAlign = "left"; ctx.textBaseline = "top";
+      ctx.font = "bold " + (cols === 2 ? 13 : 14) + "px Fredoka, sans-serif";
+      ctx.fillStyle = unlocked ? "#fff4c7" : "rgba(235,235,245,0.78)";
+      ctx.fillText(ellipsizeToWidth(unlocked ? a.title : "Logro bloqueado", card.w - 58), card.x + 48, card.y + 10);
+      ctx.font = (cols === 2 ? 10 : 11) + "px Fredoka, sans-serif";
+      ctx.fillStyle = unlocked ? "rgba(255,245,230,0.78)" : "rgba(205,205,215,0.60)";
+      ctx.fillText(ellipsizeToWidth(a.desc, card.w - 58), card.x + 48, card.y + 31);
+      ctx.font = "bold 9px Fredoka, sans-serif";
+      ctx.fillStyle = unlocked ? "#ffd24a" : "rgba(170,170,185,0.62)";
+      ctx.fillText(unlocked ? "DESBLOQUEADO" : "SIGUE JUGANDO", card.x + 48, card.y + card.h - 17);
+      ctx.globalAlpha = 1;
+    }
+
+    var rows = Math.ceil(ACHIEVEMENTS.length / cols);
+    var footerY = contentY + rows * (cardH + gap) + 2;
+    if (footerY < modalY + modalH - 24) {
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.font = "italic 11px Fredoka, sans-serif";
+      ctx.fillStyle = "rgba(255,245,230,0.52)";
+      ctx.fillText("Los logros se guardan en este dispositivo", modalX + modalW / 2, modalY + modalH - 18);
+    }
+    ctx.restore();
+  }
+
   // -------- PANTALLA DE TÍTULO -----------------------------------------
   function drawTitleScreen() {
     if (!state.showTitle) return;
@@ -28575,19 +28865,59 @@
     ctx.fillText("Tu cuerpo es el campo de batalla", cx, VH * 0.44);
     ctx.globalAlpha = 1;
 
-    // Botón INICIAR — rectángulo plano sólido, sin esquinas redondeadas ni
-    // outline (era lo que le daba aspecto de cápsula/badge).
-    var bw = Math.min(VW * 0.62, 270), bh = 56, by = VH * 0.72, bx = cx - bw / 2;
-    UI.startBtn = { x: bx, y: by, w: bw, h: bh };
-    ctx.fillStyle = "#d61f1f"; ctx.fillRect(bx, by, bw, bh);
-    ctx.fillStyle = "#fff"; ctx.font = "900 " + Math.round(bh * 0.40) + "px Fredoka, sans-serif";
-    ctx.textAlign = "center"; ctx.textBaseline = "middle";
-    ctx.fillText("INICIAR", cx, by + bh / 2 + 1);
+    // Botonera de producto: continuar campaña si existe, nueva partida sin
+    // sobrescribir accidentalmente, y acceso directo al mapa guardado.
+    var save = getCampaignSave();
+    var bw = Math.min(VW * 0.66, 286), bh = 54, gap = 12;
+    var bx = cx - bw / 2;
+    var by = save ? VH * 0.62 : VH * 0.70;
+    UI.startBtn = null; UI.titleContinueBtn = null; UI.titleNewBtn = null; UI.titleMapBtn = null; UI.titleAchievementsBtn = null;
+    // Acceso permanente a logros desde la portada.
+    UI.titleAchievementsBtn = { x: VW - 106 - safeRight, y: safeTop + 14, w: 92, h: 34 };
+    titleButton(UI.titleAchievementsBtn, "LOGROS", "#24171b", "#ffe6b0", "rgba(255,210,74,0.45)");
+    function titleButton(rect, label, fill, fg, stroke) {
+      ctx.save();
+      ctx.fillStyle = fill;
+      ctx.shadowColor = colorAlpha(fill, 0.45);
+      ctx.shadowBlur = 12;
+      ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+      ctx.shadowBlur = 0;
+      if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = 1.5; ctx.strokeRect(rect.x, rect.y, rect.w, rect.h); }
+      ctx.fillStyle = fg || "#fff";
+      ctx.font = "900 " + Math.round(rect.h * 0.36) + "px Fredoka, sans-serif";
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText(label, rect.x + rect.w / 2, rect.y + rect.h / 2 + 1);
+      ctx.restore();
+    }
+    if (save) {
+      // Tarjeta compacta de estado de campaña.
+      var cardW = Math.min(VW * 0.82, 380), cardH = 66, cardX = cx - cardW / 2, cardY = VH * 0.50;
+      ctx.fillStyle = "rgba(18, 8, 10, 0.72)";
+      roundRect(cardX, cardY, cardW, cardH, 0); ctx.fill();
+      ctx.strokeStyle = "rgba(255,210,74,0.35)"; ctx.lineWidth = 1;
+      roundRect(cardX, cardY, cardW, cardH, 0); ctx.stroke();
+      ctx.fillStyle = "#ffd24a"; ctx.font = "bold " + Math.max(12, Math.round(VW * 0.034)) + "px Fredoka, sans-serif";
+      ctx.fillText("Progreso guardado", cx, cardY + 18);
+      ctx.fillStyle = "rgba(255,245,230,0.86)"; ctx.font = Math.max(10, Math.round(VW * 0.029)) + "px Fredoka, sans-serif";
+      ctx.fillText(ellipsizeToWidth(campaignSummary(save), cardW - 22), cx, cardY + 40);
+      ctx.fillStyle = "rgba(255,245,230,0.62)"; ctx.font = Math.max(9, Math.round(VW * 0.024)) + "px Fredoka, sans-serif";
+      ctx.fillText("Récord: oleada " + META.wavesReached + " · eliminados " + META.totalPathogensDefeated + " · logros " + achievementCount() + "/" + ACHIEVEMENTS.length, cx, cardY + 57);
+
+      UI.titleContinueBtn = { x: bx, y: by, w: bw, h: bh };
+      titleButton(UI.titleContinueBtn, "CONTINUAR", "#ffd24a", "#1a0e12", "rgba(255,255,255,0.35)");
+      UI.titleNewBtn = { x: bx, y: by + bh + gap, w: bw, h: Math.round(bh * 0.82) };
+      titleButton(UI.titleNewBtn, "NUEVA PARTIDA", "#d61f1f", "#fff", "rgba(255,255,255,0.20)");
+      UI.titleMapBtn = { x: bx, y: by + bh + gap + UI.titleNewBtn.h + gap, w: bw, h: Math.round(bh * 0.72) };
+      titleButton(UI.titleMapBtn, "VER MAPA", "#24171b", "#ffe6b0", "rgba(255,210,74,0.45)");
+    } else {
+      UI.startBtn = { x: bx, y: by, w: bw, h: bh };
+      titleButton(UI.startBtn, "INICIAR", "#d61f1f", "#fff", "rgba(255,255,255,0.20)");
+    }
 
     // Pista parpadeante.
     ctx.globalAlpha = 0.5 + 0.4 * (0.5 + 0.5 * Math.sin(tt * 2.2));
     ctx.fillStyle = "#fff"; ctx.font = Math.round(VW * 0.032) + "px Fredoka, sans-serif";
-    ctx.fillText("o toca en cualquier lugar para empezar", cx, by + bh + VH * 0.05);
+    ctx.fillText(save ? "toca Continuar para volver al mapa de campaña" : "o toca en cualquier lugar para empezar", cx, VH * 0.93);
     ctx.globalAlpha = 1;
     ctx.restore();
   }
@@ -29031,6 +29361,51 @@
     ctx.restore();
   }
 
+  function drawAchievementToasts() {
+    if (!state.achievementToasts || !state.achievementToasts.length) return;
+    ctx.save();
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    var w = Math.min(VW * 0.86, 390);
+    var h = 64;
+    var x = VW / 2 - w / 2;
+    var baseY = safeTop + 12;
+    // En gameplay baja un poco para no tapar tanto el HUD; en título queda arriba.
+    if (!state.showTitle && !state.showIntro) baseY = Math.max(safeTop + 10, HUD_H + 8);
+    for (var i = 0; i < state.achievementToasts.length; i++) {
+      var t = state.achievementToasts[i];
+      var age = t.t || 0;
+      var life = t.life || 4.0;
+      var inP = Math.min(1, age / 0.25);
+      var outP = age > life - 0.45 ? Math.max(0, (life - age) / 0.45) : 1;
+      var a = Math.min(inP, outP);
+      if (a <= 0) continue;
+      var y = baseY + i * (h + 8) - (1 - inP) * 18;
+      ctx.globalAlpha = a;
+      ctx.fillStyle = "rgba(18, 8, 10, 0.92)";
+      ctx.shadowColor = "rgba(255, 210, 74, 0.35)";
+      ctx.shadowBlur = 14;
+      roundRect(x, y, w, h, 0); ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.strokeStyle = "rgba(255, 210, 74, 0.60)";
+      ctx.lineWidth = 1.4;
+      roundRect(x, y, w, h, 0); ctx.stroke();
+      ctx.fillStyle = "#ffd24a";
+      ctx.font = "bold 11px Fredoka, sans-serif";
+      ctx.textAlign = "left"; ctx.textBaseline = "top";
+      ctx.fillText("LOGRO DESBLOQUEADO", x + 58, y + 9);
+      ctx.font = "bold 17px Fredoka, sans-serif";
+      ctx.fillStyle = "#fff";
+      ctx.fillText(ellipsizeToWidth(t.title, w - 74), x + 58, y + 25);
+      ctx.font = "12px Fredoka, sans-serif";
+      ctx.fillStyle = "rgba(255,245,230,0.76)";
+      ctx.fillText(ellipsizeToWidth(t.desc, w - 74), x + 58, y + 45);
+      ctx.font = "30px Fredoka, sans-serif";
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText(t.icon || "🏆", x + 30, y + h / 2 + 1);
+    }
+    ctx.restore();
+  }
+
   function render() {
     // Comparamos rect del canvas con VW/VH (que fue derivado del mismo rect
     // en resize). Si difieren, el body cambió de tamaño y hay que reflotar.
@@ -29325,6 +29700,7 @@
     }
     drawMessage();
     drawWaveBanner();
+    drawAchievementToasts();
     if (state.time - state.lastPlaceFailedAt < 0.25) {
       var a = 1 - (state.time - state.lastPlaceFailedAt) / 0.25;
       ctx.strokeStyle = "rgba(220, 70, 70, " + a + ")";
@@ -29340,6 +29716,7 @@
     // el mini banner invitan al tap, y el compendio abre con sus datos.
     drawIntroScreen();
     drawTitleScreen();
+    drawAchievementsScreen();
     drawTutorialScreen();
     drawConfirmModal();
   }
@@ -31336,7 +31713,7 @@
     // fuera de loop() y nunca se re-agendaba el frame → el juego quedaba
     // congelado hasta recargar. Ahora se saltea ese frame y sigue vivo.
     try {
-    var paused = state.confirmRestart || state.showTitle || state.showIntro || state.cinematicEnd || state.compendiumOpen || !!state.phaseTransition || !!state.bodyMap || state.tutorialOpen;
+    var paused = state.confirmRestart || state.showTitle || state.showIntro || state.cinematicEnd || state.compendiumOpen || !!state.phaseTransition || !!state.bodyMap || state.tutorialOpen || state.achievementsOpen;
     // Nivel puente: pausamos la lógica al caer el primer carril (cinemática
     // de derrota o de victoria-con-quiebre). Al terminar la cinemática se
     // muestra el mapa con el siguiente nodo desbloqueado.
@@ -31352,6 +31729,7 @@
         state.disseminationOver = null;
         state.completedMapNodes = state.completedMapNodes || {};
         state.completedMapNodes.dissem = true;
+        saveCampaignProgress();
         enterBodyMapForState();
       }
     }
@@ -31462,6 +31840,7 @@
           // Marcar Fase 1 como completada antes de mostrar el mapa.
           state.completedMapNodes = state.completedMapNodes || {};
           state.completedMapNodes.fase1 = true;
+          saveCampaignProgress();
           // Los títulos de Fase 1 varían según el outcome narrativo (victory/
           // contained/overload), así que se pasan como override en vez de
           // usar MAP_COMPLETED_LABELS["fase1"] que es el texto genérico.
@@ -31483,6 +31862,14 @@
     }
     updateEffects(dt);
     updateAtpDisplay(dt);
+    checkAchievements();
+    if (state.achievementToasts && state.achievementToasts.length) {
+      for (var achi = state.achievementToasts.length - 1; achi >= 0; achi--) {
+        var achT = state.achievementToasts[achi];
+        achT.t = (achT.t || 0) + dt;
+        if (achT.t >= (achT.life || 4.0)) state.achievementToasts.splice(achi, 1);
+      }
+    }
     updateGermIntro(dt);
     if (state.msgTimer > 0) state.msgTimer -= dt;
     render();

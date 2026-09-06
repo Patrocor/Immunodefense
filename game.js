@@ -16879,7 +16879,7 @@
     //  · GRÁNULOS azurófilos púrpura (defensinas, mieloperoxidasa)
     //  · Membrana ameboideo ondulada (no perfectamente esférica)
     //  · Capaz de fagocitosis + NETosis
-    // Caricatura: estrella ameboide con 6 pseudópodos + cara feroz.
+    // Caricatura: célula polarizada (uropodo + pseudópodo frontal).
     var x = t.x, y = t.y;
     var R = 23 * U * pulse;       // bumped 19→23 (~20% más grande)
     var time = state.time;
@@ -16921,133 +16921,120 @@
       ctx.setLineDash([]);
     }
 
-    // ── ESTRUCTURA ESTRELLA AMEBOIDE ──
-    // Cuerpo único irregular con 6 PSEUDÓPODOS radiando del centro.
-    // Cada pseudópodo se mueve sutilmente (idle) y se extiende más durante
-    // ataque. Distintivo vs. otras torres (redondas/blob) y biológicamente
-    // coherente: neutrófilo activado en forma ameboide con proyecciones.
+    // ── FORMA POLARIZADA (célula en migración) ──
+    // Gotita compacta con uropodo atrás y pseudópodo frontal hacia el blanco.
+    // Distinto del mosaico hex (Queratinocito) y de la esfera granulada (Mastocito).
     var phase = t.idlePhase || 0;
-    var nPseudo = 6;
-    var rotation = phase * 0.15 + time * 0.04;
-    var armExt = attacking ? 1.28 : (1.0 + chargeFrac * 0.18 + ((t.kcBuffT || 0) > 0 ? 0.08 : 0));
-    var rTop = R * 0.55;          // tamaño "head" virtual para sizing de cara
-    var cyTop = -R * 0.18;        // posición de la cara (zona superior del cuerpo)
+    var faceAng = Math.PI * 0.55;
+    if (t.lastTargetX != null) faceAng = Math.atan2(t.lastTargetY - y, t.lastTargetX - x);
+    var polarExt = attacking ? Math.min(1, (t.attackAnim || 0) / 0.2) : (chargeFrac * 0.35 + ((t.kcBuffT || 0) > 0 ? 0.12 : 0));
+    var rTop = R * 0.46;
+    var faceDist = R * (0.34 + polarExt * 0.12);
+    var cyTop = Math.sin(faceAng) * faceDist;
+    var cxTop = Math.cos(faceAng) * faceDist;
 
-    // Compute pseudopod tips
-    var tips = [];
-    var valleyR = R * 0.50;
-    for (var pp = 0; pp < nPseudo; pp++) {
-      var pAng = rotation + (pp / nPseudo) * Math.PI * 2;
-      var pL = R * (0.95 + Math.sin(time * 1.6 + pp * 1.3 + phase) * 0.10) * armExt;
-      tips.push({ ang: pAng, x: Math.cos(pAng) * pL, y: Math.sin(pAng) * pL, len: pL });
-    }
-    // Generate body contour: alternating tips and valleys
-    var contour = [];
-    for (var ci = 0; ci < nPseudo; ci++) {
-      contour.push({ x: tips[ci].x, y: tips[ci].y });
-      var midAng = tips[ci].ang + (Math.PI / nPseudo);
-      contour.push({ x: Math.cos(midAng) * valleyR, y: Math.sin(midAng) * valleyR });
-    }
-    // Draw filled body with smooth corners (quadratic through each vertex)
-    var bodyGrad = ctx.createRadialGradient(-R * 0.20, -R * 0.20, R * 0.10, 0, 0, R * 1.05);
-    bodyGrad.addColorStop(0,    "#fffaf2");
-    bodyGrad.addColorStop(0.55, "#eddcd2");
-    bodyGrad.addColorStop(1,    "#c2917a");   // borde más profundo: separa del fondo
+    ctx.save();
+    ctx.rotate(faceAng);
+    var breathe = 1 + Math.sin(time * 1.5 + phase) * 0.04;
+    var capRx = R * 0.58 * breathe;
+    var capRy = R * 0.46 * breathe;
+
+    // Citoplasma: cápsula alargada (frente redondo + cola de uropodo).
+    var bodyGrad = ctx.createRadialGradient(-R * 0.12, -R * 0.08, R * 0.08, R * 0.04, 0, capRx * 1.05);
+    bodyGrad.addColorStop(0, "#fffaf2");
+    bodyGrad.addColorStop(0.5, "#eddcd2");
+    bodyGrad.addColorStop(1, "#b8846a");
     ctx.fillStyle = bodyGrad;
-    ctx.strokeStyle = "#6b3a28";              // contorno oscuro GRUESO (alto contraste)
-    ctx.lineWidth = Math.max(2, 2.6 * U);
+    ctx.strokeStyle = "#5c3224";
+    ctx.lineWidth = Math.max(2, 2.5 * U);
     ctx.beginPath();
-    var nC = contour.length;
-    var mid0X = (contour[nC - 1].x + contour[0].x) / 2;
-    var mid0Y = (contour[nC - 1].y + contour[0].y) / 2;
-    ctx.moveTo(mid0X, mid0Y);
-    for (var k = 0; k < nC; k++) {
-      var curr = contour[k];
-      var nx = contour[(k + 1) % nC];
-      var mX = (curr.x + nx.x) / 2;
-      var mY = (curr.y + nx.y) / 2;
-      ctx.quadraticCurveTo(curr.x, curr.y, mX, mY);
-    }
-    ctx.closePath();
+    ctx.ellipse(R * 0.04, 0, capRx, capRy, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
 
-    // Membrana ondulada en las puntas de pseudópodo (ruffling ameboide).
-    ctx.strokeStyle = "rgba(107, 58, 40, 0.65)";
-    ctx.lineWidth = Math.max(1, 1.3 * U);
-    for (var ri = 0; ri < tips.length; ri++) {
-      var tip = tips[ri];
-      var rufA = tip.ang + Math.PI / 2;
+    // Uropodo (cola): dos lóbulos pequeños en la parte posterior.
+    var uroWobble = Math.sin(time * 2.2 + phase) * R * 0.04;
+    ctx.fillStyle = "#e8cfc4";
+    ctx.strokeStyle = "#5c3224";
+    ctx.lineWidth = Math.max(1.4, 1.8 * U);
+    for (var ub = 0; ub < 2; ub++) {
+      var us = ub === 0 ? 1 : -1;
       ctx.beginPath();
-      ctx.arc(tip.x, tip.y, R * 0.11, rufA - 0.8, rufA + 0.8);
+      ctx.ellipse(-capRx * 0.78, us * capRy * 0.42 + uroWobble, R * 0.17, R * 0.13, us * 0.35, 0, Math.PI * 2);
+      ctx.fill();
       ctx.stroke();
     }
 
-    // Pseudópodo fagocítico hacia el blanco (ataque cuerpo a cuerpo).
-    if (attacking && t.lastTargetX != null) {
-      var pdx = t.lastTargetX - x, pdy = t.lastTargetY - y;
-      var pdLen = Math.hypot(pdx, pdy) || 1;
-      var reach = Math.min(R * 1.35, pdLen * 0.55);
-      var pex = (pdx / pdLen) * reach, pey = (pdy / pdLen) * reach;
-      var phagK = Math.min(1, (t.attackAnim || 0) / 0.2);
-      ctx.fillStyle = "rgba(237, 220, 210, " + (0.55 + phagK * 0.35) + ")";
-      ctx.strokeStyle = "#6b3a28";
-      ctx.lineWidth = Math.max(1.4, 1.8 * U);
+    // Pseudópodo frontal (fagocitosis) — crece hacia el objetivo.
+    if (polarExt > 0.02) {
+      var podLen = R * (0.24 + polarExt * 0.52);
+      var podW = R * (0.18 + polarExt * 0.07);
+      var baseX = capRx * 0.50;
+      ctx.fillStyle = "rgba(245, 228, 218, " + (0.65 + polarExt * 0.3) + ")";
       ctx.beginPath();
-      ctx.moveTo(pex * 0.25, pey * 0.25);
-      ctx.quadraticCurveTo(pex * 0.55 + pey * 0.18, pey * 0.55 - pex * 0.18, pex, pey);
-      ctx.quadraticCurveTo(pex * 0.55 - pey * 0.18, pey * 0.55 + pex * 0.18, pex * 0.25, pey * 0.25);
+      ctx.moveTo(baseX, -podW * 0.52);
+      ctx.quadraticCurveTo(baseX + podLen * 0.42, -podW * 0.82, baseX + podLen, 0);
+      ctx.quadraticCurveTo(baseX + podLen * 0.42, podW * 0.82, baseX, podW * 0.52);
+      ctx.quadraticCurveTo(baseX + podLen * 0.12, 0, baseX, -podW * 0.52);
       ctx.closePath();
       ctx.fill();
+      ctx.strokeStyle = "#5c3224";
+      ctx.lineWidth = Math.max(1.3, 1.7 * U);
       ctx.stroke();
-      // Vacuola fagocítica en la punta.
-      ctx.fillStyle = "rgba(180, 140, 255, " + (0.35 * phagK) + ")";
-      ctx.beginPath(); ctx.arc(pex * 0.88, pey * 0.88, R * 0.14, 0, Math.PI * 2); ctx.fill();
+      if (attacking) {
+        ctx.fillStyle = "rgba(170, 130, 255, " + (0.35 * polarExt) + ")";
+        ctx.beginPath();
+        ctx.arc(baseX + podLen * 0.92, 0, R * 0.11, 0, Math.PI * 2);
+        ctx.fill();
+      }
     }
 
-    // NÚCLEO MULTILOBULADO — banda en herradura (PMN signature).
-    // cromatina. Posicionado en el cuerpo central (zona libre de la cara).
-    // Lóbulos MÁS GRANDES y saturados, con filamentos gruesos: el rasgo
-    // icónico del PMN debe leerse de un vistazo.
+    // Núcleo en BANDA (herradura) — signature PMN de frotis sanguíneo.
     var nucColor = "#7a4fb5";
-    var nucEdge  = "#3a2168";
-    var nucCY = R * 0.12;       // centrado un poco hacia abajo (cara arriba)
-    var lobeR = R * 0.22;
-    var nucPulse = 1 + Math.sin(time * 1.4 + phase) * 0.05;   // late suave
-    var lobes = [
-      { x: -R * 0.27, y: nucCY - R * 0.10, r: lobeR * 1.05 * nucPulse },
-      { x:  R * 0.25, y: nucCY - R * 0.18, r: lobeR * 0.95 * nucPulse },
-      { x:  R * 0.29, y: nucCY + R * 0.20, r: lobeR * 0.95 * nucPulse },
-      { x: -R * 0.24, y: nucCY + R * 0.24, r: lobeR * 0.90 * nucPulse }
-    ];
-    // Strands de cromatina entre lóbulos (gruesos y oscuros).
-    ctx.strokeStyle = nucEdge;
-    ctx.lineWidth = Math.max(2, 3.2 * U);
+    var nucEdge = "#3a2168";
+    var nucY = R * 0.02;
+    var bandH = R * 0.30;
     ctx.lineCap = "round";
-    for (var lk = 0; lk < lobes.length - 1; lk++) {
-      ctx.beginPath();
-      ctx.moveTo(lobes[lk].x, lobes[lk].y);
-      ctx.lineTo(lobes[lk + 1].x, lobes[lk + 1].y);
-      ctx.stroke();
-    }
+    ctx.lineJoin = "round";
+    ctx.strokeStyle = nucEdge;
+    ctx.lineWidth = Math.max(2.2, 3 * U);
     ctx.beginPath();
-    ctx.moveTo(lobes[lobes.length - 1].x, lobes[lobes.length - 1].y);
-    ctx.lineTo(lobes[0].x, lobes[0].y);
+    ctx.moveTo(-R * 0.34, nucY + bandH * 0.15);
+    ctx.quadraticCurveTo(-R * 0.36, nucY - bandH * 0.85, 0, nucY - bandH * 0.95);
+    ctx.quadraticCurveTo(R * 0.36, nucY - bandH * 0.85, R * 0.34, nucY + bandH * 0.15);
     ctx.stroke();
-    // Lóbulos con volumen (degradado) + contorno oscuro grueso.
-    for (var lk2 = 0; lk2 < lobes.length; lk2++) {
-      var lo = lobes[lk2];
-      var lg = ctx.createRadialGradient(lo.x - lo.r * 0.35, lo.y - lo.r * 0.35, lo.r * 0.15, lo.x, lo.y, lo.r);
-      lg.addColorStop(0, "#a97fd8"); lg.addColorStop(0.65, nucColor); lg.addColorStop(1, "#4a2a86");
+    for (var bl = 0; bl < 3; bl++) {
+      var blx = (bl - 1) * R * 0.28;
+      var blr = R * (0.17 - bl * 0.01);
+      var lg = ctx.createRadialGradient(blx - blr * 0.3, nucY - blr * 0.2, blr * 0.1, blx, nucY - bandH * 0.35, blr);
+      lg.addColorStop(0, "#c9a8ef");
+      lg.addColorStop(0.6, nucColor);
+      lg.addColorStop(1, "#4a2a86");
       ctx.fillStyle = lg;
       ctx.beginPath();
-      ctx.arc(lo.x, lo.y, lo.r, 0, Math.PI * 2);
+      ctx.arc(blx, nucY - bandH * 0.35, blr, 0, Math.PI * 2);
       ctx.fill();
       ctx.strokeStyle = nucEdge;
-      ctx.lineWidth = Math.max(1.4, 1.8 * U);
+      ctx.lineWidth = Math.max(1.2, 1.5 * U);
       ctx.stroke();
     }
 
+    // Ruffling lateral (membrana ondulante en los flancos).
+    ctx.strokeStyle = "rgba(92, 50, 36, 0.55)";
+    ctx.lineWidth = Math.max(0.9, 1.2 * U);
+    for (var rf = 0; rf < 4; rf++) {
+      var rfx = -R * 0.05 + rf * R * 0.18;
+      var rfw = Math.sin(time * 3.5 + rf + phase) * R * 0.05;
+      ctx.beginPath();
+      ctx.arc(rfx, capRy * 0.55 + rfw, R * 0.07, Math.PI * 0.15, Math.PI * 0.85);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(rfx, -capRy * 0.55 - rfw, R * 0.07, -Math.PI * 0.85, -Math.PI * 0.15);
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    var nucCY = R * 0.02;
     // GRÁNULOS azurófilos dispersos en el citoplasma (evitando núcleo y cara).
     // Brillan más fuerte y vibran a medida que la carga real del Bombardeo
     // avanza — las defensinas concentrándose antes de salir disparadas.
@@ -17058,7 +17045,7 @@
       var gd = R * (0.36 + (gn % 4) * 0.07);
       var ggx = Math.cos(ga) * gd + Math.sin(time * 3.1 + gn * 1.9) * granJitterN * 0.4;
       var ggy = Math.sin(ga) * gd + Math.cos(time * 2.4 + gn * 2.3) * granJitterN * 0.4;
-      if (ggy < cyTop + R * 0.20 && Math.abs(ggx) < R * 0.30) continue;
+      if (Math.hypot(ggx - cxTop, ggy - cyTop) < R * 0.28) continue;
       var grR = (1.8 + Math.sin(time * 1.5 + gn) * (0.32 + chargeFrac * 0.28)) * U;
       var isMpo = gn % 3 === 0;
       if (isMpo) {
@@ -17088,8 +17075,10 @@
       }
     }
 
-    // CARA centrada en la esfera SUPERIOR.
-    var neR = rTop * 0.32, ngap = rTop * 0.50, nfy = cyTop;
+    // CARA en el polo frontal (apunta hacia el germen).
+    var neR = rTop * 0.34, ngap = rTop * 0.48, nfy = 0;
+    ctx.save();
+    ctx.translate(cxTop, cyTop);
     // CARA LOCA durante el ultimate (martillazo) — sobrescribe lo demás.
     var doingUltimate = (t.def.id === "neutrofilo" && (t.specialAnim || 0) > 0);
     if (doingUltimate) {
@@ -17161,6 +17150,7 @@
     else if (expression === "levelup") drawAnimeMouth(0, nfy + rTop * 0.60, rTop * 0.78, rTop * 0.50, "smile");
     else if (attacking) drawAnimeMouth(0, nfy + rTop * 0.60, rTop * 0.80, rTop * 0.80, "fanged");
     else drawAnimeMouth(0, nfy + rTop * 0.60, rTop * 0.65, rTop * 0.32, "serious");
+    ctx.restore();
 
     // Aro dorado de anticipación: asoma gradualmente con la carga real
     // ANTES del disparo — anticipa el aro de windup post-trigger de abajo.

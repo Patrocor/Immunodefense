@@ -48,6 +48,26 @@
     if (k < outEnd) return 0.95 * (1 - (k - holdEnd) / (outEnd - holdEnd));
     return 0;
   }
+  var CINEMATIC_SKIP_DEBOUNCE = 0.8;
+  function cinematicElapsedSince(startTime) {
+    return (state.time || 0) - (startTime != null ? startTime : 0);
+  }
+  function cinematicSkipReady(startTime) {
+    return cinematicElapsedSince(startTime) >= CINEMATIC_SKIP_DEBOUNCE;
+  }
+  function drawCinematicSkipHint(startTime) {
+    if (!cinematicSkipReady(startTime)) return;
+    ctx.save();
+    ctx.globalAlpha = motionOn()
+      ? 0.55 + 0.25 * Math.sin((state.time || 0) * 4)
+      : 0.78;
+    ctx.fillStyle = uiInkMuted();
+    ctx.font = "italic " + Math.floor(14 * U) + "px Fredoka, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("Tocá para continuar", VW / 2, VH * 0.88);
+    ctx.restore();
+  }
   (function detectQuality() {
     try {
       var hash = (location.hash || "").toLowerCase();
@@ -4495,6 +4515,7 @@
       triggerShake(time, mag, priority);
       return window.__game.shake();
     },
+    trySkipCinematic: function () { return trySkipActiveCinematic(); },
     perfSnapshot: function () {
       var fps = null;
       if (QUALITY._acc > 0 && QUALITY._fr > 0) fps = QUALITY._fr / QUALITY._acc;
@@ -5075,6 +5096,7 @@
     state.disseminationWaveIdx = 0;
     state.disseminationOver = null;
     state.disseminationIntroTimer = 4.0;
+    state.disseminationIntroStartedAt = state.time || 0;
     state.spreadOrganLoad = [0, 0, 0];
     state.spreadFlash = [0, 0, 0];
     // HP biológico por órgano (orden = DISSEMINATION_ORGANS):
@@ -5209,7 +5231,7 @@
       var worstOrgan = (PATH.organDoors && PATH.organDoors[worstLane])
         ? PATH.organDoors[worstLane].organ
         : DISSEMINATION_ORGANS[worstLane] || DISSEMINATION_ORGANS[0];
-      state.disseminationOver = { organ: worstOrgan, t: 0, mode: "win" };
+      state.disseminationOver = { organ: worstOrgan, t: 0, mode: "win", startedAt: state.time || 0 };
       state.waveActive = false;
       state.pendingSpawns = [];
       triggerShake(0.3, 5);
@@ -7275,7 +7297,7 @@
           triggerShake(0.12, 3);
           if (audio && audio.ctx) sfx("playerHurt");
           if (state.spreadOrganLoad[lane] >= 10 && !state.disseminationOver) {
-            state.disseminationOver = { germ: e.def, organ: organ, t: 0, mode: "loss" };
+            state.disseminationOver = { germ: e.def, organ: organ, t: 0, mode: "loss", startedAt: state.time || 0 };
             triggerShake(0.5, 9);
             state.waveActive = false;
             state.pendingSpawns = [];
@@ -12565,7 +12587,8 @@
         t: 0,
         duration: 1.4,
         target: "dissemination",
-        outcome: "overload"     // la infección te desbordó
+        outcome: "overload",     // la infección te desbordó
+        startedAt: state.time || 0
       };
       sfx("playerHurt");
       triggerShake(0.5, 6);
@@ -12597,7 +12620,8 @@
       duration: contained ? 4.4 : 1.4,
       target: "dissemination",
       outcome: contained ? "contained" : "victory",
-      breachWounds: breachWounds
+      breachWounds: breachWounds,
+      startedAt: state.time || 0
     };
     sfx("victory");
     triggerShake(0.25, 3);
@@ -12792,6 +12816,69 @@
       ctx.globalAlpha = 1;
     }
     ctx.restore();
+  }
+
+  function firePhaseTransitionBodyMap(ph) {
+    if (!ph || ph.fired || ph.target !== "dissemination") return;
+    ph.fired = true;
+    var ptOutcome = ph.outcome;
+    var ptVictory = ptOutcome === "victory" || ptOutcome === "contained";
+    var ptContained = ptOutcome === "contained";
+    state.completedMapNodes = state.completedMapNodes || {};
+    state.completedMapNodes.fase1 = true;
+    saveCampaignProgress();
+    enterBodyMapForState({
+      title: ptContained ? "CONTENCIÓN ROTA" : (ptVictory ? "¡MRSA DERROTADO!" : "FASE 1 SUPERADA"),
+      subtitle: ptContained
+        ? "La controlaste casi por completo — pero algo logró escapar hacia el torrente sanguíneo"
+        : (ptVictory
+          ? "Contuviste la infección en la piel — pero ya alcanzó el torrente sanguíneo"
+          : "La infección rompe la barrera de la piel · diseminación inminente")
+    });
+  }
+
+  function skipPhaseTransition() {
+    var ph = state.phaseTransition;
+    if (!ph) return false;
+    if (!cinematicSkipReady(ph.startedAt)) return true;
+    firePhaseTransitionBodyMap(ph);
+    state.phaseTransition = null;
+    return true;
+  }
+
+  function completeDisseminationOver() {
+    var dOver = state.disseminationOver;
+    if (!dOver || dOver.resolved) return;
+    dOver.resolved = true;
+    var winningOrgan = dOver.organ.id;
+    state.unlockedF2 = ORGAN_TO_F2[winningOrgan] || "endocarditis";
+    state.lastDisseminationMode = dOver.mode;
+    state.disseminationOver = null;
+    state.completedMapNodes = state.completedMapNodes || {};
+    state.completedMapNodes.dissem = true;
+    saveCampaignProgress();
+    enterBodyMapForState();
+  }
+
+  function skipDisseminationOver() {
+    if (!state.disseminationOver) return false;
+    if (!cinematicSkipReady(state.disseminationOver.startedAt)) return true;
+    completeDisseminationOver();
+    return true;
+  }
+
+  function skipDisseminationIntro() {
+    if (!state.dissemination || state.disseminationIntroTimer <= 0) return false;
+    if (!cinematicSkipReady(state.disseminationIntroStartedAt)) return true;
+    state.disseminationIntroTimer = 0;
+    return true;
+  }
+
+  function trySkipActiveCinematic() {
+    if (state.phaseTransition) return skipPhaseTransition();
+    if (state.disseminationOver) return skipDisseminationOver();
+    if (state.dissemination && state.disseminationIntroTimer > 0) return skipDisseminationIntro();
+    return false;
   }
 
   function restartFromLevel1() {
@@ -14425,6 +14512,8 @@
       }
       return;
     }
+    // Cinemáticas skippables: tap tras debounce salta al final (consume taps antes).
+    if (trySkipActiveCinematic()) return;
     // Compendio: si está abierto, interceptamos taps.
     if (state.compendiumOpen) {
       // Cerrar
@@ -28199,6 +28288,7 @@
       } else {
         drawPhaseTransitionOverlay(ph, k);
       }
+      drawCinematicSkipHint(ph.startedAt);
     }
     drawMessage();
     drawWaveBanner();
@@ -29986,10 +30076,10 @@
         ctx.fillText("◆ DEFENDÉ LOS 5 ÓRGANOS ◆", VW / 2, VH * 0.60);
         ctx.globalAlpha = 1;
       }
+      drawCinematicSkipHint(state.disseminationIntroStartedAt);
       ctx.restore();
       return;
     }
-    // ── Velo oscuro de fondo: empezamos opacos para que la rajadura se vea ANTES que los carriles.
     // Hold-on al inicio (sin fade-in), fade-out al final que revela el campo.
     var bgAlpha;
     if (elapsed < 0.4) bgAlpha = 1.0;
@@ -30061,6 +30151,7 @@
       ctx.fillText("◆ DEFENDÉ LOS 5 ÓRGANOS ◆", VW / 2, VH * 0.60);
       ctx.globalAlpha = 1;
     }
+    drawCinematicSkipHint(state.disseminationIntroStartedAt);
     ctx.restore();
   }
 
@@ -30108,6 +30199,7 @@
         }
         ctx.globalAlpha = 1;
       }
+      drawCinematicSkipHint(dOver.startedAt);
       ctx.restore();
       return;
     }
@@ -30152,6 +30244,7 @@
         }
         ctx.globalAlpha = 1;
       }
+      drawCinematicSkipHint(dOver.startedAt);
       ctx.restore();
       return;
     }
@@ -30239,6 +30332,7 @@
       ctx.fillText("hacia " + dOver.organ.label.toLowerCase() + "…", VW / 2, VH * 0.91);
       ctx.globalAlpha = 1;
     }
+    drawCinematicSkipHint(dOver.startedAt);
     ctx.restore();
   }
   // -------- FIN NIVEL PUENTE: RENDER --------------------------------------
@@ -30299,15 +30393,7 @@
       paused = true;
       var dOverThresh = state.disseminationOver.mode === "win" ? 4.7 : 3.3;
       if (!state.disseminationOver.resolved && state.disseminationOver.t >= dOverThresh) {
-        state.disseminationOver.resolved = true;
-        var winningOrgan = state.disseminationOver.organ.id;
-        state.unlockedF2 = ORGAN_TO_F2[winningOrgan] || "endocarditis";
-        state.lastDisseminationMode = state.disseminationOver.mode;
-        state.disseminationOver = null;
-        state.completedMapNodes = state.completedMapNodes || {};
-        state.completedMapNodes.dissem = true;
-        saveCampaignProgress();
-        enterBodyMapForState();
+        completeDisseminationOver();
       }
     }
     // FASE 2: fin de nivel de órgano (victoria o pérdida del órgano). Igual
@@ -30404,34 +30490,7 @@
       // de 0.55 que usan los otros dos desenlaces.
       var ptFireFrac = state.phaseTransition.outcome === "contained" ? 0.90 : 0.55;
       if (!state.phaseTransition.fired && state.phaseTransition.t >= state.phaseTransition.duration * ptFireFrac) {
-        state.phaseTransition.fired = true;
-        if (state.phaseTransition.target === "dissemination") {
-          // Antes: enterDissemination() directo.
-          // Ahora: abrir el mapa-mundo primero. Player tap CONTINUAR
-          // dispara enterDissemination en el callback. Título/subtítulo
-          // distintos según cómo se llegó (derrota del jefe / contención
-          // real con quiebre / sobrecarga).
-          var ptOutcome = state.phaseTransition.outcome;
-          var ptVictory = ptOutcome === "victory" || ptOutcome === "contained";
-          var ptContained = ptOutcome === "contained";
-          // Marcar Fase 1 como completada antes de mostrar el mapa.
-          state.completedMapNodes = state.completedMapNodes || {};
-          state.completedMapNodes.fase1 = true;
-          saveCampaignProgress();
-          // Los títulos de Fase 1 varían según el outcome narrativo (victory/
-          // contained/overload), así que se pasan como override en vez de
-          // usar MAP_COMPLETED_LABELS["fase1"] que es el texto genérico.
-          enterBodyMapForState({
-            title: ptContained ? "CONTENCIÓN ROTA" : (ptVictory ? "¡MRSA DERROTADO!" : "FASE 1 SUPERADA"),
-            subtitle: ptContained
-              ? "La controlaste casi por completo — pero algo logró escapar hacia el torrente sanguíneo"
-              : (ptVictory
-                ? "Contuviste la infección en la piel — pero ya alcanzó el torrente sanguíneo"
-                : "La infección rompe la barrera de la piel · diseminación inminente")
-          });
-          // onContinue ya no se pasa aquí: enterBodyMapForState lo setea a
-          // launchNextContent(), que llama enterDissemination() vía MAP_NODE_CONTENT.
-        }
+        firePhaseTransitionBodyMap(state.phaseTransition);
       }
       if (state.phaseTransition.t >= state.phaseTransition.duration) {
         state.phaseTransition = null;

@@ -71,6 +71,7 @@
   function achievementToastLife() {
     return motionOn() ? 4.0 : 3.0;
   }
+  var ULTIMATE_TELEGRAPH_DURATION = 0.4;
   (function detectQuality() {
     try {
       var hash = (location.hash || "").toLowerCase();
@@ -8184,7 +8185,8 @@
       // del cuerpo, cuando llena → tap dispara poder distintivo de la torre.
       specialCharge: 0,        // 0..1, se llena con el tiempo
       specialReady: false,
-      specialAnim: 0           // > 0 cuando el ultimate está animando
+      specialAnim: 0,          // > 0 cuando el ultimate está animando
+      ultimateTelegraphT: 0    // pulso breve al quedar listo el ultimate
     });
     // Tanque MAC: define el recorrido horizontal de patrulla.
     if (def.mobile) {
@@ -8685,7 +8687,15 @@
       if ((t.histBuffT || 0) > 0) specCharge *= 0.77;
       if (!t.specialReady && (t.specialAnim || 0) <= 0 && (t.stunTimer || 0) <= 0) {
         t.specialCharge = Math.min(1, (t.specialCharge || 0) + dt / specCharge);
-        if (t.specialCharge >= 1) t.specialReady = true;
+        if (t.specialCharge >= 1 && !t.specialReady) {
+          t.specialReady = true;
+          if (!QUALITY.low && t.def && t.def.specialChargeSec) {
+            t.ultimateTelegraphT = ULTIMATE_TELEGRAPH_DURATION;
+          }
+        }
+      }
+      if ((t.ultimateTelegraphT || 0) > 0) {
+        t.ultimateTelegraphT = Math.max(0, t.ultimateTelegraphT - dt);
       }
       if ((t.specialAnim || 0) > 0) t.specialAnim -= dt;
       // Neutrófilo ultimate: Bombardeo de Defensinas — dispara cada
@@ -16292,6 +16302,27 @@
     return text + "…";
   }
 
+  function drawUltimateTelegraph(t, ringR) {
+    var tt = t.ultimateTelegraphT || 0;
+    if (tt <= 0 || QUALITY.low || !t.def || !t.def.specialChargeSec) return;
+    var prog = 1 - tt / ULTIMATE_TELEGRAPH_DURATION;
+    if (motionOn()) {
+      var pulse = 0.5 + 0.5 * Math.sin(prog * Math.PI * 4);
+      var expandR = ringR + (6 + prog * 14) * U;
+      ctx.strokeStyle = "rgba(255, 215, 90, " + (0.9 * (1 - prog * 0.35) * (0.65 + pulse * 0.35)) + ")";
+      ctx.lineWidth = (2.5 + pulse * 2) * U;
+      ctx.beginPath();
+      ctx.arc(t.x, t.y, expandR, 0, Math.PI * 2);
+      ctx.stroke();
+      return;
+    }
+    ctx.strokeStyle = "rgba(255, 215, 90, 0.88)";
+    ctx.lineWidth = 3 * U;
+    ctx.beginPath();
+    ctx.arc(t.x, t.y, ringR + 7 * U, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
   function drawTower(t) {
     var disseminationScaled = !!state.dissemination;
     if (disseminationScaled) {
@@ -16361,6 +16392,7 @@
       ctx.beginPath();
       ctx.arc(t.x, t.y, ringR, startA, endA);
       ctx.stroke();
+      drawUltimateTelegraph(t, ringR);
       // Pulso dorado cuando está READY (invita a tapear).
       if (t.specialReady) {
         var rp = 0.5 + 0.5 * Math.sin(state.time * 5);

@@ -17,7 +17,7 @@ de ampliar contenido o reestructurar el motor.
 - [x] Probar transiciones Fase 1 → Diseminación → F2 → F3 → Sepsis → MODS.
 - [x] Probar guardado, restauración y persistencia de logros en `localStorage`.
 - [x] Añadir invariantes de tablas (gérmenes, torres, mapa, waves/leak).
-- [ ] Añadir una prueba real de navegador para carga de assets, interacción por
+- [x] Añadir una prueba real de navegador para carga de assets, interacción por
   puntero y tamaños portrait/landscape.
 
 ## 3. Modularización incremental
@@ -54,8 +54,8 @@ datos o introducir carga diferida por fase.
 ## 5. Pulido de producto
 
 - Completar sprites donde hoy aparece el fallback Canvas.
-- Añadir favicon e iconos web.
-- Explicar en el mapa que cada campaña recorre una sola rama.
+- [x] Añadir favicon e iconos web.
+- [x] Explicar en el mapa que cada campaña recorre una sola rama.
 - Revisar duración y balance de las 12 oleadas de Diseminación.
 - Validar audio, accesibilidad de movimiento reducido y contraste.
 

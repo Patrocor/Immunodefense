@@ -5,6 +5,7 @@
   "description": "ImmunoDefense — tower defense inmunologico (canvas 2D, sin bundler)",
   "scripts": {
     "build": "node scripts/build-web.mjs",
+    "test": "node --check game.js && node scripts/smoke-game.mjs",
     "serve": "node scripts/build-web.mjs && npx --yes serve www -l 5173",
     "sync": "npm run build && cap sync",
     "android": "npm run sync && cap open android",

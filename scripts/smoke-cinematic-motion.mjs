@@ -7,7 +7,7 @@ assert.equal(game.__game.quality().motion, 0, "debe activar movimiento reducido 
 
 game.__game.goDissemination();
 assert.ok(game.__game.state.dissemination, "debe entrar a Diseminación");
-assert.equal(game.__game.state.disseminationIntroTimer, 4.0, "intro timer inicial");
+assert.equal(game.__game.state.disseminationIntroTimer, 3.2, "intro timer inicial");
 
 const introBefore = game.__game.state.disseminationIntroTimer;
 game.__game.step(0.1, 0.1);
@@ -43,5 +43,12 @@ assert.equal(game.__lerr, null, "disseminationOver lose no debe fallar en render
 
 const prefGame = createTestGame(undefined, { reducedMotion: true });
 assert.equal(prefGame.__game.quality().motion, 0, "debe respetar prefers-reduced-motion en tests");
+
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+const gameSrc = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "game.js"), "utf8");
+assert.ok(gameSrc.includes("DEFENDÉ LOS 3 ÓRGANOS"), "copy de intro debe mencionar 3 órganos");
+assert.ok(!gameSrc.includes("DEFENDÉ LOS 5 ÓRGANOS"), "copy obsoleto de 5 órganos debe eliminarse");
 
 console.log("Smoke OK: cinemáticas con movimiento reducido");

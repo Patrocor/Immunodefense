@@ -23,7 +23,7 @@ assert.equal(game.__game.state.phaseTransition, null, "tap tras debounce debe ce
 assert.ok(game.__game.state.bodyMap, "skip de transición debe abrir el mapa corporal");
 
 game.__game.state.bodyMap = null;
-game.__game.state.disseminationIntroTimer = 4.0;
+game.__game.state.disseminationIntroTimer = 3.2;
 game.__game.state.disseminationIntroStartedAt = 0;
 game.__game.state.time = 1.5;
 game.__game.tap(200, 200);

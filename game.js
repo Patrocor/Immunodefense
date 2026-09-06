@@ -5089,13 +5089,15 @@
   }
 
   // ============ NIVEL PUENTE: TRANSICIÓN Y SCHEDULER ============
+  var DISSEMINATION_INTRO_DURATION = 3.2;
+  var DISSEMINATION_INTRO_CTA = "◆ DEFENDÉ LOS 3 ÓRGANOS ◆";
   // Al cerrar la ola 10 (boss MRSA), saltamos al campo de 3 carriles.
   // Reset con ATP base: no se heredan torres ni ATP de Fase 1.
   function enterDissemination() {
     state.dissemination = true;
     state.disseminationWaveIdx = 0;
     state.disseminationOver = null;
-    state.disseminationIntroTimer = 4.0;
+    state.disseminationIntroTimer = DISSEMINATION_INTRO_DURATION;
     state.disseminationIntroStartedAt = state.time || 0;
     state.spreadOrganLoad = [0, 0, 0];
     state.spreadFlash = [0, 0, 0];
@@ -30048,7 +30050,8 @@
 
   function drawDisseminationIntro() {
     if (state.disseminationIntroTimer <= 0) return;
-    var total = 4.0;
+    var total = DISSEMINATION_INTRO_DURATION;
+    var introScale = total / 4.0;
     var t = state.disseminationIntroTimer;
     var elapsed = total - t;
     ctx.save();
@@ -30057,8 +30060,9 @@
       var bgAlpha = cinematicVeilAlpha(k, 0.08, 0.72, 1.0);
       ctx.fillStyle = "rgba(8, 4, 8, " + bgAlpha + ")";
       ctx.fillRect(0, 0, VW, VH);
-      if (elapsed > 0.15) {
-        var textAlpha = elapsed < 0.35 ? (elapsed - 0.15) / 0.20 : (elapsed > 0.78 ? Math.max(0, 1 - (elapsed - 0.78) / 0.22) : 1);
+      if (elapsed > 0.15 * introScale) {
+        var textAlpha = elapsed < 0.35 * introScale ? (elapsed - 0.15 * introScale) / (0.20 * introScale)
+          : (elapsed > 0.78 * introScale ? Math.max(0, 1 - (elapsed - 0.78 * introScale) / (0.22 * introScale)) : 1);
         ctx.globalAlpha = textAlpha;
         ctx.fillStyle = "#ffce8a";
         ctx.font = "bold " + Math.floor(36 * U) + "px Fredoka, sans-serif";
@@ -30073,7 +30077,7 @@
         ctx.fillText("La infección busca órganos profundos", VW / 2, VH * 0.49);
         ctx.font = "bold " + Math.floor(22 * U) + "px Fredoka, sans-serif";
         ctx.fillStyle = "#f0d8a0";
-        ctx.fillText("◆ DEFENDÉ LOS 5 ÓRGANOS ◆", VW / 2, VH * 0.60);
+        ctx.fillText(DISSEMINATION_INTRO_CTA, VW / 2, VH * 0.60);
         ctx.globalAlpha = 1;
       }
       drawCinematicSkipHint(state.disseminationIntroStartedAt);
@@ -30082,15 +30086,15 @@
     }
     // Hold-on al inicio (sin fade-in), fade-out al final que revela el campo.
     var bgAlpha;
-    if (elapsed < 0.4) bgAlpha = 1.0;
-    else if (elapsed < 2.6) bgAlpha = 0.95;
-    else if (elapsed < 3.6) bgAlpha = Math.max(0, 0.95 * (1 - (elapsed - 2.6) / 1.0));
+    if (elapsed < 0.4 * introScale) bgAlpha = 1.0;
+    else if (elapsed < 2.6 * introScale) bgAlpha = 0.95;
+    else if (elapsed < 3.6 * introScale) bgAlpha = Math.max(0, 0.95 * (1 - (elapsed - 2.6 * introScale) / (1.0 * introScale)));
     else bgAlpha = 0;
     ctx.fillStyle = "rgba(8, 4, 8, " + bgAlpha + ")";
     ctx.fillRect(0, 0, VW, VH);
-    // ── Flash radial rojo (la barrera cediendo) — 0.4-1.4s
-    if (elapsed > 0.4 && elapsed < 1.6) {
-      var ft = (elapsed - 0.4) / 1.2;
+    // ── Flash radial rojo (la barrera cediendo)
+    if (elapsed > 0.4 * introScale && elapsed < 1.6 * introScale) {
+      var ft = (elapsed - 0.4 * introScale) / (1.2 * introScale);
       var flashAlpha = Math.sin(ft * Math.PI) * 0.60;
       var fg = ctx.createRadialGradient(VW / 2, VH / 2, 0, VW / 2, VH / 2, Math.max(VW, VH) * 0.75);
       fg.addColorStop(0, "rgba(220, 40, 50, " + flashAlpha + ")");
@@ -30099,10 +30103,10 @@
       ctx.fillStyle = fg;
       ctx.fillRect(0, 0, VW, VH);
     }
-    // ── Grietas que se expanden desde el centro — 0.4-2.6s
-    if (elapsed > 0.4 && elapsed < 2.6) {
-      var crackProgress = Math.min(1, (elapsed - 0.4) / 0.8);
-      var crackFade = elapsed > 2.0 ? Math.max(0, 1 - (elapsed - 2.0) / 0.6) : 1;
+    // ── Grietas que se expanden desde el centro
+    if (elapsed > 0.4 * introScale && elapsed < 2.6 * introScale) {
+      var crackProgress = Math.min(1, (elapsed - 0.4 * introScale) / (0.8 * introScale));
+      var crackFade = elapsed > 2.0 * introScale ? Math.max(0, 1 - (elapsed - 2.0 * introScale) / (0.6 * introScale)) : 1;
       ctx.strokeStyle = "rgba(240, 110, 120, " + (0.85 * crackFade) + ")";
       ctx.lineWidth = 2.5;
       ctx.lineCap = "round";
@@ -30124,15 +30128,15 @@
         ctx.stroke();
       }
     }
-    // ── Texto principal: aparece en 0.6s, hold, fade out en 2.8s
-    if (elapsed > 0.6) {
+    // ── Texto principal: aparece, hold, fade out
+    if (elapsed > 0.6 * introScale) {
       var textAlpha;
-      if (elapsed < 1.2) textAlpha = (elapsed - 0.6) / 0.6;
-      else if (elapsed < 2.4) textAlpha = 1;
-      else textAlpha = Math.max(0, 1 - (elapsed - 2.4) / 0.4);
+      if (elapsed < 1.2 * introScale) textAlpha = (elapsed - 0.6 * introScale) / (0.6 * introScale);
+      else if (elapsed < 2.4 * introScale) textAlpha = 1;
+      else textAlpha = Math.max(0, 1 - (elapsed - 2.4 * introScale) / (0.4 * introScale));
       ctx.globalAlpha = textAlpha;
       // Título grande con slide-in vertical.
-      var slideOff = cinematicSlide(Math.max(0, (1.2 - elapsed) * 30 * U));
+      var slideOff = cinematicSlide(Math.max(0, (1.2 * introScale - elapsed) * 30 * U));
       ctx.fillStyle = "#ffce8a";
       ctx.font = "bold " + Math.floor(38 * U) + "px Fredoka, sans-serif";
       ctx.textAlign = "center";
@@ -30148,7 +30152,7 @@
       // Call to action.
       ctx.font = "bold " + Math.floor(22 * U) + "px Fredoka, sans-serif";
       ctx.fillStyle = "#f0d8a0";
-      ctx.fillText("◆ DEFENDÉ LOS 5 ÓRGANOS ◆", VW / 2, VH * 0.60);
+      ctx.fillText(DISSEMINATION_INTRO_CTA, VW / 2, VH * 0.60);
       ctx.globalAlpha = 1;
     }
     drawCinematicSkipHint(state.disseminationIntroStartedAt);

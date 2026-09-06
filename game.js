@@ -5435,6 +5435,43 @@
     continueCampaign: continueCampaign,
     achievements: function () { return { unlocked: ACHIEVEMENTS_UNLOCKED, count: achievementCount(), total: ACHIEVEMENTS.length }; },
     unlockAchievement: unlockAchievement,
+    // Metadatos de tablas para smoke tests (sin lógica de juego).
+    testData: function () {
+      var levels = {};
+      for (var lk in F2_LEVELS) {
+        if (!F2_LEVELS.hasOwnProperty(lk)) continue;
+        var lv = F2_LEVELS[lk];
+        levels[lk] = {
+          towers: (lv.towers || []).slice(),
+          waveCount: (lv.waves || []).length,
+          leakCount: (lv.leak || []).length,
+          germPool: (lv.germPool || []).slice()
+        };
+      }
+      var mapContent = {};
+      for (var mk in MAP_NODE_CONTENT) {
+        if (!MAP_NODE_CONTENT.hasOwnProperty(mk)) continue;
+        mapContent[mk] = { built: !!MAP_NODE_CONTENT[mk].built };
+      }
+      return {
+        enemyIds: Object.keys(ENEMY_DEFS),
+        towerIds: Object.keys(TOWER_DEFS),
+        waveTable: WAVE_TABLE,
+        disseminationWaveTable: DISSEMINATION_WAVE_TABLE,
+        f2Levels: levels,
+        mapNodeKeys: MAP_NODES.map(function (n) { return n.key; }),
+        mapNodeContent: mapContent,
+        mapEdges: MAP_EDGES.map(function (e) { return { from: e.from, to: e.to }; }),
+        achievementIds: ACHIEVEMENTS.map(function (a) { return a.id; })
+      };
+    },
+    goDissemination: function () {
+      state.showTitle = false;
+      state.showIntro = false;
+      enterDissemination();
+    },
+    computeMapState: function (st) { return computeMapState(st || state); },
+    launchNext: launchNextContent,
     // Coloca una torre en coordenadas normalizadas del MUNDO (0..1).
     place: function (typeId, wnx, wny) {
       placeTower(FIELD_LEFT + wnx * dsWorldW(), FIELD_TOP + wny * dsWorldH(), typeId);

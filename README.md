@@ -96,8 +96,9 @@ Sepsis y final de Shock/MODS.
 
 - `npm run build` — genera `www/`.
 - `npm run serve` — genera `www/` y levanta el juego local.
-- `playtest.html` — banco de pruebas con saltos de nivel y ayudas mediante
-  `window.__game` (se sirve desde la raíz durante desarrollo).
+- `npm run playtest` — sirve los fuentes raíz; abre
+  http://localhost:5173/playtest.html para usar saltos de nivel y ayudas
+  mediante `window.__game`.
 
 ## Próximas mejoras
 

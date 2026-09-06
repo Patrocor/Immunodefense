@@ -27,12 +27,13 @@ mantener el juego ejecutable y pasar los smoke tests.
 
 - [x] Primer lote de datos puros en `data/` (`ImmunoDefenseData`): logros,
   oleadas Fase 1, Diseminación y mapa corporal.
+- [x] Segundo lote: definiciones de torres, gérmenes y niveles F2–F5.
 - [x] Manifest de carga (`scripts/data-manifest.mjs`) compartido por HTML,
   playtest, build y smoke tests.
 
 Orden propuesto:
 
-1. **Datos puros:** torres, gérmenes, oleadas y niveles. *(1er lote hecho)*
+1. **Datos puros:** torres, gérmenes, oleadas y niveles. *(2 lotes hechos)*
 2. **Persistencia:** campaña, logros y compendio.
 3. **Motores:** Fase 1, Diseminación y motor compartido F2–F5.
 4. **Render:** HUD, mapa, overlays y render específico por fase.

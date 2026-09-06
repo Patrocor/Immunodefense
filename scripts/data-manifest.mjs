@@ -1,7 +1,10 @@
 export const GAME_DATA_FILES = [
   "data/bootstrap.js",
   "data/achievements.js",
+  "data/towers.js",
+  "data/enemies.js",
   "data/waves-phase1.js",
   "data/dissemination.js",
+  "data/f2-levels.js",
   "data/map-world.js",
 ];

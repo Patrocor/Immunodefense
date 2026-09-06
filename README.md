@@ -105,5 +105,5 @@ Sepsis y final de Shock/MODS.
 
 - Añadir pruebas smoke automáticas para todos los niveles y la persistencia.
 - Completar sprites de patógenos y células que aún usan fallback Canvas.
-- Seguir modularizando `game.js` (gérmenes, torres, niveles F2+) en `data/`.
+- Seguir modularizando `game.js` (persistencia, motores por fase, render).
 - Medir rendimiento y memoria en sesiones largas de Android e iOS.

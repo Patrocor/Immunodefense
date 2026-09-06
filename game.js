@@ -686,7 +686,7 @@
     if (state) generateTissue();
   }
 
-  // ============ PATH DEL NIVEL PUENTE (5 carriles VERTICALES) ============
+  // ============ PATH DEL NIVEL PUENTE (3 carriles VERTICALES) ============
   // Cada carril es vertical: spawn arriba (la barrera rota), puerta de órgano
   // abajo. Usa casi todo el campo (las mitocondrias laterales viven en
   // 6.5%/93.5%, bien afuera de este rango) para que no queden franjas
@@ -4952,11 +4952,10 @@
   }
 
   // ============ NIVEL PUENTE: DISEMINACIÓN ============
-  // 5 carriles paralelos estilo PvZ. Tras vencer al boss MRSA (ola 18), la
+  // 3 carriles paralelos estilo PvZ. Tras vencer al boss MRSA (ola 10), la
   // infección rompió la barrera cutánea y busca órgano blanco. El jugador
-  // defiende; el primer germen que cruza una puerta define el escenario de
-  // Fase 2. Diseñado para que el ATP/slots NO alcancen los 5 carriles.
-  // 3 carriles: la TRIADA HEMATÓGENA CLÁSICA de S. aureus desde piel.
+  // defiende la TRIADA HEMATÓGENA CLÁSICA de S. aureus desde piel; el órgano
+  // que recibe más daño define el escenario de Fase 2.
   // Quitados pulmón (no es destino primario hematógeno desde piel) y sangre
   // (ya estamos en sangre). El órgano "ganador" (que llene su carga
   // primero) determina qué Fase 2 se desbloquea en el world-map.
@@ -4972,10 +4971,9 @@
     hueso:        "osteomielitis",
     articulacion: "artritis"
   };
-  // 6 oleadas in crescendo (expandido de 3 a 6 el 2026-06-23 para que
-  // defender limpio sea un logro real, no algo que "no debería pasar").
-  // Mismo pool de gérmenes que antes, repartido en una curva más gradual;
-  // la oleada 6 es EXACTA a la vieja oleada 3 (la avalancha final no cambia).
+  // 12 oleadas in crescendo. Las seis primeras conservan la curva original
+  // expandida y las seis siguientes forman una segunda mitad más exigente.
+  // Defender el puente completo debe ser un logro real.
   // Velocidad ya está al 50% (ver pxSpeed en updateEnemies).
   var DISSEMINATION_WAVE_TABLE = [
     // Wave 1: presentación tranquila — pocos gérmenes, mucha separación,
@@ -5328,7 +5326,7 @@
       dissemination: false,
       // Fase 2: nivel de órgano activo (null fuera de F2). Ver F2_LEVELS.
       f2: null,
-      disseminationWaveIdx: 0,         // 0..5 dentro del puente (6 olas)
+      disseminationWaveIdx: 0,         // 0..11 dentro del puente (12 olas)
       disseminationOver: null,         // { germ, organ, mode } cuando un órgano llena o se gana con quiebre
       disseminationIntroTimer: 0,      // banner de entrada al puente
       spreadOrganLoad: [0,0,0],       // 0..10 (germenes pasando tras romper barrera) — 3 carriles
@@ -6036,7 +6034,7 @@
   }
 
   // ============ NIVEL PUENTE: TRANSICIÓN Y SCHEDULER ============
-  // Al cerrar la ola 10 (boss MRSA), saltamos al campo de 5 carriles.
+  // Al cerrar la ola 10 (boss MRSA), saltamos al campo de 3 carriles.
   // Reset con ATP base: no se heredan torres ni ATP de Fase 1.
   function enterDissemination() {
     state.dissemination = true;
@@ -6057,7 +6055,7 @@
     state.disseminationBarrierBreakLane = -1;
     // Total acumulado de toda la fase (choques + pases), a diferencia de
     // disseminationBarrierHP que se REGENERA cada ola — este nunca baja.
-    // Define qué carril "más daño recibió" al ganar las 6 olas (ver
+    // Define qué carril "más daño recibió" al ganar las 12 olas (ver
     // startNextDisseminationWave, victoria con quiebre).
     state.disseminationDamageTaken = [0, 0, 0];
     state.antigens = { count: 0, drops: [] };
@@ -6150,7 +6148,7 @@
     state.nextWaveAt = 10;   // tiempo para que el jugador asimile el campo
     state.waveCountdownActive = true;
     state.surgeAnnounced = false;
-    // Reconstruir PATH con 5 carriles + reposicionar mitocondrias laterales.
+    // Reconstruir PATH con 3 carriles + reposicionar mitocondrias laterales.
     rebuildPath();
     layoutDrip();
     // Limpiar drops viejas para que se reposicionen.
@@ -6166,7 +6164,7 @@
   function startNextDisseminationWave() {
     if (state.disseminationOver) return;
     if (state.disseminationWaveIdx >= DISSEMINATION_WAVE_TABLE.length) {
-      // Defendiste las 6 olas sin que ningún órgano se llenara: victoria
+      // Defendiste las 12 olas sin que ningún órgano se llenara: victoria
       // real, pero con el mismo giro que Fase 1 (ver triggerPhaseVictory /
       // "contained") — el carril que más daño acumuló en TODA la fase
       // (disseminationDamageTaken, no la barrera actual que se regenera
@@ -6203,7 +6201,7 @@
     var groups = DISSEMINATION_WAVE_TABLE[idx];
     state.waveActive = true;
     state.waveCountdownActive = false;
-    // Sincronizar waveIdx para que el HUD muestre "Oleada 1-6" correctamente.
+    // Sincronizar waveIdx con la oleada actual de Diseminación.
     state.waveIdx = idx + 1;
     state.pendingSpawns = [];
     state.spawnElapsed = 0;
@@ -8054,7 +8052,7 @@
       // Single-file enforcement: if any live enemy is still very close to entry, hold.
       var def = ENEMY_DEFS[s.type];
       if (!def) { state.pendingSpawns.shift(); continue; }
-      // En diseminación hay 5 carriles paralelos: no aplica single-file global.
+      // En diseminación hay carriles paralelos: no aplica single-file global.
       if (!state.dissemination) {
         var minSep = (def.radius + 10) * 2 * U;
         var minProgress = Infinity;
@@ -8088,7 +8086,7 @@
       // multiplier shrinks gap further (snowball).
       // En diseminación: pausa larga entre olas (~14-18s) para construir
       // defensa. El gap de 18s cae antes de la ola con el primer boss
-      // (idx 2 = "ola 3" en la tabla de 6 olas) para dar tiempo extra de
+      // (idx 2 = "ola 3") para dar tiempo extra de
       // preparación justo antes de esa escalada — no antes de la ola 1.
       var gapBase = state.dissemination
         ? (state.disseminationWaveIdx === 2 ? 18 : 14)
@@ -11211,7 +11209,7 @@
 
   function spawnGuardian() {
     // En Fase 1 necesitamos PATH.confluence para orientarse. En diseminación
-    // el path son 5 carriles sin confluencia: igual entra de un costado y
+    // el path son 3 carriles sin confluencia: igual entra de un costado y
     // patrulla buscando gérmenes vulnerables.
     if (!PATH.confluence && !state.dissemination) return;
     var fromLeft = Math.random() < 0.5;
@@ -31505,7 +31503,7 @@
       return;
     }
 
-    // ---- MODO VICTORIA CON QUIEBRE: las 6 olas se defendieron, pero el
+    // ---- MODO VICTORIA CON QUIEBRE: las 12 olas se defendieron, pero el
     // carril con más daño acumulado de toda la fase (disseminationDamageTaken)
     // deja pasar algunos gérmenes escurridizos — mismo giro narrativo que
     // la "contención rota" de Fase 1 (drawContainedBreachTransition). ----

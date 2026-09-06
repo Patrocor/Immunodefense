@@ -13188,6 +13188,22 @@
     return -1;
   }
 
+  // Una campaña recorre una sola rama F2; el mapa muestra el resto como
+  // rutas alternativas para otra partida.
+  function bodyMapBranchHint(b) {
+    if (!b || !b.forkOpen) return "";
+    var f2 = state.unlockedF2;
+    if (f2) {
+      var node = mapNodeByKey(f2);
+      var label = node ? node.label : f2;
+      return "Esta campaña sigue " + label + ". Las demás ramas requieren otra partida.";
+    }
+    if (b.availableNodes && b.availableNodes[0] === "dissem") {
+      return "Tras Diseminación, la infección activará una sola rama de órgano.";
+    }
+    return "Cada partida recorre una sola rama. El resto del mapa queda para otra campaña.";
+  }
+
   function enterBodyMap(opts) {
     // opts:
     //   currentNode:    key del último nodo COMPLETADO (anclaje del progreso)
@@ -13448,6 +13464,14 @@
       var subPx = Math.max(10, Math.round(titlePx * 0.6));
       ctx.font = "bold " + fitFont(b.subtitle, titleMaxW, subPx, 9) + "px Fredoka, sans-serif";
       ctx.fillText(ellipsizeToWidth(b.subtitle, titleMaxW), VW / 2, VH * 0.09 + titlePx + 4);
+    }
+    var branchHint = bodyMapBranchHint(b);
+    if (branchHint) {
+      var hintY = VH * 0.09 + titlePx + (b.subtitle ? Math.round(titlePx * 0.6) + 10 : 6);
+      ctx.fillStyle = "rgba(255, 210, 150, 0.72)";
+      var hintPx = Math.max(9, Math.round(titlePx * 0.52));
+      ctx.font = fitFont(branchHint, titleMaxW, hintPx, 8) + "px Fredoka, sans-serif";
+      ctx.fillText(ellipsizeToWidth(branchHint, titleMaxW), VW / 2, hintY);
     }
 
     // CLIP al viewport para que el contenido scrolleado no se salga

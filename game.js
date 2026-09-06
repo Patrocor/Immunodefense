@@ -15516,6 +15516,7 @@
       // Waves auto-spawn now; SPACE skips countdown if any.
       if (!state.waveActive && state.nextWaveAt > 0 && !state.cinematicEnd) {
         state.nextWaveAt = 0;
+        startNextWave();
       }
     } else if (e.key === "Escape") {
       if (state.achievementsOpen) state.achievementsOpen = false;

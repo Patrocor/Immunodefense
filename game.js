@@ -68,6 +68,9 @@
     ctx.fillText("Tocá para continuar", VW / 2, VH * 0.88);
     ctx.restore();
   }
+  function achievementToastLife() {
+    return motionOn() ? 4.0 : 3.0;
+  }
   (function detectQuality() {
     try {
       var hash = (location.hash || "").toLowerCase();
@@ -4175,7 +4178,7 @@
     saveMeta();
     if (state) {
       if (!state.achievementToasts) state.achievementToasts = [];
-      state.achievementToasts.push({ id: id, t: 0, life: 4.0, icon: a.icon, title: a.title, desc: a.desc });
+      state.achievementToasts.push({ id: id, t: 0, life: achievementToastLife(), icon: a.icon, title: a.title, desc: a.desc });
       if (state.achievementToasts.length > 4) state.achievementToasts.shift();
     }
     return true;
@@ -28024,19 +28027,24 @@
     var baseY = safeTop + 12;
     // En gameplay baja un poco para no tapar tanto el HUD; en título queda arriba.
     if (!state.showTitle && !state.showIntro) baseY = Math.max(safeTop + 10, HUD_H + 8);
+    var animOn = motionOn();
     for (var i = 0; i < state.achievementToasts.length; i++) {
       var t = state.achievementToasts[i];
       var age = t.t || 0;
-      var life = t.life || 4.0;
-      var inP = Math.min(1, age / 0.25);
-      var outP = age > life - 0.45 ? Math.max(0, (life - age) / 0.45) : 1;
+      var life = t.life || achievementToastLife();
+      var inDur = animOn ? 0.25 : 0.18;
+      var outDur = animOn ? 0.45 : 0.35;
+      var inP = Math.min(1, age / inDur);
+      var outP = age > life - outDur ? Math.max(0, (life - age) / outDur) : 1;
       var a = Math.min(inP, outP);
       if (a <= 0) continue;
-      var y = baseY + i * (h + 8) - (1 - inP) * 18;
+      var y = baseY + i * (h + 8) - (animOn ? (1 - inP) * 18 : 0);
       ctx.globalAlpha = a;
       ctx.fillStyle = "rgba(18, 8, 10, 0.92)";
-      ctx.shadowColor = "rgba(255, 210, 74, 0.35)";
-      ctx.shadowBlur = 14;
+      if (animOn) {
+        ctx.shadowColor = "rgba(255, 210, 74, 0.35)";
+        ctx.shadowBlur = 14;
+      }
       roundRect(x, y, w, h, 0); ctx.fill();
       ctx.shadowBlur = 0;
       ctx.strokeStyle = "rgba(255, 210, 74, 0.60)";
@@ -30536,7 +30544,7 @@
       for (var achi = state.achievementToasts.length - 1; achi >= 0; achi--) {
         var achT = state.achievementToasts[achi];
         achT.t = (achT.t || 0) + dt;
-        if (achT.t >= (achT.life || 4.0)) state.achievementToasts.splice(achi, 1);
+        if (achT.t >= (achT.life || achievementToastLife())) state.achievementToasts.splice(achi, 1);
       }
     }
     updateGermIntro(dt);

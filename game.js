@@ -39,6 +39,15 @@
   function uiInkBanner() {
     return QUALITY.highContrast ? "#ffffff" : "#fffcf0";
   }
+  function motionOn() { return QUALITY.motion > 0; }
+  function cinematicSpeed() { return motionOn() ? 1 : 1.43; }
+  function cinematicSlide(offsetPx) { return motionOn() ? offsetPx : 0; }
+  function cinematicVeilAlpha(k, inEnd, holdEnd, outEnd) {
+    if (k < inEnd) return (k / inEnd) * 0.95;
+    if (k < holdEnd) return 0.95;
+    if (k < outEnd) return 0.95 * (1 - (k - holdEnd) / (outEnd - holdEnd));
+    return 0;
+  }
   (function detectQuality() {
     try {
       var hash = (location.hash || "").toLowerCase();
@@ -12553,6 +12562,29 @@
   // costado — la contención parecía real pero algo se escapó.
   function drawContainedBreachTransition(ph, k) {
     ctx.save();
+    if (!motionOn()) {
+      var veilR = cinematicVeilAlpha(k, 0.12, 0.82, 1.0);
+      ctx.fillStyle = "rgba(6, 4, 6, " + veilR + ")";
+      ctx.fillRect(0, 0, VW, VH);
+      var textA = k < 0.15 ? k / 0.15 : (k > 0.85 ? Math.max(0, 1 - (k - 0.85) / 0.15) : 1);
+      ctx.globalAlpha = textA;
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.strokeStyle = "rgba(0,0,0,0.85)"; ctx.lineWidth = 3;
+      ctx.fillStyle = "#bfe8c8";
+      ctx.font = "bold " + Math.floor(24 * U) + "px Fredoka, sans-serif";
+      ctx.strokeText("¿INFECCIÓN CONTENIDA?", VW / 2, VH * 0.40);
+      ctx.fillText("¿INFECCIÓN CONTENIDA?", VW / 2, VH * 0.40);
+      ctx.fillStyle = "#ff9a78";
+      ctx.font = "bold " + Math.floor(22 * U) + "px Fredoka, sans-serif";
+      ctx.strokeText("ALGO LOGRÓ ESCAPAR", VW / 2, VH * 0.52);
+      ctx.fillText("ALGO LOGRÓ ESCAPAR", VW / 2, VH * 0.52);
+      ctx.fillStyle = "#d4a888";
+      ctx.font = "italic " + Math.floor(14 * U) + "px Fredoka, sans-serif";
+      ctx.fillText("avanza al torrente sanguíneo por su cuenta…", VW / 2, VH * 0.60);
+      ctx.globalAlpha = 1;
+      ctx.restore();
+      return;
+    }
     // Fade a negro (0→0.10), hold con mini-pantallas (0.10→0.88), fade out (0.88→1.0).
     var veilAlpha;
     if (k < 0.10) veilAlpha = (k / 0.10) * 0.97;
@@ -12655,6 +12687,61 @@
       ctx.fillStyle = "#d4a888";
       ctx.font = "italic " + Math.floor(14 * U) + "px Fredoka, sans-serif";
       ctx.fillText("avanza al torrente sanguíneo por su cuenta…", VW / 2, VH * 0.48);
+      ctx.globalAlpha = 1;
+    }
+    ctx.restore();
+  }
+
+  function drawPhaseTransitionOverlay(ph, k) {
+    ctx.save();
+    if (!motionOn()) {
+      var veilR = cinematicVeilAlpha(k, 0.18, 0.78, 1.0);
+      ctx.fillStyle = "rgba(8, 4, 8, " + veilR + ")";
+      ctx.fillRect(0, 0, VW, VH);
+      var textA = k < 0.12 ? k / 0.12 : (k > 0.82 ? Math.max(0, 1 - (k - 0.82) / 0.18) : 1);
+      ctx.globalAlpha = textA;
+      var phVictory = ph.outcome === "victory";
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.strokeStyle = "rgba(0,0,0,0.85)"; ctx.lineWidth = 3;
+      ctx.fillStyle = phVictory ? "#7CFC9E" : "#ff6868";
+      ctx.font = "bold " + Math.floor(26 * U) + "px Fredoka, sans-serif";
+      var phLine1 = phVictory ? "¡INFECCIÓN CONTENIDA!" : "LA BARRERA SE ROMPE";
+      var phLine2 = phVictory ? "avanzás al torrente sanguíneo por tu cuenta…" : "la infección entra en sangre…";
+      ctx.strokeText(phLine1, VW / 2, VH * 0.46);
+      ctx.fillText(phLine1, VW / 2, VH * 0.46);
+      ctx.fillStyle = phVictory ? "#bfe8c8" : "#d4a888";
+      ctx.font = "italic " + Math.floor(15 * U) + "px Fredoka, sans-serif";
+      ctx.fillText(phLine2, VW / 2, VH * 0.54);
+      ctx.globalAlpha = 1;
+      ctx.restore();
+      return;
+    }
+    // Curva: fade-in rápido a oscuro, hold, fade-out parcial (luego la
+    // cinemática de Diseminación toma el control).
+    var veilAlpha;
+    if (k < 0.50) veilAlpha = (k / 0.50) * 0.95;
+    else if (k < 0.85) veilAlpha = 0.95;
+    else veilAlpha = 0.95 * (1 - (k - 0.85) / 0.15);
+    ctx.fillStyle = "rgba(8, 4, 8, " + veilAlpha + ")";
+    ctx.fillRect(0, 0, VW, VH);
+    if (k > 0.15) {
+      var ta = Math.min(1, (k - 0.15) / 0.20);
+      if (k > 0.70) ta *= Math.max(0, 1 - (k - 0.70) / 0.30);
+      ctx.globalAlpha = ta;
+      var phVictory = ph.outcome === "victory";
+      ctx.fillStyle = phVictory ? "#7CFC9E" : "#ff6868";
+      ctx.font = "bold " + Math.floor(28 * U) + "px Fredoka, sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.strokeStyle = "rgba(0,0,0,0.85)";
+      ctx.lineWidth = 3;
+      var phLine1 = phVictory ? "¡INFECCIÓN CONTENIDA!" : "LA BARRERA SE ROMPE";
+      var phLine2 = phVictory ? "avanzás al torrente sanguíneo por tu cuenta…" : "la infección entra en sangre…";
+      ctx.strokeText(phLine1, VW / 2, VH * 0.46);
+      ctx.fillText(phLine1, VW / 2, VH * 0.46);
+      ctx.fillStyle = phVictory ? "#bfe8c8" : "#d4a888";
+      ctx.font = "italic " + Math.floor(15 * U) + "px Fredoka, sans-serif";
+      ctx.fillText(phLine2, VW / 2, VH * 0.54);
       ctx.globalAlpha = 1;
     }
     ctx.restore();
@@ -28056,38 +28143,7 @@
       if (ph.outcome === "contained") {
         drawContainedBreachTransition(ph, k);
       } else {
-      // Curva: fade-in rápido a oscuro, hold, fade-out parcial (luego la
-      // cinemática de Diseminación toma el control).
-      var veilAlpha;
-      if (k < 0.50) veilAlpha = (k / 0.50) * 0.95;
-      else if (k < 0.85) veilAlpha = 0.95;
-      else veilAlpha = 0.95 * (1 - (k - 0.85) / 0.15);
-      ctx.save();
-      ctx.fillStyle = "rgba(8, 4, 8, " + veilAlpha + ")";
-      ctx.fillRect(0, 0, VW, VH);
-      // Texto narrativo, distinto según cómo se llegó a Diseminación
-      // (derrota del jefe vs. sobrecarga viral) — con leve aparición y latido.
-      if (k > 0.15) {
-        var ta = Math.min(1, (k - 0.15) / 0.20);
-        if (k > 0.70) ta *= Math.max(0, 1 - (k - 0.70) / 0.30);
-        ctx.globalAlpha = ta;
-        var phVictory = ph.outcome === "victory";
-        ctx.fillStyle = phVictory ? "#7CFC9E" : "#ff6868";
-        ctx.font = "bold " + Math.floor(28 * U) + "px Fredoka, sans-serif";
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-        ctx.strokeStyle = "rgba(0,0,0,0.85)";
-        ctx.lineWidth = 3;
-        var phLine1 = phVictory ? "¡INFECCIÓN CONTENIDA!" : "LA BARRERA SE ROMPE";
-        var phLine2 = phVictory ? "avanzás al torrente sanguíneo por tu cuenta…" : "la infección entra en sangre…";
-        ctx.strokeText(phLine1, VW / 2, VH * 0.46);
-        ctx.fillText(phLine1, VW / 2, VH * 0.46);
-        ctx.fillStyle = phVictory ? "#bfe8c8" : "#d4a888";
-        ctx.font = "italic " + Math.floor(15 * U) + "px Fredoka, sans-serif";
-        ctx.fillText(phLine2, VW / 2, VH * 0.54);
-        ctx.globalAlpha = 1;
-      }
-      ctx.restore();
+        drawPhaseTransitionOverlay(ph, k);
       }
     }
     drawMessage();
@@ -29852,6 +29908,33 @@
     var t = state.disseminationIntroTimer;
     var elapsed = total - t;
     ctx.save();
+    if (!motionOn()) {
+      var k = elapsed / total;
+      var bgAlpha = cinematicVeilAlpha(k, 0.08, 0.72, 1.0);
+      ctx.fillStyle = "rgba(8, 4, 8, " + bgAlpha + ")";
+      ctx.fillRect(0, 0, VW, VH);
+      if (elapsed > 0.15) {
+        var textAlpha = elapsed < 0.35 ? (elapsed - 0.15) / 0.20 : (elapsed > 0.78 ? Math.max(0, 1 - (elapsed - 0.78) / 0.22) : 1);
+        ctx.globalAlpha = textAlpha;
+        ctx.fillStyle = "#ffce8a";
+        ctx.font = "bold " + Math.floor(36 * U) + "px Fredoka, sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.lineWidth = 4;
+        ctx.strokeStyle = "rgba(80, 10, 10, 0.9)";
+        ctx.strokeText("LA BARRERA CAYÓ", VW / 2, VH * 0.40);
+        ctx.fillText("LA BARRERA CAYÓ", VW / 2, VH * 0.40);
+        ctx.font = "italic " + Math.floor(17 * U) + "px Fredoka, sans-serif";
+        ctx.fillStyle = "#d4a888";
+        ctx.fillText("La infección busca órganos profundos", VW / 2, VH * 0.49);
+        ctx.font = "bold " + Math.floor(22 * U) + "px Fredoka, sans-serif";
+        ctx.fillStyle = "#f0d8a0";
+        ctx.fillText("◆ DEFENDÉ LOS 5 ÓRGANOS ◆", VW / 2, VH * 0.60);
+        ctx.globalAlpha = 1;
+      }
+      ctx.restore();
+      return;
+    }
     // ── Velo oscuro de fondo: empezamos opacos para que la rajadura se vea ANTES que los carriles.
     // Hold-on al inicio (sin fade-in), fade-out al final que revela el campo.
     var bgAlpha;
@@ -29905,7 +29988,7 @@
       else textAlpha = Math.max(0, 1 - (elapsed - 2.4) / 0.4);
       ctx.globalAlpha = textAlpha;
       // Título grande con slide-in vertical.
-      var slideOff = Math.max(0, (1.2 - elapsed) * 30 * U);
+      var slideOff = cinematicSlide(Math.max(0, (1.2 - elapsed) * 30 * U));
       ctx.fillStyle = "#ffce8a";
       ctx.font = "bold " + Math.floor(38 * U) + "px Fredoka, sans-serif";
       ctx.textAlign = "center";
@@ -29932,9 +30015,50 @@
     if (!dOver) return;
     var t = dOver.t;
     var isWin = dOver.mode === "win";
+    var dOverDur = isWin ? 4.7 : 3.3;
+    ctx.save();
+    if (!motionOn()) {
+      var k = Math.min(1, t / dOverDur);
+      var bgAlpha = cinematicVeilAlpha(k, 0.12, 0.78, 1.0);
+      ctx.fillStyle = "rgba(6, 4, 6, " + bgAlpha + ")";
+      ctx.fillRect(0, 0, VW, VH);
+      var textA = t < 0.18 ? t / 0.18 : (t > dOverDur * 0.82 ? Math.max(0, 1 - (t - dOverDur * 0.82) / (dOverDur * 0.18)) : 1);
+      if (textA > 0) {
+        ctx.globalAlpha = textA;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        if (!isWin) {
+          ctx.fillStyle = dOver.organ.color;
+          ctx.font = "bold " + Math.floor(30 * U) + "px Fredoka, sans-serif";
+          var germLabel = (dOver.germ && (dOver.germ.label || dOver.germ.shortName || dOver.germ.id)) || "El patógeno";
+          ctx.fillText(germLabel + " alcanzó", VW / 2, VH * 0.36);
+          ctx.font = "bold " + Math.floor(44 * U) + "px Fredoka, sans-serif";
+          ctx.fillStyle = "#fff";
+          ctx.fillText(dOver.organ.label, VW / 2, VH * 0.46);
+          ctx.fillStyle = "#f0d2a0";
+          ctx.font = "bold " + Math.floor(22 * U) + "px Fredoka, sans-serif";
+          ctx.fillText(dOver.organ.scenario, VW / 2, VH * 0.58);
+        } else {
+          ctx.fillStyle = "#bfe8c8";
+          ctx.font = "bold " + Math.floor(24 * U) + "px Fredoka, sans-serif";
+          ctx.strokeStyle = "rgba(0,0,0,0.85)"; ctx.lineWidth = 3;
+          ctx.strokeText("¿DEFENSA EXITOSA?", VW / 2, VH * 0.38);
+          ctx.fillText("¿DEFENSA EXITOSA?", VW / 2, VH * 0.38);
+          ctx.fillStyle = "#ff9a78";
+          ctx.font = "bold " + Math.floor(22 * U) + "px Fredoka, sans-serif";
+          ctx.strokeText("ALGUNOS LOGRARON ESCAPAR", VW / 2, VH * 0.52);
+          ctx.fillText("ALGUNOS LOGRARON ESCAPAR", VW / 2, VH * 0.52);
+          ctx.fillStyle = "#d4a888";
+          ctx.font = "italic " + Math.floor(14 * U) + "px Fredoka, sans-serif";
+          ctx.fillText("hacia " + dOver.organ.label.toLowerCase() + "…", VW / 2, VH * 0.60);
+        }
+        ctx.globalAlpha = 1;
+      }
+      ctx.restore();
+      return;
+    }
     // Fade in del fondo oscuro.
     var bgAlpha = Math.min(0.88, t / 0.6 * 0.88);
-    ctx.save();
     ctx.fillStyle = "rgba(6, 4, 6, " + bgAlpha + ")";
     ctx.fillRect(0, 0, VW, VH);
 
@@ -30117,7 +30241,7 @@
     // de derrota o de victoria-con-quiebre). Al terminar la cinemática se
     // muestra el mapa con el siguiente nodo desbloqueado.
     if (state.disseminationOver) {
-      state.disseminationOver.t += dt;
+      state.disseminationOver.t += dt * cinematicSpeed();
       paused = true;
       var dOverThresh = state.disseminationOver.mode === "win" ? 4.7 : 3.3;
       if (!state.disseminationOver.resolved && state.disseminationOver.t >= dOverThresh) {
@@ -30155,7 +30279,7 @@
       // decrementaba → el velo quedaba opaco para siempre y Diseminación se
       // veía en negro (fase inaccesible). Ahora cuenta hacia 0 y revela el campo.
       if (state.dissemination && state.disseminationIntroTimer > 0) {
-        state.disseminationIntroTimer = Math.max(0, state.disseminationIntroTimer - dt);
+        state.disseminationIntroTimer = Math.max(0, state.disseminationIntroTimer - dt * cinematicSpeed());
       }
       updateWaveScheduler(dt);
       updateWave(dt);
@@ -30220,7 +30344,7 @@
     // Transición suave entre fases: fundido a negro, después dispara
     // enterDissemination al cumplir la mitad de la duración.
     if (state.phaseTransition) {
-      state.phaseTransition.t += dt;
+      state.phaseTransition.t += dt * cinematicSpeed();
       // "contained" tiene su propia cinemática extendida (mini-pantallas de
       // quiebre) — el mapa-mundo espera a que termine, no a la mitad fija
       // de 0.55 que usan los otros dos desenlaces.

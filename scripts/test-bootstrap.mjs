@@ -73,7 +73,7 @@ class FakeImage {
   }
 }
 
-export function createTestGame(localStorage = createStorage()) {
+export function createTestGame(localStorage = createStorage(), options = {}) {
   const context2d = makeContext2D();
   const canvas = {
     width: 1280,
@@ -115,7 +115,7 @@ export function createTestGame(localStorage = createStorage()) {
     localStorage,
     Image: FakeImage,
     navigator: { hardwareConcurrency: 8, deviceMemory: 8 },
-    location: { hash: "" },
+    location: { hash: options.hash || "" },
     performance: { now: () => 0 },
     innerWidth: 1280,
     innerHeight: 720,
@@ -135,7 +135,10 @@ export function createTestGame(localStorage = createStorage()) {
       return 0;
     },
     clearTimeout() {},
-    matchMedia: () => ({ matches: false, addEventListener() {} }),
+    matchMedia: (query) => ({
+      matches: options.reducedMotion === true && String(query).includes("prefers-reduced-motion"),
+      addEventListener() {},
+    }),
     addEventListener() {},
     __lerr: null,
   };

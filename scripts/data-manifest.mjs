@@ -6,5 +6,6 @@ export const GAME_DATA_FILES = [
   "data/waves-phase1.js",
   "data/dissemination.js",
   "data/f2-levels.js",
+  "data/persistence.js",
   "data/map-world.js",
 ];

@@ -16881,7 +16881,17 @@
     //  · Capaz de fagocitosis + NETosis
     // Caricatura: célula polarizada (uropodo + pseudópodo frontal).
     var x = t.x, y = t.y;
-    var R = 35 * U * pulse;       // PMN — primera línea, silueta dominante en campo
+    // Huella visual anclada al Queratinocito (R=18): silueta 1.1× en ancho y alto.
+    var kcR = 18 * U * pulse;
+    var vsKeratin = 1.1;
+    var KC_FOOTPRINT_W = 2.88;  // mosaico hex (centro + escamas)
+    var KC_FOOTPRINT_H = 2.24;
+    var NEUT_BODY_W = 1.24;     // bbox silueta polarizada en reposo (× R)
+    var NEUT_BODY_H = 1.30;
+    var R = kcR * vsKeratin;
+    var fitSX = (KC_FOOTPRINT_W * vsKeratin) / NEUT_BODY_W;
+    var fitSY = (KC_FOOTPRINT_H * vsKeratin) / NEUT_BODY_H;
+    var Rfx = R * Math.sqrt(fitSX * fitSY); // VFX en coords mundo (fuera del scale)
     var time = state.time;
     var attacking = (expression === "attacking");
     // Carga real del ultimate (t.specialCharge: 0→1) — alimenta la tensión
@@ -16909,7 +16919,7 @@
     ctx.save();
     ctx.translate(x, y);
     ctx.globalAlpha = bodyAlpha;
-    ctx.scale(bodyScale, bodyScale);
+    ctx.scale(bodyScale * fitSX, bodyScale * fitSY);
 
     // IL-8 (Queratinocito cercano): anillo ámbar de neutrófilo activado.
     if ((t.kcBuffT || 0) > 0) {
@@ -17202,7 +17212,7 @@
         ctx.strokeStyle = "#ffd24a";
         ctx.lineWidth = 2.5 * U;
         ctx.beginPath();
-        ctx.arc(x, y, R * (1.1 + wuP * 0.6), 0, Math.PI * 2);
+        ctx.arc(x, y, Rfx * (1.1 + wuP * 0.6), 0, Math.PI * 2);
         ctx.stroke();
         ctx.restore();
       }

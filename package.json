@@ -5,7 +5,7 @@
   "description": "ImmunoDefense — tower defense inmunologico (canvas 2D, sin bundler)",
   "scripts": {
     "build": "node scripts/build-web.mjs",
-    "test": "node --check game.js && node scripts/smoke-game.mjs && node scripts/smoke-invariants.mjs && node scripts/smoke-progression.mjs && node scripts/smoke-persistence.mjs && node scripts/smoke-perf.mjs && node scripts/smoke-cinematic-motion.mjs",
+    "test": "node --check game.js && node scripts/smoke-game.mjs && node scripts/smoke-invariants.mjs && node scripts/smoke-progression.mjs && node scripts/smoke-persistence.mjs && node scripts/smoke-perf.mjs && node scripts/smoke-cinematic-motion.mjs && node scripts/smoke-shake-budget.mjs",
     "test:e2e": "playwright test",
     "test:all": "npm test && npm run test:e2e",
     "perf": "node scripts/smoke-perf.mjs",

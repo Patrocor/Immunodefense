@@ -4254,6 +4254,8 @@
       confirmRestart: false,
       shakeTimer: 0,
       shakeMag: 0,
+      shakePriority: 0,
+      shakeMinorAt: -1,
       waveBannerTimer: 0,
       waveBannerText: "",
       rangeHint: null,
@@ -4481,6 +4483,17 @@
         motionForced: !!QUALITY.motionForced,
         contrastForced: !!QUALITY.contrastForced
       };
+    },
+    shake: function () {
+      return {
+        timer: state.shakeTimer || 0,
+        mag: state.shakeMag || 0,
+        priority: state.shakePriority || 0
+      };
+    },
+    testTriggerShake: function (time, mag, priority) {
+      triggerShake(time, mag, priority);
+      return window.__game.shake();
     },
     perfSnapshot: function () {
       var fps = null;
@@ -12486,11 +12499,45 @@
     }
   }
 
-  function triggerShake(time, mag) {
-    mag *= QUALITY.motion;                 // reduce-motion: escala el sacudón
-    if (mag <= 0) return;
+  // Presupuesto de screenshake: prioridad 0=leve, 1=impacto, 2=crítico
+  // (jefe, ultimate fuerte, barrera rota, cinemática). En movimiento reducido
+  // solo pasan eventos críticos; los leves tienen cooldown anti-spam.
+  var SHAKE_MINOR_COOLDOWN = 0.12;
+
+  function inferShakePriority(time, mag) {
+    if (mag >= 6 || time >= 0.45) return 2;
+    if (mag >= 5 && time >= 0.28) return 2;
+    if (mag >= 4 || time >= 0.15) return 1;
+    return 0;
+  }
+
+  function triggerShake(time, mag, priority) {
+    if (priority == null) priority = inferShakePriority(time, mag);
+    if (!motionOn() && priority < 2) return;
+    var scaledMag = mag * QUALITY.motion;
+    if (!motionOn() && priority >= 2) scaledMag = mag * 0.35;
+    if (scaledMag <= 0) return;
+
+    var shakeActive = state.shakeTimer > 0.02;
+    var activePriority = state.shakePriority || 0;
+
+    if (shakeActive && priority < activePriority) return;
+    if (priority === 1 && shakeActive && activePriority >= 2) return;
+    if (priority === 0) {
+      if (shakeActive && activePriority >= 1) return;
+      var now = state.time || 0;
+      if (now - (state.shakeMinorAt || -999) < SHAKE_MINOR_COOLDOWN) return;
+      state.shakeMinorAt = now;
+    }
+
+    if (!shakeActive || priority > activePriority) {
+      state.shakeTimer = time;
+      state.shakeMag = scaledMag;
+      state.shakePriority = priority;
+      return;
+    }
     if (time > state.shakeTimer) state.shakeTimer = time;
-    if (mag > state.shakeMag) state.shakeMag = mag;
+    if (scaledMag > state.shakeMag) state.shakeMag = scaledMag;
   }
 
   function spawnCirculatoryTracer(def) {
@@ -12981,7 +13028,14 @@
         });
       }
     }
-    if (state.shakeTimer > 0) state.shakeTimer -= dt;
+    if (state.shakeTimer > 0) {
+      state.shakeTimer -= dt;
+      if (state.shakeTimer <= 0) {
+        state.shakeTimer = 0;
+        state.shakeMag = 0;
+        state.shakePriority = 0;
+      }
+    }
     if (state.waveBannerTimer > 0) state.waveBannerTimer -= dt;
     if (state.vesselFlashTimer > 0) state.vesselFlashTimer -= dt;
     if (state.vesselSwallow > 0) state.vesselSwallow -= dt;

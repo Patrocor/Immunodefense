@@ -9,7 +9,7 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const OUT = join(ROOT, "www");
 
 // Lo que entra al build. Nada mas: playtest.html y scripts/ son de desarrollo.
-const ENTRIES = ["index.html", "game.js", "assets", "favicon.svg"];
+const ENTRIES = ["index.html", "game.js", "data", "assets", "favicon.svg"];
 
 async function main() {
   await rm(OUT, { recursive: true, force: true });

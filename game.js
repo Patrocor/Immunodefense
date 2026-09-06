@@ -1,6 +1,14 @@
 (function () {
   "use strict";
 
+  function gameData(key) {
+    var bag = window.ImmunoDefenseData;
+    if (!bag || !Object.prototype.hasOwnProperty.call(bag, key)) {
+      throw new Error("Falta ImmunoDefenseData." + key + " — carga data/*.js antes de game.js");
+    }
+    return bag[key];
+  }
+
   var canvas = document.getElementById("canvas");
   var ctx = canvas.getContext("2d");
 
@@ -1975,18 +1983,7 @@
   //   W8: HPV + Candida cutánea (intertrigo) + pseudomonas + mezcla grave
   //   W9: Oleada caótica — todos los gérmenes de piel juntos, pre-climax
   //  W10: BOSS MRSA — Staph multiresistente, el clímax final
-  var WAVE_TABLE = {
-    1:  [["sepidermidis",6,1.2],["cacnes",3,1.4]],
-    2:  [["sepidermidis",5,1.0],["cacnes",3,1.2],["bossPyogenes",1,0]],
-    3:  [["sepidermidis",4,1.0],["hsv",6,0.55],["molluscum",3,0.9],["demodex",2,1.2]],
-    4:  [["cacnes",3,1.0],["hsv",6,0.5],["saureus",2,1.0],["demodex",3,1.0],["bossPseudomonas",1,0]],
-    5:  [["saureus",3,1.0],["hsv",7,0.5],["malassezia",3,0.9],["dermatofito",2,1.0],["demodex",2,1.0],["neisseria",2,1.2]],
-    6:  [["saureus",4,1.0],["hsv",7,0.5],["sarna",3,1.0],["molluscum",3,0.9],["neisseria",3,1.0],["leishmania",2,1.3]],
-    7:  [["saureus",4,1.0],["pseudomonas",3,0.9],["sarna",3,1.0],["hpv",3,1.0],["neisseria",2,0.9],["leishmania",3,1.0],["bossClostridium",1,0]],
-    8:  [["saureus",5,0.95],["hsv",7,0.5],["pseudomonas",4,0.9],["hpv",3,0.9],["sarna",2,1.0],["leishmania",3,0.9],["candida",2,0.9]],
-    9:  [["saureus",6,0.9],["hsv",8,0.45],["pseudomonas",5,0.85],["hpv",4,0.9],["dermatofito",2,1.0],["malassezia",3,0.9],["leishmania",2,0.9]],
-    10: [["saureus",6,0.9],["hsv",6,0.45],["pseudomonas",5,0.85],["hpv",3,0.9],["bossMRSA",1,0]]
-  };
+  var WAVE_TABLE = gameData("waveTable");
 
   // ============ MÉDULA ÓSEA Y PICKUPS DE DESBLOQUEO ============
   // Cada cierto número de oleadas, la médula ósea emite un pickup flotante.
@@ -2006,24 +2003,19 @@
   // epitelial (Nicho), el mastocito residente que desgranula en minutos, y el
   // neutrófilo, primer leucocito reclutado. Los linfocitos B/T son ADAPTATIVOS
   // (día 4-7, nacen en el ganglio) → no son torres: los produce el Ganglio.
-  var BASIC_TOWERS = ["neutrofilo", "queratinocito", "mastocito"];
-  var UNLOCK_SCHEDULE = {
-    2: "langerhans",
-    3: "nk",
-    4: "eosinofilo",
-    6: "linfocitogd"
-  };
+  var BASIC_TOWERS = gameData("basicTowers");
+  var UNLOCK_SCHEDULE = gameData("unlockSchedule");
   // Catch-up: si el jugador llega a Diseminación sin haber conseguido alguna
   // torre de Fase 1 (perdió el pickup por ola, o no mató al boss), se le vuelve
   // a ofrecer ahí — ninguna torre queda inalcanzable.
-  var PHASE1_CATCHUP_TOWERS = ["langerhans", "nk", "eosinofilo", "complemento", "centinela", "linfocitogd"];
+  var PHASE1_CATCHUP_TOWERS = gameData("phase1CatchupTowers");
   // TANQUES: se ganan matando a un boss específico, no por ola. El drop
   // real ocurre en updateEnemies cuando el boss termina su animación de
   // muerte (dyingTimer<=0) — ver BOSS_TANK_DROPS ahí.
-  var BOSS_TANK_DROPS = { bossPyogenes: "complemento", bossMRSA: "centinela" };
+  var BOSS_TANK_DROPS = gameData("bossTankDrops");
   // Diseminación: ya NO desbloquea torres nuevas (todas se obtienen en Fase 1).
   // La médula de Diseminación solo da catch-up + combos (ver médulaQueue).
-  var DISSEM_UNLOCK_SCHEDULE = {};
+  var DISSEM_UNLOCK_SCHEDULE = gameData("dissemUnlockSchedule");
 
   // === MEGACARIOCITO: produce plaquetas maduras periódicamente ===
   function updateMegakaryocyte(dt) {
@@ -4959,67 +4951,21 @@
   // Quitados pulmón (no es destino primario hematógeno desde piel) y sangre
   // (ya estamos en sangre). El órgano "ganador" (que llene su carga
   // primero) determina qué Fase 2 se desbloquea en el world-map.
-  var DISSEMINATION_ORGANS = [
-    { id: "corazon",      label: "CORAZÓN",      scenario: "Endocarditis",      color: "#c1416a", tint: "rgba(193, 65, 106, 0.10)" },
-    { id: "hueso",        label: "HUESO",        scenario: "Osteomielitis",     color: "#d8c89a", tint: "rgba(216, 200, 154, 0.10)" },
-    { id: "articulacion", label: "ARTICULACIÓN", scenario: "Artritis séptica",  color: "#8ec5d0", tint: "rgba(142, 197, 208, 0.10)" }
-  ];
+  var DISSEMINATION_ORGANS = gameData("disseminationOrgans");
   // Mapping organ → F2 node key del world-map. Cuando un órgano se llena,
   // su F2 correspondiente se desbloquea como next.
-  var ORGAN_TO_F2 = {
-    corazon:      "endocarditis",
-    hueso:        "osteomielitis",
-    articulacion: "artritis"
-  };
+  var ORGAN_TO_F2 = gameData("organToF2");
   // 12 oleadas in crescendo. Las seis primeras conservan la curva original
   // expandida y las seis siguientes forman una segunda mitad más exigente.
   // Defender el puente completo debe ser un logro real.
   // Velocidad ya está al 50% (ver pxSpeed en updateEnemies).
-  var DISSEMINATION_WAVE_TABLE = [
-    // Wave 1: presentación tranquila — pocos gérmenes, mucha separación,
-    // para que el jugador construya su defensa y entienda los carriles.
-    [["saureus",2,2.20],["pseudomonas",1,2.40],["candida",1,2.20]],
-    // Wave 2: un poco más de volumen, todavía sin boss.
-    [["saureus",3,1.85],["pseudomonas",2,2.00],["candida",1,2.00]],
-    // Wave 3: presión media — primer boss MRSA al final.
-    [["saureus",4,1.55],["pseudomonas",2,1.70],["candida",2,1.65],["bossMRSA",1,0]],
-    // Wave 4: volumen alto, sin boss — pura resistencia.
-    [["saureus",6,1.30],["pseudomonas",3,1.40],["candida",3,1.40]],
-    // Wave 5: segundo boss (Pyogenes) antes de la avalancha final.
-    [["saureus",7,1.05],["pseudomonas",4,1.20],["candida",3,1.30],["bossPyogenes",1,4.0]],
-    // Wave 6: avalancha — bosses dobles, intervalos cortos, aglomeración
-    // sostenida para defender los 3 carriles a la vez.
-    [["saureus",10,0.90],["pseudomonas",5,1.10],["candida",4,1.20],["bossMRSA",2,3.0],["bossPyogenes",1,4.0]],
-    // Waves 7-12: segunda mitad — misma curva de escalada (más volumen, menos
-    // separación, más bosses hacia el final).
-    // Wave 7: respiro relativo con más volumen + boss de Pseudomonas.
-    [["saureus",11,0.85],["pseudomonas",6,1.05],["candida",5,1.15],["bossPseudomonas",1,4.0]],
-    // Wave 8: resistencia pura, sin boss.
-    [["saureus",12,0.80],["pseudomonas",7,1.00],["candida",5,1.10],["bossMRSA",2,3.5]],
-    // Wave 9: doble boss, presión sostenida.
-    [["saureus",13,0.75],["pseudomonas",7,0.95],["candida",6,1.05],["bossPyogenes",1,3.5],["bossPseudomonas",1,4.0]],
-    // Wave 10: volumen alto + MRSA dobles.
-    [["saureus",14,0.72],["pseudomonas",8,0.90],["candida",6,1.00],["bossMRSA",2,3.0]],
-    // Wave 11: triple presión de bosses antes del final.
-    [["saureus",15,0.68],["pseudomonas",9,0.85],["candida",7,0.95],["bossPyogenes",2,3.5],["bossPseudomonas",1,4.0]],
-    // Wave 12: AVALANCHA FINAL — tres tipos de boss, intervalos mínimos.
-    [["saureus",18,0.62],["pseudomonas",10,0.80],["candida",8,0.90],["bossMRSA",2,2.8],["bossPyogenes",1,3.5],["bossPseudomonas",1,4.0]]
-  ];
+  var DISSEMINATION_WAVE_TABLE = gameData("disseminationWaveTable");
 
   // Pesos de afinidad germen → carril [corazón, hueso, articulación] (3 carriles).
   // Triada hematógena clásica: S. aureus distribuye uniforme a los 3;
   // pyogenes y pseudomonas tienen menor tropismo pero pueden caer; sepidermidis
   // tropismo a corazón (válvulas con biofilm); candida tropismo a corazón.
-  var GERM_AFFINITY = {
-    saureus:         [3, 3, 3],   // tropismo clásico a los 3 destinos
-    bossMRSA:        [3, 2, 2],   // preferencia por válvulas cardíacas
-    pyogenes:        [2, 1, 1],   // ocasional endocarditis aguda
-    bossPyogenes:    [2, 1, 1],
-    pseudomonas:     [1, 2, 1],   // osteomielitis (ej. usuarios IV)
-    bossPseudomonas: [1, 2, 1],
-    sepidermidis:    [3, 1, 1],   // válvula protésica + biofilm
-    candida:         [2, 1, 1]    // candidiasis sistémica → endocarditis
-  };
+  var GERM_AFFINITY = gameData("germAffinity");
   function pickDisseminationLane(typeId) {
     // Fase 2: los carriles son focos del mismo órgano, no órganos distintos.
     // La siembra hematógena es aleatoria entre los focos disponibles.
@@ -5162,18 +5108,7 @@
   // Pequeña capa de retención: los logros se desbloquean por hitos globales
   // y de campaña. No afectan balance; solo dan feedback y objetivos claros.
   var ACHIEVEMENTS_KEY = "immunodefense_achievements_v1";
-  var ACHIEVEMENTS = [
-    { id: "first_kill", icon: "🧫", title: "Primera neutralización", desc: "Elimina tu primer patógeno" },
-    { id: "wave_5", icon: "🛡️", title: "Primera línea firme", desc: "Alcanza la oleada 5" },
-    { id: "wave_10", icon: "🔥", title: "Respuesta sostenida", desc: "Alcanza la oleada 10" },
-    { id: "hundred_kills", icon: "⚔️", title: "Barrido inmunológico", desc: "Elimina 100 patógenos en total" },
-    { id: "first_bacteremia", icon: "🩸", title: "Bacteriemia detectada", desc: "Un patógeno alcanza el torrente sanguíneo" },
-    { id: "fase1_done", icon: "🧱", title: "Barrera cutánea superada", desc: "Completa la Fase 1" },
-    { id: "dissem_done", icon: "🌊", title: "Diseminación resuelta", desc: "Cierra el puente sanguíneo" },
-    { id: "organ_done", icon: "🫀", title: "Órgano comprometido", desc: "Completa un nivel de órgano" },
-    { id: "sepsis_reached", icon: "🚨", title: "Alerta sistémica", desc: "Llega a Sepsis" },
-    { id: "mods_done", icon: "🏁", title: "Final clínico", desc: "Completa Shock/MODS" }
-  ];
+  var ACHIEVEMENTS = gameData("achievements");
   function achievementById(id) {
     for (var i = 0; i < ACHIEVEMENTS.length; i++) if (ACHIEVEMENTS[i].id === id) return ACHIEVEMENTS[i];
     return null;
@@ -13058,36 +12993,7 @@
   //
   // Títulos y subtítulos del mapa según el nodo que acaba de completarse.
   // enterBodyMapForState los lee desde completedMapNodes.currentNode.
-  var MAP_COMPLETED_LABELS = {
-    "fase1": {
-      title:    "FASE 1 SUPERADA",
-      subtitle: "La infección alcanzó el torrente sanguíneo"
-    },
-    "dissem": {
-      title:    "DISEMINACIÓN COMPLETA",
-      subtitle: "El órgano diana ha sido comprometido"
-    },
-    "endocarditis": {
-      title:    "ENDOCARDITIS",
-      subtitle: "Corazón comprometido — héroes en la circulación"
-    },
-    "osteomielitis": {
-      title:    "OSTEOMIELITIS",
-      subtitle: "Hueso comprometido — héroes en la circulación"
-    },
-    "artritis": {
-      title:    "ARTRITIS",
-      subtitle: "Articulación comprometida — héroes en la circulación"
-    },
-    "sepsis": {
-      title:    "SEPSIS SISTÉMICA",
-      subtitle: "Todo converge — héroes y gérmenes frente a frente"
-    },
-    "mods": {
-      title:    "SHOCK SÉPTICO",
-      subtitle: "Falla multiorgánica · boss final"
-    }
-  };
+  var MAP_COMPLETED_LABELS = gameData("mapCompletedLabels");
 
   // Tabla de contenido construido. nodeKey → { built: bool, launch: fn }.
   // launchNextContent consulta esto para saber qué lanzar al presionar CONTINUAR.
@@ -13116,68 +13022,10 @@
   // Coords x,y relativas al rect del mapa (mapX, mapY, mapW, mapH).
   // Estructura: 3 F2 (triada hematógena clásica) → 9 F3 fan (3 por F2)
   //              → CONVERGE en F4 SEPSIS → F5 SHOCK+MODS boss.
-  var MAP_NODES = [
-    // === STEM GÉRMENES ===
-    { key: "fase1",  x: 0.05, y: 0.32, label: "Fase 1",       color: "#ffb19a", branch: "stem" },
-    { key: "dissem", x: 0.14, y: 0.32, label: "Diseminación", color: "#e84343", branch: "stem" },
-    // === F2: 3 caminos (triada hematógena clásica) ===
-    { key: "endocarditis",  x: 0.26, y: 0.10, label: "Endocarditis",  sub: "corazón",       color: "#c1416a", branch: "f2" },
-    { key: "osteomielitis", x: 0.26, y: 0.32, label: "Osteomielitis", sub: "hueso",         color: "#c8a070", branch: "f2" },
-    { key: "artritis",      x: 0.26, y: 0.54, label: "Artritis",      sub: "articulación",  color: "#8ec5d0", branch: "f2" },
-    // === F3 fan desde Endocarditis (top) ===
-    { key: "f3_pulm",   x: 0.46, y: 0.03, label: "Pulm.",   sub: "émbolos sépticos",   color: "#e8a3b3", branch: "f3", parent: "endocarditis" },
-    { key: "f3_cereb",  x: 0.46, y: 0.10, label: "Cereb.",  sub: "émbolos sépticos",   color: "#a8b8e8", branch: "f3", parent: "endocarditis" },
-    { key: "f3_bazo",   x: 0.46, y: 0.17, label: "Bazo",    sub: "émbolos sépticos",   color: "#a85090", branch: "f3", parent: "endocarditis" },
-    // === F3 fan desde Osteomielitis (middle) ===
-    { key: "f3_epid",   x: 0.46, y: 0.25, label: "Epidur.", sub: "absceso espinal",    color: "#a08070", branch: "f3", parent: "osteomielitis" },
-    { key: "f3_bact",   x: 0.46, y: 0.32, label: "Bact.",   sub: "bact. persistente",  color: "#b8232a", branch: "f3", parent: "osteomielitis" },
-    { key: "f3_fasc",   x: 0.46, y: 0.39, label: "Fascit.", sub: "fascitis necr.",     color: "#c87090", branch: "f3", parent: "osteomielitis" },
-    // === F3 fan desde Artritis (bottom) ===
-    { key: "f3_multi",  x: 0.46, y: 0.47, label: "Multi.",  sub: "pioartritis dis.",   color: "#8ec5d0", branch: "f3", parent: "artritis" },
-    { key: "f3_osloc",  x: 0.46, y: 0.54, label: "Os. loc", sub: "osteo. adyacente",   color: "#c8a070", branch: "f3", parent: "artritis" },
-    { key: "f3_pust",   x: 0.46, y: 0.61, label: "Pust.",   sub: "pustulosis",         color: "#e8b09a", branch: "f3", parent: "artritis" },
-    // === CONVERGENCIA: F4 SEPSIS (un solo nodo) ===
-    { key: "sepsis", x: 0.70, y: 0.32, label: "SEPSIS", sub: "sistémica", color: "#ff5550", branch: "converge" },
-    // === F5 BOSS: SHOCK + MODS ===
-    { key: "mods",   x: 0.88, y: 0.32, label: "SHOCK",  sub: "MODS · boss", color: "#7a0010", branch: "boss" }
-  ];
-  var MAP_EDGES = [
-    // === Germ ===
-    { from: "fase1",  to: "dissem", group: "stem" },
-    // Dissem → 3 F2 (fork)
-    { from: "dissem", to: "endocarditis",  group: "fork-f2" },
-    { from: "dissem", to: "osteomielitis", group: "fork-f2" },
-    { from: "dissem", to: "artritis",      group: "fork-f2" },
-    // Cada F2 → 3 F3 (fan)
-    { from: "endocarditis",  to: "f3_pulm",   group: "fan-f3" },
-    { from: "endocarditis",  to: "f3_cereb",  group: "fan-f3" },
-    { from: "endocarditis",  to: "f3_bazo",   group: "fan-f3" },
-    { from: "osteomielitis", to: "f3_epid",   group: "fan-f3" },
-    { from: "osteomielitis", to: "f3_bact",   group: "fan-f3" },
-    { from: "osteomielitis", to: "f3_fasc",   group: "fan-f3" },
-    { from: "artritis",      to: "f3_multi",  group: "fan-f3" },
-    { from: "artritis",      to: "f3_osloc",  group: "fan-f3" },
-    { from: "artritis",      to: "f3_pust",   group: "fan-f3" },
-    // 9 F3 → 1 SEPSIS (convergencia)
-    { from: "f3_pulm",  to: "sepsis", group: "converge" },
-    { from: "f3_cereb", to: "sepsis", group: "converge" },
-    { from: "f3_bazo",  to: "sepsis", group: "converge" },
-    { from: "f3_epid",  to: "sepsis", group: "converge" },
-    { from: "f3_bact",  to: "sepsis", group: "converge" },
-    { from: "f3_fasc",  to: "sepsis", group: "converge" },
-    { from: "f3_multi", to: "sepsis", group: "converge" },
-    { from: "f3_osloc", to: "sepsis", group: "converge" },
-    { from: "f3_pust",  to: "sepsis", group: "converge" },
-    // Sepsis → Mods (boss final)
-    { from: "sepsis", to: "mods", group: "boss-link" }
-  ];
+  var MAP_NODES = gameData("mapNodes");
+  var MAP_EDGES = gameData("mapEdges");
   // Orden de progresión. Las F3 dependen de qué F2 cayó (placeholder con endo→pulm).
-  var MAP_PROGRESSION = [
-    "fase1", "dissem",
-    "endocarditis", "osteomielitis", "artritis",
-    "sepsis",
-    "mods"
-  ];
+  var MAP_PROGRESSION = gameData("mapProgression");
 
   function mapNodeByKey(k) {
     for (var i = 0; i < MAP_NODES.length; i++) if (MAP_NODES[i].key === k) return MAP_NODES[i];

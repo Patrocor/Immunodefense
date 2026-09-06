@@ -1,7 +1,19 @@
+import { readFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import vm from "node:vm";
+import { GAME_DATA_FILES } from "./data-manifest.mjs";
 
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const source = await readFile(new URL("../game.js", import.meta.url), "utf8");
+
+function loadGameDataSync(context) {
+  for (const rel of GAME_DATA_FILES) {
+    const src = readFileSync(join(ROOT, rel), "utf8");
+    vm.runInContext(src, context, { filename: rel });
+  }
+}
 
 function makeGradient() {
   return { addColorStop() {} };
@@ -136,6 +148,7 @@ export function createTestGame(localStorage = createStorage()) {
   };
 
   vm.createContext(sandbox);
+  loadGameDataSync(sandbox);
   vm.runInContext(source, sandbox, { filename: "game.js" });
   return sandbox;
 }

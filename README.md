@@ -86,8 +86,9 @@ Sepsis y final de Shock/MODS.
 
 - HTML + CSS + JavaScript vanilla
 - Canvas 2D
-- Sin framework ni bundler: `index.html` carga el motor monolítico `game.js`.
-- `npm run build` copia `index.html`, `game.js` y `assets/` a `www/`.
+- Sin framework ni bundler: `index.html` carga `data/*.js` (tablas estáticas)
+  y después el motor monolítico `game.js`.
+- `npm run build` copia `index.html`, `game.js`, `data/` y `assets/` a `www/`.
 - Vercel y Capacitor consumen `www/`; GitHub Pages sirve los fuentes raíz.
 - `npm run sync`, `npm run android` y `npm run ios` sincronizan o abren los
   proyectos nativos.
@@ -104,5 +105,5 @@ Sepsis y final de Shock/MODS.
 
 - Añadir pruebas smoke automáticas para todos los niveles y la persistencia.
 - Completar sprites de patógenos y células que aún usan fallback Canvas.
-- Modularizar gradualmente `game.js` para reducir el riesgo de regresiones.
+- Seguir modularizando `game.js` (gérmenes, torres, niveles F2+) en `data/`.
 - Medir rendimiento y memoria en sesiones largas de Android e iOS.

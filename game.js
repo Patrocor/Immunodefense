@@ -16881,7 +16881,7 @@
     //  · Capaz de fagocitosis + NETosis
     // Caricatura: célula polarizada (uropodo + pseudópodo frontal).
     var x = t.x, y = t.y;
-    var R = 23 * U * pulse;       // bumped 19→23 (~20% más grande)
+    var R = 35 * U * pulse;       // PMN — primera línea, silueta dominante en campo
     var time = state.time;
     var attacking = (expression === "attacking");
     // Carga real del ultimate (t.specialCharge: 0→1) — alimenta la tensión

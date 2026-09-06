@@ -22,7 +22,23 @@
   //      porque navigator.deviceMemory NO existe en iOS, así que la heurística
   //      sola no detecta iPhones viejos.
   //   3) Override manual: #lowfx / #hifx en la URL.
-  var QUALITY = { low: false, motion: 1 };
+  var QUALITY = { low: false, motion: 1, highContrast: false };
+  var PERF = {
+    bootStart: (typeof performance !== "undefined" && performance.now) ? performance.now() : 0,
+    bootMs: 0,
+    peakEnemies: 0,
+    peakEffects: 0,
+    simSeconds: 0
+  };
+  function uiInkMuted() {
+    return QUALITY.highContrast ? "rgba(255,255,255,0.82)" : "rgba(255,255,255,0.55)";
+  }
+  function uiInkDisabled() {
+    return QUALITY.highContrast ? "rgba(255,255,255,0.72)" : "rgba(255,255,255,0.55)";
+  }
+  function uiInkBanner() {
+    return QUALITY.highContrast ? "#ffffff" : "#fffcf0";
+  }
   (function detectQuality() {
     try {
       var hash = (location.hash || "").toLowerCase();
@@ -47,6 +63,18 @@
       if (mm && mm.matches) QUALITY.motion = 0;
       if (mm && mm.addEventListener) mm.addEventListener("change", function (e) {
         if (!QUALITY.motionForced) QUALITY.motion = e.matches ? 0 : 1;
+      });
+    } catch (e) {}
+  })();
+  (function detectContrast() {
+    try {
+      var hash = (location.hash || "").toLowerCase();
+      if (hash.indexOf("highcontrast") >= 0) { QUALITY.highContrast = true; QUALITY.contrastForced = true; return; }
+      if (hash.indexOf("lowcontrast")  >= 0) { QUALITY.highContrast = false; QUALITY.contrastForced = true; return; }
+      var mm = window.matchMedia && window.matchMedia("(prefers-contrast: more)");
+      if (mm && mm.matches) QUALITY.highContrast = true;
+      if (mm && mm.addEventListener) mm.addEventListener("change", function (e) {
+        if (!QUALITY.contrastForced) QUALITY.highContrast = e.matches;
       });
     } catch (e) {}
   })();
@@ -4389,6 +4417,8 @@
     },
     computeMapState: function (st) { return computeMapState(st || state); },
     launchNext: launchNextContent,
+    startDissemWave: startNextDisseminationWave,
+    startF2Wave: startNextF2Wave,
     // Coloca una torre en coordenadas normalizadas del MUNDO (0..1).
     place: function (typeId, wnx, wny) {
       placeTower(FIELD_LEFT + wnx * dsWorldW(), FIELD_TOP + wny * dsWorldH(), typeId);
@@ -4432,7 +4462,35 @@
       return n;
     },
     // Enciende/apaga el disparo automático de ultimates dentro de step().
-    autoUlt: function (on) { devAutoUlt = (on !== false); return devAutoUlt; }
+    autoUlt: function (on) { devAutoUlt = (on !== false); return devAutoUlt; },
+    quality: function () {
+      return {
+        low: !!QUALITY.low,
+        motion: QUALITY.motion,
+        highContrast: !!QUALITY.highContrast,
+        forced: !!QUALITY.forced,
+        motionForced: !!QUALITY.motionForced,
+        contrastForced: !!QUALITY.contrastForced
+      };
+    },
+    perfSnapshot: function () {
+      var fps = null;
+      if (QUALITY._acc > 0 && QUALITY._fr > 0) fps = QUALITY._fr / QUALITY._acc;
+      return {
+        bootMs: PERF.bootMs,
+        simSeconds: PERF.simSeconds,
+        peakEnemies: PERF.peakEnemies,
+        peakEffects: PERF.peakEffects,
+        lowQualityTriggered: !!PERF.lowQualityTriggered,
+        quality: window.__game.quality(),
+        fpsWindow: fps,
+        live: {
+          enemies: (state.enemies && state.enemies.length) || 0,
+          towers: (state.towers && state.towers.length) || 0,
+          effects: (state.effects && state.effects.length) || 0
+        }
+      };
+    }
   };
 
   // Per-wave difficulty (replaces getDifficulty(level)). Speed also receives
@@ -25645,7 +25703,7 @@
   }
 
   function drawHudStat(label, value, x, y, color, fontStat, fontLabel) {
-    ctx.fillStyle = "rgba(255,255,255,0.55)";
+    ctx.fillStyle = uiInkMuted();
     ctx.font = fontLabel + "px Fredoka, sans-serif";
     ctx.textAlign = "left";
     ctx.textBaseline = "top";
@@ -25663,7 +25721,7 @@
     ctx.lineWidth = 1.5;
     roundRect(r.x, r.y, r.w, r.h, 0);
     ctx.stroke();
-    ctx.fillStyle = enabled ? "#fff" : "rgba(255,255,255,0.55)";
+    ctx.fillStyle = enabled ? "#fff" : uiInkDisabled();
     var fs = Math.max(11, Math.min(14, r.h * 0.36));
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
@@ -26019,23 +26077,26 @@
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     var tw = ctx.measureText(state.waveBannerText).width;
-    var center = VW / 2, offL = -tw / 2 - 20, offR = VW + tw / 2 + 20;
-    var cx;
-    if (p < 0.28) {                       // entra (desacelera al centro)
-      var k = p / 0.28; k = 1 - (1 - k) * (1 - k);
-      cx = offL + (center - offL) * k;
-    } else if (p < 0.62) {                // PAUSA en el centro
-      cx = center;
-    } else {                              // sale (acelera a la derecha)
-      var k2 = (p - 0.62) / 0.38; k2 = k2 * k2;
-      cx = center + (offR - center) * k2;
-    }
+    var center = VW / 2;
     var by = FIELD_TOP + (FIELD_BOTTOM - FIELD_TOP) * 0.18;
     var alpha = Math.max(0, Math.min(1, Math.min(p / 0.1, (1 - p) / 0.1)));
     ctx.globalAlpha = alpha;
-    ctx.fillStyle = "rgba(0, 0, 0, 0.35)";
+    var cx = center;
+    if (QUALITY.motion > 0) {
+      var offL = -tw / 2 - 20, offR = VW + tw / 2 + 20;
+      if (p < 0.28) {
+        var k = p / 0.28; k = 1 - (1 - k) * (1 - k);
+        cx = offL + (center - offL) * k;
+      } else if (p < 0.62) {
+        cx = center;
+      } else {
+        var k2 = (p - 0.62) / 0.38; k2 = k2 * k2;
+        cx = center + (offR - center) * k2;
+      }
+    }
+    ctx.fillStyle = QUALITY.highContrast ? "rgba(0, 0, 0, 0.55)" : "rgba(0, 0, 0, 0.35)";
     ctx.fillText(state.waveBannerText, cx + 1, by + 1);
-    ctx.fillStyle = "#fffcf0";
+    ctx.fillStyle = uiInkBanner();
     ctx.fillText(state.waveBannerText, cx, by);
     ctx.globalAlpha = 1;
     ctx.restore();
@@ -30033,10 +30094,17 @@
       if (QUALITY._acc >= 2) {                       // ventana de 2s
         if (QUALITY._fr / QUALITY._acc < 45) {       // < 45 fps sostenido
           QUALITY._bad = (QUALITY._bad || 0) + 1;
-          if (QUALITY._bad >= 2) QUALITY.low = true; // 2 ventanas malas (~4s)
+          if (QUALITY._bad >= 2) { QUALITY.low = true; PERF.lowQualityTriggered = true; } // 2 ventanas malas (~4s)
         } else { QUALITY._bad = 0; }
         QUALITY._acc = 0; QUALITY._fr = 0;
       }
+    }
+    if (!state.showTitle && !state.showIntro && !state.confirmRestart) {
+      PERF.simSeconds += dt;
+      var ec = (state.enemies && state.enemies.length) || 0;
+      var fx = (state.effects && state.effects.length) || 0;
+      if (ec > PERF.peakEnemies) PERF.peakEnemies = ec;
+      if (fx > PERF.peakEffects) PERF.peakEffects = fx;
     }
     // GUARD DEL LOOP: todo el update + render va en try/catch, y
     // requestAnimationFrame se llama SIEMPRE al final (fuera del try). Antes,
@@ -30281,6 +30349,8 @@
       return;
     }
   })();
+
+  PERF.bootMs = ((typeof performance !== "undefined" && performance.now) ? performance.now() : 0) - PERF.bootStart;
 
   requestAnimationFrame(loop);
 })();

@@ -97,13 +97,14 @@ Sepsis y final de Shock/MODS.
 
 - `npm run build` — genera `www/`.
 - `npm run serve` — genera `www/` y levanta el juego local.
+- `npm run test:all` — smoke + E2E.
+- `npm run perf` — baseline de carga y picos (Diseminación, Sepsis, MODS).
 - `npm run playtest` — sirve los fuentes raíz; abre
-  http://localhost:5173/playtest.html para usar saltos de nivel y ayudas
-  mediante `window.__game`.
+  http://localhost:5173/playtest.html para saltos de nivel vía `window.__game`.
+- Detalle de rendimiento: `docs/PERF.md`.
 
 ## Próximas mejoras
 
-- Añadir pruebas smoke automáticas para todos los niveles y la persistencia.
 - Completar sprites de patógenos y células que aún usan fallback Canvas.
-- Seguir modularizando `game.js` (persistencia, motores por fase, render).
-- Medir rendimiento y memoria en sesiones largas de Android e iOS.
+- Seguir modularizando `game.js` (motores por fase, render).
+- Medir rendimiento en Android/iOS reales y comparar con la baseline de `npm run perf`.

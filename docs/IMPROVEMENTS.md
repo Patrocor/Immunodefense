@@ -28,13 +28,14 @@ mantener el juego ejecutable y pasar los smoke tests.
 - [x] Primer lote de datos puros en `data/` (`ImmunoDefenseData`): logros,
   oleadas Fase 1, Diseminación y mapa corporal.
 - [x] Segundo lote: definiciones de torres, gérmenes y niveles F2–F5.
+- [x] Tercer lote: claves de persistencia, metaDefaults y lore del compendio.
 - [x] Manifest de carga (`scripts/data-manifest.mjs`) compartido por HTML,
   playtest, build y smoke tests.
 
 Orden propuesto:
 
-1. **Datos puros:** torres, gérmenes, oleadas y niveles. *(2 lotes hechos)*
-2. **Persistencia:** campaña, logros y compendio.
+1. **Datos puros:** torres, gérmenes, oleadas y niveles. *(3 lotes hechos)*
+2. **Persistencia:** campaña, logros y compendio. *(claves + lore extraídos)*
 3. **Motores:** Fase 1, Diseminación y motor compartido F2–F5.
 4. **Render:** HUD, mapa, overlays y render específico por fase.
 5. **Entrada y plataforma:** pointer, teclado, audio y ciclo principal.
@@ -48,7 +49,9 @@ ES Modules, debe eliminarse de la documentación la opción de abrir
 
 Medir antes de optimizar:
 
-- tiempo de carga y parseo de `game.js`;
+- [x] Baseline automática: `npm run perf` (bytes, boot, picos Diseminación/Sepsis/MODS).
+- [x] Hooks `__game.perfSnapshot()` y auto-degradado por FPS documentados en `docs/PERF.md`.
+- tiempo de carga y parseo en dispositivos reales;
 - FPS y memoria en oleadas finales de Diseminación, Sepsis y MODS;
 - cantidad máxima de enemigos, efectos y números de daño;
 - coste de sombras, gradientes y canvases auxiliares;
@@ -62,8 +65,9 @@ datos o introducir carga diferida por fase.
 - Completar sprites donde hoy aparece el fallback Canvas.
 - [x] Añadir favicon e iconos web.
 - [x] Explicar en el mapa que cada campaña recorre una sola rama.
-- Revisar duración y balance de las 12 oleadas de Diseminación.
-- Validar audio, accesibilidad de movimiento reducido y contraste.
+- [x] Revisar duración y balance de las 12 oleadas de Diseminación (curva monótona 4→28).
+- [x] Respetar `prefers-reduced-motion` y `prefers-contrast: more` en HUD/banners.
+- Validar audio y contraste en dispositivos reales.
 
 ## Criterio para añadir contenido nuevo
 

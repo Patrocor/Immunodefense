@@ -10,18 +10,20 @@
     articulacion: "artritis"
   };
   root.disseminationWaveTable = [
+    // Curva suavizada en 12 olas: 4 → 28 gérmenes (+ jefes en 5/6/7/8/11/12).
+    // Evita el salto brusco de la ola 5→6 de la curva anterior.
     [["saureus",2,2.20],["pseudomonas",1,2.40],["candida",1,2.20]],
-    [["saureus",3,1.85],["pseudomonas",2,2.00],["candida",1,2.00]],
-    [["saureus",4,1.55],["pseudomonas",2,1.70],["candida",2,1.65],["bossMRSA",1,0]],
-    [["saureus",6,1.30],["pseudomonas",3,1.40],["candida",3,1.40]],
-    [["saureus",7,1.05],["pseudomonas",4,1.20],["candida",3,1.30],["bossPyogenes",1,4.0]],
-    [["saureus",10,0.90],["pseudomonas",5,1.10],["candida",4,1.20],["bossMRSA",2,3.0],["bossPyogenes",1,4.0]],
-    [["saureus",11,0.85],["pseudomonas",6,1.05],["candida",5,1.15],["bossPseudomonas",1,4.0]],
-    [["saureus",12,0.80],["pseudomonas",7,1.00],["candida",5,1.10],["bossMRSA",2,3.5]],
-    [["saureus",13,0.75],["pseudomonas",7,0.95],["candida",6,1.05],["bossPyogenes",1,3.5],["bossPseudomonas",1,4.0]],
-    [["saureus",14,0.72],["pseudomonas",8,0.90],["candida",6,1.00],["bossMRSA",2,3.0]],
-    [["saureus",15,0.68],["pseudomonas",9,0.85],["candida",7,0.95],["bossPyogenes",2,3.5],["bossPseudomonas",1,4.0]],
-    [["saureus",18,0.62],["pseudomonas",10,0.80],["candida",8,0.90],["bossMRSA",2,2.8],["bossPyogenes",1,3.5],["bossPseudomonas",1,4.0]]
+    [["saureus",2,2.00],["pseudomonas",2,2.10],["candida",2,2.00]],
+    [["saureus",3,1.85],["pseudomonas",2,1.90],["candida",2,1.85],["sepidermidis",1,2.20]],
+    [["saureus",4,1.65],["pseudomonas",3,1.75],["candida",3,1.70]],
+    [["saureus",5,1.45],["pseudomonas",3,1.55],["candida",3,1.50],["bossPyogenes",1,4.0]],
+    [["saureus",6,1.30],["pseudomonas",4,1.40],["candida",4,1.35],["bossMRSA",1,0]],
+    [["saureus",7,1.15],["pseudomonas",5,1.25],["candida",4,1.25],["bossPseudomonas",1,4.0]],
+    [["saureus",8,1.05],["pseudomonas",5,1.15],["candida",5,1.15],["bossPyogenes",1,3.5]],
+    [["saureus",9,0.95],["pseudomonas",6,1.05],["candida",5,1.05],["bossMRSA",1,3.5]],
+    [["saureus",10,0.90],["pseudomonas",7,1.00],["candida",6,1.00],["bossPseudomonas",1,3.5]],
+    [["saureus",11,0.85],["pseudomonas",8,0.95],["candida",7,0.95],["bossPyogenes",1,3.0],["bossMRSA",1,3.0]],
+    [["saureus",12,0.80],["pseudomonas",9,0.90],["candida",8,0.90],["bossMRSA",1,2.8],["bossPyogenes",1,3.0],["bossPseudomonas",1,4.0]]
   ];
   root.germAffinity = {
     saureus:         [3, 3, 3],

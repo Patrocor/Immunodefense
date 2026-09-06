@@ -72,6 +72,26 @@
     return motionOn() ? 4.0 : 3.0;
   }
   var ULTIMATE_TELEGRAPH_DURATION = 0.4;
+  var ENEMY_IDLE_LOD_COUNT = 24;
+
+  function enemyIdleLodActive() {
+    var n = (state.enemies && state.enemies.length) || 0;
+    return !!QUALITY.low || n > ENEMY_IDLE_LOD_COUNT;
+  }
+
+  function enemyUsesFullIdleAnim(e) {
+    if (!e || !enemyIdleLodActive()) return true;
+    if (e.def && e.def.isBoss) return true;
+    if (e.def && e.def.id && state.vistos && !state.vistos[e.def.id]) return true;
+    if (e.dying || (e.hurtTimer || 0) > 0 || (e.hitFlash || 0) > 0) return true;
+    if ((e.stunTimer || 0) > 0 || (e.slowTimer || 0) > 0 || (e.acidFlash || 0) > 0) return true;
+    if ((e.powerCharge || 0) > 0 || e.devourTarget || (e.toxinTimer || 0) > 0) return true;
+    if (e.enraged || e.absorbing || e.state === "entering" || e.state === "falling") return true;
+    if ((e.tentPulseT || 0) > 0 || (e.tentPunchT || 0) > 0) return true;
+    if ((e.markTimer || 0) > 0 || (e.medFxTimer || 0) > 0) return true;
+    if ((e.shieldHitTimer || 0) > 0 || (e.shieldShatterTimer || 0) > 0) return true;
+    return false;
+  }
   (function detectQuality() {
     try {
       var hash = (location.hash || "").toLowerCase();
@@ -4520,6 +4540,16 @@
       return window.__game.shake();
     },
     trySkipCinematic: function () { return trySkipActiveCinematic(); },
+    enemyIdleLod: function () {
+      return {
+        active: enemyIdleLodActive(),
+        threshold: ENEMY_IDLE_LOD_COUNT,
+        count: (state.enemies && state.enemies.length) || 0
+      };
+    },
+    enemyUsesFullIdleAnim: function (e) {
+      return enemyUsesFullIdleAnim(e || (state.enemies && state.enemies[0]) || null);
+    },
     hitstop: function () { return state.hitstop || 0; },
     testTriggerHitstop: function (duration) {
       triggerHitstop(duration);
@@ -20002,7 +20032,11 @@
       : e.hurtTimer > 0 ? "hurt"
       : (e.def.isBoss && e.enraged) ? "enraged"
       : "idle";
-    var blink = (e.blinkTimer || 0) > 0 && expression === "idle";
+    var fullIdle = enemyUsesFullIdleAnim(e);
+    var blink = fullIdle && (e.blinkTimer || 0) > 0 && expression === "idle";
+    var savedDrawTime = state.time;
+    if (!fullIdle) state.time = (e.wobble || 0) * 0.001;
+    try {
     var dyingScale = e.dying ? Math.max(0.4, e.dyingTimer / 0.30) : 1;
     var absorbScale = e.absorbing ? (e.absorbScale != null ? e.absorbScale : 1) : 1;
     // Falling state: small entry scale to suggest "falling from above".
@@ -20185,6 +20219,9 @@
     // Overlay del antibiótico recibido (si está activo). Se dibuja AL FINAL
     // para quedar por encima del germen y el HP bar.
     drawMedFxOnEnemy(e);
+    } finally {
+      state.time = savedDrawTime;
+    }
   }
 
   function drawShield(e, rad) {
@@ -21226,6 +21263,23 @@
     if (!img && dying) img = ASSETS.get(base + ".webp");
     if (!img) {
       fallbackFn(e, rad, expression, blink);
+      return;
+    }
+    if (!enemyUsesFullIdleAnim(e)) {
+      var staticSize = rad * 2.6;
+      ctx.save();
+      ctx.translate(e.x, e.y);
+      if (e.hitFlash > 0) {
+        var ha = Math.min(0.95, e.hitFlash * 3.2);
+        var hr = staticSize * 0.55 + e.hitFlash * 16;
+        var hg = ctx.createRadialGradient(0, 0, staticSize * 0.30, 0, 0, hr);
+        hg.addColorStop(0, "rgba(255, 250, 90,  " + (ha * 0.85) + ")");
+        hg.addColorStop(1, "rgba(255, 60,  30,  0)");
+        ctx.fillStyle = hg;
+        ctx.beginPath(); ctx.arc(0, 0, hr, 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.drawImage(img, -staticSize / 2, -staticSize / 2, staticSize, staticSize);
+      ctx.restore();
       return;
     }
     // Walk cycle del germen mientras recorre el camino. EVIDENTE

@@ -16911,6 +16911,16 @@
     ctx.globalAlpha = bodyAlpha;
     ctx.scale(bodyScale, bodyScale);
 
+    // IL-8 (Queratinocito cercano): anillo ámbar de neutrófilo activado.
+    if ((t.kcBuffT || 0) > 0) {
+      var kcA = Math.min(1, (t.kcBuffT || 0) / 3) * (0.38 + 0.32 * Math.sin(time * 7));
+      ctx.strokeStyle = "rgba(255, 185, 70, " + kcA + ")";
+      ctx.lineWidth = Math.max(1.4, 2 * U);
+      ctx.setLineDash([5 * U, 4 * U]);
+      ctx.beginPath(); ctx.arc(0, 0, R * 1.18, 0, Math.PI * 2); ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
     // ── ESTRUCTURA ESTRELLA AMEBOIDE ──
     // Cuerpo único irregular con 6 PSEUDÓPODOS radiando del centro.
     // Cada pseudópodo se mueve sutilmente (idle) y se extiende más durante
@@ -16919,7 +16929,7 @@
     var phase = t.idlePhase || 0;
     var nPseudo = 6;
     var rotation = phase * 0.15 + time * 0.04;
-    var armExt = attacking ? 1.20 : (1.0 + chargeFrac * 0.15);
+    var armExt = attacking ? 1.28 : (1.0 + chargeFrac * 0.18 + ((t.kcBuffT || 0) > 0 ? 0.08 : 0));
     var rTop = R * 0.55;          // tamaño "head" virtual para sizing de cara
     var cyTop = -R * 0.18;        // posición de la cara (zona superior del cuerpo)
 
@@ -16962,7 +16972,40 @@
     ctx.fill();
     ctx.stroke();
 
-    // NÚCLEO MULTILOBULADO — 4 lóbulos conectados por filamentos de
+    // Membrana ondulada en las puntas de pseudópodo (ruffling ameboide).
+    ctx.strokeStyle = "rgba(107, 58, 40, 0.65)";
+    ctx.lineWidth = Math.max(1, 1.3 * U);
+    for (var ri = 0; ri < tips.length; ri++) {
+      var tip = tips[ri];
+      var rufA = tip.ang + Math.PI / 2;
+      ctx.beginPath();
+      ctx.arc(tip.x, tip.y, R * 0.11, rufA - 0.8, rufA + 0.8);
+      ctx.stroke();
+    }
+
+    // Pseudópodo fagocítico hacia el blanco (ataque cuerpo a cuerpo).
+    if (attacking && t.lastTargetX != null) {
+      var pdx = t.lastTargetX - x, pdy = t.lastTargetY - y;
+      var pdLen = Math.hypot(pdx, pdy) || 1;
+      var reach = Math.min(R * 1.35, pdLen * 0.55);
+      var pex = (pdx / pdLen) * reach, pey = (pdy / pdLen) * reach;
+      var phagK = Math.min(1, (t.attackAnim || 0) / 0.2);
+      ctx.fillStyle = "rgba(237, 220, 210, " + (0.55 + phagK * 0.35) + ")";
+      ctx.strokeStyle = "#6b3a28";
+      ctx.lineWidth = Math.max(1.4, 1.8 * U);
+      ctx.beginPath();
+      ctx.moveTo(pex * 0.25, pey * 0.25);
+      ctx.quadraticCurveTo(pex * 0.55 + pey * 0.18, pey * 0.55 - pex * 0.18, pex, pey);
+      ctx.quadraticCurveTo(pex * 0.55 - pey * 0.18, pey * 0.55 + pex * 0.18, pex * 0.25, pey * 0.25);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      // Vacuola fagocítica en la punta.
+      ctx.fillStyle = "rgba(180, 140, 255, " + (0.35 * phagK) + ")";
+      ctx.beginPath(); ctx.arc(pex * 0.88, pey * 0.88, R * 0.14, 0, Math.PI * 2); ctx.fill();
+    }
+
+    // NÚCLEO MULTILOBULADO — banda en herradura (PMN signature).
     // cromatina. Posicionado en el cuerpo central (zona libre de la cara).
     // Lóbulos MÁS GRANDES y saturados, con filamentos gruesos: el rasgo
     // icónico del PMN debe leerse de un vistazo.
@@ -16987,6 +17030,10 @@
       ctx.lineTo(lobes[lk + 1].x, lobes[lk + 1].y);
       ctx.stroke();
     }
+    ctx.beginPath();
+    ctx.moveTo(lobes[lobes.length - 1].x, lobes[lobes.length - 1].y);
+    ctx.lineTo(lobes[0].x, lobes[0].y);
+    ctx.stroke();
     // Lóbulos con volumen (degradado) + contorno oscuro grueso.
     for (var lk2 = 0; lk2 < lobes.length; lk2++) {
       var lo = lobes[lk2];
@@ -17004,24 +17051,41 @@
     // GRÁNULOS azurófilos dispersos en el citoplasma (evitando núcleo y cara).
     // Brillan más fuerte y vibran a medida que la carga real del Bombardeo
     // avanza — las defensinas concentrándose antes de salir disparadas.
-    var grans = 9;
-    var granJitterN = chargeFrac * 1.0 * U;
+    var grans = 11;
+    var granJitterN = chargeFrac * 1.2 * U;
     for (var gn = 0; gn < grans; gn++) {
-      var ga = (gn * 2.39 + phase) % (Math.PI * 2);    // distribución pseudo-random
-      var gd = R * (0.38 + (gn % 3) * 0.08);
-      var ggx = Math.cos(ga) * gd + (Math.random() - 0.5) * granJitterN;
-      var ggy = Math.sin(ga) * gd + (Math.random() - 0.5) * granJitterN;
-      // Evitar superposición con el área de la cara (zona superior).
+      var ga = (gn * 2.39 + phase) % (Math.PI * 2);
+      var gd = R * (0.36 + (gn % 4) * 0.07);
+      var ggx = Math.cos(ga) * gd + Math.sin(time * 3.1 + gn * 1.9) * granJitterN * 0.4;
+      var ggy = Math.sin(ga) * gd + Math.cos(time * 2.4 + gn * 2.3) * granJitterN * 0.4;
       if (ggy < cyTop + R * 0.20 && Math.abs(ggx) < R * 0.30) continue;
-      // Gránulos azurófilos MÁS GRANDES con rim oscuro (se leen como orgánulos).
-      var grR = (1.7 + Math.sin(time * 1.5 + gn) * (0.30 + chargeFrac * 0.25)) * U;
-      ctx.fillStyle = "rgba(" + Math.round(126 + chargeFrac * 90) + ", " + Math.round(65 + chargeFrac * 100) + ", 220, " + Math.min(1, 0.80 + chargeFrac * 0.20) + ")";
+      var grR = (1.8 + Math.sin(time * 1.5 + gn) * (0.32 + chargeFrac * 0.28)) * U;
+      var isMpo = gn % 3 === 0;
+      if (isMpo) {
+        ctx.fillStyle = "rgba(70, 170, 95, " + Math.min(1, 0.75 + chargeFrac * 0.22) + ")";
+      } else {
+        ctx.fillStyle = "rgba(" + Math.round(126 + chargeFrac * 90) + ", " + Math.round(65 + chargeFrac * 100) + ", 220, " + Math.min(1, 0.80 + chargeFrac * 0.20) + ")";
+      }
       ctx.beginPath();
       ctx.arc(ggx, ggy, grR, 0, Math.PI * 2);
       ctx.fill();
-      ctx.strokeStyle = "rgba(60, 35, 105, 0.85)";
+      ctx.strokeStyle = isMpo ? "rgba(30, 90, 45, 0.85)" : "rgba(60, 35, 105, 0.85)";
       ctx.lineWidth = Math.max(0.8, 0.9 * U);
       ctx.stroke();
+    }
+
+    // Degranulación al morder (flash breve hacia el germen).
+    if ((t.muzzleFlash || 0) > 0 && t.lastTargetX != null) {
+      var mfK = Math.min(1, t.muzzleFlash / 0.08);
+      var mdx = t.lastTargetX - x, mdy = t.lastTargetY - y;
+      var mdLen = Math.hypot(mdx, mdy) || 1;
+      for (var mg = 0; mg < 4; mg++) {
+        var mgT = mg / 3;
+        var mgx = (mdx / mdLen) * R * (0.5 + mgT * 0.9);
+        var mgy = (mdy / mdLen) * R * (0.5 + mgT * 0.9);
+        ctx.fillStyle = "rgba(180, 120, 240, " + (0.85 * mfK * (1 - mgT * 0.5)) + ")";
+        ctx.beginPath(); ctx.arc(mgx, mgy, (2.2 - mgT * 0.6) * U, 0, Math.PI * 2); ctx.fill();
+      }
     }
 
     // CARA centrada en la esfera SUPERIOR.
@@ -17110,6 +17174,24 @@
       ctx.arc(0, 0, R * 1.15, 0, Math.PI * 2);
       ctx.stroke();
       ctx.restore();
+    }
+
+    // NETosis inminente (vida crítica): hebras de cromatina saliendo del núcleo.
+    if ((t.hp / t.maxHp) < 0.32 && !doingUltimate) {
+      var netA = 0.25 + 0.2 * Math.sin(time * 5);
+      ctx.strokeStyle = "rgba(200, 170, 255, " + netA + ")";
+      ctx.lineWidth = Math.max(0.9, 1.2 * U);
+      ctx.lineCap = "round";
+      for (var nw = 0; nw < 5; nw++) {
+        var nwa = (nw / 5) * Math.PI * 2 + time * 0.6;
+        ctx.beginPath();
+        ctx.moveTo(Math.cos(nwa) * R * 0.35, Math.sin(nwa) * R * 0.35 + nucCY * 0.5);
+        ctx.quadraticCurveTo(
+          Math.cos(nwa + 0.4) * R * 0.95, Math.sin(nwa + 0.4) * R * 0.95,
+          Math.cos(nwa + 0.9) * R * 1.35, Math.sin(nwa + 0.9) * R * 1.35
+        );
+        ctx.stroke();
+      }
     }
 
     ctx.restore();

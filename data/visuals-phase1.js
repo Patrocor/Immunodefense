@@ -4,7 +4,7 @@
 
   root.phase1TowerVisuals = {
     neutrofilo:   { role: "fagocito",   label: "Fago",   glyph: "star",     arc: "#B79CE0" },
-    queratinocito:{ role: "productor",  label: "Secr.",  glyph: "gear",     arc: "#d4a855" },
+    queratinocito:{ role: "productor",  label: "Barrera", glyph: "gear",     arc: "#d4a855", silhouette: "mosaic" },
     mastocito:    { role: "control",    label: "Ralent.",glyph: "snowflake",arc: "#4F8FE0" },
     langerhans:   { role: "marca",      label: "APC",    glyph: "target",   arc: "#3FC1C9" },
     nk:           { role: "citotoxico", label: "NK",     glyph: "perforin", arc: "#E84393" },

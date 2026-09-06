@@ -1,25 +1,40 @@
 # ImmunoDefense
 
-Tower defense con tema de sistema inmunológico. El jugador controla las
-células inmunes del organismo y debe detener la infección antes de que los
-patógenos lleguen al vaso sanguíneo.
+Tower defense con tema de sistema inmunológico. El jugador despliega células
+inmunes para contener una infección que avanza desde la piel hacia distintos
+órganos y, finalmente, puede desencadenar sepsis y falla multiorgánica.
 
-Prototipo jugable en HTML5 + Canvas 2D. Vanilla JS, sin dependencias, un
-único archivo `index.html`. Funciona en desktop y móvil (touch).
+Juego HTML5 + Canvas 2D escrito en JavaScript vanilla. Funciona en desktop,
+móvil web y como aplicación nativa mediante Capacitor.
 
 ## Jugar
 
 - Online (GitHub Pages): https://patrocor.github.io/Immunodefense/
 - Online (Vercel): https://immunodefense.vercel.app
-- Local: clona el repo y abre `index.html` directamente en el navegador.
+- Local: `npm run serve` y abre http://localhost:5173.
+
+## Campaña
+
+La campaña conecta cinco etapas mediante un mapa corporal:
+
+1. **Fase 1 · Piel** — 10 oleadas y cuatro jefes.
+2. **Diseminación** — 12 oleadas en tres carriles: corazón, hueso y
+   articulación.
+3. **Fase 2** — Endocarditis, Osteomielitis o Artritis séptica, según la
+   rama desbloqueada.
+4. **Fase 3** — nueve complicaciones posibles, tres por cada rama de Fase 2.
+5. **Sepsis y Shock/MODS** — cierre sistémico y jefe final.
+
+Cada campaña recorre una de las tres ramas de órgano; las demás quedan
+disponibles para nuevas partidas.
 
 ## Progreso de campaña
 
 El juego guarda progreso localmente en el navegador/dispositivo mediante
 `localStorage`. Al volver a abrir ImmunoDefense, la pantalla de título muestra
 **Continuar**, **Nueva partida** y **Ver mapa** si ya existe una campaña en
-curso. El guardado ocurre en hitos narrativos: Fase 1 superada, Diseminación
-resuelta y niveles de órgano completados.
+curso. El guardado ocurre en hitos narrativos; no conserva una oleada a mitad
+del combate.
 
 También hay logros persistentes con notificaciones en pantalla para hitos como
 primera eliminación, oleadas alcanzadas, Diseminación resuelta, llegada a
@@ -27,19 +42,18 @@ Sepsis y final de Shock/MODS.
 
 ## Cómo jugar
 
-- **Click / Tap** en una carta del panel inferior para elegir una célula
-  inmune (9 tipos disponibles, ver Unidades).
+- **Click / Tap** en una carta del dock para elegir una célula inmune.
 - **Click / Tap** en el campo para colocarla. La mayoría cuesta ATP; el
   Cañón del Complemento usa fragmentos de complemento en vez de ATP.
 - **Click / Tap** sobre una torre existente para seleccionarla y poder
   **mejorarla** (hasta nivel 3) o **venderla**.
 - **Iniciar Oleada** (botón superior derecho) lanza la siguiente wave.
-- Los patógenos que no eliminás a tiempo son absorbidos por el torrente
-  sanguíneo. Fase 1 todavía no tiene vidas ni derrota/victoria: es un
-  modo de escalada continua, el desafío es la dificultad creciente.
-- Hay un jefe cada pocas oleadas (3, 7, 12 y 18). Al cerrar la oleada 18
-  (MRSA) se pasa automáticamente al nivel puente **Diseminación**, con
-  mecánicas propias (barreras de Fibrina, carriles).
+- Los patógenos que alcanzan el torrente aumentan la carga de infestación.
+- Fase 1 termina al derrotar a MRSA en la oleada 10 o cuando la infestación
+  desborda la barrera. Ambos desenlaces continúan la historia en
+  **Diseminación**.
+- Cada nivel posterior tiene integridad propia, condición de derrota,
+  mecánica fisiológica y poder de base.
 
 ### Atajos de teclado (desktop)
 
@@ -51,29 +65,20 @@ Sepsis y final de Shock/MODS.
 | `M` | Mute / unmute |
 | `R` | Reiniciar (con confirmación) |
 
-## Unidades
+## Contenido
 
-**Células inmunes (torres) — 9 tipos:**
-- **Neutrófilo** — corto alcance, golpe instantáneo, cuerpo a cuerpo.
-- **Linfocito B** — largo alcance, ametralladora de anticuerpos.
-- **Linfocito T** — citotóxico, daño en área.
-- **Célula de Langerhans** — marca antígenos (+daño de las aliadas).
-- **Célula NK** — antiviral, rompe escudos.
-- **Eosinófilo** — antiparásito (gránulos).
-- **Mastocito** — histamina: ralentiza y hace daño continuo.
-- **Cañón del Complemento (MAC)** — disparo manual, ácido que ignora escudos.
-- **Malla de Fibrina** — barrera que obstruye el carril (solo en Diseminación).
-
-**Patógenos (enemigos):** ~11 especies con nombre real, cada una con
-mecánica propia (escudos, esporas hijas, auras, fagas buscadoras de
-torres...) — *S. epidermidis*, *S. aureus*, HSV, *C. acnes*, *Candida*,
-Dermatofito, *Pseudomonas*, HPV, Molluscum, Malassezia, sarna
-(*Sarcoptes*) — más 4 jefes: *S. pyogenes*, *Pseudomonas*, *Clostridium*
-y MRSA. Detalle de cada uno en su tooltip dentro del juego.
+- Cerca de 30 definiciones de células y estructuras defensivas, incluidas
+  unidades residentes específicas de corazón, hueso, articulación y fases
+  sistémicas.
+- Más de 40 definiciones de patógenos y jefes con escudos, auras, biofilm,
+  esporas, migración, embolización y otras mecánicas.
+- Loadout, mejoras, venta, poderes activos, medicamentos, compendio, tutorial,
+  audio sintetizado y 10 logros persistentes.
+- Sprites WebP opcionales con fallback a gráficos Canvas.
 
 ## Branches
 
-- **`main`** → prototipo HTML5 jugable (este).
+- **`main`** → juego HTML5 actual.
 - **`godot-prototype`** → prototipo inicial en Godot 4 (preservado como
   backup, no se usa para el deploy de GitHub Pages).
 
@@ -81,22 +86,22 @@ y MRSA. Detalle de cada uno en su tooltip dentro del juego.
 
 - HTML + CSS + JavaScript vanilla
 - Canvas 2D
-- Sin frameworks ni bundler: la web se sirve tal cual desde la raíz
-  (`index.html` + `game.js` + `assets/`), así que GitHub Pages y Vercel no
-  necesitan build.
-- Para móvil sí hay un paso: `npm run build` copia esos mismos fuentes a
-  `www/` (generado, fuera de git) y `npm run sync|android|ios` lo empaqueta
-  con Capacitor.
+- Sin framework ni bundler: `index.html` carga el motor monolítico `game.js`.
+- `npm run build` copia `index.html`, `game.js` y `assets/` a `www/`.
+- Vercel y Capacitor consumen `www/`; GitHub Pages sirve los fuentes raíz.
+- `npm run sync`, `npm run android` y `npm run ios` sincronizan o abren los
+  proyectos nativos.
 
-## Roadmap corto
+## Desarrollo
 
-- ~~Audio~~ ✅ hecho (Web Audio API, todo sintetizado).
-- Sprites en lugar de formas geométricas — parcial: los personajes del
-  nivel Piel (Mac/DenK) ya usan sprites; de los patógenos de Fase 1 solo
-  *S. aureus* y *S. epidermidis* tienen sprite propio, el resto sigue en
-  formas geométricas (el sistema ya soporta agregarlos sin tocar código).
-- Definir condición de derrota/victoria para Fase 1 (hoy es escalada
-  infinita sin fin, ver "Cómo jugar").
-- Habilidades activas (inflamación, fiebre) — la inflamación hoy es un
-  efecto pasivo, sin toggle que el jugador pueda activar.
-- Más tipos de patógenos y células inmunes.
+- `npm run build` — genera `www/`.
+- `npm run serve` — genera `www/` y levanta el juego local.
+- `playtest.html` — banco de pruebas con saltos de nivel y ayudas mediante
+  `window.__game` (se sirve desde la raíz durante desarrollo).
+
+## Próximas mejoras
+
+- Añadir pruebas smoke automáticas para todos los niveles y la persistencia.
+- Completar sprites de patógenos y células que aún usan fallback Canvas.
+- Modularizar gradualmente `game.js` para reducir el riesgo de regresiones.
+- Medir rendimiento y memoria en sesiones largas de Android e iOS.

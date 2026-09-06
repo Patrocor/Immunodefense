@@ -4516,6 +4516,11 @@
       return window.__game.shake();
     },
     trySkipCinematic: function () { return trySkipActiveCinematic(); },
+    hitstop: function () { return state.hitstop || 0; },
+    testTriggerHitstop: function (duration) {
+      triggerHitstop(duration);
+      return state.hitstop || 0;
+    },
     perfSnapshot: function () {
       var fps = null;
       if (QUALITY._acc > 0 && QUALITY._fr > 0) fps = QUALITY._fr / QUALITY._acc;
@@ -7283,6 +7288,7 @@
               state.disseminationBarrierBreakAt = state.time;
               state.disseminationBarrierBreakLane = lane;
               triggerShake(0.35, 6);
+              triggerBarrierBreakHitstop();
               sfx("playerHurt");
             }
             e.dead = true;
@@ -7702,7 +7708,10 @@
     if (!t || !t.specialReady) return;
     var def = t.def;
     // ---- ULTIMATES DE LAS RESIDENTES DE ÓRGANO (Fase 2) -----------------
-    if (def.f2Organ && f2TriggerOrganSpecial(t)) return;
+    if (def.f2Organ && f2TriggerOrganSpecial(t)) {
+      triggerUltimateHitstop();
+      return;
+    }
     if (def.producer) {
       // TURNO DE SECRECIÓN: el nicho vuelca parches antimicrobianos sobre el
       // carril más cercano dentro de su rango. Cada parche daña + frena.
@@ -7729,6 +7738,7 @@
       sfx("upgrade");
       return;
     }
+    triggerUltimateHitstop();
     if (def.id === "neutrofilo") {
       // BOMBARDEO DE DEFENSINAS: 7 gránulos caen escalonados sobre un
       // tramo ancho del camino (±70px de arco alrededor del punto que da
@@ -9480,7 +9490,7 @@
       if (def.id === "sepidermidis") releaseSepidermidisToxin(e);
       germExplode(e);   // estalla y daña a los personajes cercanos
       // #8 Hitstop al matar un jefe: micro-freeze para que el golpe pese.
-      if (def.isBoss && QUALITY.motion > 0) state.hitstop = 0.07;
+      if (def.isBoss) triggerHitstop(HITSTOP_BOSS);
       // Molluscum: al morir se DIVIDE en mini-molluscum (salvo que ya sea hijo).
       if (def.deathSplit && !e.noSplit && !e.absorbing) {
         for (var ds = 0; ds < (def.deathSplit.count || 2); ds++) {
@@ -12562,6 +12572,25 @@
     }
     if (time > state.shakeTimer) state.shakeTimer = time;
     if (scaledMag > state.shakeMag) state.shakeMag = scaledMag;
+  }
+
+  var HITSTOP_ULTIMATE = 0.06;
+  var HITSTOP_BARRIER = 0.065;
+  var HITSTOP_BOSS = 0.07;
+
+  function triggerHitstop(duration) {
+    if (duration == null) duration = HITSTOP_ULTIMATE;
+    if (!motionOn()) duration *= 0.35;
+    if (duration <= 0) return;
+    if (duration > (state.hitstop || 0)) state.hitstop = duration;
+  }
+
+  function triggerUltimateHitstop() {
+    triggerHitstop(HITSTOP_ULTIMATE);
+  }
+
+  function triggerBarrierBreakHitstop() {
+    triggerHitstop(HITSTOP_BARRIER);
   }
 
   function spawnCirculatoryTracer(def) {

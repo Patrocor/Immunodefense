@@ -14,17 +14,11 @@ de ampliar contenido o reestructurar el motor.
 
 ## 2. Cobertura de progresión
 
-Siguiente bloque recomendado:
-
-1. Probar las transiciones Fase 1 → Diseminación → F2 → F3 → Sepsis → MODS.
-2. Probar guardado, restauración y migración defensiva de `localStorage`.
-3. Añadir invariantes de tablas:
-   - todo germen usado en una oleada existe;
-   - toda torre de un nivel existe;
-   - todo nodo jugable tiene destino y configuración;
-   - las longitudes de `waves` y `leak` coinciden.
-4. Añadir una prueba real de navegador para carga de assets, interacción por
-   puntero y tamaños portrait/landscape.
+- [x] Probar transiciones Fase 1 → Diseminación → F2 → F3 → Sepsis → MODS.
+- [x] Probar guardado, restauración y persistencia de logros en `localStorage`.
+- [x] Añadir invariantes de tablas (gérmenes, torres, mapa, waves/leak).
+- [ ] Añadir una prueba real de navegador para carga de assets, interacción por
+  puntero y tamaños portrait/landscape.
 
 ## 3. Modularización incremental
 

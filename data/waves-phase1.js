@@ -16,9 +16,16 @@
     2: "langerhans",
     3: "nk",
     4: "eosinofilo",
-    6: "linfocitogd"
+    5: "linfocitoB",
+    6: "sebocito",
+    7: "pdc",
+    8: "linfocitoT",
+    9: "linfocitogd"
   };
-  root.phase1CatchupTowers = ["langerhans", "nk", "eosinofilo", "complemento", "centinela", "linfocitogd"];
+  root.phase1CatchupTowers = [
+    "langerhans", "nk", "eosinofilo", "linfocitoB", "sebocito", "pdc",
+    "linfocitoT", "complemento", "centinela", "linfocitogd"
+  ];
   root.bossTankDrops = { bossPyogenes: "complemento", bossMRSA: "centinela" };
   root.dissemUnlockSchedule = {};
 })(window.ImmunoDefenseData);

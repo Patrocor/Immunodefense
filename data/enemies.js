@@ -147,7 +147,8 @@ var ENEMY_DEFS = {
   bossPseudomonas: {
     id: "bossPseudomonas", name: "Pseudomonas aeruginosa", baseKind: "bacteria",
     color: "#00ACC1", colorDark: "#00606e", colorLight: "#4DD0E1", radius: 38,
-    speedMult: 0.9, hp: 1540, reward: 65, viralAdd: 18, attack: 22, power: { type: "devour", range: 130, cooldown: 11, pull: 1.5 }, isBoss: true,
+    speedMult: 0.9, hp: 1540, reward: 65, viralAdd: 18, attack: 22,     power: { type: "devour", range: 130, cooldown: 11, pull: 1.5 }, isBoss: true,
+    seekers: { interval: 8, hp: 10, speed: 82, dmg: 26 },
     shield: { type: "wall", maxHP: 6, regenRate: 6 / 8, regenDelay: 0 },
     tooltip: "Pseudomonas aeruginosa hipervirulenta usa su sistema de secreción tipo III para inyectar exoenzimas directamente en las células huésped, mientras la piocianina bloquea la fagocitosis y su biofilm regenera el escudo continuamente. JEFE de ectima gangrenoso — atrae y devora torres cercanas con su campo de captación."
   },
@@ -324,14 +325,18 @@ var ENEMY_DEFS = {
   bossPrimordial:{ id: "bossPrimordial",name: "Patogeno Primordial", baseKind: "primordial",color: "#2A2424", colorDark: "#0a0606", radius: 45, speedMult: 0.50, hp: 1650, reward: 150, viralAdd: 35, isBoss: true, shield: null }
 };
 var SIGNATURE_ATTACK_DEFS = {
-  dermatofito: { pulseGap: 0.55, punchDur: 0.46, color: "#9CA85A" },
+  saureus:     { pulseGap: 0.45, punchDur: 0.50, color: "#F9A825" },
+  pseudomonas: { pulseGap: 0.42, punchDur: 0.48, color: "#26A69A" },
+  candida:     { pulseGap: 0.55, punchDur: 0.52, color: "#EC407A" },
+  sepidermidis:{ pulseGap: 0.38, punchDur: 0.40, color: "#90A4AE" },
+  dermatofito: { pulseGap: 0.55, punchDur: 0.46, color: "#9CA85A", sporeKind: "hunt" },
   hsv:         { pulseGap: 0.38, punchDur: 0.40, color: "#9575CD" },
   cacnes:      { pulseGap: 0.70, punchDur: 0.55, color: "#C9A66B" },
-  sarna:       { pulseGap: 0.60, punchDur: 0.38, color: "#8a5a2b" },
+  sarna:       { pulseGap: 0.60, punchDur: 0.38, color: "#8a5a2b", burrowIcon: true },
   hpv:         { pulseGap: 0.50, punchDur: 0.42, color: "#8a9a5e" },
-  molluscum:   { pulseGap: 0.55, punchDur: 0.52, color: "#e8d6c0" },
+  molluscum:   { pulseGap: 0.55, punchDur: 0.52, color: "#e8d6c0", sporeKind: "pearl" },
   malassezia:  { pulseGap: 0.60, punchDur: 0.46, color: "#d8c060" },
-  demodex:     { pulseGap: 0.85, punchDur: 0.55, color: "#c8a86a" },
+  demodex:     { pulseGap: 0.85, punchDur: 0.55, color: "#c8a86a", sporeKind: "larva" },
   neisseria:   { pulseGap: 0.65, punchDur: 0.45, color: "#d47c3a" },
   leishmania:  { pulseGap: 0.58, punchDur: 0.42, color: "#7aaa44" }
 };

@@ -64,14 +64,12 @@ var TOWER_DEFS = {
   },
   langerhans: {
     id: "langerhans", name: "Cel. de Langerhans", shortName: "Langer",
-    color: "#3FC1C9", colorDark: "#26797f", cost: 70, desc: "Captura antígenos y activa la respuesta: MARCA a los gérmenes (+daño, y le desgasta el escudo) y AMPLIFICA a Eosinófilos y Mastocitos cercanos. Ataca con dardos de antígeno (daño leve). Ultimate: Presentación Antigénica Masiva.",
+    color: "#3FC1C9", colorDark: "#26797f", cost: 70,     desc: "Captura antígenos y activa la respuesta: MARCA gérmenes (+daño, desgasta escudo), AMPLIFICA Eosinófilos/Mastocitos y su ultimate puede activar los suyos (IL-5). Dardos de antígeno de daño leve. Ultimate: Presentación Antigénica Masiva.",
     support: "mark",
-    amplifies: true,   // fusionado de ILC2: bufa Eosinófilo/Mastocito cercanos
-    // Ultimate: PRESENTACIÓN ANTIGÉNICA MASIVA + COORDINACIÓN INMUNE.
-    // Las 9 dendritas se extienden enormemente y disparan flags MHC-II
-    // a TODOS los enemies en rango (marca +30% damage por 6s) y al mismo
-    // tiempo libera citoquinas hacia las torres aliadas en rango
-    // (+25% attack speed por 6s). 30s de carga.
+    amplifies: true,
+    // Ultimate: PRESENTACIÓN ANTIGÉNICA MASIVA + COORDINACIÓN INMUNE + IL-5.
+    // Marca masiva MHC-II, buff de cadencia a aliados y puede disparar
+    // ultimates de Eosinófilo/Mastocito con ≥50% de carga.
     specialChargeSec: 30 * 1.15,  // +15%: poderes tardan un poco más en cargar
     specialName: "Presentación masiva",
     levels: [
@@ -83,9 +81,8 @@ var TOWER_DEFS = {
   },
   nk: {
     id: "nk", name: "Celula NK", shortName: "NK",
-    color: "#E84393", colorDark: "#a82d6a", cost: 95, desc: "Detecta ausencia de MHC-I y libera perforina y granzimas. Rompe escudos, bonus ×2.3 vs virus, PRIORIZA virus y los RALENTIZA con IFN en su rango. Ultimate: Frenesí citotóxico.",
+    color: "#E84393", colorDark: "#a82d6a", cost: 95, desc: "Citotóxico innato: detecta ausencia de MHC-I, rompe escudos y ejecuta virus con perforina (×2.3). Ultimate: Frenesí citotóxico — perforinas que ignoran escudos.",
     bonusVs: { kind: "virus", mult: 2.3 }, breakShield: true,
-    antiviralAura: true, virusPriority: true,   // fusionado de pDC: frena y prioriza virus
     // Ultimate: FRENESÍ CITOTÓXICO — rota como tornado fucsia y
     // dispara una tormenta de perforinas penetrantes que ignoran
     // escudos. 26s de carga.
@@ -194,16 +191,15 @@ var TOWER_DEFS = {
   queratinocito: {
     id: "queratinocito", name: "Nicho Epitelial", shortName: "Epitelio",
     color: "#d4a855", colorDark: "#7a5a18", cost: 70,
-    desc: "Nicho de queratinocitos y sebocitos. NO dispara: SECRETA. Aura pasiva de defensinas ralentiza. Tócalo para activar un TURNO DE TRABAJO: vuelca parches antimicrobianos (defensinas → sebo) sobre el carril, que dañan y frenan a los gérmenes que los pisan. El sebo hace ×3 a C. acnes y dermatofitos.",
+    desc: "Nicho epitelial productor. NO dispara: SECRETA defensinas. Aura pasiva ralentiza y buffea Neutrófilos. Tócalo para un TURNO DE TRABAJO: parches antimicrobianos sobre el carril (daño + lentitud). Para sebo lipofílico usa el Sebocito.",
     producer: true,
-    defensinField: true,             // aura pasiva leve de lentitud + buff a Neutrófilo
-    sebumSpecialist: ["cacnes", "dermatofito"],
+    defensinField: true,
     specialChargeSec: 14,            // ciclo de producción rápido (turno de trabajo)
     specialName: "Turno de secreción",
     levels: [
       { range: 130, damage: 0, fireRate: 0, projectileSpeed: 0, splash: 0, hp: 130, patch: { count: 2, r: 30, life: 5, dot: 14, slow: true, kind: "defensin" } },
       { range: 150, damage: 0, fireRate: 0, projectileSpeed: 0, splash: 0, hp: 170, patch: { count: 3, r: 34, life: 6, dot: 20, slow: true, kind: "defensin" } },
-      { range: 175, damage: 0, fireRate: 0, projectileSpeed: 0, splash: 0, hp: 220, patch: { count: 3, r: 40, life: 7, dot: 34, slow: true, kind: "sebum" } }
+      { range: 175, damage: 0, fireRate: 0, projectileSpeed: 0, splash: 0, hp: 220, patch: { count: 4, r: 42, life: 8, dot: 38, slow: true, kind: "defensin" } }
     ],
     upgradeCost: [80, 150]
   },
@@ -252,20 +248,6 @@ var TOWER_DEFS = {
       { range: 180, damage: 72, fireRate: 1.5, projectileSpeed: 480, splash: 0, hp: 165 }
     ],
     upgradeCost: [105, 170]
-  },
-  ilc2: {
-    id: "ilc2", name: "ILC2 Linfoide Innato 2", shortName: "ILC2",
-    color: "#26c6da", colorDark: "#0e7a8a", cost: 90,
-    desc: "Produce IL-4, IL-5 e IL-13 amplificando la actividad de Eosinófilos, Mastocitos y Langerhans cercanos. No ataca. Ultimate: IL-5 activa los ultimates de aliados cercanos.",
-    ilc2Aura: true,
-    specialChargeSec: 35,
-    specialName: "Descarga IL-5",
-    levels: [
-      { range: 130, damage: 0, fireRate: 1.0, projectileSpeed: 0, splash: 0, hp: 80 },
-      { range: 150, damage: 0, fireRate: 1.0, projectileSpeed: 0, splash: 0, hp: 105 },
-      { range: 170, damage: 0, fireRate: 1.0, projectileSpeed: 0, splash: 0, hp: 135 }
-    ],
-    upgradeCost: [95, 160]
   },
   // ======================================================================
   // FASE 2 — TORRES DE ÓRGANO. Cada nivel F2 desbloquea 3 células
@@ -489,7 +471,9 @@ var TOWER_DEFS = {
   }
 };
 var MAC_COST = 5;   // fragmentos de complemento para ensamblar el cañón
-var TOWER_LIST = ["neutrofilo", "queratinocito", "mastocito", "langerhans", "nk", "eosinofilo", "complemento", "centinela", "linfocitogd",
+var TOWER_LIST = ["neutrofilo", "queratinocito", "mastocito", "langerhans", "nk", "eosinofilo",
+  "linfocitoB", "sebocito", "pdc", "linfocitoT", "linfocitogd",
+  "complemento", "centinela",
   // Residentes de órgano (Fase 2) — visibles en el Dex siempre, en el dock
   // solo dentro de su órgano (ver isUnlocked/f2Organ).
   "endotelial", "monocito", "macrofagoCardiaco",
@@ -502,10 +486,11 @@ var F2_ORGAN_TOWERS = {
   artritis:      ["sinoviocitoA", "sinoviocitoB", "condrocito"]
 };
 var TOWER_GROUPS = [
-  { id: "defensas",      label: "Defensas",      towers: ["neutrofilo", "nk", "eosinofilo", "linfocitogd",
+  { id: "defensas",      label: "Defensas",      towers: ["neutrofilo", "nk", "eosinofilo", "linfocitoB",
+                                                          "linfocitoT", "sebocito", "linfocitogd",
                                                           "monocito", "macrofagoCardiaco", "osteoclasto", "sinoviocitoA",
                                                           "macrofagoAlveolar", "dendriticaMigratoria"] },
-  { id: "potenciadores", label: "Potenciadores", towers: ["queratinocito", "mastocito", "langerhans",
+  { id: "potenciadores", label: "Potenciadores", towers: ["queratinocito", "mastocito", "langerhans", "pdc",
                                                           "endotelial", "osteocito", "sinoviocitoB", "condrocito",
                                                           "fibroblastoEncap", "tregSepsis"] },
   { id: "tanques",       label: "Tanques",       towers: ["complemento", "centinela", "osteoblasto"] }

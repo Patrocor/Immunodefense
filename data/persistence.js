@@ -109,6 +109,38 @@ var TOWER_LORE = {
     potentiates: [],
     bestIn: ["piel"],
     affinity: "Centinela · Señuelo"
+  },
+  sebocito: {
+    strong: "Cutibacterium acnes, dermatofitos (×3 por sebo lipofílico)",
+    weak: "Virus y bacterias sin grasa — daño base",
+    synergyWith: ["langerhans"],
+    potentiates: [],
+    bestIn: ["piel"],
+    affinity: "Sebáceo · Productor lipídico"
+  },
+  pdc: {
+    strong: "Virus: ralentiza con IFN y prioriza blancos virales",
+    weak: "Bacterias con cápsula gruesa",
+    synergyWith: ["nk", "linfocitoT"],
+    potentiates: ["nk"],
+    bestIn: ["sangre", "tejido"],
+    affinity: "Dendrítica plasmocitoide · Antiviral"
+  },
+  linfocitogd: {
+    strong: "Bacterias y hongos heridos; buff IL-17 a aliados",
+    weak: "Virus rápidos",
+    synergyWith: ["langerhans"],
+    potentiates: ["neutrofilo", "eosinofilo"],
+    bestIn: ["piel", "mucosa"],
+    affinity: "γδ T · Innata adaptativa"
+  },
+  queratinocito: {
+    strong: "Control de zona: parches defensina + ralentización",
+    weak: "No remata solo — necesita DPS aliado",
+    synergyWith: ["neutrofilo", "sebocito"],
+    potentiates: ["neutrofilo"],
+    bestIn: ["piel"],
+    affinity: "Epitelial · Barrera"
   }
 };
 var ENEMY_LORE = {
@@ -144,6 +176,12 @@ var ENEMY_LORE = {
                     weak:   "Linfocito B + ataques rápidos" },
   bossPseudomonas:{ strong: "Spawn de esporas + biofilm grueso",
                     weak:   "MAC sostenido, Mastocito para frenar" },
+  demodex:        { strong: "Casi invisible — solo Langerhans lo revela",
+                    weak:   "Langerhans (marca), Eosinófilo" },
+  neisseria:      { strong: "Pili adhesivos frenan torres",
+                    weak:   "Linfocito B (neutraliza pili, ×2)" },
+  leishmania:     { strong: "Forma amastigote casi invulnerable",
+                    weak:   "Golpear antes del cambio; Eosinófilo" },
   bossClostridium:{ strong: "Toxinas paralizantes",
                     weak:   "MAC, Linfocito T citotóxico" }
 };

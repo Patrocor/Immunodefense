@@ -16942,12 +16942,16 @@
     var faceDist = R * (0.34 + polarExt * 0.12);
     var cyTop = Math.sin(faceAng) * faceDist;
     var cxTop = Math.cos(faceAng) * faceDist;
-
-    ctx.save();
-    ctx.rotate(faceAng);
     var breathe = 1 + Math.sin(time * 1.5 + phase) * 0.04;
     var capRx = R * 0.58 * breathe;
     var capRy = R * 0.46 * breathe;
+    var uroWobble = Math.sin(time * 2.2 + phase) * R * 0.04;
+    var podLen = R * (0.24 + polarExt * 0.52);
+    var podW = R * (0.18 + polarExt * 0.07);
+    var baseX = capRx * 0.50;
+
+    ctx.save();
+    ctx.rotate(faceAng);
 
     // Citoplasma: cápsula alargada (frente redondo + cola de uropodo).
     var bodyGrad = ctx.createRadialGradient(-R * 0.12, -R * 0.08, R * 0.08, R * 0.04, 0, capRx * 1.05);
@@ -16955,18 +16959,17 @@
     bodyGrad.addColorStop(0.5, "#eddcd2");
     bodyGrad.addColorStop(1, "#b8846a");
     ctx.fillStyle = bodyGrad;
-    ctx.strokeStyle = "#5c3224";
-    ctx.lineWidth = Math.max(2, 2.5 * U);
+    ctx.strokeStyle = "rgba(92, 50, 36, 0.45)";
+    ctx.lineWidth = Math.max(1.2, 1.5 * U);
     ctx.beginPath();
     ctx.ellipse(R * 0.04, 0, capRx, capRy, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
 
     // Uropodo (cola): dos lóbulos pequeños en la parte posterior.
-    var uroWobble = Math.sin(time * 2.2 + phase) * R * 0.04;
     ctx.fillStyle = "#e8cfc4";
-    ctx.strokeStyle = "#5c3224";
-    ctx.lineWidth = Math.max(1.4, 1.8 * U);
+    ctx.strokeStyle = "rgba(92, 50, 36, 0.4)";
+    ctx.lineWidth = Math.max(1, 1.3 * U);
     for (var ub = 0; ub < 2; ub++) {
       var us = ub === 0 ? 1 : -1;
       ctx.beginPath();
@@ -16977,9 +16980,6 @@
 
     // Pseudópodo frontal (fagocitosis) — crece hacia el objetivo.
     if (polarExt > 0.02) {
-      var podLen = R * (0.24 + polarExt * 0.52);
-      var podW = R * (0.18 + polarExt * 0.07);
-      var baseX = capRx * 0.50;
       ctx.fillStyle = "rgba(245, 228, 218, " + (0.65 + polarExt * 0.3) + ")";
       ctx.beginPath();
       ctx.moveTo(baseX, -podW * 0.52);
@@ -16988,8 +16988,8 @@
       ctx.quadraticCurveTo(baseX + podLen * 0.12, 0, baseX, -podW * 0.52);
       ctx.closePath();
       ctx.fill();
-      ctx.strokeStyle = "#5c3224";
-      ctx.lineWidth = Math.max(1.3, 1.7 * U);
+      ctx.strokeStyle = "rgba(92, 50, 36, 0.4)";
+      ctx.lineWidth = Math.max(1, 1.3 * U);
       ctx.stroke();
       if (attacking) {
         ctx.fillStyle = "rgba(170, 130, 255, " + (0.35 * polarExt) + ")";
@@ -17042,12 +17042,8 @@
       ctx.arc(rfx, -capRy * 0.55 - rfw, R * 0.07, -Math.PI * 0.85, -Math.PI * 0.15);
       ctx.stroke();
     }
-    ctx.restore();
 
-    var nucCY = R * 0.02;
     // GRÁNULOS azurófilos dispersos en el citoplasma (evitando núcleo y cara).
-    // Brillan más fuerte y vibran a medida que la carga real del Bombardeo
-    // avanza — las defensinas concentrándose antes de salir disparadas.
     var grans = 11;
     var granJitterN = chargeFrac * 1.2 * U;
     for (var gn = 0; gn < grans; gn++) {
@@ -17055,7 +17051,7 @@
       var gd = R * (0.36 + (gn % 4) * 0.07);
       var ggx = Math.cos(ga) * gd + Math.sin(time * 3.1 + gn * 1.9) * granJitterN * 0.4;
       var ggy = Math.sin(ga) * gd + Math.cos(time * 2.4 + gn * 2.3) * granJitterN * 0.4;
-      if (Math.hypot(ggx - cxTop, ggy - cyTop) < R * 0.28) continue;
+      if (Math.hypot(ggx - faceDist, ggy) < R * 0.28) continue;
       var grR = (1.8 + Math.sin(time * 1.5 + gn) * (0.32 + chargeFrac * 0.28)) * U;
       var isMpo = gn % 3 === 0;
       if (isMpo) {
@@ -17071,6 +17067,54 @@
       ctx.stroke();
     }
 
+    // Membrana plasmática — borde único que encierra citoplasma, gránulos y núcleo.
+    var shellPad = R * 0.07;
+    var backX = -capRx * 0.78 - R * 0.17 - shellPad;
+    var frontX = Math.max(R * 0.04 + capRx, faceDist + rTop * 0.48) + shellPad;
+    if (polarExt > 0.02) frontX = Math.max(frontX, baseX + podLen + shellPad * 0.6);
+    var topY = capRy + R * 0.15 + shellPad;
+    ctx.beginPath();
+    ctx.moveTo(backX, uroWobble);
+    ctx.bezierCurveTo(
+      backX - shellPad * 0.8, topY * 0.62,
+      -capRx * 0.55, topY,
+      R * 0.04 + capRx * 0.35, topY
+    );
+    ctx.bezierCurveTo(
+      frontX * 0.72, topY * 0.92,
+      frontX, topY * 0.38,
+      frontX, 0
+    );
+    if (polarExt > 0.02) {
+      ctx.bezierCurveTo(
+        frontX, -(podW * 0.55 + shellPad),
+        frontX * 0.72, -topY * 0.92,
+        R * 0.04 + capRx * 0.35, -topY
+      );
+    } else {
+      ctx.bezierCurveTo(
+        frontX, -topY * 0.38,
+        frontX * 0.72, -topY * 0.92,
+        R * 0.04 + capRx * 0.35, -topY
+      );
+    }
+    ctx.bezierCurveTo(
+      -capRx * 0.55, -topY,
+      backX - shellPad * 0.8, -topY * 0.62,
+      backX, uroWobble
+    );
+    ctx.closePath();
+    ctx.strokeStyle = "#2e140c";
+    ctx.lineWidth = Math.max(3, 3.6 * U);
+    ctx.lineJoin = "round";
+    ctx.lineCap = "round";
+    ctx.stroke();
+    ctx.strokeStyle = "rgba(255, 236, 210, 0.42)";
+    ctx.lineWidth = Math.max(1.1, 1.4 * U);
+    ctx.stroke();
+    ctx.restore();
+
+    var nucCY = R * 0.02;
     // Degranulación al morder (flash breve hacia el germen).
     if ((t.muzzleFlash || 0) > 0 && t.lastTargetX != null) {
       var mfK = Math.min(1, t.muzzleFlash / 0.08);

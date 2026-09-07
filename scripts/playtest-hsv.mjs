@@ -52,12 +52,12 @@ function setupShowcase() {
 
   const e = {
     ...src,
-    state: "entering",
-    enteringTimer: 999,
+    state: "walking",
+    enteringTimer: 0,
     x: cx,
     y: cy,
-    progress: 0,
-    radiusScale: 1.85,
+    progress: 0.35,
+    radiusScale: 1.9,
     hp: src.def.hp,
     maxHp: src.def.hp,
     hitFlash: 0,
@@ -65,9 +65,9 @@ function setupShowcase() {
     dying: false,
     dead: false,
     wobble: 0.85,
-    _heading: -0.18,
-    _lastPosX: cx - 18,
-    _lastPosY: cy + 2,
+    _heading: -0.28,
+    _lastPosX: cx - 22,
+    _lastPosY: cy + 4,
   };
 
   st.enemies = [e];
@@ -108,6 +108,7 @@ await sleep(1000);
 await page.screenshot({ path: join(ART, "hsv_showcase.png") });
 if (info.ok) {
   await page.screenshot({ path: join(ART, "hsv_closeup.png"), clip: info.clip });
+  await page.screenshot({ path: join(ART, "hsv_hexaxon_closeup.png"), clip: info.clip });
 }
 
 await page.evaluate(() => window.__game.hold(false));

@@ -22873,17 +22873,6 @@
       }
       ctx.closePath();
     }
-    function hsvRoundPath(pts) {
-      var last = pts[5], first = pts[0];
-      ctx.beginPath();
-      ctx.moveTo((last[0] + first[0]) * 0.5, (last[1] + first[1]) * 0.5);
-      for (var i = 0; i < 6; i++) {
-        var curr = pts[i];
-        var next = pts[(i + 1) % 6];
-        ctx.quadraticCurveTo(curr[0], curr[1], (curr[0] + next[0]) * 0.5, (curr[1] + next[1]) * 0.5);
-      }
-      ctx.closePath();
-    }
 
     ctx.save();
     ctx.rotate(heading);
@@ -22923,8 +22912,8 @@
     var ax1 = -capR * 1.85;
     var ax2 = -capR * 2.55;
     var ax3 = -capR * 3.25;
-    ctx.strokeStyle = "rgba(90, 55, 150, 0.72)";
-    ctx.lineWidth = Math.max(2.0, 2.6 * U);
+    ctx.strokeStyle = "rgba(90, 55, 150, 0.82)";
+    ctx.lineWidth = Math.max(2.6, 3.2 * U);
     ctx.beginPath();
     ctx.moveTo(ax0, capR * 0.08);
     ctx.quadraticCurveTo(ax1, -capR * 0.38, ax2, capR * 0.06);
@@ -22966,9 +22955,9 @@
       ctx.stroke();
     }
 
-    // TEGUMENTO: hexágono redondeado e irregular (firma herpesvirus).
-    var tegPts = hsvVerts(capR * 1.22, 0.07);
-    hsvRoundPath(tegPts);
+    // TEGUMENTO: hexágono irregular (firma herpesvirus) — no anillo.
+    var tegPts = hsvVerts(capR * 1.18, 0.05);
+    hsvPath(tegPts);
     var tegGrad = ctx.createRadialGradient(-capR * 0.2, -capR * 0.25, capR * 0.2, 0, 0, capR * 1.25);
     tegGrad.addColorStop(0,   "rgba(210, 185, 245, 0.18)");
     tegGrad.addColorStop(0.6, "rgba(149, 117, 205, 0.42)");

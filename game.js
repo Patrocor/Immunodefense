@@ -4609,7 +4609,7 @@
     pseudomonas:     { name: "Pseudomonas",     desc: "Dispara esporas que cazan torres" },
     sarna:           { name: "Sarna",           desc: "Ácaro que se entierra y reaparece" },
     hpv:             { name: "HPV",             desc: "Verruga con coraza regenerable" },
-    molluscum:       { name: "Molluscum",       desc: "Poxvirus que se divide al morir" },
+    molluscum:       { name: "Molluscum",       desc: "Pápula umbilical — se parte al morir" },
     malassezia:      { name: "Malassezia",      desc: "Levadura aceitosa — baja cadencia" },
     bossPyogenes:    { name: "BOSS Pyogenes",   desc: "Bacteria carnívora con cápsula regen" },
     bossMRSA:        { name: "BOSS MRSA",       desc: "Resistente a antibióticos clásicos" },
@@ -21478,97 +21478,132 @@
   //    grandes dentro)
   //  · TEXTURA CEROSA — highlight nacarado superficial
   function drawMolluscum(e, rad, expression, blink) {
+    // Molluscum contagiosum v2 — silueta PÁPULA UMBILICADA (volcán ceroso),
+    // no ladrillo ni círculo. Cráter central + perla; cintura de fisión a HP bajo.
     var R = rad;
     var t = state.time;
-    ctx.save();
-    ctx.translate(e.x, e.y);
-    // BRICK SHAPE: rect redondeado de proporciones poxvirus (más ancho que alto)
-    var bw = R * 1.05;
-    var bh = R * 0.90;
-    var cornerR = R * 0.30;
-    // Telegraph de fisión: con HP bajo, el cuerpo se angosta por el medio
-    // (cintura) anticipando el deathSplit real (se divide en 2 al morir).
-    // A pinch=0 la cintura no existe y el trazo queda idéntico al original.
+    var hit = e.hitFlash > 0;
     var hpFrac = (e.maxHp > 0) ? e.hp / e.maxHp : 1;
     var pinch = hpFrac < 0.30 ? Math.min(1, (0.30 - hpFrac) / 0.30) : 0;
     var pinchPulse = 0.5 + 0.5 * Math.sin(t * 5 + e.wobble);
-    var midSqueeze = pinch * (0.48 + pinchPulse * 0.18);
-    var waistW = bw * (1 - midSqueeze);
-    var grad = ctx.createRadialGradient(-R * 0.3, -R * 0.4, R * 0.2, 0, 0, R * 1.1);
-    grad.addColorStop(0, "#ffffff");
-    grad.addColorStop(0.5, e.def.colorLight || "#fbf2e6");
-    grad.addColorStop(1, e.def.color);
-    ctx.fillStyle = (e.hitFlash > 0) ? "#fff" : grad;
-    // Path brick redondeado con cintura ajustable.
-    ctx.beginPath();
-    ctx.moveTo(-bw + cornerR, -bh);
-    ctx.lineTo(bw - cornerR, -bh);
-    ctx.quadraticCurveTo(bw, -bh, bw, -bh + cornerR);
-    ctx.quadraticCurveTo(bw, -bh * 0.12, waistW, 0);
-    ctx.quadraticCurveTo(bw, bh * 0.12, bw, bh - cornerR);
-    ctx.quadraticCurveTo(bw, bh, bw - cornerR, bh);
-    ctx.lineTo(-bw + cornerR, bh);
-    ctx.quadraticCurveTo(-bw, bh, -bw, bh - cornerR);
-    ctx.quadraticCurveTo(-bw, bh * 0.12, -waistW, 0);
-    ctx.quadraticCurveTo(-bw, -bh * 0.12, -bw, -bh + cornerR);
-    ctx.quadraticCurveTo(-bw, -bh, -bw + cornerR, -bh);
-    ctx.closePath();
-    ctx.fill();
-    ctx.strokeStyle = e.def.colorDark;
-    ctx.lineWidth = Math.max(1.2, 1.5 * U);
-    ctx.stroke();
-    // UMBILICACIÓN CENTRAL — respira siempre, y se abre + brilla justo antes
-    // de soltar una perla real (sincronizado con e.childTimer, el contador
-    // que de verdad dispara spawnSpore en updateEnemies — no decorativo).
-    var basePulse = 0.5 + 0.5 * Math.sin(t * 1.6 + e.wobble);
+    var pinchAmt = pinch * (0.72 + pinchPulse * 0.22);
+
     var sporeReady = 0;
-    if (e.def.spore && (e.childCount || 0) < (e.def.spore.maxChildren || 5) && e.childTimer != null) {
+    if (e.def.spore && !e.noSpore && (e.childCount || 0) < (e.def.spore.maxChildren || 5) && e.childTimer != null) {
       var warnWindow = 0.4;
       if (e.childTimer < warnWindow) sporeReady = 1 - Math.max(0, e.childTimer) / warnWindow;
     }
-    var dimpleOpen = basePulse * 0.30 + sporeReady * 0.70;
-    var dimpleRX = R * (0.22 + dimpleOpen * 0.10);
-    var dimpleRY = R * (0.16 + dimpleOpen * 0.09);
-    ctx.fillStyle = "rgba(150, 120, 90, " + (0.55 + sporeReady * 0.15) + ")";
-    ctx.beginPath();
-    ctx.ellipse(0, -R * 0.55, dimpleRX, dimpleRY, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = "rgba(120, 90, 60, 0.65)";
-    ctx.lineWidth = 0.9 * U;
-    ctx.stroke();
-    if (sporeReady > 0.05) {
-      ctx.fillStyle = "rgba(255, 240, 160, " + (sporeReady * 0.85) + ")";
+
+    var bw = R * 1.12;
+    var bh = R * 1.02;
+    ctx.save();
+    ctx.translate(e.x, e.y);
+
+    function papulePath() {
+      var waist = 1 - pinchAmt * 0.52;
       ctx.beginPath();
-      ctx.ellipse(0, -R * 0.55, dimpleRX * 0.75, dimpleRY * 0.75, 0, 0, Math.PI * 2);
-      ctx.fill();
+      ctx.moveTo(-bw * 0.94, bh * 0.32);
+      ctx.quadraticCurveTo(-bw * 1.02, bh * 0.88, 0, bh * 0.96);
+      ctx.quadraticCurveTo(bw * 1.02, bh * 0.88, bw * 0.94, bh * 0.32);
+      ctx.quadraticCurveTo(bw * 0.90 * waist, bh * 0.02, bw * 0.70, -bh * 0.32);
+      ctx.quadraticCurveTo(bw * 0.42, -bh * 0.88, bw * 0.16, -bh * 0.68);
+      ctx.quadraticCurveTo(0, -bh * (0.38 - pinchAmt * 0.10), -bw * 0.16, -bh * 0.68);
+      ctx.quadraticCurveTo(-bw * 0.42, -bh * 0.88, -bw * 0.70, -bh * 0.32);
+      ctx.quadraticCurveTo(-bw * 0.90 * waist, bh * 0.02, -bw * 0.94, bh * 0.32);
+      ctx.closePath();
     }
-    // HENDERSON-PATERSON BODIES (cuerpos de inclusión virales) — flotan con
-    // una leve órbita propia + pulso de opacidad, en vez de manchas fijas.
-    var hpPositions = [
-      { x: -R * 0.30, y:  R * 0.25, r: R * 0.12, phase: 0.0, orbitR: R * 0.14 },
-      { x:  R * 0.32, y:  R * 0.15, r: R * 0.11, phase: 2.1, orbitR: R * 0.12 },
-      { x:  R * 0.05, y:  R * 0.42, r: R * 0.10, phase: 4.3, orbitR: R * 0.13 }
-    ];
-    for (var hpi = 0; hpi < hpPositions.length; hpi++) {
-      var hp = hpPositions[hpi];
-      var orbAng = t * 0.8 + hp.phase;
-      var hx = hp.x + Math.cos(orbAng) * hp.orbitR;
-      var hy = hp.y + Math.sin(orbAng) * hp.orbitR * 0.6;
-      var hpPulse = 0.5 + 0.5 * Math.sin(t * 1.4 + hp.phase * 1.3);
-      ctx.fillStyle = "rgba(150, 95, 55, " + (0.55 + hpPulse * 0.40) + ")";
+
+    // Sombra de asiento (la pápula “posa” sobre la piel).
+    ctx.fillStyle = "rgba(90, 60, 40, 0.28)";
+    ctx.beginPath();
+    ctx.ellipse(0, bh * 0.92, bw * 0.78, bh * 0.18, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    var grad = ctx.createRadialGradient(-bw * 0.22, -bh * 0.15, R * 0.18, 0, bh * 0.15, R * 1.25);
+    grad.addColorStop(0, "#ffffff");
+    grad.addColorStop(0.35, e.def.colorLight || "#fbf2e6");
+    grad.addColorStop(0.75, e.def.color);
+    grad.addColorStop(1, e.def.colorDark);
+    ctx.fillStyle = hit ? "#ffffff" : grad;
+    papulePath();
+    ctx.fill();
+    ctx.strokeStyle = e.def.colorDark;
+    ctx.lineWidth = Math.max(1.6, 2.0 * U);
+    ctx.stroke();
+
+    // Hendidura de fisión (telegraph de deathSplit).
+    if (pinchAmt > 0.08) {
+      ctx.strokeStyle = "rgba(120, 80, 50, " + (0.35 + pinchAmt * 0.50) + ")";
+      ctx.lineWidth = Math.max(1.2, 1.6 * U);
       ctx.beginPath();
-      ctx.arc(hx, hy, hp.r, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = "rgba(80, 50, 30, " + (0.50 + hpPulse * 0.40) + ")";
-      ctx.lineWidth = Math.max(0.9, 1.1 * U);
+      ctx.moveTo(0, -bh * 0.28);
+      ctx.quadraticCurveTo(0, bh * 0.20, 0, bh * 0.78);
       ctx.stroke();
     }
-    // TEXTURA CEROSA — highlight nacarado superficial
-    ctx.fillStyle = "rgba(255,255,255,0.55)";
+
+    // Cráter umbilical — se abre y brilla antes de soltar perla.
+    var dimpleOpen = 0.30 + 0.30 * Math.sin(t * 1.6 + e.wobble) * 0.15 + sporeReady * 0.55;
+    var craterY = -bh * 0.52;
+    ctx.fillStyle = "rgba(90, 65, 40, " + (0.55 + sporeReady * 0.25) + ")";
     ctx.beginPath();
-    ctx.ellipse(-R * 0.38, -R * 0.4, R * 0.22, R * 0.11, -0.5, 0, Math.PI * 2);
+    ctx.ellipse(0, craterY, bw * (0.20 + dimpleOpen * 0.10), bh * (0.14 + dimpleOpen * 0.10), 0, 0, Math.PI * 2);
     ctx.fill();
-    germFace(R, expression, blink, R * 0.30);
+    ctx.strokeStyle = "rgba(70, 48, 28, 0.70)";
+    ctx.lineWidth = Math.max(1.0, 1.2 * U);
+    ctx.stroke();
+
+    // Perla cerosa en el ombligo (Henderson–Paterson / spore).
+    var pearlY = craterY - sporeReady * bh * 0.22;
+    var pearlR = R * (0.14 + sporeReady * 0.08);
+    var pg = ctx.createRadialGradient(-pearlR * 0.3, pearlY - pearlR * 0.3, pearlR * 0.1, 0, pearlY, pearlR);
+    pg.addColorStop(0, "rgba(255, 250, 230, 0.95)");
+    pg.addColorStop(0.55, "rgba(232, 214, 180, 0.92)");
+    pg.addColorStop(1, "rgba(160, 120, 70, 0.88)");
+    ctx.fillStyle = pg;
+    ctx.beginPath();
+    ctx.arc(0, pearlY, pearlR, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "rgba(120, 90, 55, 0.65)";
+    ctx.lineWidth = Math.max(0.9, 1.1 * U);
+    ctx.stroke();
+    if (sporeReady > 0.08) {
+      ctx.fillStyle = "rgba(255, 240, 160, " + (sporeReady * 0.75) + ")";
+      ctx.beginPath();
+      ctx.arc(0, pearlY, pearlR * 0.55, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Cuerpos de inclusión — grumos quesosos en el cuerpo, no órbitas.
+    var lumps = [
+      { x: -bw * 0.32, y: bh * 0.22, r: R * 0.11 },
+      { x:  bw * 0.28, y: bh * 0.12, r: R * 0.10 },
+      { x:  bw * 0.08, y: bh * 0.42, r: R * 0.09 }
+    ];
+    for (var li = 0; li < lumps.length; li++) {
+      var lp = lumps[li];
+      var pulse = 0.5 + 0.5 * Math.sin(t * 1.3 + li * 1.7);
+      ctx.fillStyle = "rgba(150, 95, 55, " + (0.40 + pulse * 0.28) + ")";
+      ctx.beginPath();
+      ctx.ellipse(lp.x, lp.y, lp.r, lp.r * 0.78, li * 0.4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Highlight nacarado (cera).
+    ctx.fillStyle = "rgba(255, 255, 255, 0.50)";
+    ctx.beginPath();
+    ctx.ellipse(-bw * 0.28, -bh * 0.08, bw * 0.18, bh * 0.10, -0.55, 0, Math.PI * 2);
+    ctx.fill();
+
+    var eyeR = bw * 0.20;
+    var faceY = bh * 0.08;
+    var gap = bw * 0.30;
+    var sadFace = (expression === "dying" || expression === "hurt" || hpFrac < 0.20);
+    if (sadFace) drawHurtEyes(0, faceY, eyeR, gap);
+    else if (blink) drawClosedEyes(0, faceY, eyeR, gap);
+    else drawAnimeEyes(0, faceY, eyeR, gap, 0, 0, bw * 0.06, bw * 0.03, "smug");
+    if (sadFace) drawAnimeMouth(0, faceY + eyeR * 1.55, eyeR * 1.6, eyeR * 1.2, "open");
+    else drawAnimeMouth(0, faceY + eyeR * 1.45, eyeR * 1.5, eyeR * 0.7, "smirk");
+
     ctx.restore();
   }
 

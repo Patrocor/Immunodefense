@@ -4610,7 +4610,7 @@
     sarna:           { name: "Sarna",           desc: "Ácaro que se entierra y reaparece" },
     hpv:             { name: "HPV",             desc: "Verruga con coraza regenerable" },
     molluscum:       { name: "Molluscum",       desc: "Concha que se parte al morir" },
-    demodex:         { name: "Demodex",         desc: "Ácaro invisible — Langerhans lo ve" },
+    demodex:         { name: "Demodex",         desc: "Ácaro del pelo — Langerhans lo ve" },
     malassezia:      { name: "Malassezia",      desc: "Levadura aceitosa — baja cadencia" },
     bossPyogenes:    { name: "BOSS Pyogenes",   desc: "Bacteria carnívora con cápsula regen" },
     bossMRSA:        { name: "BOSS MRSA",       desc: "Resistente a antibióticos clásicos" },
@@ -24190,9 +24190,8 @@
   }
 
   function drawDemodex(e, rad, expression, blink) {
-    // Demodex folliculorum — ácaro vermiforme del folículo.
-    // Silueta: gnatosoma + 4 pares de patas SOLO adelante + opistosoma anillado.
-    // Habitat: sale del poro (collar + pelo). Cloak 0.38; Langerhans lo revela.
+    // Demodex v2 — ácaro ABRAZADO al pelo (pestaña / folículo), no gusano suelto.
+    // El tallo es el eje; cuerpo cigarro anillado a un lado; 4 pares rodean el pelo.
     var R = rad;
     var t = state.time;
     var revealed = !!e.revealed;
@@ -24228,129 +24227,99 @@
     ctx.save();
     ctx.rotate(e._heading || 0);
 
-    // Collar folicular + pelo (el ácaro sale del poro). Cola en -x.
-    var tailX = -R * 1.18;
-    ctx.strokeStyle = "rgba(160, 120, 70, 0.70)";
-    ctx.lineWidth = Math.max(1.8, 2.2 * U);
+    var hairY = R * 0.28;
+    var x0 = -R * 1.15, x1 = R * 1.22;
+
+    // Bulbo folicular (raíz del pelo) — pera, no U de C. acnes.
+    ctx.fillStyle = "rgba(200, 150, 110, 0.85)";
+    ctx.beginPath();
+    ctx.ellipse(x0 - R * 0.06, hairY, R * 0.28, R * 0.22, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "rgba(120, 80, 45, 0.70)";
+    ctx.lineWidth = Math.max(1.1, 1.4 * U);
+    ctx.stroke();
+
+    // Tallo del pelo (eje de la silueta).
+    ctx.strokeStyle = "#5a3a18";
+    ctx.lineWidth = Math.max(2.4, 3.0 * U);
     ctx.lineCap = "round";
     ctx.beginPath();
-    ctx.moveTo(tailX - R * 0.08, -R * 0.42);
-    ctx.quadraticCurveTo(tailX - R * 0.38, 0, tailX - R * 0.08, R * 0.42);
+    ctx.moveTo(x0, hairY);
+    ctx.lineTo(x1, hairY - R * 0.04);
     ctx.stroke();
-    ctx.strokeStyle = "rgba(90, 60, 30, 0.60)";
+    ctx.strokeStyle = "rgba(180, 140, 90, 0.55)";
     ctx.lineWidth = Math.max(1.0, 1.2 * U);
     ctx.beginPath();
-    ctx.moveTo(tailX - R * 0.18, 0);
-    ctx.quadraticCurveTo(tailX - R * 0.08, -R * 0.55, tailX + R * 0.04, -R * 1.05);
+    ctx.moveTo(x0 + R * 0.08, hairY - R * 0.06);
+    ctx.lineTo(x1, hairY - R * 0.10);
     ctx.stroke();
 
-    // Opistosoma: cola anillada que se afila (firma del ácaro, no óvalo).
-    var ox0 = R * 0.18, ox1 = -R * 1.08;
-    var ow0 = R * 0.38, ow1 = R * 0.15;
+    // Cuerpo: cigarro anillado MONTADO sobre el pelo.
+    var bx = -R * 0.08, by = -R * 0.18;
+    var bL = R * 0.95, bW = R * 0.36;
     ctx.beginPath();
-    ctx.moveTo(ox0, -ow0);
-    ctx.lineTo(ox1, -ow1);
-    ctx.quadraticCurveTo(ox1 - R * 0.16, 0, ox1, ow1);
-    ctx.lineTo(ox0, ow0);
-    ctx.closePath();
-    var tailGrad = ctx.createLinearGradient(ox0, 0, ox1, 0);
-    tailGrad.addColorStop(0, hit ? "#ffffff" : "#e8d4a0");
-    tailGrad.addColorStop(0.55, e.def.color);
-    tailGrad.addColorStop(1, e.def.colorDark);
-    ctx.fillStyle = tailGrad;
+    ctx.ellipse(bx, by, bL, bW, -0.12, 0, Math.PI * 2);
+    var bodyGrad = ctx.createLinearGradient(bx - bL, by, bx + bL, by);
+    bodyGrad.addColorStop(0, e.def.colorDark);
+    bodyGrad.addColorStop(0.45, hit ? "#ffffff" : e.def.color);
+    bodyGrad.addColorStop(1, hit ? "#ffffff" : "#f0dca0");
+    ctx.fillStyle = bodyGrad;
     ctx.fill();
     ctx.strokeStyle = e.def.colorDark;
-    ctx.lineWidth = Math.max(1.2, 1.5 * U);
+    ctx.lineWidth = Math.max(1.4, 1.8 * U);
     ctx.stroke();
-    ctx.strokeStyle = colorAlpha(e.def.colorDark, 0.55);
+    ctx.strokeStyle = colorAlpha(e.def.colorDark, 0.50);
     ctx.lineWidth = Math.max(0.7, 0.9 * U);
-    for (var sg = 1; sg <= 7; sg++) {
-      var u = sg / 8;
-      var sx = ox0 + (ox1 - ox0) * u;
-      var sw = ow0 + (ow1 - ow0) * u;
-      ctx.beginPath(); ctx.moveTo(sx, -sw * 0.92); ctx.lineTo(sx, sw * 0.92); ctx.stroke();
+    for (var sg = 0; sg < 6; sg++) {
+      var su = (sg - 2.5) / 6;
+      var sxx = bx + su * bL * 1.55;
+      ctx.beginPath();
+      ctx.moveTo(sxx, by - bW * 0.78);
+      ctx.lineTo(sxx + R * 0.04, by + bW * 0.78);
+      ctx.stroke();
     }
 
-    // Podosoma (tórax corto, más gordo) — aquí van las patas.
-    var podX = R * 0.42;
-    var podRx = R * 0.40, podRy = R * 0.46;
-    var podGrad = ctx.createRadialGradient(podX - R * 0.08, -R * 0.12, R * 0.08, podX, 0, R * 0.5);
-    podGrad.addColorStop(0, hit ? "#ffffff" : "#f0dca0");
-    podGrad.addColorStop(0.6, e.def.color);
-    podGrad.addColorStop(1, e.def.colorDark);
-    ctx.fillStyle = podGrad;
-    ctx.beginPath();
-    ctx.ellipse(podX, 0, podRx, podRy, 0, 0, Math.PI * 2);
-    ctx.fill();
+    // 4 pares de patas que ABRAZAN el pelo (dejan de ser radios sueltos).
     ctx.strokeStyle = e.def.colorDark;
-    ctx.lineWidth = Math.max(1.2, 1.5 * U);
-    ctx.stroke();
-
-    // 4 pares de patas cortas SOLO en el tercio anterior.
-    ctx.strokeStyle = e.def.colorDark;
-    ctx.lineWidth = Math.max(1.3, 1.6 * U);
+    ctx.lineWidth = Math.max(1.4, 1.7 * U);
     ctx.lineCap = "round";
-    ctx.lineJoin = "round";
     for (var leg = 0; leg < 4; leg++) {
-      var legX = R * (0.18 + leg * 0.18);
-      var swing = Math.sin(gait * 3.2 + leg * 0.85) * 0.22;
-      for (var side = -1; side <= 1; side += 2) {
-        var bx = legX, by = side * podRy * 0.72;
-        var midX = legX + R * 0.06 * swing * side;
-        var midY = side * (podRy * 0.72 + R * 0.22);
-        var ex = legX + R * 0.08 + swing * side * R * 0.12;
-        var ey = side * (podRy * 0.72 + R * 0.48);
-        ctx.beginPath();
-        ctx.moveTo(bx, by);
-        ctx.quadraticCurveTo(midX, midY, ex, ey);
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.arc(ex, ey, 1.4 * U, 0, Math.PI * 2);
-        ctx.fillStyle = e.def.colorDark;
-        ctx.fill();
-      }
+      var lx = bx - bL * 0.45 + leg * bL * 0.28;
+      var swing = Math.sin(gait * 3.4 + leg * 0.9) * R * 0.05;
+      ctx.beginPath();
+      ctx.moveTo(lx, by + bW * 0.55);
+      ctx.quadraticCurveTo(lx + swing, hairY - R * 0.02, lx + swing * 0.4, hairY + R * 0.16);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(lx + R * 0.08, by + bW * 0.35);
+      ctx.quadraticCurveTo(lx + R * 0.18 + swing, hairY + R * 0.08, lx + R * 0.10, hairY + R * 0.22);
+      ctx.stroke();
     }
 
-    // Gnatosoma: cabezota trapezoidal + palpos + quelíceros.
-    var hx = R * 0.92;
+    // Gnatosoma mordiendo el pelo (adelante).
+    var hx = bx + bL * 0.78, hy = by + R * 0.04;
     ctx.fillStyle = hit ? "#ffffff" : "#b89050";
     ctx.beginPath();
-    ctx.moveTo(R * 0.68, -R * 0.28);
-    ctx.lineTo(hx + R * 0.18, -R * 0.16);
-    ctx.quadraticCurveTo(hx + R * 0.32, 0, hx + R * 0.18, R * 0.16);
-    ctx.lineTo(R * 0.68, R * 0.28);
-    ctx.closePath();
+    ctx.ellipse(hx, hy, R * 0.22, R * 0.18, 0.15, 0, Math.PI * 2);
     ctx.fill();
     ctx.strokeStyle = e.def.colorDark;
-    ctx.lineWidth = Math.max(1.1, 1.4 * U);
+    ctx.lineWidth = Math.max(1.1, 1.3 * U);
     ctx.stroke();
-
-    var bite = Math.max(0, Math.sin(gait * 4.2) * 0.35);
-    ctx.strokeStyle = e.def.colorDark;
-    ctx.lineWidth = Math.max(1.1, 1.4 * U);
+    var bite = Math.max(0, Math.sin(gait * 4.2) * 0.3);
     ctx.beginPath();
-    ctx.moveTo(hx + R * 0.16, -R * 0.08);
-    ctx.lineTo(hx + R * 0.38 + bite * R * 0.08, -R * 0.18);
-    ctx.moveTo(hx + R * 0.16,  R * 0.08);
-    ctx.lineTo(hx + R * 0.38 + bite * R * 0.08,  R * 0.18);
-    ctx.stroke();
-    // Palpos.
-    ctx.beginPath();
-    ctx.moveTo(hx + R * 0.04, -R * 0.20);
-    ctx.quadraticCurveTo(hx + R * 0.22, -R * 0.38, hx + R * 0.12, -R * 0.42);
-    ctx.moveTo(hx + R * 0.04,  R * 0.20);
-    ctx.quadraticCurveTo(hx + R * 0.22,  R * 0.38, hx + R * 0.12,  R * 0.42);
+    ctx.moveTo(hx + R * 0.12, hy - R * 0.06);
+    ctx.lineTo(hx + R * 0.28 + bite * R * 0.06, hairY - R * 0.04);
+    ctx.moveTo(hx + R * 0.12, hy + R * 0.08);
+    ctx.lineTo(hx + R * 0.26 + bite * R * 0.06, hairY + R * 0.06);
     ctx.stroke();
 
     var sadFace = (expression === "dying" || expression === "hurt" || hpFrac < 0.20);
-    var eyeR = R * 0.15;
-    var faceX = R * 0.48;
-    var gapX = R * 0.18;
-    if (sadFace) drawHurtEyes(faceX, 0, eyeR, gapX);
-    else if (blink) drawClosedEyes(faceX, 0, eyeR, gapX);
-    else drawAnimeEyes(faceX, 0, eyeR, gapX, 0, 0, R * 0.06, R * 0.025, "evil");
+    var eyeR = R * 0.14;
+    if (sadFace) drawHurtEyes(bx + R * 0.10, by - R * 0.04, eyeR, R * 0.16);
+    else if (blink) drawClosedEyes(bx + R * 0.10, by - R * 0.04, eyeR, R * 0.16);
+    else drawAnimeEyes(bx + R * 0.10, by - R * 0.04, eyeR, R * 0.16, 0, 0, R * 0.05, R * 0.02, "evil");
 
-    ctx.restore(); // end rotated
+    ctx.restore();
 
     ctx.globalAlpha = 1;
     ctx.restore();

@@ -20856,7 +20856,7 @@
       ctx.translate(-e.x, -e.y);
     }
     drawShadow(e.x, e.y + rad * 0.85, rad * 0.85 * scale, rad * 0.22 * scale);
-    if (def.id !== "saureus") drawGermKindFrame(e, rad * scale);
+    if (def.id !== "saureus" && def.id !== "malassezia") drawGermKindFrame(e, rad * scale);
     // Halo de daño genérico: pulso radial DRAMÁTICO amarillo→rojo
     // alrededor del germen cuando recibe golpe. Combina varias capas
     // (glow externo + flash blanco central + anillo dorado + chispas
@@ -21626,77 +21626,211 @@
 
   // MALASSEZIA — racimo de levaduras redondas con brillo aceitoso y yemas.
   function drawMalassezia(e, rad, expression, blink) {
-    // Malassezia — levadura lipofílica cutánea. Biología real:
-    //  · Célula ovalada tipo BOTELLA (más alta que ancha), pared gruesa.
-    //  · GEMACIÓN MONOPOLAR: brota siempre por el mismo polo, con COLLARETE
-    //    (anillo de cicatriz de gemación) en el cuello.
-    //  · Lipofílica → aspecto ACEITOSO (brillos untuosos, gotitas de sebo).
-    //  · En tiña versicolor: "spaghetti & meatballs" (hifas cortas + levaduras).
-    var R = rad, w = e.wobble || 0, t = state.time, hit = e.hitFlash > 0;
-    ctx.save(); ctx.translate(e.x, e.y);
+    // Malassezia furfur — levadura lipofílica en FORMA DE BOTELLA.
+    //  · Cuerpo gordo + cuello estrecho + brote monopolar (no círculo)
+    //  · COLLARETE = anillo de cicatriz en el cuello (firma diagnóstica)
+    //  · Charco de sebo bajo el cuerpo (no aura radial)
+    //  · 2 hifas cortas "spaghetti" + 2 albóndigas (tiña versicolor)
+    // Cara smug aceitosa en la panza, siempre upright.
 
-    // Aura oleosa cálida.
-    var ag = ctx.createRadialGradient(0, 0, R * 0.5, 0, 0, R * 1.8);
-    ag.addColorStop(0, "rgba(224,196,104,0.24)"); ag.addColorStop(1, "rgba(224,196,104,0)");
-    ctx.fillStyle = ag; ctx.beginPath(); ctx.arc(0, 0, R * 1.8, 0, Math.PI * 2); ctx.fill();
+    var hit = e.hitFlash > 0;
+    var t = state.time;
+    var def = e.def;
 
-    // Levadura abotellada reutilizable.
-    function yeast(cxp, cyp, rw, rh, rot) {
-      var mr = Math.max(rw, rh);
-      var grad = ctx.createRadialGradient(cxp - rw * 0.35, cyp - rh * 0.4, mr * 0.15, cxp, cyp, mr);
-      grad.addColorStop(0, "#fff8dc"); grad.addColorStop(0.45, e.def.color); grad.addColorStop(1, e.def.colorDark);
-      ctx.save(); ctx.translate(cxp, cyp); ctx.rotate(rot || 0);
-      ctx.fillStyle = hit ? "#fff" : grad;
-      ctx.beginPath(); ctx.ellipse(0, 0, rw, rh, 0, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = e.def.colorDark; ctx.lineWidth = Math.max(1.2, 1.6 * U); ctx.stroke();
-      ctx.fillStyle = "rgba(255,255,255,0.55)";   // brillo untuoso
-      ctx.beginPath(); ctx.ellipse(-rw * 0.3, -rh * 0.42, rw * 0.3, rh * 0.16, -0.5, 0, Math.PI * 2); ctx.fill();
+    if (e._lastPosX == null) { e._lastPosX = e.x; e._lastPosY = e.y; e._heading = 0; }
+    var dxM = e.x - e._lastPosX, dyM = e.y - e._lastPosY;
+    if (Math.hypot(dxM, dyM) > 0.5) {
+      var targetAng = Math.atan2(dyM, dxM);
+      var diffAng = targetAng - e._heading;
+      while (diffAng >  Math.PI) diffAng -= Math.PI * 2;
+      while (diffAng < -Math.PI) diffAng += Math.PI * 2;
+      e._heading += diffAng * 0.10;
+    }
+    e._lastPosX = e.x; e._lastPosY = e.y;
+
+    ctx.save();
+    ctx.translate(e.x, e.y);
+
+    var breathe = 1 + Math.sin(t * 1.25 + e.wobble) * 0.035;
+    var L = rad * 1.08 * breathe;   // eje de la botella
+    var fat = rad * 0.62 * breathe; // panza (más baja que ancha del eje)
+    var neckW = rad * 0.20 * breathe;
+    var budP = 0.5 + 0.5 * Math.sin(t * 2.2 + e.wobble);
+
+    function oilDrop(x, y, s, ang) {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(ang || 0);
+      var og = ctx.createRadialGradient(-s * 0.2, -s * 0.25, s * 0.08, 0, 0, s);
+      og.addColorStop(0, hit ? "#ffffff" : "#FFF6C8");
+      og.addColorStop(0.55, hit ? "#ffffff" : "#E8C050");
+      og.addColorStop(1, hit ? "#ffffff" : "#9A7018");
+      ctx.fillStyle = og;
+      ctx.beginPath();
+      ctx.moveTo(0, -s * 1.15);
+      ctx.quadraticCurveTo(s * 0.95, s * 0.18, 0, s * 1.05);
+      ctx.quadraticCurveTo(-s * 0.95, s * 0.18, 0, -s * 1.15);
+      ctx.fill();
+      ctx.strokeStyle = "rgba(90, 60, 12, 0.55)";
+      ctx.lineWidth = Math.max(0.8, 1.05 * U);
+      ctx.stroke();
+      ctx.fillStyle = "rgba(255, 255, 230, 0.55)";
+      ctx.beginPath();
+      ctx.ellipse(-s * 0.2, -s * 0.12, s * 0.22, s * 0.14, -0.4, 0, Math.PI * 2);
+      ctx.fill();
       ctx.restore();
     }
 
-    // Hifas largas ("spaghetti") ondulantes — 5, cada una con su fase.
-    ctx.strokeStyle = e.def.colorDark; ctx.lineWidth = Math.max(1.2, 1.6 * U); ctx.lineCap = "round";
-    for (var h = 0; h < 5; h++) {
-      var hx = (h - 2) * R * 0.42, sway = Math.sin(t * 2.2 + h * 1.3 + w) * 7 * U;
-      var sway2 = Math.sin(t * 3 + h) * 5 * U;
-      ctx.beginPath();
-      ctx.moveTo(hx * 0.55, R * 0.6);
-      ctx.quadraticCurveTo(hx + sway, R * 1.15, hx + sway + sway2, R * 1.7);
-      ctx.stroke();
-    }
+    ctx.save();
+    ctx.rotate(e._heading || 0);
 
-    // Cadena de PSEUDOHIFAS: fila de levaduras que emergen a un costado,
-    // cada eslabón con su latido (elongación de la cadena).
-    for (var pc = 1; pc <= 3; pc++) {
-      var pcp = 0.5 + 0.5 * Math.sin(t * 2 + pc * 0.8 + w);
-      var pcx = -R * (0.55 + pc * 0.42), pcy = -R * (0.2 + pc * 0.16);
-      var pcr = R * (0.30 - pc * 0.04) * (0.85 + 0.2 * pcp);
-      yeast(pcx, pcy, pcr, pcr * 1.1, -0.4 + pc * 0.1);
-    }
-
-    // Satélites que se mecen.
-    yeast(R * 0.68, R * 0.5, R * 0.34 + Math.sin(t * 2.5 + w) * 2 * U, R * 0.42, 0.3);
-    yeast(R * 0.72, -R * 0.15, R * 0.26, R * 0.32 + Math.sin(t * 3 + 1) * 2 * U, 0.5);
-
-    // Gema monopolar que "late" (budding) con su collarete.
-    var bud = 0.5 + 0.5 * Math.sin(t * 2.4 + w), budR = R * (0.30 + 0.14 * bud);
-    var bx = R * 0.42, by = -R * 0.72;
-    yeast(bx, by, budR, budR * 1.15, -0.2);
-    ctx.strokeStyle = e.def.colorDark; ctx.lineWidth = Math.max(1.6, 2.2 * U);   // collarete
+    // 1. Charco de sebo en el suelo — mancha elíptica, no halo circular.
+    ctx.fillStyle = "rgba(210, 170, 50, 0.38)";
     ctx.beginPath();
-    ctx.moveTo(bx - budR * 0.55, by + budR * 0.85);
-    ctx.lineTo(bx + budR * 0.55, by + budR * 0.85);
+    ctx.ellipse(-L * 0.12, fat * 1.22, L * 0.95, fat * 0.38, -0.18, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "rgba(255, 230, 140, 0.28)";
+    ctx.beginPath();
+    ctx.ellipse(-L * 0.28, fat * 1.12, L * 0.48, fat * 0.16, -0.22, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "rgba(150, 110, 30, 0.40)";
+    ctx.lineWidth = Math.max(1.0, 1.3 * U);
+    ctx.beginPath();
+    ctx.ellipse(-L * 0.12, fat * 1.22, L * 0.95, fat * 0.38, -0.18, 0, Math.PI * 2);
     ctx.stroke();
 
-    // Cuerpo principal abotellado (balanceo).
-    yeast(0, 0, R * 0.85, R * 1.02, Math.sin(w + t * 0.8) * 0.06);
-    // Gotitas de sebo lipofílico flotando (más y más grandes).
-    ctx.fillStyle = "rgba(255,240,180,0.55)";
-    for (var d = 0; d < 6; d++) {
-      var da = t * 1.1 + d * 1.05, dr = R * (1.05 + 0.12 * Math.sin(t * 3 + d));
-      ctx.beginPath(); ctx.arc(Math.cos(da) * dr, Math.sin(da) * dr, R * (0.05 + 0.03 * (d % 2)), 0, Math.PI * 2); ctx.fill();
+    // 2. Spaghetti cortos (hifas) + 2 albóndigas — firma de pitiriasis.
+    ctx.lineCap = "round";
+    ctx.strokeStyle = hit ? "#ffffff" : "#8a7320";
+    ctx.lineWidth = Math.max(1.8, 2.3 * U);
+    ctx.beginPath();
+    ctx.moveTo(-L * 0.15, fat * 0.55);
+    ctx.quadraticCurveTo(-L * 0.55, fat * 1.05, -L * 0.72, fat * 1.55);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(L * 0.12, fat * 0.50);
+    ctx.quadraticCurveTo(L * 0.38, fat * 1.15, L * 0.22, fat * 1.62);
+    ctx.stroke();
+    function meatball(mx, my, mr) {
+      var mg = ctx.createRadialGradient(mx - mr * 0.3, my - mr * 0.3, mr * 0.15, mx, my, mr);
+      mg.addColorStop(0, hit ? "#ffffff" : "#f0e29a");
+      mg.addColorStop(0.6, hit ? "#ffffff" : "#d8c060");
+      mg.addColorStop(1, hit ? "#ffffff" : "#8a7320");
+      ctx.fillStyle = mg;
+      ctx.beginPath();
+      ctx.ellipse(mx, my, mr * 1.15, mr * 0.85, 0.3, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "#6a5410";
+      ctx.lineWidth = Math.max(1.0, 1.3 * U);
+      ctx.stroke();
     }
-    germFace(R * 0.85, expression, blink, R * 0.28);
+    meatball(-L * 0.78, fat * 1.62, rad * 0.16);
+    meatball(L * 0.18, fat * 1.70, rad * 0.14);
+
+    // 3. Botella: panza gorda + cuello estrecho (un solo contorno).
+    function traceBottle() {
+      var bx = -L * 0.18;
+      ctx.beginPath();
+      ctx.moveTo(bx, -fat);
+      ctx.bezierCurveTo(bx - L * 0.85, -fat * 1.05, bx - L * 0.95, fat * 1.05, bx, fat);
+      ctx.bezierCurveTo(bx + L * 0.55, fat * 0.98, L * 0.42, neckW * 1.15, L * 0.62, neckW);
+      ctx.lineTo(L * 0.98, neckW * 0.82);
+      ctx.quadraticCurveTo(L * 1.08, 0, L * 0.98, -neckW * 0.82);
+      ctx.lineTo(L * 0.62, -neckW);
+      ctx.bezierCurveTo(L * 0.42, -neckW * 1.15, bx + L * 0.55, -fat * 0.98, bx, -fat);
+      ctx.closePath();
+    }
+    var bellyG = ctx.createRadialGradient(-L * 0.35, -fat * 0.35, rad * 0.12, -L * 0.1, 0, L * 0.95);
+    bellyG.addColorStop(0,    hit ? "#ffffff" : "#fff8dc");
+    bellyG.addColorStop(0.45, hit ? "#ffffff" : "#e8d070");
+    bellyG.addColorStop(1,    hit ? "#ffffff" : "#8a7320");
+    ctx.fillStyle = bellyG;
+    traceBottle();
+    ctx.fill();
+    ctx.strokeStyle = "#5a4a12";
+    ctx.lineWidth = Math.max(2.2, 2.8 * U);
+    traceBottle();
+    ctx.stroke();
+    ctx.strokeStyle = "rgba(255, 240, 180, 0.40)";
+    ctx.lineWidth = Math.max(0.9, 1.2 * U);
+    traceBottle();
+    ctx.stroke();
+
+    // Manchas versicolor (crema / café) sobre la panza.
+    if (!hit) {
+      ctx.fillStyle = "rgba(180, 140, 50, 0.35)";
+      ctx.beginPath();
+      ctx.ellipse(-L * 0.38, fat * 0.18, fat * 0.28, fat * 0.16, 0.4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "rgba(255, 248, 220, 0.40)";
+      ctx.beginPath();
+      ctx.ellipse(-L * 0.08, -fat * 0.42, fat * 0.22, fat * 0.12, -0.3, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "rgba(140, 100, 30, 0.28)";
+      ctx.beginPath();
+      ctx.ellipse(-L * 0.52, -fat * 0.12, fat * 0.16, fat * 0.10, 0.6, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Brillo untuoso.
+    ctx.fillStyle = "rgba(255, 255, 240, 0.48)";
+    ctx.beginPath();
+    ctx.ellipse(-L * 0.32, -fat * 0.38, L * 0.28, fat * 0.16, -0.45, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 4. Collarete — arandela en el cuello (cicatriz de gemación).
+    var colX = L * 0.62;
+    ctx.fillStyle = hit ? "#ffffff" : "#6e5814";
+    ctx.beginPath();
+    ctx.ellipse(colX, 0, neckW * 0.38, neckW * 1.55, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = hit ? "#ffffff" : "#c9a84a";
+    ctx.beginPath();
+    ctx.ellipse(colX + neckW * 0.08, 0, neckW * 0.22, neckW * 1.22, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "#3d3208";
+    ctx.lineWidth = Math.max(1.4, 1.8 * U);
+    ctx.beginPath();
+    ctx.ellipse(colX, 0, neckW * 0.38, neckW * 1.55, 0, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // 5. Brote monopolar al final del cuello (late).
+    var budR = rad * (0.26 + 0.06 * budP);
+    var budX = L * 1.18 + budP * rad * 0.04;
+    var budG = ctx.createRadialGradient(budX - budR * 0.3, -budR * 0.3, budR * 0.15, budX, 0, budR);
+    budG.addColorStop(0, hit ? "#ffffff" : "#fff4c0");
+    budG.addColorStop(0.55, hit ? "#ffffff" : "#e0c050");
+    budG.addColorStop(1, hit ? "#ffffff" : "#7a6218");
+    ctx.fillStyle = budG;
+    ctx.beginPath();
+    ctx.ellipse(budX, 0, budR * 1.05, budR * 0.82, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "#5a4a12";
+    ctx.lineWidth = Math.max(1.6, 2.1 * U);
+    ctx.stroke();
+    ctx.fillStyle = "rgba(255,255,230,0.5)";
+    ctx.beginPath();
+    ctx.ellipse(budX - budR * 0.28, -budR * 0.22, budR * 0.32, budR * 0.20, -0.4, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 6. Gotas de sebo colgando de la panza (no órbita).
+    oilDrop(-L * 0.05, fat * 0.95, rad * 0.18, 0.12 + Math.sin(t * 2) * 0.08);
+    oilDrop(L * 0.28, fat * 0.82, rad * 0.14, 0.45);
+
+    ctx.restore(); // end body rotated
+
+    var hpFracFace = (def && def.hp > 0) ? (e.hp / def.hp) : 1;
+    var lowHp = hpFracFace < 0.20;
+    var sadFace = (expression === "dying" || expression === "hurt" || lowHp);
+    var eyeR = fat * 0.42;
+    var faceY = -fat * 0.08;
+    var gap = fat * 0.42;
+    if (sadFace) drawHurtEyes(0, faceY, eyeR, gap);
+    else if (blink) drawClosedEyes(0, faceY, eyeR, gap);
+    else drawAnimeEyes(0, faceY, eyeR, gap, 0, 0, fat * 0.12, fat * 0.05, "smug");
+    if (sadFace) drawAnimeMouth(0, fat * 0.42, fat * 0.55, fat * 0.42, "open");
+    else drawAnimeMouth(0, fat * 0.42, fat * 0.52, fat * 0.28, "smirk");
+
     ctx.restore();
   }
 

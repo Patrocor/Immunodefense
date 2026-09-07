@@ -44,7 +44,8 @@
     hsv:          { silhouette: "vesicle",    accent: "#9575CD", label: "Ampolla" },
     molluscum:    { silhouette: "bivalve",    accent: "#e8d6c0", label: "Concha" },
     demodex:      { silhouette: "poremite",   accent: "#c8a86a", label: "Poro" },
-    saureus:      { silhouette: "grape",      accent: "#F9A825", label: "Racimo" }
+    saureus:      { silhouette: "grape",      accent: "#F9A825", label: "Racimo" },
+    malassezia:   { silhouette: "bottle",     accent: "#d8c060", label: "Botella" }
   };
 
   // Pistas de counter por germen Fase 1 (pip inferior).
@@ -56,6 +57,7 @@
     hsv:          { glyph: "perforin",color: "#E84393", tip: "×2.3 NK" },
     hpv:          { glyph: "perforin",color: "#E84393", tip: "NK escudo" },
     molluscum:    { glyph: "cross",   color: "#9370DB", tip: "CD8" },
+    malassezia:   { glyph: "droplet", color: "#d8c060", tip: "Aceite" },
     neisseria:    { glyph: "antibody",color: "#50C878", tip: "×2 Ig" },
     saureus:      { glyph: "antibody",color: "#50C878", tip: "Opsoniza" },
     leishmania:   { glyph: "granule", color: "#F2774E", tip: "×2.6 Eos" },

@@ -34,7 +34,7 @@ function placeSaureus(shieldOn) {
     dying: false,
     dead: false,
     wobble: 0.85,
-    _heading: -0.28,
+    _heading: 0.12,
     _lastPosX: cx - 16,
     _lastPosY: cy + 3,
   };
@@ -55,7 +55,7 @@ function placeSaureus(shieldOn) {
     ok: true,
     shieldOn: !!shieldOn,
     shieldHP: e.shieldHP,
-    clip: { x: Math.round(sx - 240), y: Math.round(sy - 190), width: 480, height: 380 },
+    clip: { x: Math.round(sx - 260), y: Math.round(sy - 200), width: 520, height: 400 },
   };
 }
 

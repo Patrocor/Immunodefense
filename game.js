@@ -20856,7 +20856,7 @@
       ctx.translate(-e.x, -e.y);
     }
     drawShadow(e.x, e.y + rad * 0.85, rad * 0.85 * scale, rad * 0.22 * scale);
-    drawGermKindFrame(e, rad * scale);
+    if (def.id !== "saureus") drawGermKindFrame(e, rad * scale);
     // Halo de daño genérico: pulso radial DRAMÁTICO amarillo→rojo
     // alrededor del germen cuando recibe golpe. Combina varias capas
     // (glow externo + flash blanco central + anillo dorado + chispas
@@ -22250,26 +22250,30 @@
     ctx.translate(e.x, e.y);
 
     var breathe = 1 + Math.sin(t * 1.4 + e.wobble) * 0.04;
-    var bigR = rad * 0.52 * breathe;
+    var bigR = rad * 0.50 * breathe;
 
     function wrig(idx, amp) {
       return Math.sin(t * 1.7 + idx * 1.15 + e.wobble) * amp * U;
     }
 
-    // Racimo alargado: pedúnculo a −X, uva gorda al frente. Cara en (0,0).
+    // Pera / racimo: cola estrecha al pedúnculo (−X), vientre gordo en la cara.
+    // No empaquetar en disco: si no, el casco polar vuelve a ser un círculo.
     var cluster = [
-      { x: -bigR * 1.48 + wrig(1, 0.6), y: -bigR * 0.18 + wrig(1, 0.8), r: bigR * 0.36 },
-      { x: -bigR * 1.38 + wrig(2, 0.6), y:  bigR * 0.38 + wrig(2, 0.8), r: bigR * 0.34 },
-      { x: -bigR * 0.92 + wrig(3, 0.7), y: -bigR * 0.58 + wrig(3, 0.9), r: bigR * 0.44 },
-      { x: -bigR * 0.82 + wrig(4, 0.7), y:  bigR * 0.68 + wrig(4, 0.9), r: bigR * 0.46 },
-      { x: -bigR * 0.38 + wrig(5, 0.8), y: -bigR * 0.78 + wrig(5, 1.0), r: bigR * 0.48 },
-      { x: -bigR * 0.28 + wrig(6, 0.8), y:  bigR * 0.88 + wrig(6, 1.0), r: bigR * 0.50 },
-      { x:  bigR * 0.62 + wrig(7, 0.7), y: -bigR * 0.62 + wrig(7, 0.9), r: bigR * 0.48 },
-      { x:  bigR * 0.72 + wrig(8, 0.7), y:  bigR * 0.70 + wrig(8, 0.9), r: bigR * 0.50 },
-      { x:  bigR * 1.18 + wrig(9, 0.6), y: -bigR * 0.08 + wrig(9, 0.8), r: bigR * 0.44 },
-      { x:  bigR * 0.42 + wrig(10, 0.5), y:  bigR * 0.06 + wrig(10, 0.6), r: bigR * 0.40 }
+      { x: -bigR * 2.05 + wrig(1, 0.5), y: -bigR * 0.06 + wrig(1, 0.6), r: bigR * 0.26 },
+      { x: -bigR * 1.88 + wrig(2, 0.5), y:  bigR * 0.28 + wrig(2, 0.6), r: bigR * 0.28 },
+      { x: -bigR * 1.42 + wrig(3, 0.6), y: -bigR * 0.32 + wrig(3, 0.7), r: bigR * 0.38 },
+      { x: -bigR * 1.28 + wrig(4, 0.6), y:  bigR * 0.48 + wrig(4, 0.7), r: bigR * 0.40 },
+      { x: -bigR * 0.78 + wrig(5, 0.7), y: -bigR * 0.58 + wrig(5, 0.8), r: bigR * 0.46 },
+      { x: -bigR * 0.62 + wrig(6, 0.7), y:  bigR * 0.70 + wrig(6, 0.8), r: bigR * 0.48 },
+      { x:  bigR * 0.55 + wrig(7, 0.6), y: -bigR * 0.62 + wrig(7, 0.7), r: bigR * 0.46 },
+      { x:  bigR * 0.68 + wrig(8, 0.6), y:  bigR * 0.58 + wrig(8, 0.7), r: bigR * 0.48 },
+      { x:  bigR * 1.05 + wrig(9, 0.5), y: -bigR * 0.12 + wrig(9, 0.6), r: bigR * 0.40 },
+      { x:  bigR * 0.38 + wrig(10, 0.4), y:  bigR * 0.08 + wrig(10, 0.5), r: bigR * 0.36 }
     ];
-    var sites = cluster.concat([{ x: 0, y: 0, r: bigR }]);
+    var sites = cluster.concat([
+      { x: 0, y: 0, r: bigR },
+      { x: -bigR * 2.35, y: -bigR * 0.18, r: bigR * 0.10 }
+    ]);
 
     function traceHull(pad) {
       var n = 24;
@@ -22294,41 +22298,41 @@
     ctx.save();
     ctx.rotate(e._heading || 0);
 
-    // 1. Pedúnculo dorado (staphylé) — rompe el círculo: cola estrecha atrás.
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-    ctx.strokeStyle = hit ? "#ffffff" : "#6a4410";
-    ctx.lineWidth = Math.max(3.2, 4.2 * U);
-    ctx.beginPath();
-    ctx.moveTo(-bigR * 1.05, 0.02 * bigR);
-    ctx.quadraticCurveTo(-bigR * 1.72, -bigR * 0.06, -bigR * 2.18, -bigR * 0.28);
-    ctx.stroke();
-    ctx.strokeStyle = hit ? "#ffffff" : "#c48922";
-    ctx.lineWidth = Math.max(1.8, 2.4 * U);
-    ctx.stroke();
-    ctx.strokeStyle = hit ? "#ffffff" : "#6a4410";
-    ctx.lineWidth = Math.max(2.4, 3.1 * U);
-    ctx.beginPath();
-    ctx.moveTo(-bigR * 1.58, -bigR * 0.04);
-    ctx.quadraticCurveTo(-bigR * 1.78, bigR * 0.32, -bigR * 1.42, bigR * 0.46);
-    ctx.stroke();
-    ctx.strokeStyle = hit ? "#ffffff" : "#c48922";
-    ctx.lineWidth = Math.max(1.3, 1.7 * U);
-    ctx.stroke();
-    // Nudo del pedúnculo.
-    ctx.fillStyle = hit ? "#ffffff" : "#8a5a12";
-    ctx.beginPath();
-    ctx.arc(-bigR * 1.52, 0, bigR * 0.14, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = hit ? "#ffffff" : "#e0b040";
-    ctx.beginPath();
-    ctx.arc(-bigR * 1.56, -bigR * 0.04, bigR * 0.07, 0, Math.PI * 2);
-    ctx.fill();
+    function drawPeduncle() {
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      ctx.strokeStyle = hit ? "#ffffff" : "#5a3a0c";
+      ctx.lineWidth = Math.max(4.4, 5.6 * U);
+      ctx.beginPath();
+      ctx.moveTo(-bigR * 1.55, 0);
+      ctx.quadraticCurveTo(-bigR * 2.15, -bigR * 0.12, -bigR * 2.85, -bigR * 0.42);
+      ctx.stroke();
+      ctx.strokeStyle = hit ? "#ffffff" : "#d4a028";
+      ctx.lineWidth = Math.max(2.4, 3.1 * U);
+      ctx.stroke();
+      ctx.strokeStyle = hit ? "#ffffff" : "#5a3a0c";
+      ctx.lineWidth = Math.max(3.2, 4.0 * U);
+      ctx.beginPath();
+      ctx.moveTo(-bigR * 1.95, 0.04 * bigR);
+      ctx.quadraticCurveTo(-bigR * 2.20, bigR * 0.38, -bigR * 1.82, bigR * 0.42);
+      ctx.stroke();
+      ctx.strokeStyle = hit ? "#ffffff" : "#d4a028";
+      ctx.lineWidth = Math.max(1.6, 2.1 * U);
+      ctx.stroke();
+      ctx.fillStyle = hit ? "#ffffff" : "#6e4610";
+      ctx.beginPath();
+      ctx.arc(-bigR * 1.72, 0.02 * bigR, bigR * 0.16, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = hit ? "#ffffff" : "#e8b84a";
+      ctx.beginPath();
+      ctx.arc(-bigR * 1.78, -bigR * 0.04, bigR * 0.08, 0, Math.PI * 2);
+      ctx.fill();
+    }
 
-    // 2. Cápsula gelatinosa = casco irregular del racimo (no círculo).
+    // Cápsula gelatinosa = casco irregular del racimo (no círculo).
     var hullOn = shieldRatio > 0.04 || shatter > 0;
     if (hullOn) {
-      var pad = (5.5 + shieldRatio * 4.5) * U;
+      var pad = (2.2 + shieldRatio * 2.8) * U;
       var capA = 0.22 + shieldRatio * 0.38 + shieldHit * 0.25;
       ctx.fillStyle = "rgba(245, 210, 80, " + capA + ")";
       traceHull(pad);
@@ -22351,7 +22355,9 @@
       }
     }
 
-    // 3. Hilos de matriz PNAG entre uvas vecinas (antes de los cuerpos).
+    drawPeduncle();
+
+    // Hilos de matriz PNAG entre uvas vecinas (antes de los cuerpos).
     ctx.strokeStyle = "rgba(210, 160, 40, 0.55)";
     ctx.lineWidth = Math.max(1.4, 1.9 * U);
     ctx.lineCap = "round";
@@ -22416,9 +22422,9 @@
 
     // 4. Gotas de toxina colgando del racimo (lágrimas, no órbita circular).
     var toxinDrops = [
-      { x: bigR * 0.55, y: bigR * 1.28, s: bigR * 0.22, a: 0.18 },
-      { x: -bigR * 0.15, y: bigR * 1.22, s: bigR * 0.18, a: -0.12 },
-      { x: bigR * 1.05, y: bigR * 0.95, s: bigR * 0.16, a: 0.55 }
+      { x: bigR * 0.48, y: bigR * 1.18, s: bigR * 0.20, a: 0.18 },
+      { x: -bigR * 0.22, y: bigR * 1.12, s: bigR * 0.16, a: -0.12 },
+      { x: bigR * 0.92, y: bigR * 0.88, s: bigR * 0.14, a: 0.50 }
     ];
     for (var tx = 0; tx < toxinDrops.length; tx++) {
       var td = toxinDrops[tx];

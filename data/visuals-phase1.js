@@ -42,7 +42,7 @@
     sepidermidis: { silhouette: "diplochain", accent: "#90A4AE", label: "Biofilm" },
     cacnes:       { silhouette: "follicle",   accent: "#C9A66B", label: "Folículo" },
     hsv:          { silhouette: "vesicle",    accent: "#9575CD", label: "Ampolla" },
-    molluscum:    { silhouette: "umbilicus",  accent: "#e8d6c0", label: "Ombligo" }
+    molluscum:    { silhouette: "bivalve",    accent: "#e8d6c0", label: "Concha" }
   };
 
   // Pistas de counter por germen Fase 1 (pip inferior).

@@ -33,6 +33,9 @@ function placeMolluscum(pinch) {
     dying: false,
     dead: false,
     wobble: 0.6,
+    _heading: -0.22,
+    _lastPosX: cx - 10,
+    _lastPosY: cy,
   };
   st.enemies = [e];
   st.effects = [];
@@ -107,16 +110,16 @@ console.log("Spawn:", spawned);
 const idle = await page.evaluate(placeMolluscum, false);
 console.log("Molluscum idle:", idle);
 await sleep(900);
-await page.screenshot({ path: join(ART, "molluscum_umbilicus_field.png") });
+await page.screenshot({ path: join(ART, "molluscum_shell_field.png") });
 if (idle.ok) {
-  await page.screenshot({ path: join(ART, "molluscum_umbilicus_closeup.png"), clip: idle.clip });
+  await page.screenshot({ path: join(ART, "molluscum_shell_closeup.png"), clip: idle.clip });
 }
 
 const fiss = await page.evaluate(placeMolluscum, true);
 console.log("Molluscum fission:", fiss);
 await sleep(900);
 if (fiss.ok) {
-  await page.screenshot({ path: join(ART, "molluscum_fission_closeup.png"), clip: fiss.clip });
+  await page.screenshot({ path: join(ART, "molluscum_shell_fission.png"), clip: fiss.clip });
 }
 
 await page.evaluate(() => window.__game.hold(false));

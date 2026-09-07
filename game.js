@@ -4609,7 +4609,7 @@
     pseudomonas:     { name: "Pseudomonas",     desc: "Dispara esporas que cazan torres" },
     sarna:           { name: "Sarna",           desc: "Ácaro que se entierra y reaparece" },
     hpv:             { name: "HPV",             desc: "Verruga con coraza regenerable" },
-    molluscum:       { name: "Molluscum",       desc: "Pápula umbilical — se parte al morir" },
+    molluscum:       { name: "Molluscum",       desc: "Concha que se parte al morir" },
     malassezia:      { name: "Malassezia",      desc: "Levadura aceitosa — baja cadencia" },
     bossPyogenes:    { name: "BOSS Pyogenes",   desc: "Bacteria carnívora con cápsula regen" },
     bossMRSA:        { name: "BOSS MRSA",       desc: "Resistente a antibióticos clásicos" },
@@ -21478,9 +21478,9 @@
   //    grandes dentro)
   //  · TEXTURA CEROSA — highlight nacarado superficial
   function drawMolluscum(e, rad, expression, blink) {
-    // Molluscum contagiosum v2 — silueta PÁPULA UMBILICADA (volcán ceroso),
-    // no ladrillo ni círculo. Cráter central + perla; cintura de fisión a HP bajo.
-    var R = rad;
+    // Molluscum — silueta de MOLUSCO (concha bivalva / cauri), no pápula redonda.
+    // Ombligo = abertura de la concha + perla; a HP bajo las valvas se abren (fisión).
+    var R = rad * 0.95;
     var t = state.time;
     var hit = e.hitFlash > 0;
     var hpFrac = (e.maxHp > 0) ? e.hp / e.maxHp : 1;
@@ -21494,67 +21494,99 @@
       if (e.childTimer < warnWindow) sporeReady = 1 - Math.max(0, e.childTimer) / warnWindow;
     }
 
-    var bw = R * 1.12;
-    var bh = R * 1.02;
+    if (e._lastPosX == null) { e._lastPosX = e.x; e._lastPosY = e.y; e._heading = 0; }
+    var dxM = e.x - e._lastPosX, dyM = e.y - e._lastPosY;
+    if (Math.hypot(dxM, dyM) > 0.5) {
+      var targetAng = Math.atan2(dyM, dxM);
+      var diffAng = targetAng - e._heading;
+      while (diffAng >  Math.PI) diffAng -= Math.PI * 2;
+      while (diffAng < -Math.PI) diffAng += Math.PI * 2;
+      e._heading += diffAng * 0.10;
+    }
+    e._lastPosX = e.x; e._lastPosY = e.y;
+
+    var bw = R * 1.28;   // alargada como mejillón / cauri
+    var bh = R * 0.78;
+    var gap = pinchAmt * bh * 0.28;
     ctx.save();
     ctx.translate(e.x, e.y);
 
-    function papulePath() {
-      var waist = 1 - pinchAmt * 0.52;
+    function shellPath() {
       ctx.beginPath();
-      ctx.moveTo(-bw * 0.94, bh * 0.32);
-      ctx.quadraticCurveTo(-bw * 1.02, bh * 0.88, 0, bh * 0.96);
-      ctx.quadraticCurveTo(bw * 1.02, bh * 0.88, bw * 0.94, bh * 0.32);
-      ctx.quadraticCurveTo(bw * 0.90 * waist, bh * 0.02, bw * 0.70, -bh * 0.32);
-      ctx.quadraticCurveTo(bw * 0.42, -bh * 0.88, bw * 0.16, -bh * 0.68);
-      ctx.quadraticCurveTo(0, -bh * (0.38 - pinchAmt * 0.10), -bw * 0.16, -bh * 0.68);
-      ctx.quadraticCurveTo(-bw * 0.42, -bh * 0.88, -bw * 0.70, -bh * 0.32);
-      ctx.quadraticCurveTo(-bw * 0.90 * waist, bh * 0.02, -bw * 0.94, bh * 0.32);
+      ctx.moveTo(-bw, 0);
+      ctx.quadraticCurveTo(-bw * 0.52, -bh * 0.98 - gap, 0, -bh * 1.05 - gap);
+      ctx.quadraticCurveTo(bw * 0.52, -bh * 0.98 - gap, bw, 0);
+      ctx.quadraticCurveTo(bw * 0.48, bh * 0.78 + gap, bw * 0.14, bh * 0.22 + gap);
+      ctx.quadraticCurveTo(0, bh * 0.02 + gap, -bw * 0.14, bh * 0.22 + gap);
+      ctx.quadraticCurveTo(-bw * 0.48, bh * 0.78 + gap, -bw, 0);
       ctx.closePath();
     }
 
-    // Sombra de asiento (la pápula “posa” sobre la piel).
-    ctx.fillStyle = "rgba(90, 60, 40, 0.28)";
+    ctx.save();
+    ctx.rotate(e._heading || 0);
+
+    // Pie blando asomando por la abertura (firma de molusco).
+    ctx.fillStyle = hit ? "#ffffff" : "rgba(214, 168, 148, 0.92)";
     ctx.beginPath();
-    ctx.ellipse(0, bh * 0.92, bw * 0.78, bh * 0.18, 0, 0, Math.PI * 2);
+    ctx.ellipse(0, bh * 0.52 + gap, bw * 0.36, bh * 0.32, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "rgba(140, 90, 70, 0.55)";
+    ctx.lineWidth = Math.max(1.0, 1.2 * U);
+    ctx.stroke();
+
+    // Sombra bajo la concha.
+    ctx.fillStyle = "rgba(90, 60, 40, 0.22)";
+    ctx.beginPath();
+    ctx.ellipse(0, bh * 0.72 + gap, bw * 0.62, bh * 0.16, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    var grad = ctx.createRadialGradient(-bw * 0.22, -bh * 0.15, R * 0.18, 0, bh * 0.15, R * 1.25);
+    var grad = ctx.createRadialGradient(-bw * 0.18, -bh * 0.35, R * 0.12, 0, 0, R * 1.35);
     grad.addColorStop(0, "#ffffff");
-    grad.addColorStop(0.35, e.def.colorLight || "#fbf2e6");
-    grad.addColorStop(0.75, e.def.color);
+    grad.addColorStop(0.32, e.def.colorLight || "#fbf2e6");
+    grad.addColorStop(0.72, e.def.color);
     grad.addColorStop(1, e.def.colorDark);
     ctx.fillStyle = hit ? "#ffffff" : grad;
-    papulePath();
+    shellPath();
     ctx.fill();
     ctx.strokeStyle = e.def.colorDark;
     ctx.lineWidth = Math.max(1.6, 2.0 * U);
     ctx.stroke();
 
-    // Hendidura de fisión (telegraph de deathSplit).
-    if (pinchAmt > 0.08) {
-      ctx.strokeStyle = "rgba(120, 80, 50, " + (0.35 + pinchAmt * 0.50) + ")";
-      ctx.lineWidth = Math.max(1.2, 1.6 * U);
+    // Líneas de crecimiento de la concha.
+    ctx.strokeStyle = "rgba(130, 100, 72, 0.32)";
+    ctx.lineWidth = Math.max(0.8, 1.0 * U);
+    for (var ri = 1; ri <= 3; ri++) {
+      var rk = 0.38 + ri * 0.18;
       ctx.beginPath();
-      ctx.moveTo(0, -bh * 0.28);
-      ctx.quadraticCurveTo(0, bh * 0.20, 0, bh * 0.78);
+      ctx.moveTo(-bw * rk, -bh * 0.02);
+      ctx.quadraticCurveTo(0, -bh * (0.42 + ri * 0.16) - gap, bw * rk, -bh * 0.02);
       ctx.stroke();
     }
 
-    // Cráter umbilical — se abre y brilla antes de soltar perla.
-    var dimpleOpen = 0.30 + 0.30 * Math.sin(t * 1.6 + e.wobble) * 0.15 + sporeReady * 0.55;
-    var craterY = -bh * 0.52;
-    ctx.fillStyle = "rgba(90, 65, 40, " + (0.55 + sporeReady * 0.25) + ")";
+    // Bisagra / hendidura de fisión (valvas).
+    ctx.strokeStyle = "rgba(120, 80, 50, " + (0.28 + pinchAmt * 0.50) + ")";
+    ctx.lineWidth = Math.max(1.1, 1.4 * U);
     ctx.beginPath();
-    ctx.ellipse(0, craterY, bw * (0.20 + dimpleOpen * 0.10), bh * (0.14 + dimpleOpen * 0.10), 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = "rgba(70, 48, 28, 0.70)";
-    ctx.lineWidth = Math.max(1.0, 1.2 * U);
+    ctx.moveTo(-bw * 0.72, -bh * 0.08);
+    ctx.quadraticCurveTo(0, -bh * 0.02, bw * 0.72, -bh * 0.08);
     ctx.stroke();
+    if (pinchAmt > 0.08) {
+      ctx.beginPath();
+      ctx.moveTo(0, -bh * 0.85 - gap);
+      ctx.lineTo(0, bh * 0.12 + gap);
+      ctx.stroke();
+    }
 
-    // Perla cerosa en el ombligo (Henderson–Paterson / spore).
-    var pearlY = craterY - sporeReady * bh * 0.22;
-    var pearlR = R * (0.14 + sporeReady * 0.08);
+    // Abertura umbilical (hendidura ventral de cauri) + perla.
+    var apertureW = bw * (0.16 + sporeReady * 0.08);
+    var apertureY = bh * 0.08 + gap;
+    ctx.fillStyle = "rgba(70, 48, 28, " + (0.55 + sporeReady * 0.22) + ")";
+    ctx.beginPath();
+    ctx.ellipse(0, apertureY, apertureW, bh * 0.16, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    var pearlY = apertureY - sporeReady * bh * 0.35;
+    var pearlR = R * (0.13 + sporeReady * 0.07);
     var pg = ctx.createRadialGradient(-pearlR * 0.3, pearlY - pearlR * 0.3, pearlR * 0.1, 0, pearlY, pearlR);
     pg.addColorStop(0, "rgba(255, 250, 230, 0.95)");
     pg.addColorStop(0.55, "rgba(232, 214, 180, 0.92)");
@@ -21566,43 +21598,24 @@
     ctx.strokeStyle = "rgba(120, 90, 55, 0.65)";
     ctx.lineWidth = Math.max(0.9, 1.1 * U);
     ctx.stroke();
-    if (sporeReady > 0.08) {
-      ctx.fillStyle = "rgba(255, 240, 160, " + (sporeReady * 0.75) + ")";
-      ctx.beginPath();
-      ctx.arc(0, pearlY, pearlR * 0.55, 0, Math.PI * 2);
-      ctx.fill();
-    }
 
-    // Cuerpos de inclusión — grumos quesosos en el cuerpo, no órbitas.
-    var lumps = [
-      { x: -bw * 0.32, y: bh * 0.22, r: R * 0.11 },
-      { x:  bw * 0.28, y: bh * 0.12, r: R * 0.10 },
-      { x:  bw * 0.08, y: bh * 0.42, r: R * 0.09 }
-    ];
-    for (var li = 0; li < lumps.length; li++) {
-      var lp = lumps[li];
-      var pulse = 0.5 + 0.5 * Math.sin(t * 1.3 + li * 1.7);
-      ctx.fillStyle = "rgba(150, 95, 55, " + (0.40 + pulse * 0.28) + ")";
-      ctx.beginPath();
-      ctx.ellipse(lp.x, lp.y, lp.r, lp.r * 0.78, li * 0.4, 0, Math.PI * 2);
-      ctx.fill();
-    }
-
-    // Highlight nacarado (cera).
-    ctx.fillStyle = "rgba(255, 255, 255, 0.50)";
+    // Highlight nacarado.
+    ctx.fillStyle = "rgba(255, 255, 255, 0.48)";
     ctx.beginPath();
-    ctx.ellipse(-bw * 0.28, -bh * 0.08, bw * 0.18, bh * 0.10, -0.55, 0, Math.PI * 2);
+    ctx.ellipse(-bw * 0.22, -bh * 0.42 - gap * 0.4, bw * 0.22, bh * 0.14, -0.35, 0, Math.PI * 2);
     ctx.fill();
 
-    var eyeR = bw * 0.20;
-    var faceY = bh * 0.08;
-    var gap = bw * 0.30;
+    ctx.restore(); // end body rotated
+
+    var eyeR = bh * 0.28;
+    var faceY = -bh * 0.12;
+    var gapX = bw * 0.22;
     var sadFace = (expression === "dying" || expression === "hurt" || hpFrac < 0.20);
-    if (sadFace) drawHurtEyes(0, faceY, eyeR, gap);
-    else if (blink) drawClosedEyes(0, faceY, eyeR, gap);
-    else drawAnimeEyes(0, faceY, eyeR, gap, 0, 0, bw * 0.06, bw * 0.03, "smug");
-    if (sadFace) drawAnimeMouth(0, faceY + eyeR * 1.55, eyeR * 1.6, eyeR * 1.2, "open");
-    else drawAnimeMouth(0, faceY + eyeR * 1.45, eyeR * 1.5, eyeR * 0.7, "smirk");
+    if (sadFace) drawHurtEyes(0, faceY, eyeR, gapX);
+    else if (blink) drawClosedEyes(0, faceY, eyeR, gapX);
+    else drawAnimeEyes(0, faceY, eyeR, gapX, 0, 0, bh * 0.08, bh * 0.04, "smug");
+    if (sadFace) drawAnimeMouth(0, faceY + eyeR * 1.5, eyeR * 1.55, eyeR * 1.15, "open");
+    else drawAnimeMouth(0, faceY + eyeR * 1.4, eyeR * 1.45, eyeR * 0.65, "smirk");
 
     ctx.restore();
   }

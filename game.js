@@ -20997,7 +20997,10 @@
       drawTentaclePunch(e, e.tentTarget);
     }
     // Shield overlay (drawn on top of body but under HP bar).
-    if (def.shield && (e.shieldHP > 0 || e.shieldShatterTimer > 0)) {
+    // S. aureus dibuja su cápsula como casco irregular del racimo;
+    // el anillo circular genérico lo volvería otra vez un círculo dorado.
+    if (def.shield && def.id !== "saureus" &&
+        (e.shieldHP > 0 || e.shieldShatterTimer > 0)) {
       drawShield(e, rad * scale);
     }
     if (e.dying || e.absorbing || e.state === "falling" || e.state === "entering") return;
@@ -22216,22 +22219,22 @@
   }
 
   function drawSaureus(e, rad, expression, blink) {
-    // Staphylococcus aureus — el "boss" de Fase 1. Biología real:
-    //  · Coco gram+ en RACIMO IRREGULAR tipo uvas (división en múltiples
-    //    planos = staphylé)
-    //  · Pigmento ESTAFILOXANTINA → colonias y aura dorada característica
-    //  · CÁPSULA polisacárida visible (su shield es esto)
-    //  · Pared celular gruesa (peptidoglicano)
-    //  · Produce toxinas: α-hemolisina, TSST-1, enterotoxinas, etc.
-    //    → burbujitas amarillo-doradas flotando alrededor (sus toxinas)
-    // Toque caricaturesco: villano clásico con cara MUY maliciosa,
-    // cocos del racimo wriggleando con fase distinta, aura dorada.
+    // Staphylococcus aureus — racimo staphylé (uvas), no círculo dorado.
+    //  · Coco gram+ en racimo irregular (división en varios planos)
+    //  · Pedúnculo dorado atrás → silueta de pera / racimo, no disco
+    //  · Membrana CIRCULAR por coco (peptidoglicano), como epidermidis
+    //  · Cápsula = casco gelatinoso que sigue el racimo (escudo), no arc()
+    //  · Gotas de toxina (α-hemolisina / TSST-1) colgando del racimo
+    // Cara maliciosa en la uva central, siempre upright.
 
     var hit = e.hitFlash > 0;
     var t = state.time;
     var def = e.def;
+    var sd = def && def.shield;
+    var shieldRatio = (sd && sd.maxHP > 0) ? Math.max(0, (e.shieldHP || 0) / sd.maxHP) : 0;
+    var shieldHit = e.shieldHitTimer > 0 ? Math.min(1, e.shieldHitTimer / 0.20) : 0;
+    var shatter = e.shieldShatterTimer > 0 ? Math.min(1, e.shieldShatterTimer / 0.45) : 0;
 
-    // Heading tracking lento (saureus speedMult 0.7 — pesado).
     if (e._lastPosX == null) { e._lastPosX = e.x; e._lastPosY = e.y; e._heading = 0; }
     var dxM = e.x - e._lastPosX, dyM = e.y - e._lastPosY;
     if (Math.hypot(dxM, dyM) > 0.5) {
@@ -22246,137 +22249,216 @@
     ctx.save();
     ctx.translate(e.x, e.y);
 
-    var breathe = 1 + Math.sin(t * 1.4 + e.wobble) * 0.05;
-    var bigR    = rad * 0.70 * breathe;
+    var breathe = 1 + Math.sin(t * 1.4 + e.wobble) * 0.04;
+    var bigR = rad * 0.52 * breathe;
 
-    // === BODY ROTATED ===
+    function wrig(idx, amp) {
+      return Math.sin(t * 1.7 + idx * 1.15 + e.wobble) * amp * U;
+    }
+
+    // Racimo alargado: pedúnculo a −X, uva gorda al frente. Cara en (0,0).
+    var cluster = [
+      { x: -bigR * 1.48 + wrig(1, 0.6), y: -bigR * 0.18 + wrig(1, 0.8), r: bigR * 0.36 },
+      { x: -bigR * 1.38 + wrig(2, 0.6), y:  bigR * 0.38 + wrig(2, 0.8), r: bigR * 0.34 },
+      { x: -bigR * 0.92 + wrig(3, 0.7), y: -bigR * 0.58 + wrig(3, 0.9), r: bigR * 0.44 },
+      { x: -bigR * 0.82 + wrig(4, 0.7), y:  bigR * 0.68 + wrig(4, 0.9), r: bigR * 0.46 },
+      { x: -bigR * 0.38 + wrig(5, 0.8), y: -bigR * 0.78 + wrig(5, 1.0), r: bigR * 0.48 },
+      { x: -bigR * 0.28 + wrig(6, 0.8), y:  bigR * 0.88 + wrig(6, 1.0), r: bigR * 0.50 },
+      { x:  bigR * 0.62 + wrig(7, 0.7), y: -bigR * 0.62 + wrig(7, 0.9), r: bigR * 0.48 },
+      { x:  bigR * 0.72 + wrig(8, 0.7), y:  bigR * 0.70 + wrig(8, 0.9), r: bigR * 0.50 },
+      { x:  bigR * 1.18 + wrig(9, 0.6), y: -bigR * 0.08 + wrig(9, 0.8), r: bigR * 0.44 },
+      { x:  bigR * 0.42 + wrig(10, 0.5), y:  bigR * 0.06 + wrig(10, 0.6), r: bigR * 0.40 }
+    ];
+    var sites = cluster.concat([{ x: 0, y: 0, r: bigR }]);
+
+    function traceHull(pad) {
+      var n = 24;
+      ctx.beginPath();
+      for (var hi = 0; hi < n; hi++) {
+        var a = (hi / n) * Math.PI * 2;
+        var c = Math.cos(a), s = Math.sin(a);
+        var maxD = 0;
+        for (var j = 0; j < sites.length; j++) {
+          var d = sites[j].x * c + sites[j].y * s + sites[j].r;
+          if (d > maxD) maxD = d;
+        }
+        maxD += pad;
+        maxD *= 1 + Math.sin(t * 1.6 + hi * 0.55 + e.wobble) * 0.018;
+        var px = c * maxD, py = s * maxD;
+        if (hi === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      }
+      ctx.closePath();
+    }
+
     ctx.save();
     ctx.rotate(e._heading || 0);
 
-    // 1. AURA DORADA del pigmento estafiloxantina (firma del aureus).
-    // Halo cálido amarillo-naranja translúcido alrededor del racimo.
-    var auraR = bigR * 2.10;
-    var auraGrad = ctx.createRadialGradient(0, 0, bigR * 0.7, 0, 0, auraR);
-    auraGrad.addColorStop(0,    "rgba(255, 220, 100, 0.0)");
-    auraGrad.addColorStop(0.5,  "rgba(245, 195, 50,  0.45)");
-    auraGrad.addColorStop(0.85, "rgba(200, 140, 30,  0.30)");
-    auraGrad.addColorStop(1,    "rgba(180, 120, 30,  0)");
-    ctx.fillStyle = auraGrad;
+    // 1. Pedúnculo dorado (staphylé) — rompe el círculo: cola estrecha atrás.
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.strokeStyle = hit ? "#ffffff" : "#6a4410";
+    ctx.lineWidth = Math.max(3.2, 4.2 * U);
     ctx.beginPath();
-    ctx.arc(0, 0, auraR, 0, Math.PI * 2);
-    ctx.fill();
-    // Brillo perlado superior del aura.
-    ctx.fillStyle = "rgba(255, 245, 180, 0.40)";
-    ctx.beginPath();
-    ctx.ellipse(0, -auraR * 0.72, auraR * 0.55, bigR * 0.20, 0, 0, Math.PI * 2);
-    ctx.fill();
-
-    // 2. CÁPSULA POLISACÁRIDA (el shield del juego = esta cápsula).
-    // Capa gelatinosa más densa, justo alrededor del racimo. Borde tenue.
-    var capR = bigR * 1.55;
-    var capGrad = ctx.createRadialGradient(0, 0, bigR * 0.55, 0, 0, capR);
-    capGrad.addColorStop(0,    "rgba(255, 235, 150, 0.0)");
-    capGrad.addColorStop(0.55, "rgba(245, 215, 100, 0.55)");
-    capGrad.addColorStop(1,    "rgba(220, 180, 70,  0.35)");
-    ctx.fillStyle = capGrad;
-    ctx.beginPath();
-    ctx.arc(0, 0, capR, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = "rgba(180, 130, 30, 0.55)";
-    ctx.lineWidth = Math.max(1.0, 1.4 * U);
-    ctx.beginPath();
-    ctx.arc(0, 0, capR, 0, Math.PI * 2);
+    ctx.moveTo(-bigR * 1.05, 0.02 * bigR);
+    ctx.quadraticCurveTo(-bigR * 1.72, -bigR * 0.06, -bigR * 2.18, -bigR * 0.28);
     ctx.stroke();
+    ctx.strokeStyle = hit ? "#ffffff" : "#c48922";
+    ctx.lineWidth = Math.max(1.8, 2.4 * U);
+    ctx.stroke();
+    ctx.strokeStyle = hit ? "#ffffff" : "#6a4410";
+    ctx.lineWidth = Math.max(2.4, 3.1 * U);
+    ctx.beginPath();
+    ctx.moveTo(-bigR * 1.58, -bigR * 0.04);
+    ctx.quadraticCurveTo(-bigR * 1.78, bigR * 0.32, -bigR * 1.42, bigR * 0.46);
+    ctx.stroke();
+    ctx.strokeStyle = hit ? "#ffffff" : "#c48922";
+    ctx.lineWidth = Math.max(1.3, 1.7 * U);
+    ctx.stroke();
+    // Nudo del pedúnculo.
+    ctx.fillStyle = hit ? "#ffffff" : "#8a5a12";
+    ctx.beginPath();
+    ctx.arc(-bigR * 1.52, 0, bigR * 0.14, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = hit ? "#ffffff" : "#e0b040";
+    ctx.beginPath();
+    ctx.arc(-bigR * 1.56, -bigR * 0.04, bigR * 0.07, 0, Math.PI * 2);
+    ctx.fill();
 
-    // 3. RACIMO IRREGULAR tipo uvas (7 cocos asimétricos + wriggle por fase).
-    function wrig(idx, amp) { return Math.sin(t * 1.8 + idx * 1.1 + e.wobble) * amp * U; }
-    var cluster = [
-      { x: -bigR * 0.95, y: -bigR * 0.45 + wrig(1, 1.2), r: bigR * 0.55 },
-      { x:  bigR * 1.00, y: -bigR * 0.25 + wrig(2, 1.2), r: bigR * 0.50 },
-      { x: -bigR * 0.55, y:  bigR * 0.95 + wrig(3, 1.2), r: bigR * 0.60 },
-      { x:  bigR * 0.65, y:  bigR * 0.85 + wrig(4, 1.2), r: bigR * 0.52 },
-      { x: -bigR * 1.10, y:  bigR * 0.40 + wrig(5, 1.1), r: bigR * 0.45 },
-      { x:  bigR * 0.30, y: -bigR * 1.10 + wrig(6, 1.3), r: bigR * 0.48 },
-      { x:  bigR * 1.15, y:  bigR * 0.40 + wrig(7, 1.0), r: bigR * 0.42 }
+    // 2. Cápsula gelatinosa = casco irregular del racimo (no círculo).
+    var hullOn = shieldRatio > 0.04 || shatter > 0;
+    if (hullOn) {
+      var pad = (5.5 + shieldRatio * 4.5) * U;
+      var capA = 0.22 + shieldRatio * 0.38 + shieldHit * 0.25;
+      ctx.fillStyle = "rgba(245, 210, 80, " + capA + ")";
+      traceHull(pad);
+      ctx.fill();
+      ctx.strokeStyle = "rgba(170, 120, 20, " + (0.45 + shieldRatio * 0.40 + shieldHit * 0.3) + ")";
+      ctx.lineWidth = Math.max(1.8, (2.0 + shieldRatio * 1.6) * U);
+      traceHull(pad);
+      ctx.stroke();
+      ctx.strokeStyle = "rgba(255, 245, 180, " + (0.25 + shieldRatio * 0.25) + ")";
+      ctx.lineWidth = Math.max(0.8, 1.1 * U);
+      traceHull(pad * 0.72);
+      ctx.stroke();
+      if (shatter > 0) {
+        ctx.strokeStyle = "rgba(255, 255, 220, " + (0.85 * shatter) + ")";
+        ctx.lineWidth = Math.max(1.2, 1.6 * U);
+        ctx.setLineDash([4 * U, 3 * U]);
+        traceHull(pad * 1.12);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+    }
+
+    // 3. Hilos de matriz PNAG entre uvas vecinas (antes de los cuerpos).
+    ctx.strokeStyle = "rgba(210, 160, 40, 0.55)";
+    ctx.lineWidth = Math.max(1.4, 1.9 * U);
+    ctx.lineCap = "round";
+    var grapeLinks = [
+      [0, 2], [1, 3], [2, 4], [3, 5], [4, 6], [5, 7], [6, 8], [7, 8], [9, 6], [9, 7]
     ];
+    for (var ln = 0; ln < grapeLinks.length; ln++) {
+      var ga = cluster[grapeLinks[ln][0]], gb = cluster[grapeLinks[ln][1]];
+      ctx.beginPath();
+      ctx.moveTo(ga.x, ga.y);
+      ctx.quadraticCurveTo(
+        (ga.x + gb.x) * 0.5 + Math.sin(t * 1.5 + ln) * 1.4 * U,
+        (ga.y + gb.y) * 0.5 + Math.cos(t * 1.3 + ln) * 1.4 * U,
+        gb.x, gb.y
+      );
+      ctx.stroke();
+    }
+    for (var lk = 0; lk < 6; lk++) {
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(cluster[lk + 2].x * 0.55, cluster[lk + 2].y * 0.55);
+      ctx.stroke();
+    }
+
+    var coccusSites = [];
     function drawCoco(cx, cy, r) {
-      // Color amarillo-dorado intenso (pigmento estafiloxantina).
-      var grad = ctx.createRadialGradient(cx - r * 0.4, cy - r * 0.4, r * 0.2, cx, cy, r);
-      grad.addColorStop(0,    "#F9E280");
-      grad.addColorStop(0.55, "#DAA520");
-      grad.addColorStop(1,    "#7A5A0F");
+      var grad = ctx.createRadialGradient(cx - r * 0.38, cy - r * 0.40, r * 0.18, cx, cy, r);
+      grad.addColorStop(0,    "#FCE38A");
+      grad.addColorStop(0.45, "#E8B020");
+      grad.addColorStop(1,    "#7A520C");
       ctx.fillStyle = hit ? "#ffffff" : grad;
       ctx.beginPath();
       ctx.arc(cx, cy, r, 0, Math.PI * 2);
       ctx.fill();
-      // Pared celular gram+ engrosada (peptidoglicano denso).
-      ctx.strokeStyle = "#5a3f0a";
-      ctx.lineWidth = Math.max(1.4, 1.9 * U);
-      ctx.stroke();
-      // Highlight blanco arriba-izquierda.
-      ctx.fillStyle = "rgba(255, 255, 255, 0.50)";
+      ctx.fillStyle = "rgba(255, 250, 220, 0.50)";
       ctx.beginPath();
-      ctx.arc(cx - r * 0.35, cy - r * 0.35, r * 0.32, 0, Math.PI * 2);
+      ctx.arc(cx - r * 0.34, cy - r * 0.34, r * 0.30, 0, Math.PI * 2);
       ctx.fill();
+      coccusSites.push({ x: cx, y: cy, r: r });
     }
+
     for (var i = 0; i < cluster.length; i++) drawCoco(cluster[i].x, cluster[i].y, cluster[i].r);
     drawCoco(0, 0, bigR);
 
-    // 4. HILOS PEGAJOSOS DE BIOFILM entre cocos (matriz cohesiva).
-    var head = { x: 0, y: 0, r: bigR };
-    ctx.strokeStyle = "rgba(255, 220, 130, 0.55)";
-    ctx.lineWidth = Math.max(1.1, 1.5 * U);
-    ctx.lineCap = "round";
-    var conns = [
-      [head, cluster[0]], [head, cluster[1]], [head, cluster[2]],
-      [head, cluster[3]], [head, cluster[5]],
-      [cluster[1], cluster[6]], [cluster[4], cluster[0]]
-    ];
-    for (var cn = 0; cn < conns.length; cn++) {
-      var a = conns[cn][0], b = conns[cn][1];
-      var mx = (a.x + b.x) / 2 + Math.sin(t * 1.6 + cn) * 1.2 * U;
-      var my = (a.y + b.y) / 2 + Math.cos(t * 1.4 + cn) * 1.2 * U;
+    function drawCoccusMembrane(cx, cy, r) {
+      var padM = 1.8 * U;
       ctx.beginPath();
-      ctx.moveTo(a.x, a.y);
-      ctx.quadraticCurveTo(mx, my, b.x, b.y);
+      ctx.arc(cx, cy, r + padM, 0, Math.PI * 2);
+      ctx.strokeStyle = "#3a2808";
+      ctx.lineWidth = Math.max(2.2, 2.8 * U);
+      ctx.lineCap = "round";
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(cx, cy, r + padM, 0, Math.PI * 2);
+      ctx.strokeStyle = "rgba(255, 230, 150, 0.42)";
+      ctx.lineWidth = Math.max(0.9, 1.2 * U);
       ctx.stroke();
     }
+    for (var mi = 0; mi < coccusSites.length; mi++) {
+      drawCoccusMembrane(coccusSites[mi].x, coccusSites[mi].y, coccusSites[mi].r);
+    }
 
-    // 5. BURBUJAS DE TOXINAS (gotitas amarillo-doradas flotando alrededor —
-    // representan α-hemolisina, TSST-1, etc. — las toxinas reales del aureus).
-    var toxinCount = 4;
-    for (var tx = 0; tx < toxinCount; tx++) {
-      var ta = t * 0.6 + tx * (Math.PI * 2 / toxinCount);
-      var tR = capR * (0.95 + Math.sin(t * 2 + tx) * 0.10);
-      var tbx = Math.cos(ta) * tR;
-      var tby = Math.sin(ta) * tR;
-      var tbr = (1.6 + Math.sin(t * 3 + tx * 1.7) * 0.6) * U;
-      ctx.fillStyle = "rgba(255, 215, 80, 0.85)";
+    // 4. Gotas de toxina colgando del racimo (lágrimas, no órbita circular).
+    var toxinDrops = [
+      { x: bigR * 0.55, y: bigR * 1.28, s: bigR * 0.22, a: 0.18 },
+      { x: -bigR * 0.15, y: bigR * 1.22, s: bigR * 0.18, a: -0.12 },
+      { x: bigR * 1.05, y: bigR * 0.95, s: bigR * 0.16, a: 0.55 }
+    ];
+    for (var tx = 0; tx < toxinDrops.length; tx++) {
+      var td = toxinDrops[tx];
+      var bob = Math.sin(t * 2.1 + tx * 1.4) * 1.6 * U;
+      ctx.save();
+      ctx.translate(td.x, td.y + bob);
+      ctx.rotate(td.a);
+      var tg = ctx.createRadialGradient(-td.s * 0.2, -td.s * 0.3, td.s * 0.1, 0, 0, td.s);
+      tg.addColorStop(0, hit ? "#ffffff" : "#FFF3A0");
+      tg.addColorStop(0.55, hit ? "#ffffff" : "#F0C030");
+      tg.addColorStop(1, hit ? "#ffffff" : "#B07A10");
+      ctx.fillStyle = tg;
       ctx.beginPath();
-      ctx.arc(tbx, tby, tbr, 0, Math.PI * 2);
+      ctx.moveTo(0, -td.s * 1.15);
+      ctx.quadraticCurveTo(td.s * 0.92, td.s * 0.15, 0, td.s * 1.05);
+      ctx.quadraticCurveTo(-td.s * 0.92, td.s * 0.15, 0, -td.s * 1.15);
       ctx.fill();
-      ctx.fillStyle = "rgba(255, 255, 200, 0.65)";
+      ctx.strokeStyle = "rgba(90, 55, 8, 0.7)";
+      ctx.lineWidth = Math.max(0.8, 1.1 * U);
+      ctx.stroke();
+      ctx.fillStyle = "rgba(255, 255, 230, 0.55)";
       ctx.beginPath();
-      ctx.arc(tbx - tbr * 0.3, tby - tbr * 0.35, tbr * 0.35, 0, Math.PI * 2);
+      ctx.ellipse(-td.s * 0.22, -td.s * 0.15, td.s * 0.22, td.s * 0.16, -0.4, 0, Math.PI * 2);
       ctx.fill();
+      ctx.restore();
     }
 
     ctx.restore(); // end body rotated
 
-    // === CARA UPRIGHT (en el coco central — siempre mira a la cámara) ===
-    // Default: MUY maléfica (es el villano principal de Fase 1).
-    // HP < 20%: cara derrotada/asustada.
     var hpFracFace = (def && def.hp > 0) ? (e.hp / def.hp) : 1;
     var lowHp = hpFracFace < 0.20;
     var sadFace = (expression === "dying" || expression === "hurt" || lowHp);
-    var eyeR  = bigR * 0.32;
-    var faceY = -bigR * 0.05;
-    var gap   = bigR * 0.34;
+    var eyeR  = bigR * 0.34;
+    var faceY = -bigR * 0.06;
+    var gap   = bigR * 0.36;
     if (sadFace) drawHurtEyes(0, faceY, eyeR, gap);
     else if (blink) drawClosedEyes(0, faceY, eyeR, gap);
-    else drawAnimeEyes(0, faceY, eyeR, gap, 0, 0, bigR * 0.14, bigR * 0.07, "evil");
-    if (sadFace) drawAnimeMouth(0, bigR * 0.34, bigR * 0.52, bigR * 0.42, "open");
-    else drawAnimeMouth(0, bigR * 0.34, bigR * 0.52, bigR * 0.30, "wicked");
+    else drawAnimeEyes(0, faceY, eyeR, gap, 0, 0, bigR * 0.15, bigR * 0.08, "evil");
+    if (sadFace) drawAnimeMouth(0, bigR * 0.36, bigR * 0.55, bigR * 0.44, "open");
+    else drawAnimeMouth(0, bigR * 0.36, bigR * 0.55, bigR * 0.32, "wicked");
 
     ctx.restore();
   }
@@ -27684,7 +27766,7 @@
     else if (kind === "virus") drawVirus(fakeEnemy, R, "idle", false);
     else if (kind === "hongo") drawHongo(fakeEnemy, R, "idle", false);
     else drawBoss(fakeEnemy, R, "idle", false);
-    if (def.shield) drawShield(fakeEnemy, R);
+    if (def.shield && def.id !== "saureus") drawShield(fakeEnemy, R);
     ctx.restore();
   }
 

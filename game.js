@@ -19848,9 +19848,9 @@
   }
 
   function drawMastocito(t, pulse, expression, blink) {
-    // Mastocito — esfera granulada de control (histamina/triptasa/leucotrienos).
-    // Huella anclada al Queratinocito (R=18): silueta esférica ~1.0× del mosaico KC.
-    // Distinto del hex epitelial (KC) y de la cápsula polarizada (Neutrófilo).
+    // Mastocito — CORONA PERIFÉRICA de gránulos basófilos (histología real:
+    // gránulos en anillo periférico + núcleo central). Silueta tipo "corona/
+    // frambuesa" — distinta del mosaico hex (KC) y cápsula polarizada (Neutrófilo).
     var kcR = 18 * U * pulse;
     var R = kcR;
     var time = state.time;
@@ -19860,18 +19860,39 @@
     var ultActive = (t.specialAnim || 0) > 0;
     var maStats = towerStats(t);
     var auraR = maStats.range * U;
-    var bodySwell = 1 + chargeFrac * 0.10 + (ultActive ? Math.sin((1 - t.specialAnim / 1.0) * Math.PI) * 0.14 : 0);
-    var nBumps = 16;
+    var bodySwell = 1 + chargeFrac * 0.08 + (ultActive ? Math.sin((1 - t.specialAnim / 1.0) * Math.PI) * 0.12 : 0);
+    var degranPulse = attacking ? (1 - t.attackAnim / 0.2) : 0;
+    var nLob = 12;
 
-    function maShellPath(scale) {
+    // Posiciones de los gránulos-lobulillos periféricos (deterministas).
+    function maLobules(scale) {
       scale = scale || 1;
+      var list = [];
+      for (var li = 0; li < nLob; li++) {
+        var la = (li / nLob) * Math.PI * 2 - Math.PI / 2 + phase * 0.015;
+        var wob = Math.sin(time * 1.8 + li * 0.9) * R * 0.025;
+        var dist = R * (0.62 + chargeFrac * 0.05 + degranPulse * 0.10) * bodySwell * scale + wob;
+        var lr = R * (0.19 + (li % 3) * 0.018 + chargeFrac * 0.025) * scale;
+        list.push({ a: la, x: Math.cos(la) * dist, y: Math.sin(la) * dist, r: lr, i: li });
+      }
+      return list;
+    }
+
+    // Membrana que sigue la corona (valles entre lobulillos + picos en cada gránulo).
+    function maCrownMembrane(lobs, pad) {
+      pad = pad || 0;
       ctx.beginPath();
-      for (var bi = 0; bi <= nBumps; bi++) {
-        var bAng = (bi / nBumps) * Math.PI * 2;
-        var bump = 1 + Math.sin(bAng * 5 + time * 0.4 + phase) * (0.05 + chargeFrac * 0.09);
-        var px = Math.cos(bAng) * R * bump * bodySwell * scale;
-        var py = Math.sin(bAng) * R * bump * bodySwell * scale;
-        bi ? ctx.lineTo(px, py) : ctx.moveTo(px, py);
+      for (var mi = 0; mi <= nLob; mi++) {
+        var cur = lobs[mi % nLob];
+        var nxt = lobs[(mi + 1) % nLob];
+        var peakX = cur.x + Math.cos(cur.a) * (cur.r + pad);
+        var peakY = cur.y + Math.sin(cur.a) * (cur.r + pad);
+        var midA = (cur.a + nxt.a) * 0.5 + (nxt.a < cur.a ? Math.PI : 0);
+        var valleyR = R * 0.38 * bodySwell + pad * 0.4;
+        var valX = Math.cos(midA) * valleyR;
+        var valY = Math.sin(midA) * valleyR;
+        if (mi === 0) ctx.moveTo(peakX, peakY);
+        ctx.quadraticCurveTo(valX, valY, nxt.x + Math.cos(nxt.a) * (nxt.r + pad), nxt.y + Math.sin(nxt.a) * (nxt.r + pad));
       }
       ctx.closePath();
     }
@@ -19879,7 +19900,7 @@
     ctx.save();
     ctx.translate(t.x, t.y);
 
-    // Aura de histamina — anillo punteado (ralentiza gérmenes en rango de juego).
+    // Aura de histamina — anillo punteado.
     var auraPulse = 0.30 + 0.22 * Math.sin(time * 2.4 + phase);
     ctx.save();
     ctx.strokeStyle = "rgba(140, 200, 255, " + auraPulse + ")";
@@ -19887,7 +19908,6 @@
     ctx.setLineDash([5 * U, 6 * U]);
     ctx.beginPath(); ctx.arc(0, 0, auraR, 0, Math.PI * 2); ctx.stroke();
     ctx.setLineDash([]);
-    // Copos de nieve mini (rol control) orbitando el borde del aura.
     for (var sf = 0; sf < 6; sf++) {
       var sfa = (sf / 6) * Math.PI * 2 + time * 0.35 + phase;
       var sfx = Math.cos(sfa) * auraR * 0.92, sfy = Math.sin(sfa) * auraR * 0.92;
@@ -19899,17 +19919,15 @@
     }
     ctx.restore();
 
-    // ILC2 (Langerhans): acelera la carga del ultimate.
     if ((t.ilc2MastoT || 0) > 0) {
       var il2a = Math.min(1, (t.ilc2MastoT || 0) / 6) * (0.42 + 0.35 * Math.sin(time * 8));
       ctx.strokeStyle = "rgba(63, 193, 201, " + il2a + ")";
       ctx.lineWidth = Math.max(1.4, 1.8 * U);
       ctx.setLineDash([4 * U, 5 * U]);
-      ctx.beginPath(); ctx.arc(0, 0, R * 1.28, 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath(); ctx.arc(0, 0, R * 1.22, 0, Math.PI * 2); ctx.stroke();
       ctx.setLineDash([]);
     }
 
-    // Histamina vasodilatadora: hilos hacia aliados cuando desgranula (buff histBuffT).
     if (attacking) {
       for (var hi = 0; hi < state.towers.length; hi++) {
         var ht = state.towers[hi];
@@ -19925,115 +19943,125 @@
       }
     }
 
-    // Degranulación pasiva — onda suave al liberar histamina.
     if (attacking) {
-      var pp = 1 - (t.attackAnim / 0.2);
+      var pp = degranPulse;
       ctx.strokeStyle = colorAlpha(t.def.color, 0.55 * (1 - pp));
       ctx.lineWidth = Math.max(1.5, 2 * U);
-      ctx.beginPath(); ctx.arc(0, 0, R * (1.05 + pp * 0.75), 0, Math.PI * 2); ctx.stroke();
-      ctx.strokeStyle = "rgba(200, 230, 255, " + (0.35 * (1 - pp)) + ")";
-      ctx.lineWidth = Math.max(1, 1.2 * U);
-      ctx.beginPath(); ctx.arc(0, 0, R * (0.85 + pp * 0.45), 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath(); ctx.arc(0, 0, R * (1.0 + pp * 0.85), 0, Math.PI * 2); ctx.stroke();
     }
 
-    // Ultimate Desgranulación — hinchazón + ondas expansivas intensas.
     if (ultActive) {
       var dgFrac = 1 - t.specialAnim / 1.0;
       var dgSwell = dgFrac < 0.22 ? (dgFrac / 0.22) : (1 - (dgFrac - 0.22) / 0.78);
       ctx.save();
-      ctx.scale(1 + dgSwell * 0.28, 1 + dgSwell * 0.28);
+      ctx.scale(1 + dgSwell * 0.26, 1 + dgSwell * 0.26);
       for (var dgW = 0; dgW < 3; dgW++) {
         ctx.strokeStyle = colorAlpha(t.def.color, 0.75 * (1 - dgFrac) * (1 - dgW * 0.22));
         ctx.lineWidth = Math.max(2.5, (4 - dgW) * U);
         ctx.beginPath();
-        ctx.arc(0, 0, R * (1.15 + dgFrac * 6.5 - dgW * 0.65), 0, Math.PI * 2);
+        ctx.arc(0, 0, R * (1.1 + dgFrac * 6.5 - dgW * 0.65), 0, Math.PI * 2);
         ctx.stroke();
       }
       ctx.restore();
     }
 
-    // Citoplasma esférico granulado.
-    var bodyGrad = ctx.createRadialGradient(-R * 0.28, -R * 0.32, R * 0.15, 0, 0, R * bodySwell);
-    bodyGrad.addColorStop(0, "#eef6ff");
-    bodyGrad.addColorStop(0.55, t.def.color);
-    bodyGrad.addColorStop(1, t.def.colorDark);
-    ctx.fillStyle = bodyGrad;
-    maShellPath(1);
-    ctx.fill();
+    var lobs = maLobules(1);
 
-    // Núcleo redondo central pequeño (signature mastocito).
-    var nucR = R * 0.22;
-    var nucGrad = ctx.createRadialGradient(-nucR * 0.3, -nucR * 0.3, 0, 0, 0, nucR);
-    nucGrad.addColorStop(0, "rgba(140, 85, 175, 0.96)");
-    nucGrad.addColorStop(1, "rgba(62, 28, 105, 0.96)");
+    // Citoplasma central (hub entre la corona de gránulos).
+    var hubR = R * 0.36 * bodySwell;
+    var hubGrad = ctx.createRadialGradient(-hubR * 0.2, -hubR * 0.25, hubR * 0.1, 0, 0, hubR);
+    hubGrad.addColorStop(0, "#f4f9ff");
+    hubGrad.addColorStop(0.55, "rgba(180, 210, 245, 0.92)");
+    hubGrad.addColorStop(1, "rgba(100, 150, 210, 0.85)");
+    ctx.fillStyle = hubGrad;
+    ctx.beginPath(); ctx.arc(0, 0, hubR, 0, Math.PI * 2); ctx.fill();
+
+    // Puentes citoplasmáticos hacia cada lobulillo (estructura en corona).
+    ctx.fillStyle = "rgba(160, 195, 235, 0.55)";
+    for (var br = 0; br < nLob; br++) {
+      var lb = lobs[br];
+      var bx0 = Math.cos(lb.a) * hubR * 0.55, by0 = Math.sin(lb.a) * hubR * 0.55;
+      var bx1 = lb.x - Math.cos(lb.a) * lb.r * 0.35;
+      var by1 = lb.y - Math.sin(lb.a) * lb.r * 0.35;
+      var bw = lb.r * 0.32;
+      var perpA = lb.a + Math.PI / 2;
+      ctx.beginPath();
+      ctx.moveTo(bx0 + Math.cos(perpA) * bw, by0 + Math.sin(perpA) * bw);
+      ctx.lineTo(bx1 + Math.cos(perpA) * bw * 0.6, by1 + Math.sin(perpA) * bw * 0.6);
+      ctx.lineTo(bx1 - Math.cos(perpA) * bw * 0.6, by1 - Math.sin(perpA) * bw * 0.6);
+      ctx.lineTo(bx0 - Math.cos(perpA) * bw, by0 - Math.sin(perpA) * bw);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    // Núcleo redondo central (signature mastocito — dentro del hub).
+    var nucR = R * 0.17;
+    var nucGrad = ctx.createRadialGradient(-nucR * 0.3, -nucR * 0.3, 0, 0, R * 0.04, nucR);
+    nucGrad.addColorStop(0, "rgba(150, 90, 180, 0.96)");
+    nucGrad.addColorStop(1, "rgba(58, 24, 100, 0.96)");
     ctx.fillStyle = nucGrad;
-    ctx.beginPath(); ctx.arc(0, 0, nucR, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = "rgba(42, 18, 72, 0.7)";
+    ctx.beginPath(); ctx.arc(0, R * 0.04, nucR, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = "rgba(38, 14, 68, 0.72)";
     ctx.lineWidth = Math.max(0.9, 1 * U);
     ctx.stroke();
 
-    // Gránulos basófilos — posiciones deterministas (sin parpadeo por Math.random).
-    var nGran = 26;
-    var granJitter = chargeFrac * 1.0 * U;
-    for (var g = 0; g < nGran; g++) {
-      var ga = (g * 137.508 * Math.PI / 180 + phase) % (Math.PI * 2);
-      var gdMin = nucR * 1.55, gdMax = R * 0.76;
-      var gd = gdMin + (((g * 13) % 100) / 100) * (gdMax - gdMin);
-      var jx = Math.sin(g * 2.71 + phase) * granJitter;
-      var jy = Math.cos(g * 3.17 + phase * 1.3) * granJitter;
-      var gx = Math.cos(ga) * gd + jx;
-      var gy = Math.sin(ga) * gd + jy;
-      if (Math.hypot(gx, gy - R * 0.55) < R * 0.22) continue; // evita tapar la cara
-      var gSize = R * 0.065 + ((g * 17) % 10) / 10 * R * 0.028;
-      var gPulse = 0.5 + 0.5 * Math.sin(time * 2.2 + g * 0.7);
-      var isTrypt = g % 5 === 0;
-      var gGrad = ctx.createRadialGradient(gx - gSize * 0.3, gy - gSize * 0.3, 0, gx, gy, gSize);
+    // Gránulos basófilos periféricos — la CORONA (signature visual única).
+    for (var lg = 0; lg < nLob; lg++) {
+      var lob = lobs[lg];
+      var gPulse = 0.5 + 0.5 * Math.sin(time * 2.4 + lob.i * 0.85);
+      var isTrypt = lob.i % 4 === 0;
+      var gGrad = ctx.createRadialGradient(lob.x - lob.r * 0.28, lob.y - lob.r * 0.28, lob.r * 0.08, lob.x, lob.y, lob.r);
       if (isTrypt) {
-        gGrad.addColorStop(0, "rgba(" + Math.round(210 + chargeFrac * 40) + ", 170, 255, " + Math.min(1, 0.88 + chargeFrac * 0.12) + ")");
-        gGrad.addColorStop(1, "rgba(70, 35, 120, 0.88)");
+        gGrad.addColorStop(0, "rgba(" + Math.round(215 + chargeFrac * 35) + ", 175, 255, " + Math.min(1, 0.92 + chargeFrac * 0.08) + ")");
+        gGrad.addColorStop(0.55, "rgba(130, 80, 200, 0.95)");
+        gGrad.addColorStop(1, "rgba(62, 28, 110, 0.92)");
       } else {
-        gGrad.addColorStop(0, "rgba(" + Math.round(175 + chargeFrac * 55) + ", " + Math.round(125 + chargeFrac * 70) + ", 235, " + Math.min(1, 0.82 + gPulse * 0.12 + chargeFrac * 0.14) + ")");
-        gGrad.addColorStop(1, "rgba(82, 38, 128, 0.86)");
+        gGrad.addColorStop(0, "rgba(" + Math.round(180 + chargeFrac * 50) + ", " + Math.round(130 + chargeFrac * 65) + ", 240, " + Math.min(1, 0.88 + gPulse * 0.10 + chargeFrac * 0.12) + ")");
+        gGrad.addColorStop(0.55, "rgba(95, 45, 145, 0.94)");
+        gGrad.addColorStop(1, "rgba(48, 18, 88, 0.90)");
       }
       ctx.fillStyle = gGrad;
-      ctx.beginPath(); ctx.arc(gx, gy, gSize, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = isTrypt ? "rgba(45, 20, 85, 0.75)" : "rgba(55, 28, 95, 0.72)";
-      ctx.lineWidth = Math.max(0.7, 0.85 * U);
+      ctx.beginPath(); ctx.arc(lob.x, lob.y, lob.r, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = isTrypt ? "rgba(35, 12, 72, 0.82)" : "rgba(42, 18, 78, 0.78)";
+      ctx.lineWidth = Math.max(0.9, 1.1 * U);
       ctx.stroke();
+      // Meta-gránulo interno (textura metacromática).
+      ctx.fillStyle = "rgba(220, 190, 255, " + (0.35 + chargeFrac * 0.25) + ")";
+      ctx.beginPath(); ctx.arc(lob.x - lob.r * 0.18, lob.y - lob.r * 0.15, lob.r * 0.28, 0, Math.PI * 2); ctx.fill();
     }
 
-    // Gránulos eyectados al desgranular (histamina saliendo).
+    // Gránulos eyectados desde cada lobulillo al desgranular.
     if (attacking || ultActive) {
-      var ejProg = attacking ? (1 - t.attackAnim / 0.2) : (1 - t.specialAnim / 1.0);
-      var ejCount = ultActive ? 14 : 8;
-      for (var ej = 0; ej < ejCount; ej++) {
-        var ea = (ej / ejCount) * Math.PI * 2 + time * 3.2 + phase;
-        var ed = R * (0.55 + ejProg * (ultActive ? 2.4 : 1.05));
-        var ex = Math.cos(ea) * ed, ey = Math.sin(ea) * ed;
-        var esz = (2.2 + (ej % 3) * 0.6) * U * (1 - ejProg * 0.35);
-        ctx.fillStyle = "rgba(" + Math.round(160 + ejProg * 60) + ", 120, 230, " + (0.75 * (1 - ejProg * 0.55)) + ")";
+      var ejProg = attacking ? degranPulse : (1 - t.specialAnim / 1.0);
+      for (var ej = 0; ej < nLob; ej++) {
+        var el = lobs[ej];
+        var ejDist = el.r * (1.2 + ejProg * (ultActive ? 3.8 : 1.6));
+        var ex = el.x + Math.cos(el.a) * ejDist;
+        var ey = el.y + Math.sin(el.a) * ejDist;
+        var esz = el.r * (0.42 + (ej % 3) * 0.06) * (1 - ejProg * 0.3);
+        ctx.fillStyle = "rgba(" + Math.round(165 + ejProg * 55) + ", 115, 235, " + (0.8 * (1 - ejProg * 0.5)) + ")";
         ctx.beginPath(); ctx.arc(ex, ey, esz, 0, Math.PI * 2); ctx.fill();
       }
     }
 
-    // Receptores IgE (FcεRI) — Y's en la membrana exterior.
-    var nIgE = 7;
-    for (var ig = 0; ig < nIgE; ig++) {
-      var igA = (ig * Math.PI * 2 / nIgE) + time * 0.18 + phase * 0.05;
-      var igDist = R * bodySwell + (2.5 + chargeFrac * 6.5) * U;
+    // Receptores IgE (FcεRI) en los valles entre lobulillos.
+    for (var ig = 0; ig < nLob; ig++) {
+      var igL = lobs[ig], igN = lobs[(ig + 1) % nLob];
+      var igA = (igL.a + igN.a) * 0.5 + (igN.a < igL.a ? Math.PI : 0);
+      var igDist = R * 0.44 * bodySwell + (2 + chargeFrac * 5.5) * U;
       var igX = Math.cos(igA) * igDist;
       var igY = Math.sin(igA) * igDist;
       if (chargeFrac > 0.12) {
-        ctx.fillStyle = "rgba(224, 200, 240, " + (chargeFrac * 0.5) + ")";
+        ctx.fillStyle = "rgba(224, 200, 240, " + (chargeFrac * 0.48) + ")";
         ctx.beginPath();
-        ctx.arc(igX, igY, 3.5 * U * (1 + chargeFrac * 0.55), 0, Math.PI * 2);
+        ctx.arc(igX, igY, 3.2 * U * (1 + chargeFrac * 0.5), 0, Math.PI * 2);
         ctx.fill();
       }
-      drawYShape(igX, igY, 3 * U * (1 + chargeFrac * 0.32), igA + Math.PI / 2, "#e8d0f8", t.def.colorDark);
+      drawYShape(igX, igY, 2.8 * U * (1 + chargeFrac * 0.28), igA + Math.PI / 2, "#e8d0f8", t.def.colorDark);
     }
 
-    // Membrana plasmática — borde único que encierra citoplasma, gránulos y núcleo.
-    maShellPath(1.04);
+    // Membrana plasmática — sigue la corona de gránulos (doble trazo).
+    maCrownMembrane(lobs, 2.5 * U);
     ctx.strokeStyle = t.def.colorDark;
     ctx.lineWidth = Math.max(2.6, 3.2 * U);
     ctx.lineJoin = "round";
@@ -20043,7 +20071,6 @@
     ctx.lineWidth = Math.max(1.1, 1.4 * U);
     ctx.stroke();
 
-    // Anticipación de ultimate (carga real).
     if (!ultActive && chargeFrac > 0.18) {
       var prePulse = 0.55 + 0.45 * Math.sin(time * 4.5);
       ctx.save();
@@ -20051,20 +20078,20 @@
       ctx.strokeStyle = "#ffd24a";
       ctx.lineWidth = Math.max(1.5, 2 * U);
       ctx.setLineDash([4 * U, 5 * U]);
-      ctx.beginPath(); ctx.arc(0, 0, R * (1.12 + chargeFrac * 0.08), 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath(); ctx.arc(0, 0, R * (1.08 + chargeFrac * 0.06), 0, Math.PI * 2); ctx.stroke();
       ctx.setLineDash([]);
       ctx.restore();
     }
 
-    // Cara — alerta, lista para desgranular.
-    var faceY = -R * 0.58;
-    var eyeR = R * 0.12;
-    if (blink) drawClosedEyes(0, faceY, eyeR, R * 0.17);
-    else if (expression === "dying") drawHurtEyes(0, faceY, eyeR, R * 0.17);
-    else if (expression === "levelup") drawSparkleEyes(0, faceY, eyeR, R * 0.17);
-    else if (ultActive) drawAnimeEyes(0, faceY, eyeR * 1.12, R * 0.19, 0, 0, eyeR * 0.55, eyeR * 0.42, "fierce");
-    else drawAnimeEyes(0, faceY, eyeR, R * 0.17, 0, 0, eyeR * 0.48, eyeR * 0.38, attacking ? "fierce" : "happy");
-    drawAnimeMouth(0, faceY + R * 0.18, R * 0.30, R * 0.14, (attacking || ultActive) ? "open" : "smile");
+    // Cara sobre el hub central (entre los gránulos superiores).
+    var faceY = -R * 0.48;
+    var eyeR = R * 0.11;
+    if (blink) drawClosedEyes(0, faceY, eyeR, R * 0.16);
+    else if (expression === "dying") drawHurtEyes(0, faceY, eyeR, R * 0.16);
+    else if (expression === "levelup") drawSparkleEyes(0, faceY, eyeR, R * 0.16);
+    else if (ultActive) drawAnimeEyes(0, faceY, eyeR * 1.12, R * 0.18, 0, 0, eyeR * 0.55, eyeR * 0.42, "fierce");
+    else drawAnimeEyes(0, faceY, eyeR, R * 0.16, 0, 0, eyeR * 0.48, eyeR * 0.38, attacking ? "fierce" : "happy");
+    drawAnimeMouth(0, faceY + R * 0.16, R * 0.28, R * 0.13, (attacking || ultActive) ? "open" : "smile");
     ctx.restore();
   }
 

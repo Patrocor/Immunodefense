@@ -25755,7 +25755,7 @@
       ctx.globalAlpha = 1;
     } else if (ef.kind === "atpText") {
       ctx.globalAlpha = alpha;
-      var fs2 = Math.max(12, (ef.big ? 28 : 14) * U);
+      var fs2 = Math.max(12, (ef.big ? 36 : 14) * U);
       ctx.font = "bold " + fs2 + "px Fredoka, sans-serif";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";

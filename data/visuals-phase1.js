@@ -43,7 +43,7 @@
     cacnes:       { silhouette: "follicle",   accent: "#C9A66B", label: "Folículo" },
     hsv:          { silhouette: "vesicle",    accent: "#9575CD", label: "Ampolla" },
     molluscum:    { silhouette: "bivalve",    accent: "#e8d6c0", label: "Concha" },
-    demodex:      { silhouette: "hairmite",   accent: "#c8a86a", label: "Pelo" }
+    demodex:      { silhouette: "poremite",   accent: "#c8a86a", label: "Poro" }
   };
 
   // Pistas de counter por germen Fase 1 (pip inferior).

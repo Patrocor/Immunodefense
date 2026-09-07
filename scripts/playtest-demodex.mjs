@@ -110,16 +110,16 @@ console.log("Spawn:", spawned);
 const shown = await page.evaluate(placeDemodex, true);
 console.log("Demodex revealed:", shown);
 await sleep(900);
-await page.screenshot({ path: join(ART, "demodex_v2_hair_field.png") });
+await page.screenshot({ path: join(ART, "demodex_v3_pore_field.png") });
 if (shown.ok) {
-  await page.screenshot({ path: join(ART, "demodex_v2_hair_revealed.png"), clip: shown.clip });
+  await page.screenshot({ path: join(ART, "demodex_v3_pore_revealed.png"), clip: shown.clip });
 }
 
 const hid = await page.evaluate(placeDemodex, false);
 console.log("Demodex cloaked:", hid);
 await sleep(700);
 if (hid.ok) {
-  await page.screenshot({ path: join(ART, "demodex_v2_hair_cloaked.png"), clip: hid.clip });
+  await page.screenshot({ path: join(ART, "demodex_v3_pore_cloaked.png"), clip: hid.clip });
 }
 
 await page.evaluate(() => window.__game.hold(false));

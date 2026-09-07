@@ -19848,133 +19848,223 @@
   }
 
   function drawMastocito(t, pulse, expression, blink) {
-    // Mastocito — célula de respuesta alérgica/inflamatoria. Biología:
-    //  · Cuerpo redondo PACKED con GRÁNULOS BASOFÍLICOS (histamina,
-    //    heparina, triptasa) — densos en violeta intenso, signature.
-    //  · Núcleo redondo central pequeño (no multilobulado, no bilobed)
-    //  · Membrana ligeramente irregular con bumps suaves
-    //  · Cuando se desgranula (ataca): los gránulos emergen como pulsos
-    var R = 18 * U * pulse;
+    // Mastocito — esfera granulada de control (histamina/triptasa/leucotrienos).
+    // Huella anclada al Queratinocito (R=18): silueta esférica ~1.0× del mosaico KC.
+    // Distinto del hex epitelial (KC) y de la cápsula polarizada (Neutrófilo).
+    var kcR = 18 * U * pulse;
+    var R = kcR;
     var time = state.time;
+    var phase = t.idlePhase || 0;
     var attacking = (t.attackAnim || 0) > 0;
-    // Carga real del ultimate (t.specialCharge: 0→1) — alimenta la
-    // hinchazón anticipada del cuerpo, el brillo/vibración de gránulos y
-    // los receptores IgE separándose de la membrana, todos más abajo.
     var chargeFrac = Math.max(0, Math.min(1, t.specialCharge || 0));
+    var ultActive = (t.specialAnim || 0) > 0;
+    var maStats = towerStats(t);
+    var auraR = maStats.range * U;
+    var bodySwell = 1 + chargeFrac * 0.10 + (ultActive ? Math.sin((1 - t.specialAnim / 1.0) * Math.PI) * 0.14 : 0);
+    var nBumps = 16;
+
+    function maShellPath(scale) {
+      scale = scale || 1;
+      ctx.beginPath();
+      for (var bi = 0; bi <= nBumps; bi++) {
+        var bAng = (bi / nBumps) * Math.PI * 2;
+        var bump = 1 + Math.sin(bAng * 5 + time * 0.4 + phase) * (0.05 + chargeFrac * 0.09);
+        var px = Math.cos(bAng) * R * bump * bodySwell * scale;
+        var py = Math.sin(bAng) * R * bump * bodySwell * scale;
+        bi ? ctx.lineTo(px, py) : ctx.moveTo(px, py);
+      }
+      ctx.closePath();
+    }
+
     ctx.save();
     ctx.translate(t.x, t.y);
 
-    // Onda de degranulación durante ataque
-    if (attacking) {
-      var pp = 1 - (t.attackAnim / 0.2);
-      ctx.strokeStyle = colorAlpha(t.def.color, 0.5 * (1 - pp));
-      ctx.lineWidth = 2 * U;
-      ctx.beginPath();
-      ctx.arc(0, 0, R * (1.1 + pp * 0.8), 0, Math.PI * 2);
-      ctx.stroke();
+    // Aura de histamina — anillo punteado (ralentiza gérmenes en rango de juego).
+    var auraPulse = 0.30 + 0.22 * Math.sin(time * 2.4 + phase);
+    ctx.save();
+    ctx.strokeStyle = "rgba(140, 200, 255, " + auraPulse + ")";
+    ctx.lineWidth = Math.max(1.2, 1.5 * U);
+    ctx.setLineDash([5 * U, 6 * U]);
+    ctx.beginPath(); ctx.arc(0, 0, auraR, 0, Math.PI * 2); ctx.stroke();
+    ctx.setLineDash([]);
+    // Copos de nieve mini (rol control) orbitando el borde del aura.
+    for (var sf = 0; sf < 6; sf++) {
+      var sfa = (sf / 6) * Math.PI * 2 + time * 0.35 + phase;
+      var sfx = Math.cos(sfa) * auraR * 0.92, sfy = Math.sin(sfa) * auraR * 0.92;
+      ctx.save();
+      ctx.translate(sfx, sfy);
+      ctx.rotate(sfa + Math.PI / 2);
+      drawCanvasGlyph("snowflake", 0, 0, 3.2 * U, colorAlpha(t.def.color, 0.55 + auraPulse * 0.35));
+      ctx.restore();
+    }
+    ctx.restore();
+
+    // ILC2 (Langerhans): acelera la carga del ultimate.
+    if ((t.ilc2MastoT || 0) > 0) {
+      var il2a = Math.min(1, (t.ilc2MastoT || 0) / 6) * (0.42 + 0.35 * Math.sin(time * 8));
+      ctx.strokeStyle = "rgba(63, 193, 201, " + il2a + ")";
+      ctx.lineWidth = Math.max(1.4, 1.8 * U);
+      ctx.setLineDash([4 * U, 5 * U]);
+      ctx.beginPath(); ctx.arc(0, 0, R * 1.28, 0, Math.PI * 2); ctx.stroke();
+      ctx.setLineDash([]);
     }
 
-    // Ultimate Desgranulación: misma onda pero MUCHO más grande e intensa
-    // (cuerpo se hincha un poco antes de estallar).
-    if ((t.specialAnim || 0) > 0) {
+    // Histamina vasodilatadora: hilos hacia aliados cuando desgranula (buff histBuffT).
+    if (attacking) {
+      for (var hi = 0; hi < state.towers.length; hi++) {
+        var ht = state.towers[hi];
+        if (ht === t || (ht.histBuffT || 0) <= 0) continue;
+        var hdx = ht.x - t.x, hdy = ht.y - t.y;
+        if (Math.hypot(hdx, hdy) > auraR * 1.25) continue;
+        var ha = Math.min(1, (ht.histBuffT || 0)) * (0.45 + 0.35 * Math.sin(time * 9 + hi));
+        ctx.strokeStyle = "rgba(255, 170, 120, " + ha + ")";
+        ctx.lineWidth = Math.max(1, 1.3 * U);
+        ctx.setLineDash([3 * U, 4 * U]);
+        ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(hdx, hdy); ctx.stroke();
+        ctx.setLineDash([]);
+      }
+    }
+
+    // Degranulación pasiva — onda suave al liberar histamina.
+    if (attacking) {
+      var pp = 1 - (t.attackAnim / 0.2);
+      ctx.strokeStyle = colorAlpha(t.def.color, 0.55 * (1 - pp));
+      ctx.lineWidth = Math.max(1.5, 2 * U);
+      ctx.beginPath(); ctx.arc(0, 0, R * (1.05 + pp * 0.75), 0, Math.PI * 2); ctx.stroke();
+      ctx.strokeStyle = "rgba(200, 230, 255, " + (0.35 * (1 - pp)) + ")";
+      ctx.lineWidth = Math.max(1, 1.2 * U);
+      ctx.beginPath(); ctx.arc(0, 0, R * (0.85 + pp * 0.45), 0, Math.PI * 2); ctx.stroke();
+    }
+
+    // Ultimate Desgranulación — hinchazón + ondas expansivas intensas.
+    if (ultActive) {
       var dgFrac = 1 - t.specialAnim / 1.0;
-      var dgSwell = dgFrac < 0.25 ? (dgFrac / 0.25) : (1 - (dgFrac - 0.25) / 0.75);
+      var dgSwell = dgFrac < 0.22 ? (dgFrac / 0.22) : (1 - (dgFrac - 0.22) / 0.78);
       ctx.save();
-      ctx.scale(1 + dgSwell * 0.25, 1 + dgSwell * 0.25);
-      ctx.strokeStyle = colorAlpha(t.def.color, 0.7 * (1 - dgFrac));
-      ctx.lineWidth = 4 * U;
+      ctx.scale(1 + dgSwell * 0.28, 1 + dgSwell * 0.28);
       for (var dgW = 0; dgW < 3; dgW++) {
+        ctx.strokeStyle = colorAlpha(t.def.color, 0.75 * (1 - dgFrac) * (1 - dgW * 0.22));
+        ctx.lineWidth = Math.max(2.5, (4 - dgW) * U);
         ctx.beginPath();
-        ctx.arc(0, 0, R * (1.2 + dgFrac * 7 - dgW * 0.7), 0, Math.PI * 2);
+        ctx.arc(0, 0, R * (1.15 + dgFrac * 6.5 - dgW * 0.65), 0, Math.PI * 2);
         ctx.stroke();
       }
       ctx.restore();
     }
 
-    // CUERPO con bumps sutiles en la membrana
-    var bodyGrad = ctx.createRadialGradient(-R * 0.3, -R * 0.3, R * 0.2, 0, 0, R);
-    bodyGrad.addColorStop(0, "#d6e6fb");
-    bodyGrad.addColorStop(0.6, t.def.color);
+    // Citoplasma esférico granulado.
+    var bodyGrad = ctx.createRadialGradient(-R * 0.28, -R * 0.32, R * 0.15, 0, 0, R * bodySwell);
+    bodyGrad.addColorStop(0, "#eef6ff");
+    bodyGrad.addColorStop(0.55, t.def.color);
     bodyGrad.addColorStop(1, t.def.colorDark);
     ctx.fillStyle = bodyGrad;
-    var nBumps = 14;
-    var bodySwell = 1 + chargeFrac * 0.10;
-    ctx.beginPath();
-    for (var i = 0; i <= nBumps; i++) {
-      var bAng = (i / nBumps) * Math.PI * 2;
-      var bump = 1 + Math.sin(bAng * 5 + time * 0.4) * (0.05 + chargeFrac * 0.09);
-      var px = Math.cos(bAng) * R * bump * bodySwell;
-      var py = Math.sin(bAng) * R * bump * bodySwell;
-      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
-    }
-    ctx.closePath();
+    maShellPath(1);
     ctx.fill();
-    ctx.strokeStyle = t.def.colorDark;
-    ctx.lineWidth = Math.max(1.3, 1.5 * U);
-    ctx.stroke();
 
-    // NÚCLEO redondo central pequeño (signature de mastocito)
-    var nucR = R * 0.23;
+    // Núcleo redondo central pequeño (signature mastocito).
+    var nucR = R * 0.22;
     var nucGrad = ctx.createRadialGradient(-nucR * 0.3, -nucR * 0.3, 0, 0, 0, nucR);
-    nucGrad.addColorStop(0, "rgba(120, 70, 160, 0.95)");
-    nucGrad.addColorStop(1, "rgba(70, 30, 110, 0.95)");
+    nucGrad.addColorStop(0, "rgba(140, 85, 175, 0.96)");
+    nucGrad.addColorStop(1, "rgba(62, 28, 105, 0.96)");
     ctx.fillStyle = nucGrad;
-    ctx.beginPath();
-    ctx.arc(0, 0, nucR, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = "rgba(50, 20, 80, 0.65)";
-    ctx.lineWidth = 0.9 * U;
+    ctx.beginPath(); ctx.arc(0, 0, nucR, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = "rgba(42, 18, 72, 0.7)";
+    ctx.lineWidth = Math.max(0.9, 1 * U);
     ctx.stroke();
 
-    // GRÁNULOS BASOFÍLICOS DENSOS — histamina + heparina + triptasa
-    // SIGNATURE: muchos gránulos violeta intenso uniformemente distribuidos
-    var nGran = 24;
-    var granJitter = chargeFrac * 1.1 * U;
+    // Gránulos basófilos — posiciones deterministas (sin parpadeo por Math.random).
+    var nGran = 26;
+    var granJitter = chargeFrac * 1.0 * U;
     for (var g = 0; g < nGran; g++) {
-      var ga = (g * 137.5 * Math.PI / 180) % (Math.PI * 2);
-      var gdMin = nucR * 1.6, gdMax = R * 0.78;
+      var ga = (g * 137.508 * Math.PI / 180 + phase) % (Math.PI * 2);
+      var gdMin = nucR * 1.55, gdMax = R * 0.76;
       var gd = gdMin + (((g * 13) % 100) / 100) * (gdMax - gdMin);
-      var gx = Math.cos(ga) * gd + (Math.random() - 0.5) * granJitter;
-      var gy = Math.sin(ga) * gd + (Math.random() - 0.5) * granJitter;
-      var gSize = R * 0.07 + ((g * 17) % 10) / 10 * R * 0.025;
+      var jx = Math.sin(g * 2.71 + phase) * granJitter;
+      var jy = Math.cos(g * 3.17 + phase * 1.3) * granJitter;
+      var gx = Math.cos(ga) * gd + jx;
+      var gy = Math.sin(ga) * gd + jy;
+      if (Math.hypot(gx, gy - R * 0.55) < R * 0.22) continue; // evita tapar la cara
+      var gSize = R * 0.065 + ((g * 17) % 10) / 10 * R * 0.028;
       var gPulse = 0.5 + 0.5 * Math.sin(time * 2.2 + g * 0.7);
-      // Gránulo con gradiente para volumen — brilla más fuerte a medida
-      // que la histamina/heparina real se acumula lista para salir.
+      var isTrypt = g % 5 === 0;
       var gGrad = ctx.createRadialGradient(gx - gSize * 0.3, gy - gSize * 0.3, 0, gx, gy, gSize);
-      gGrad.addColorStop(0, "rgba(" + Math.round(180 + chargeFrac * 60) + ", " + Math.round(130 + chargeFrac * 75) + ", 230, " + Math.min(1, 0.85 + gPulse * 0.10 + chargeFrac * 0.15) + ")");
-      gGrad.addColorStop(1, "rgba(90, 40, 130, 0.85)");
+      if (isTrypt) {
+        gGrad.addColorStop(0, "rgba(" + Math.round(210 + chargeFrac * 40) + ", 170, 255, " + Math.min(1, 0.88 + chargeFrac * 0.12) + ")");
+        gGrad.addColorStop(1, "rgba(70, 35, 120, 0.88)");
+      } else {
+        gGrad.addColorStop(0, "rgba(" + Math.round(175 + chargeFrac * 55) + ", " + Math.round(125 + chargeFrac * 70) + ", 235, " + Math.min(1, 0.82 + gPulse * 0.12 + chargeFrac * 0.14) + ")");
+        gGrad.addColorStop(1, "rgba(82, 38, 128, 0.86)");
+      }
       ctx.fillStyle = gGrad;
-      ctx.beginPath();
-      ctx.arc(gx, gy, gSize, 0, Math.PI * 2);
-      ctx.fill();
+      ctx.beginPath(); ctx.arc(gx, gy, gSize, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = isTrypt ? "rgba(45, 20, 85, 0.75)" : "rgba(55, 28, 95, 0.72)";
+      ctx.lineWidth = Math.max(0.7, 0.85 * U);
+      ctx.stroke();
     }
 
-    // IgE RECEPTORS (FcεRI) — pequeñas Y's pegadas a la membrana exterior.
-    // Signature del mastocito: lleno de receptores de IgE que esperan
-    // unirse a alergenos. 6 Y's distribuidos.
-    var nIgE = 6;
+    // Gránulos eyectados al desgranular (histamina saliendo).
+    if (attacking || ultActive) {
+      var ejProg = attacking ? (1 - t.attackAnim / 0.2) : (1 - t.specialAnim / 1.0);
+      var ejCount = ultActive ? 14 : 8;
+      for (var ej = 0; ej < ejCount; ej++) {
+        var ea = (ej / ejCount) * Math.PI * 2 + time * 3.2 + phase;
+        var ed = R * (0.55 + ejProg * (ultActive ? 2.4 : 1.05));
+        var ex = Math.cos(ea) * ed, ey = Math.sin(ea) * ed;
+        var esz = (2.2 + (ej % 3) * 0.6) * U * (1 - ejProg * 0.35);
+        ctx.fillStyle = "rgba(" + Math.round(160 + ejProg * 60) + ", 120, 230, " + (0.75 * (1 - ejProg * 0.55)) + ")";
+        ctx.beginPath(); ctx.arc(ex, ey, esz, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+
+    // Receptores IgE (FcεRI) — Y's en la membrana exterior.
+    var nIgE = 7;
     for (var ig = 0; ig < nIgE; ig++) {
-      var igA = (ig * Math.PI * 2 / nIgE) + time * 0.20;
-      var igDist = R + (3 + chargeFrac * 7) * U;
+      var igA = (ig * Math.PI * 2 / nIgE) + time * 0.18 + phase * 0.05;
+      var igDist = R * bodySwell + (2.5 + chargeFrac * 6.5) * U;
       var igX = Math.cos(igA) * igDist;
       var igY = Math.sin(igA) * igDist;
-      if (chargeFrac > 0.15) {
-        ctx.fillStyle = "rgba(224, 200, 240, " + (chargeFrac * 0.55) + ")";
+      if (chargeFrac > 0.12) {
+        ctx.fillStyle = "rgba(224, 200, 240, " + (chargeFrac * 0.5) + ")";
         ctx.beginPath();
-        ctx.arc(igX, igY, 4 * U * (1 + chargeFrac * 0.6), 0, Math.PI * 2);
+        ctx.arc(igX, igY, 3.5 * U * (1 + chargeFrac * 0.55), 0, Math.PI * 2);
         ctx.fill();
       }
-      drawYShape(igX, igY, 3.2 * U * (1 + chargeFrac * 0.35), igA + Math.PI / 2, "#e0c8f0", t.def.colorDark);
+      drawYShape(igX, igY, 3 * U * (1 + chargeFrac * 0.32), igA + Math.PI / 2, "#e8d0f8", t.def.colorDark);
     }
 
-    // Cara — alerta, lista para desgranular
-    var faceY = -R * 0.62;
-    var eyeR = R * 0.13;
-    if (blink) drawClosedEyes(0, faceY, eyeR, R * 0.18);
-    else if (expression === "dying") drawHurtEyes(0, faceY, eyeR, R * 0.18);
-    else if (expression === "levelup") drawSparkleEyes(0, faceY, eyeR, R * 0.18);
-    else drawAnimeEyes(0, faceY, eyeR, R * 0.18, 0, 0, R * 0.10, R * 0.04, "happy");
-    drawAnimeMouth(0, faceY + R * 0.20, R * 0.32, R * 0.15, attacking ? "open" : "smile");
+    // Membrana plasmática — borde único que encierra citoplasma, gránulos y núcleo.
+    maShellPath(1.04);
+    ctx.strokeStyle = t.def.colorDark;
+    ctx.lineWidth = Math.max(2.6, 3.2 * U);
+    ctx.lineJoin = "round";
+    ctx.lineCap = "round";
+    ctx.stroke();
+    ctx.strokeStyle = "rgba(210, 235, 255, 0.45)";
+    ctx.lineWidth = Math.max(1.1, 1.4 * U);
+    ctx.stroke();
+
+    // Anticipación de ultimate (carga real).
+    if (!ultActive && chargeFrac > 0.18) {
+      var prePulse = 0.55 + 0.45 * Math.sin(time * 4.5);
+      ctx.save();
+      ctx.globalAlpha = chargeFrac * 0.42 * prePulse;
+      ctx.strokeStyle = "#ffd24a";
+      ctx.lineWidth = Math.max(1.5, 2 * U);
+      ctx.setLineDash([4 * U, 5 * U]);
+      ctx.beginPath(); ctx.arc(0, 0, R * (1.12 + chargeFrac * 0.08), 0, Math.PI * 2); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.restore();
+    }
+
+    // Cara — alerta, lista para desgranular.
+    var faceY = -R * 0.58;
+    var eyeR = R * 0.12;
+    if (blink) drawClosedEyes(0, faceY, eyeR, R * 0.17);
+    else if (expression === "dying") drawHurtEyes(0, faceY, eyeR, R * 0.17);
+    else if (expression === "levelup") drawSparkleEyes(0, faceY, eyeR, R * 0.17);
+    else if (ultActive) drawAnimeEyes(0, faceY, eyeR * 1.12, R * 0.19, 0, 0, eyeR * 0.55, eyeR * 0.42, "fierce");
+    else drawAnimeEyes(0, faceY, eyeR, R * 0.17, 0, 0, eyeR * 0.48, eyeR * 0.38, attacking ? "fierce" : "happy");
+    drawAnimeMouth(0, faceY + R * 0.18, R * 0.30, R * 0.14, (attacking || ultActive) ? "open" : "smile");
     ctx.restore();
   }
 
@@ -25859,6 +25949,15 @@
       mwGrad.addColorStop(1, "rgba(0,0,0,0)");
       ctx.fillStyle = mwGrad;
       ctx.beginPath(); ctx.arc(ef.x, ef.y, mwR * 0.55, 0, Math.PI * 2); ctx.fill();
+      // Gránulos de histamina/triptasa eyectados en la onda de desgranulación.
+      for (var mwg = 0; mwg < 16; mwg++) {
+        var mga = (mwg / 16) * Math.PI * 2 + mwT * 2.4;
+        var mgr = mwR * (0.72 + (mwg % 4) * 0.06);
+        var mgx = ef.x + Math.cos(mga) * mgr;
+        var mgy = ef.y + Math.sin(mga) * mgr;
+        ctx.fillStyle = "rgba(" + Math.round(150 + mwg * 4) + ", 110, 230, " + ((1 - mwT) * 0.7) + ")";
+        ctx.beginPath(); ctx.arc(mgx, mgy, (2.5 - mwT * 1.2) * Math.max(1, U), 0, Math.PI * 2); ctx.fill();
+      }
       ctx.restore();
     } else if (ef.kind === "sealPulse") {
       // Reendotelización: a diferencia de las demás ondas F2 (expansivas),

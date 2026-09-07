@@ -4602,7 +4602,7 @@
   var GERM_INTRO = {
     sepidermidis:    { name: "S. epidermidis",  desc: "Coco gram+ rápido pero débil" },
     saureus:         { name: "S. aureus",       desc: "Cápsula resistente — usá anticuerpos" },
-    hsv:             { name: "Herpes (HSV)",    desc: "Virus rápido y errático" },
+    hsv:             { name: "Herpes (HSV)",    desc: "Viaja por el nervio — rapidísimo" },
     cacnes:          { name: "C. acnes",        desc: "Anaerobio lento pero tough" },
     candida:         { name: "Candida",         desc: "Levadura fúngica con catapult" },
     dermatofito:     { name: "Dermatofito",     desc: "Hongo que suelta esporas hijas" },
@@ -22826,18 +22826,13 @@
   }
 
   function drawHsv(e, rad, expression, blink) {
-    // Virus Herpes Simplex — estructura biológica:
-    //  · Cápside icosaédrica (162 capsómeros) → en 2D hexágono
-    //  · Tegumento (capa amorfa entre cápside y envoltura)
-    //  · Envoltura lipídica con spikes de glicoproteína (gB/gD/gH)
-    //  · DNA dsDNA en el core
-    // Toque caricaturesco: virus rápido + travieso, jitter errático,
-    // speed lines detrás, sonrisa maniática.
+    // Herpes simplex — silueta HEXAGONAL (cápside icosaédrica), NO círculo.
+    // Firma: axón nervioso (latencia en ganglios) + vesícula herpética.
+    // Tegumento irregular abraza el hexágono; spikes gB/gD solo en vértices.
     var hit = e.hitFlash > 0;
     var t = state.time;
     var def = e.def;
 
-    // Heading tracking (más rápido al lerp porque es ágil).
     if (e._lastPosX == null) { e._lastPosX = e.x; e._lastPosY = e.y; e._heading = 0; }
     var dxM = e.x - e._lastPosX, dyM = e.y - e._lastPosY;
     var dMag = Math.hypot(dxM, dyM);
@@ -22846,170 +22841,253 @@
       var diffAng = targetAng - e._heading;
       while (diffAng >  Math.PI) diffAng -= Math.PI * 2;
       while (diffAng < -Math.PI) diffAng += Math.PI * 2;
-      e._heading += diffAng * 0.22;            // más reactivo que sepidermidis (0.15)
+      e._heading += diffAng * 0.22;
     }
     e._lastPosX = e.x; e._lastPosY = e.y;
 
     ctx.save();
-    // Jitter: virus errático, vibra todo el tiempo.
     var jitX = Math.sin(t * 14 + e.wobble) * 1.2 * U;
     var jitY = Math.cos(t * 16 + e.wobble * 1.3) * 1.0 * U;
     ctx.translate(e.x + jitX, e.y + jitY);
 
     var breathe = 1 + Math.sin(t * 3.5 + e.wobble) * 0.05;
-    var bodyR = rad * 0.95 * breathe;
+    var capR = rad * 0.92 * breathe;
+    var heading = e._heading || 0;
+    // Restless: siempre un rastro (es rapidísimo). Más fuerte si se mueve.
+    var dashK = Math.max(0.42, Math.min(1, dMag / 3.5));
 
-    // Speed lines (detrás del virus, en dirección opuesta al heading).
-    // Sugieren la velocidad — solo si se está moviendo.
-    if (dMag > 1) {
-      ctx.save();
-      ctx.rotate(e._heading || 0);
-      ctx.strokeStyle = "rgba(200, 170, 240, 0.65)";
-      ctx.lineWidth = 1.8 * U;
-      ctx.lineCap = "round";
-      for (var sl = -1; sl <= 1; sl++) {
-        var slOff = sl * bodyR * 0.40;
-        var slLen = bodyR * (0.85 + Math.sin(t * 8 + sl) * 0.10);
-        ctx.beginPath();
-        ctx.moveTo(-bodyR * 0.95, slOff);
-        ctx.lineTo(-bodyR * 0.95 - slLen, slOff);
-        ctx.stroke();
+    function hsvVerts(r, lump) {
+      var pts = [];
+      for (var k = 0; k < 6; k++) {
+        var a = k * Math.PI / 3 - Math.PI / 2;
+        var rr = r * (1 + (lump || 0) * Math.sin(t * 2.4 + k * 1.37 + e.wobble));
+        pts.push([Math.cos(a) * rr, Math.sin(a) * rr]);
       }
+      return pts;
+    }
+    function hsvPath(pts) {
+      ctx.beginPath();
+      for (var i = 0; i < 6; i++) {
+        if (i === 0) ctx.moveTo(pts[i][0], pts[i][1]);
+        else ctx.lineTo(pts[i][0], pts[i][1]);
+      }
+      ctx.closePath();
+    }
+    function hsvRoundPath(pts) {
+      var last = pts[5], first = pts[0];
+      ctx.beginPath();
+      ctx.moveTo((last[0] + first[0]) * 0.5, (last[1] + first[1]) * 0.5);
+      for (var i = 0; i < 6; i++) {
+        var curr = pts[i];
+        var next = pts[(i + 1) % 6];
+        ctx.quadraticCurveTo(curr[0], curr[1], (curr[0] + next[0]) * 0.5, (curr[1] + next[1]) * 0.5);
+      }
+      ctx.closePath();
+    }
+
+    ctx.save();
+    ctx.rotate(heading);
+
+    // Afterimages hexagonales (velocidad) — silueta, no círculos.
+    var ghostPts = hsvVerts(capR * 0.88, 0);
+    for (var g = 2; g >= 1; g--) {
+      ctx.save();
+      ctx.translate(-capR * (0.55 + g * 0.48) * dashK, 0);
+      ctx.globalAlpha = 0.14 * dashK * g;
+      hsvPath(ghostPts);
+      ctx.fillStyle = "#9575CD";
+      ctx.fill();
+      ctx.strokeStyle = "rgba(90, 50, 160, 0.55)";
+      ctx.lineWidth = 1.2 * U;
+      ctx.stroke();
       ctx.restore();
     }
 
-    // === BODY ROTATED ===
-    ctx.save();
-    ctx.rotate(e._heading || 0);
+    // Speed lines cortas detrás del hexágono.
+    ctx.strokeStyle = "rgba(200, 170, 240, " + (0.35 + dashK * 0.45) + ")";
+    ctx.lineWidth = Math.max(1.4, 1.8 * U);
+    ctx.lineCap = "round";
+    for (var sl = -1; sl <= 1; sl++) {
+      var slOff = sl * capR * 0.38;
+      var slLen = capR * (0.70 + dashK * 0.55 + Math.sin(t * 9 + sl) * 0.08);
+      ctx.beginPath();
+      ctx.moveTo(-capR * 1.05, slOff);
+      ctx.lineTo(-capR * 1.05 - slLen, slOff);
+      ctx.stroke();
+    }
 
-    // 1. Envoltura lipídica translúcida (esfera externa).
-    var envR = bodyR * 1.30;
-    var envGrad = ctx.createRadialGradient(0, 0, bodyR * 0.7, 0, 0, envR);
-    envGrad.addColorStop(0,   "rgba(180, 155, 230, 0.0)");
-    envGrad.addColorStop(0.55,"rgba(149, 117, 205, 0.55)");
-    envGrad.addColorStop(1,   "rgba(149, 117, 205, 0)");
-    ctx.fillStyle = envGrad;
+    // AXÓN nervioso (latencia en ganglios dorsales). Cola en C, no anillo.
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    var ax0 = -capR * 0.92;
+    var ax1 = -capR * 1.85;
+    var ax2 = -capR * 2.55;
+    var ax3 = -capR * 3.25;
+    ctx.strokeStyle = "rgba(90, 55, 150, 0.72)";
+    ctx.lineWidth = Math.max(2.0, 2.6 * U);
     ctx.beginPath();
-    ctx.arc(0, 0, envR, 0, Math.PI * 2);
+    ctx.moveTo(ax0, capR * 0.08);
+    ctx.quadraticCurveTo(ax1, -capR * 0.38, ax2, capR * 0.06);
+    ctx.quadraticCurveTo(ax2 - capR * 0.18, capR * 0.42, ax3, capR * 0.12);
+    ctx.stroke();
+    ctx.strokeStyle = "rgba(180, 150, 230, 0.55)";
+    ctx.lineWidth = Math.max(1.0, 1.2 * U);
+    ctx.beginPath();
+    ctx.moveTo(ax0, capR * 0.08);
+    ctx.quadraticCurveTo(ax1, -capR * 0.38, ax2, capR * 0.06);
+    ctx.quadraticCurveTo(ax2 - capR * 0.18, capR * 0.42, ax3, capR * 0.12);
+    ctx.stroke();
+    // Nodos de Ranvier.
+    var nodes = [
+      [ax1 * 0.62 + ax0 * 0.38, -capR * 0.12],
+      [ax2, capR * 0.04],
+      [ax3 + capR * 0.12, capR * 0.10]
+    ];
+    for (var ni = 0; ni < nodes.length; ni++) {
+      ctx.fillStyle = "#6d4aa8";
+      ctx.beginPath();
+      ctx.ellipse(nodes[ni][0], nodes[ni][1], 2.4 * U, 1.7 * U, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "rgba(40, 20, 80, 0.65)";
+      ctx.lineWidth = 0.8 * U;
+      ctx.stroke();
+    }
+    // Ganglio distal — racimo de 3 somas, no un círculo único.
+    var gx = ax3 - capR * 0.06, gy = capR * 0.16;
+    var ganglia = [[0, 0], [-5.2 * U, 4.4 * U], [4.6 * U, 3.6 * U]];
+    for (var gi = 0; gi < ganglia.length; gi++) {
+      var gR = (gi === 0 ? 3.6 : 2.5) * U;
+      ctx.fillStyle = gi === 0 ? "#8d6cc4" : "#7a58b0";
+      ctx.beginPath();
+      ctx.arc(gx + ganglia[gi][0], gy + ganglia[gi][1], gR, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "#4527A0";
+      ctx.lineWidth = 0.9 * U;
+      ctx.stroke();
+    }
+
+    // TEGUMENTO: hexágono redondeado e irregular (firma herpesvirus).
+    var tegPts = hsvVerts(capR * 1.22, 0.07);
+    hsvRoundPath(tegPts);
+    var tegGrad = ctx.createRadialGradient(-capR * 0.2, -capR * 0.25, capR * 0.2, 0, 0, capR * 1.25);
+    tegGrad.addColorStop(0,   "rgba(210, 185, 245, 0.18)");
+    tegGrad.addColorStop(0.6, "rgba(149, 117, 205, 0.42)");
+    tegGrad.addColorStop(1,   "rgba(90, 55, 150, 0.12)");
+    ctx.fillStyle = tegGrad;
     ctx.fill();
-    // Borde tenue de la envoltura.
-    ctx.strokeStyle = "rgba(110, 80, 170, 0.50)";
-    ctx.lineWidth = Math.max(1.0, 1.4 * U);
-    ctx.beginPath();
-    ctx.arc(0, 0, envR, 0, Math.PI * 2);
+    ctx.strokeStyle = "rgba(110, 80, 170, 0.70)";
+    ctx.lineWidth = Math.max(1.4, 1.8 * U);
     ctx.stroke();
 
-    // 2. SPIKES de glicoproteína (12 alrededor, forma de champiñón).
-    // Tipo gB/gD/gH — los responsables del attachment + entrada celular.
-    var spikeCount = 12;
-    var spikeSpin = t * 0.3;
-    for (var s = 0; s < spikeCount; s++) {
-      var sa = s * (Math.PI * 2 / spikeCount) + spikeSpin;
-      var spikeOut = bodyR * 1.32;
-      var spikeIn  = bodyR * 0.92;
-      var stipX = Math.cos(sa) * spikeOut;
-      var stipY = Math.sin(sa) * spikeOut;
-      var sbaseX = Math.cos(sa) * spikeIn;
-      var sbaseY = Math.sin(sa) * spikeIn;
-      // Stem (tallo del spike).
-      ctx.strokeStyle = "#7c64b4";
-      ctx.lineWidth = 2.0 * U;
-      ctx.lineCap = "round";
+    // SPIKES gB/gD/gH — solo en los 6 vértices del hexágono (no corona circular).
+    var spikePts = hsvVerts(capR * 1.08, 0.03);
+    ctx.lineCap = "round";
+    for (var s = 0; s < 6; s++) {
+      var sa = s * Math.PI / 3 - Math.PI / 2;
+      var bx = spikePts[s][0], by = spikePts[s][1];
+      var pulse = 1 + Math.sin(t * 3.2 + s) * 0.08;
+      var out = capR * 1.48 * pulse;
+      var ex = Math.cos(sa) * out, ey = Math.sin(sa) * out;
+      ctx.strokeStyle = "#6a4aa8";
+      ctx.lineWidth = Math.max(1.8, 2.2 * U);
       ctx.beginPath();
-      ctx.moveTo(sbaseX, sbaseY);
-      ctx.lineTo(stipX, stipY);
+      ctx.moveTo(bx, by);
+      ctx.lineTo(ex, ey);
       ctx.stroke();
-      // Cabeza del spike (champiñón).
-      ctx.fillStyle = "#a89bd6";
+      ctx.fillStyle = "#c4b4ee";
       ctx.beginPath();
-      ctx.arc(stipX, stipY, 3.0 * U, 0, Math.PI * 2);
+      ctx.arc(ex, ey, 2.8 * U, 0, Math.PI * 2);
       ctx.fill();
-      ctx.strokeStyle = "#5a3f95";
+      ctx.strokeStyle = "#4527A0";
       ctx.lineWidth = 1.0 * U;
       ctx.stroke();
     }
 
-    // 2.5. TEGUMENTO (capa amorfa entre cápside y envoltura) — fuzzy
-    // ring tenue de tono lavanda. Signature de los virus herpes.
-    ctx.fillStyle = "rgba(170, 145, 215, 0.28)";
-    ctx.beginPath();
-    ctx.arc(0, 0, bodyR * 1.05, 0, Math.PI * 2);
+    // CÁPSIDE hexagonal con facetas (icosaedro 2D).
+    var capPts = hsvVerts(capR, 0);
+    hsvPath(capPts);
+    var capGrad = ctx.createLinearGradient(0, -capR, 0, capR);
+    capGrad.addColorStop(0,   "#d4c4f4");
+    capGrad.addColorStop(0.45,"#9575CD");
+    capGrad.addColorStop(1,   "#5e3fa0");
+    ctx.fillStyle = hit ? "#ffffff" : capGrad;
     ctx.fill();
-
-    // 3. CÁPSIDE icosaédrica (representada como hexágono — simetría
-    // rotacional 5-3-2 del icosaedro real, simplificado en 2D).
-    var capR = bodyR * 0.88;
-    ctx.fillStyle = hit ? "#ffffff" : "#9575CD";
     ctx.strokeStyle = "#4527A0";
-    ctx.lineWidth = 1.8 * U;
+    ctx.lineWidth = Math.max(2.0, 2.4 * U);
+    ctx.stroke();
+    // Facetas: 3 triángulos frontales.
+    ctx.strokeStyle = "rgba(69, 39, 160, 0.45)";
+    ctx.lineWidth = 0.9 * U;
     ctx.beginPath();
-    var sides = 6;
-    for (var k = 0; k < sides; k++) {
-      var ang = (k * Math.PI * 2 / sides) - Math.PI / 2;
-      var px = Math.cos(ang) * capR;
-      var py = Math.sin(ang) * capR;
-      if (k === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
-    }
+    ctx.moveTo(capPts[0][0], capPts[0][1]);
+    ctx.lineTo(0, 0);
+    ctx.lineTo(capPts[2][0], capPts[2][1]);
+    ctx.moveTo(0, 0);
+    ctx.lineTo(capPts[4][0], capPts[4][1]);
+    ctx.stroke();
+    ctx.fillStyle = "rgba(255, 255, 255, 0.18)";
+    ctx.beginPath();
+    ctx.moveTo(capPts[0][0], capPts[0][1]);
+    ctx.lineTo(capPts[5][0], capPts[5][1]);
+    ctx.lineTo(0, 0);
     ctx.closePath();
     ctx.fill();
-    ctx.stroke();
 
-    // 4. Facetas internas (líneas del centro a cada vértice → sugieren
-    // los triángulos que componen el icosaedro).
-    ctx.strokeStyle = "rgba(69, 39, 160, 0.50)";
-    ctx.lineWidth = 0.9 * U;
-    for (var fk = 0; fk < sides; fk++) {
-      var fang = (fk * Math.PI * 2 / sides) - Math.PI / 2;
-      var fx = Math.cos(fang) * capR;
-      var fy = Math.sin(fang) * capR;
-      ctx.beginPath();
-      ctx.moveTo(0, 0);
-      ctx.lineTo(fx, fy);
-      ctx.stroke();
-    }
-
-    // 4.5. DNA CORE (dsDNA enrollado en el centro de la cápside).
-    // Doble espiral viscosa girando lento, distintiva de los herpesvirus.
-    ctx.strokeStyle = "rgba(40, 20, 80, 0.85)";
-    ctx.lineWidth = 1.4 * U;
+    // Core dsDNA — doble hélice compacta.
+    ctx.strokeStyle = "rgba(40, 20, 80, 0.80)";
+    ctx.lineWidth = 1.3 * U;
     ctx.lineCap = "round";
-    var dnaPhase = t * 0.6;
-    var dnaR = capR * 0.38;
-    // 2 hebras enrolladas — sinusoides cruzadas que giran
+    var dnaPhase = t * 0.7;
+    var dnaR = capR * 0.28;
     for (var d = 0; d < 2; d++) {
       ctx.beginPath();
-      var nPts = 12;
-      for (var dp = 0; dp <= nPts; dp++) {
-        var dpFrac = dp / nPts;
+      for (var dp = 0; dp <= 10; dp++) {
+        var dpFrac = dp / 10;
         var dpAng = dpFrac * Math.PI * 2 + d * Math.PI + dnaPhase;
         var dpx = Math.cos(dpAng) * dnaR;
-        var dpy = (dpFrac - 0.5) * dnaR * 1.6;
+        var dpy = (dpFrac - 0.5) * dnaR * 1.7;
         if (dp === 0) ctx.moveTo(dpx, dpy); else ctx.lineTo(dpx, dpy);
       }
       ctx.stroke();
     }
 
-    // 5. Highlight especular (efecto envoltura brillante).
-    ctx.fillStyle = "rgba(255, 255, 255, 0.40)";
+    // VESÍCULA herpética (ampolla de herpes labial) — mascota, como la gota de sebo.
+    var dropFloat = Math.sin(t * 3.2 + e.wobble) * 1.6 * U;
+    var vx = capR * 0.72, vy = -capR * 1.22 + dropFloat;
+    var vR = capR * 0.28;
+    ctx.fillStyle = "rgba(80, 50, 140, 0.28)";
     ctx.beginPath();
-    ctx.ellipse(-bodyR * 0.30, -bodyR * 0.45, bodyR * 0.32, bodyR * 0.16, -0.3, 0, Math.PI * 2);
+    ctx.ellipse(vx + 1 * U, vy + vR * 0.45, vR * 0.9, vR * 0.32, 0, 0, Math.PI * 2);
+    ctx.fill();
+    var vesGrad = ctx.createRadialGradient(vx - vR * 0.25, vy - vR * 0.3, vR * 0.1, vx, vy, vR);
+    vesGrad.addColorStop(0, "rgba(245, 235, 255, 0.92)");
+    vesGrad.addColorStop(0.55, "rgba(200, 175, 240, 0.78)");
+    vesGrad.addColorStop(1, "rgba(130, 90, 190, 0.70)");
+    ctx.fillStyle = vesGrad;
+    ctx.beginPath();
+    ctx.arc(vx, vy, vR, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "rgba(90, 55, 150, 0.55)";
+    ctx.lineWidth = 1.0 * U;
+    ctx.stroke();
+    ctx.fillStyle = "rgba(255, 255, 255, 0.75)";
+    ctx.beginPath();
+    ctx.arc(vx - vR * 0.28, vy - vR * 0.32, vR * 0.28, 0, Math.PI * 2);
     ctx.fill();
 
     ctx.restore(); // end body rotated
 
-    // === CARA UPRIGHT ===
-    // Default: travieso/maniático. HP < 20%: derrotado.
     var hpFracFace = (def && def.hp > 0) ? (e.hp / def.hp) : 1;
     var lowHp = hpFracFace < 0.20;
     var sadFace = (expression === "dying" || expression === "hurt" || lowHp);
-    var eyeR  = bodyR * 0.28;
-    var faceY = -bodyR * 0.05;
-    var gap   = bodyR * 0.32;
+    var eyeR  = capR * 0.26;
+    var faceY = -capR * 0.04;
+    var gap   = capR * 0.34;
     if (sadFace) drawHurtEyes(0, faceY, eyeR, gap);
     else if (blink) drawClosedEyes(0, faceY, eyeR, gap);
-    else drawAnimeEyes(0, faceY, eyeR, gap, 0, 0, bodyR * 0.12, bodyR * 0.06, "evil");
-    if (sadFace) drawAnimeMouth(0, bodyR * 0.30, bodyR * 0.42, bodyR * 0.38, "open");
-    else drawAnimeMouth(0, bodyR * 0.30, bodyR * 0.45, bodyR * 0.30, "wicked");
+    else drawAnimeEyes(0, faceY, eyeR, gap, 0, 0, capR * 0.11, capR * 0.055, "evil");
+    if (sadFace) drawAnimeMouth(0, capR * 0.32, capR * 0.42, capR * 0.36, "open");
+    else drawAnimeMouth(0, capR * 0.32, capR * 0.46, capR * 0.28, "wicked");
 
     ctx.restore();
   }

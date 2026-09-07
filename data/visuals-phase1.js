@@ -40,7 +40,8 @@
   // Siluetas signature de gérmenes oleada 1 (referencia / futuros filtros).
   root.phase1GermVisuals = {
     sepidermidis: { silhouette: "diplochain", accent: "#90A4AE", label: "Biofilm" },
-    cacnes:       { silhouette: "follicle",   accent: "#C9A66B", label: "Folículo" }
+    cacnes:       { silhouette: "follicle",   accent: "#C9A66B", label: "Folículo" },
+    hsv:          { silhouette: "hexaxon",    accent: "#9575CD", label: "Axón" }
   };
 
   // Pistas de counter por germen Fase 1 (pip inferior).

@@ -16949,6 +16949,10 @@
     var podLen = R * (0.24 + polarExt * 0.52);
     var podW = R * (0.18 + polarExt * 0.07);
     var baseX = capRx * 0.50;
+    // Copo fagocítico (mordida): separación de mandíbulas y alcance frontal.
+    var biteClose = attacking ? Math.min(1, (t.attackAnim || 0) / 0.14) : 0;
+    var cupLen = R * (0.32 + Math.max(polarExt, biteClose * 0.85) * 0.52);
+    var cupSpread = R * (0.14 + polarExt * 0.10) * (1 - biteClose * 0.88);
 
     ctx.save();
     ctx.rotate(faceAng);
@@ -16978,8 +16982,50 @@
       ctx.stroke();
     }
 
-    // Pseudópodo frontal (fagocitosis) — crece hacia el objetivo.
-    if (polarExt > 0.02) {
+    // Frente: copo fagocítico al morder, pseudópodo simple en carga/IL-8.
+    if (attacking) {
+      var jawBase = baseX + capRx * 0.22;
+      var cupTip = jawBase + cupLen;
+      var cupFill = "rgba(245, 228, 218, " + (0.72 + biteClose * 0.22) + ")";
+      ctx.fillStyle = cupFill;
+      ctx.strokeStyle = "rgba(92, 50, 36, 0.45)";
+      ctx.lineWidth = Math.max(1.1, 1.4 * U);
+      // Mandíbula superior (lóbulo de membrana).
+      ctx.beginPath();
+      ctx.moveTo(jawBase, -cupSpread * 0.35);
+      ctx.quadraticCurveTo(jawBase + cupLen * 0.38, -cupSpread - R * 0.10, cupTip, -cupSpread * 0.25);
+      ctx.quadraticCurveTo(jawBase + cupLen * 0.58, -cupSpread * 0.55, jawBase + capRx * 0.08, -cupSpread * 0.18);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      // Mandíbula inferior.
+      ctx.beginPath();
+      ctx.moveTo(jawBase, cupSpread * 0.35);
+      ctx.quadraticCurveTo(jawBase + cupLen * 0.38, cupSpread + R * 0.10, cupTip, cupSpread * 0.25);
+      ctx.quadraticCurveTo(jawBase + cupLen * 0.58, cupSpread * 0.55, jawBase + capRx * 0.08, cupSpread * 0.18);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      // Cavidad del copo (interior oscuro al cerrar sobre el germen).
+      if (biteClose > 0.18) {
+        ctx.fillStyle = "rgba(34, 16, 48, " + (0.35 + biteClose * 0.45) + ")";
+        ctx.beginPath();
+        ctx.ellipse(cupTip - cupLen * 0.18, 0, cupLen * 0.22, cupSpread * 0.55 + R * 0.05, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      // Degranulación en la mordida (defensinas al contacto).
+      if (biteClose > 0.45) {
+        ctx.fillStyle = "rgba(170, 130, 255, " + (0.25 + biteClose * 0.45) + ")";
+        ctx.beginPath();
+        ctx.arc(cupTip, 0, R * (0.10 + biteClose * 0.06), 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = "rgba(110, 70, 190, 0.55)";
+        ctx.lineWidth = Math.max(0.9, 1.1 * U);
+        ctx.beginPath();
+        ctx.arc(cupTip, 0, R * (0.14 + biteClose * 0.08), 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    } else if (polarExt > 0.02) {
       ctx.fillStyle = "rgba(245, 228, 218, " + (0.65 + polarExt * 0.3) + ")";
       ctx.beginPath();
       ctx.moveTo(baseX, -podW * 0.52);
@@ -16991,12 +17037,6 @@
       ctx.strokeStyle = "rgba(92, 50, 36, 0.4)";
       ctx.lineWidth = Math.max(1, 1.3 * U);
       ctx.stroke();
-      if (attacking) {
-        ctx.fillStyle = "rgba(170, 130, 255, " + (0.35 * polarExt) + ")";
-        ctx.beginPath();
-        ctx.arc(baseX + podLen * 0.92, 0, R * 0.11, 0, Math.PI * 2);
-        ctx.fill();
-      }
     }
 
     // Núcleo en BANDA (herradura) — signature PMN de frotis sanguíneo.
@@ -17071,7 +17111,8 @@
     var shellPad = R * 0.07;
     var backX = -capRx * 0.78 - R * 0.17 - shellPad;
     var frontX = Math.max(R * 0.04 + capRx, faceDist + rTop * 0.48) + shellPad;
-    if (polarExt > 0.02) frontX = Math.max(frontX, baseX + podLen + shellPad * 0.6);
+    if (attacking) frontX = Math.max(frontX, baseX + capRx * 0.22 + cupLen + shellPad * 0.5);
+    else if (polarExt > 0.02) frontX = Math.max(frontX, baseX + podLen + shellPad * 0.6);
     var topY = capRy + R * 0.15 + shellPad;
     ctx.beginPath();
     ctx.moveTo(backX, uroWobble);
@@ -17195,15 +17236,17 @@
     } else if (blink) drawClosedEyes(0, nfy, neR, ngap);
     else if (expression === "dying") drawHurtEyes(0, nfy, neR, ngap);
     else if (expression === "levelup") drawSparkleEyes(0, nfy, neR, ngap);
-    else if (attacking) drawFocusedEyes(0, nfy, neR, ngap, neR * 0.70, neR * 0.25);
-    else drawAnimeEyes(0, nfy, neR, ngap, 0, 0, neR * 0.50, neR * 0.40, "fierce");
+    else if (attacking) {
+      var chompM = Math.abs(Math.sin((t.attackAnim || 0) * 28));
+      drawFocusedEyes(0, nfy, neR, ngap, neR * 0.72, neR * 0.28);
+      drawAnimeMouth(0, nfy + rTop * 0.58, rTop * 0.88, rTop * (0.32 + 0.58 * chompM), "fanged");
+    } else drawAnimeEyes(0, nfy, neR, ngap, 0, 0, neR * 0.50, neR * 0.40, "fierce");
     // Mouth offsets escalan con rTop (esfera-cabeza del snowman).
     if (doingUltimate) {
       // boca ya dibujada arriba
     } else if (expression === "dying") drawAnimeMouth(0, nfy + rTop * 0.65, rTop * 0.75, rTop * 0.65, "open");
     else if (expression === "levelup") drawAnimeMouth(0, nfy + rTop * 0.60, rTop * 0.78, rTop * 0.50, "smile");
-    else if (attacking) drawAnimeMouth(0, nfy + rTop * 0.60, rTop * 0.80, rTop * 0.80, "fanged");
-    else drawAnimeMouth(0, nfy + rTop * 0.60, rTop * 0.65, rTop * 0.32, "serious");
+    else if (!attacking) drawAnimeMouth(0, nfy + rTop * 0.60, rTop * 0.65, rTop * 0.32, "serious");
     ctx.restore();
 
     // Aro dorado de anticipación: asoma gradualmente con la carga real

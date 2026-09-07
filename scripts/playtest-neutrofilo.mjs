@@ -38,5 +38,14 @@ await page.evaluate(() => {
 });
 await sleep(400);
 await page.screenshot({ path: join(ART, "neutrofilo_combat.png") });
+await page.evaluate(() => {
+  const n = window.__game.state.towers[0];
+  n.attackAnim = 0.12;
+  n.muzzleFlash = 0.06;
+  n.lastTargetX = n.x + 120;
+  n.lastTargetY = n.y - 40;
+});
+await sleep(200);
+await page.screenshot({ path: join(ART, "neutrofilo_bite.png") });
 await browser.close();
 console.log("OK: neutrofilo screenshots");

@@ -5,7 +5,7 @@
   root.phase1TowerVisuals = {
     neutrofilo:   { role: "fagocito",   label: "PMN",    glyph: "star",     arc: "#B79CE0", silhouette: "polarized" },
     queratinocito:{ role: "productor",  label: "Barrera", glyph: "gear",     arc: "#d4a855", silhouette: "mosaic" },
-    mastocito:    { role: "control",    label: "Ralent.",glyph: "snowflake",arc: "#4F8FE0" },
+    mastocito:    { role: "control",    label: "Ralent.",glyph: "snowflake",arc: "#4F8FE0", silhouette: "horseshoe" },
     langerhans:   { role: "marca",      label: "APC",    glyph: "target",   arc: "#3FC1C9" },
     nk:           { role: "citotoxico", label: "NK",     glyph: "perforin", arc: "#E84393" },
     eosinofilo:   { role: "parasito",   label: "Eosino", glyph: "granule",  arc: "#F2774E" },
@@ -37,9 +37,16 @@
     amastigote: { glyph: "bang",     color: "#aed581" }
   };
 
+  // Siluetas signature de gérmenes oleada 1 (referencia / futuros filtros).
+  root.phase1GermVisuals = {
+    sepidermidis: { silhouette: "diplochain", accent: "#90A4AE", label: "Biofilm" },
+    cacnes:       { silhouette: "follicle",   accent: "#C9A66B", label: "Folículo" }
+  };
+
   // Pistas de counter por germen Fase 1 (pip inferior).
   root.phase1GermHints = {
-    cacnes:       { glyph: "droplet", color: "#c8980a", tip: "×3 Sebo" },
+    sepidermidis: { glyph: "net",        color: "#90A4AE", tip: "Puñetazos" },
+    cacnes:       { glyph: "droplet",    color: "#c8980a", tip: "×3 Sebo" },
     dermatofito:  { glyph: "droplet", color: "#c8980a", tip: "×3 Sebo" },
     demodex:      { glyph: "target",  color: "#3FC1C9", tip: "Marca APC" },
     hsv:          { glyph: "perforin",color: "#E84393", tip: "×2.3 NK" },

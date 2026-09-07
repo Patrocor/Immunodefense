@@ -22345,8 +22345,8 @@
       var pg = def.tentacles.pulseGap || 0.22;
       windup = Math.max(0, Math.min(1, 1 - (e.tentPulseT || 0) / pg));
     }
-    var shakeX = windup > 0.25 ? (Math.random() - 0.5) * windup * 4 : 0;
-    var shakeY = windup > 0.25 ? (Math.random() - 0.5) * windup * 4 : 0;
+    var shakeX = windup > 0.25 ? Math.sin(t * 48 + e.wobble) * windup * 3.5 : 0;
+    var shakeY = windup > 0.25 ? Math.cos(t * 52 + e.wobble * 1.3) * windup * 3.5 : 0;
 
     ctx.save();
     ctx.translate(e.x + shakeX, e.y + shakeY);
@@ -22421,56 +22421,46 @@
     ctx.ellipse(biofilmCx, -biofilmRy * 0.78, biofilmRx * 0.62, bigR * 0.20, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    // Cuerpo ALARGADO tipo gusano: cadena de cocos de cabeza→cola con
-    // pequeñas oscilaciones verticales (curvatura tipo serpiente).
-    // Aspect ratio horizontal aprox 4:1. Head con cara va en (0,0).
-    // Sutil "wriggle" (cada coco oscila con phase distinta) para que
-    // el cuerpo se sienta vivo y reptante. Bias horizontal: head al
-    // FRENTE (derecha), cola atrás (izquierda).
-    // SERPENTEO ondulante — amplitud aumentada + frecuencia + sync entre
-    // cocos para crear una verdadera onda viajera por el cuerpo (como
-    // una serpiente). Cada coco oscila MÁS y la fase atrasa progresivamente
-    // hacia la cola → onda visible recorre toda la longitud.
+    // Racimo en cadena de DIPLOCOCCOS (pares pegados) — silueta alargada
+    // irregular, NO circular. Signature S. epidermidis en piel/prótesis.
     function wrig(i, amp) {
-      // i*1.35 = retraso de fase atrasa fuerte hacia la cola → onda viajera
-      // amp*3.2 = amplitud 2x mayor para que se vea claramente serpenteo
       return Math.sin(t * 3.2 + i * 1.35 + e.wobble) * amp * 3.2 * U;
     }
     var cluster = [
-      // Justo atrás de la cabeza
-      { x: -bigR * 0.95, y:  bigR * 0.12 + wrig(1, 1.5), r: bigR * 0.65 },
-      // Cuerpo medio (tres cocos a lo largo del eje X, ondulando Y)
-      { x: -bigR * 1.80, y: -bigR * 0.15 + wrig(2, 1.8), r: bigR * 0.58 },
-      { x: -bigR * 2.55, y:  bigR * 0.20 + wrig(3, 2.0), r: bigR * 0.50 },
-      { x: -bigR * 3.20, y: -bigR * 0.10 + wrig(4, 2.0), r: bigR * 0.42 },
-      // Cola (más pequeños hacia atrás, amplitud mayor — la cola serpentea más)
-      { x: -bigR * 3.75, y:  bigR * 0.18 + wrig(5, 2.2), r: bigR * 0.32 },
-      { x: -bigR * 4.20, y: -bigR * 0.05 + wrig(6, 2.4), r: bigR * 0.24 },
-      // Cresta sobre la cabeza (mini coco asomando arriba, da volumen)
-      { x: -bigR * 0.25, y: -bigR * 0.95,                   r: bigR * 0.32 }
+      { x: -bigR * 0.52, y:  bigR * 0.08 + wrig(0, 1.2), r: bigR * 0.58, pair: true },
+      { x: -bigR * 1.18, y: -bigR * 0.10 + wrig(1, 1.5), r: bigR * 0.54, pair: true },
+      { x: -bigR * 1.78, y:  bigR * 0.14 + wrig(2, 1.7), r: bigR * 0.50, pair: true },
+      { x: -bigR * 2.38, y: -bigR * 0.08 + wrig(3, 1.9), r: bigR * 0.44, pair: true },
+      { x: -bigR * 2.92, y:  bigR * 0.12 + wrig(4, 2.0), r: bigR * 0.36, pair: true },
+      { x: -bigR * 3.38, y: -bigR * 0.04 + wrig(5, 2.2), r: bigR * 0.28, pair: false },
+      { x: -bigR * 0.18, y: -bigR * 0.88 + wrig(6, 1.0), r: bigR * 0.30, pair: false }
     ];
-    function drawCoco(cx, cy, r) {
+    function drawCoco(cx, cy, r, paired) {
       var grad = ctx.createRadialGradient(cx - r * 0.4, cy - r * 0.4, r * 0.2, cx, cy, r);
-      grad.addColorStop(0,    "#D5DDE3");   // highlight gris pálido
-      grad.addColorStop(0.55, "#90A4AE");   // base gris-azul
-      grad.addColorStop(1,    "#546E7A");   // sombra gris-azul oscuro
+      grad.addColorStop(0,    "#D5DDE3");
+      grad.addColorStop(0.55, "#90A4AE");
+      grad.addColorStop(1,    "#546E7A");
       ctx.fillStyle = hit ? "#ffffff" : grad;
       ctx.beginPath();
       ctx.arc(cx, cy, r, 0, Math.PI * 2);
       ctx.fill();
-      // Pared celular gram+ engrosada (peptidoglicano).
       ctx.strokeStyle = "#2e3f4b";
       ctx.lineWidth = Math.max(1.4, 2.0 * U);
       ctx.stroke();
-      // Highlight blanco arriba-izquierda
       ctx.fillStyle = "rgba(255,255,255,0.42)";
       ctx.beginPath();
       ctx.arc(cx - r * 0.35, cy - r * 0.35, r * 0.30, 0, Math.PI * 2);
       ctx.fill();
+      // Plano de contacto diplocócico (dos cocos pegados).
+      if (paired) {
+        ctx.fillStyle = "rgba(70, 95, 110, 0.35)";
+        ctx.beginPath();
+        ctx.ellipse(cx + r * 0.42, cy, r * 0.22, r * 0.55, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
     }
-    // Pequeños primero (atrás), grande al frente.
-    for (var i = 0; i < cluster.length; i++) drawCoco(cluster[i].x, cluster[i].y, cluster[i].r);
-    drawCoco(0, 0, bigR);
+    for (var i = 0; i < cluster.length; i++) drawCoco(cluster[i].x, cluster[i].y, cluster[i].r, !!cluster[i].pair);
+    drawCoco(0, 0, bigR, true);
 
     // Hilos pegajosos de biofilm entre cocos vecinos — matriz PNAG/PIA
     // cohesiva. Doble trazo (sombra ancha translúcida + núcleo claro)
@@ -22481,7 +22471,6 @@
     ctx.lineWidth = Math.max(2.6, 3.4 * U);
     // (las conns se dibujan abajo, con doble pasada)
     var head = { x: 0, y: 0, r: bigR };
-    // Cadena lineal de cabeza → cuerpo → cola (gusano segmentado).
     var conns = [
       [head, cluster[0]],
       [cluster[0], cluster[1]],
@@ -22489,7 +22478,6 @@
       [cluster[2], cluster[3]],
       [cluster[3], cluster[4]],
       [cluster[4], cluster[5]],
-      // Cresta superior pegada a la cabeza
       [head, cluster[6]]
     ];
     // Pasada 1: sombra translúcida ancha del hilo (definida arriba).
@@ -22583,6 +22571,28 @@
       ctx.restore();
     }
 
+    // Envoltura peptidoglicano — contorno único del racimo (no círculo).
+    var envNodes = [{ x: 0, y: 0, r: bigR }].concat(cluster);
+    ctx.beginPath();
+    for (var ev = envNodes.length - 1; ev >= 0; ev--) {
+      var en = envNodes[ev];
+      var ex = en.x, ey = en.y - en.r - 2.2 * U;
+      ev === envNodes.length - 1 ? ctx.moveTo(ex, ey) : ctx.lineTo(ex, ey);
+    }
+    for (var ev2 = 0; ev2 < envNodes.length; ev2++) {
+      var en2 = envNodes[ev2];
+      ctx.lineTo(en2.x, en2.y + en2.r + 2.2 * U);
+    }
+    ctx.closePath();
+    ctx.strokeStyle = "#1a2830";
+    ctx.lineWidth = Math.max(2.8, 3.4 * U);
+    ctx.lineJoin = "round";
+    ctx.lineCap = "round";
+    ctx.stroke();
+    ctx.strokeStyle = "rgba(210, 228, 238, 0.42)";
+    ctx.lineWidth = Math.max(1.1, 1.4 * U);
+    ctx.stroke();
+
     // === END BODY ROTATED ===
     ctx.restore();   // undo rotation antes de dibujar la cara
 
@@ -22608,13 +22618,14 @@
   }
 
   function drawCacnes(e, rad, expression, blink) {
-    // Cutibacterium acnes — BACILO gram+ del folículo pilosebáceo.
-    // Forma de bastoncillo cilíndrico (no esférico). Vive en sebo, lento,
-    // anaerobio. Toque caricaturesco: perezoso, baboso, con gotita de
-    // sebo flotando arriba y aura grasosa.
+    // Cutibacterium acnes — bacilo gram+ dentro del FOLÍCULO pilosebáceo.
+    // Silueta: bastoncillo + collar en U (apertura del poro, NO circular).
+    // Anaerobio lento; sebo + biofilm parcial (escudo de juego).
     var hit = e.hitFlash > 0;
     var t = state.time;
     var def = e.def;
+    var shieldFrac = (def.shield && def.shield.maxHP > 0)
+      ? Math.max(0, Math.min(1, (e.shieldHP || 0) / def.shield.maxHP)) : 0;
 
     // Heading lerp LENTO (es torpe, no reacciona rápido).
     if (e._lastPosX == null) { e._lastPosX = e.x; e._lastPosY = e.y; e._heading = 0; }
@@ -22638,6 +22649,49 @@
     // === BODY ROTATED ===
     ctx.save();
     ctx.rotate(e._heading || 0);
+
+    // Folículo pilosebáceo — paredes en U (collar del poro, no anillo).
+    ctx.lineCap = "round";
+    ctx.strokeStyle = "rgba(160, 120, 70, 0.62)";
+    ctx.lineWidth = Math.max(1.6, 2.1 * U);
+    ctx.beginPath();
+    ctx.moveTo(-bodyL * 0.38, bodyW * 0.92);
+    ctx.quadraticCurveTo(-bodyL * 0.52, -bodyW * 0.35, -bodyL * 0.08, -bodyW * 1.35);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(bodyL * 0.38, bodyW * 0.92);
+    ctx.quadraticCurveTo(bodyL * 0.52, -bodyW * 0.35, bodyL * 0.08, -bodyW * 1.35);
+    ctx.stroke();
+    ctx.strokeStyle = "rgba(200, 165, 100, 0.45)";
+    ctx.lineWidth = Math.max(1, 1.3 * U);
+    ctx.beginPath();
+    ctx.arc(0, -bodyW * 1.22, bodyL * 0.46, Math.PI * 0.12, Math.PI * 0.88);
+    ctx.stroke();
+    // Pelo fino en la abertura del folículo.
+    ctx.strokeStyle = "rgba(90, 60, 30, 0.55)";
+    ctx.lineWidth = Math.max(0.9, 1.1 * U);
+    ctx.beginPath();
+    ctx.moveTo(0, -bodyW * 1.55);
+    ctx.quadraticCurveTo(bodyL * 0.06, -bodyW * 1.95, bodyL * 0.02, -bodyW * 2.35);
+    ctx.stroke();
+
+    // Biofilm parcial (escudo de pared) — arco lateral, no círculo completo.
+    if (shieldFrac > 0.05) {
+      ctx.save();
+      ctx.strokeStyle = "rgba(140, 110, 60, " + (0.35 + shieldFrac * 0.45) + ")";
+      ctx.lineWidth = Math.max(2, 2.6 * U);
+      ctx.beginPath();
+      ctx.arc(-bodyL * 0.15, 0, bodyL * 0.72, Math.PI * 0.55, Math.PI * 1.45);
+      ctx.stroke();
+      ctx.fillStyle = "rgba(200, 170, 90, " + (shieldFrac * 0.22) + ")";
+      ctx.beginPath();
+      ctx.arc(-bodyL * 0.15, 0, bodyL * 0.58, Math.PI * 0.62, Math.PI * 1.38);
+      ctx.lineTo(-bodyL * 0.15 + Math.cos(Math.PI * 1.38) * bodyL * 0.42, Math.sin(Math.PI * 1.38) * bodyL * 0.42);
+      ctx.lineTo(-bodyL * 0.15 + Math.cos(Math.PI * 0.62) * bodyL * 0.42, Math.sin(Math.PI * 0.62) * bodyL * 0.42);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    }
 
     // 1. AURA DE SEBO: halo cálido amarillo-grasoso translúcido (su
     // ambiente — vive bañado en sebo del folículo).

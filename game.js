@@ -4421,6 +4421,7 @@
   // Dev hook: permite inspeccionar y mutar state desde DevTools en producción.
   // Es inofensivo — el código del juego ya es público (GitHub Pages + Vercel).
   var devAutoUlt = false;
+  var devShowcaseHold = false;
   window.__game = {
     get state() { return state; },
     // Rects de layout (dock, HUD, botones) — para depurar responsive.
@@ -4523,6 +4524,8 @@
     },
     // Enciende/apaga el disparo automático de ultimates dentro de step().
     autoUlt: function (on) { devAutoUlt = (on !== false); return devAutoUlt; },
+    // Congela la simulación (render sigue) — capturas de playtest.
+    hold: function (on) { devShowcaseHold = (on !== false); return devShowcaseHold; },
     quality: function () {
       return {
         low: !!QUALITY.low,
@@ -31404,7 +31407,7 @@
     // fuera de loop() y nunca se re-agendaba el frame → el juego quedaba
     // congelado hasta recargar. Ahora se saltea ese frame y sigue vivo.
     try {
-    var paused = state.confirmRestart || state.showTitle || state.showIntro || state.cinematicEnd || state.compendiumOpen || !!state.phaseTransition || !!state.bodyMap || state.tutorialOpen || state.achievementsOpen;
+    var paused = devShowcaseHold || state.confirmRestart || state.showTitle || state.showIntro || state.cinematicEnd || state.compendiumOpen || !!state.phaseTransition || !!state.bodyMap || state.tutorialOpen || state.achievementsOpen;
     // Nivel puente: pausamos la lógica al caer el primer carril (cinemática
     // de derrota o de victoria-con-quiebre). Al terminar la cinemática se
     // muestra el mapa con el siguiente nodo desbloqueado.

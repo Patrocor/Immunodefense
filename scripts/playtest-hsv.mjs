@@ -105,10 +105,9 @@ await page.waitForFunction(() => window.__game?.state);
 const info = await page.evaluate(setupShowcase);
 console.log("Showcase HSV:", info);
 await sleep(1000);
-await page.screenshot({ path: join(ART, "hsv_showcase.png") });
+await page.screenshot({ path: join(ART, "hsv_v2_vesicle_field.png") });
 if (info.ok) {
-  await page.screenshot({ path: join(ART, "hsv_closeup.png"), clip: info.clip });
-  await page.screenshot({ path: join(ART, "hsv_hexaxon_closeup.png"), clip: info.clip });
+  await page.screenshot({ path: join(ART, "hsv_v2_vesicle_closeup.png"), clip: info.clip });
 }
 
 await page.evaluate(() => window.__game.hold(false));

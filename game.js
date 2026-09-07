@@ -9137,7 +9137,7 @@
         fireTower(t, target);
         t.cooldown = (1 / stats.fireRate) * (t.slowFireTimer > 0 ? 2 : 1);
         t.muzzleFlash = 0.08;
-        t.attackAnim = 0.20;
+        t.attackAnim = (t.def.id === "neutrofilo") ? 0.34 : 0.20;
         if (t.def.id === "neutrofilo") sfx("macroAttack");
         else if (t.def.id === "linfocitoB") sfx("linfBAttack");
         else sfx("linfTAttack");
@@ -16937,7 +16937,8 @@
     var phase = t.idlePhase || 0;
     var faceAng = Math.PI * 0.55;
     if (t.lastTargetX != null) faceAng = Math.atan2(t.lastTargetY - y, t.lastTargetX - x);
-    var polarExt = attacking ? Math.min(1, (t.attackAnim || 0) / 0.2) : (chargeFrac * 0.35 + ((t.kcBuffT || 0) > 0 ? 0.12 : 0));
+    var BITE_DUR = 0.34;
+    var polarExt = attacking ? Math.min(1, (t.attackAnim || 0) / BITE_DUR) : (chargeFrac * 0.35 + ((t.kcBuffT || 0) > 0 ? 0.12 : 0));
     var rTop = R * 0.46;
     var faceDist = R * (0.34 + polarExt * 0.12);
     var cyTop = Math.sin(faceAng) * faceDist;
@@ -16949,14 +16950,20 @@
     var podLen = R * (0.24 + polarExt * 0.52);
     var podW = R * (0.18 + polarExt * 0.07);
     var baseX = capRx * 0.50;
-    // Copo fagocítico (mordida): separación de mandíbulas y alcance frontal.
-    var biteClose = attacking ? Math.min(1, (t.attackAnim || 0) / 0.14) : 0;
-    var cupLen = R * (0.32 + Math.max(polarExt, biteClose * 0.85) * 0.52);
-    var cupSpread = R * (0.14 + polarExt * 0.10) * (1 - biteClose * 0.88);
+    // Copo fagocítico (mordida grotesca): mandíbulas que se tragan el blanco.
+    var biteProg = attacking ? Math.min(1, (t.attackAnim || 0) / (BITE_DUR * 0.48)) : 0;
+    var biteClose = attacking ? Math.pow(biteProg, 0.42) : 0;
+    var chompWave = attacking ? 0.55 + 0.45 * Math.abs(Math.sin((BITE_DUR - (t.attackAnim || 0)) * 52)) : 0;
+    var cupLen = R * (0.50 + biteClose * 0.48 + chompWave * 0.06);
+    var cupSpread = Math.max(R * 0.025, R * (0.30 + polarExt * 0.08) * (1 - biteClose * 0.97));
+    var jawSlam = biteClose * R * 0.11;
 
     ctx.save();
     ctx.rotate(faceAng);
-    if (attacking) ctx.translate(biteClose * R * 0.11, 0);
+    if (attacking) {
+      ctx.scale(1 + biteClose * 0.16, 1 + biteClose * 0.24);
+      ctx.translate(biteClose * R * 0.20, 0);
+    }
 
     // Citoplasma: cápsula alargada (frente redondo + cola de uropodo).
     var bodyGrad = ctx.createRadialGradient(-R * 0.12, -R * 0.08, R * 0.08, R * 0.04, 0, capRx * 1.05);
@@ -16983,48 +16990,74 @@
       ctx.stroke();
     }
 
-    // Frente: copo fagocítico al morder, pseudópodo simple en carga/IL-8.
+    // Frente: copo fagocítico al morder (cierre exagerado), pseudópodo en carga.
     if (attacking) {
-      var jawBase = baseX + capRx * 0.22;
+      var jawBase = baseX + capRx * 0.18;
       var cupTip = jawBase + cupLen;
-      var cupFill = "rgba(245, 228, 218, " + (0.72 + biteClose * 0.22) + ")";
+      var cupFill = "rgba(245, 228, 218, " + (0.78 + biteClose * 0.2) + ")";
       ctx.fillStyle = cupFill;
-      ctx.strokeStyle = "rgba(92, 50, 36, 0.45)";
-      ctx.lineWidth = Math.max(1.1, 1.4 * U);
-      // Mandíbula superior (lóbulo de membrana).
+      ctx.strokeStyle = "rgba(60, 28, 18, 0.55)";
+      ctx.lineWidth = Math.max(1.3, 1.7 * U);
+      // Mandíbula superior — se estrella hacia abajo al cerrar.
       ctx.beginPath();
-      ctx.moveTo(jawBase, -cupSpread * 0.35);
-      ctx.quadraticCurveTo(jawBase + cupLen * 0.38, -cupSpread - R * 0.10, cupTip, -cupSpread * 0.25);
-      ctx.quadraticCurveTo(jawBase + cupLen * 0.58, -cupSpread * 0.55, jawBase + capRx * 0.08, -cupSpread * 0.18);
+      ctx.moveTo(jawBase, -cupSpread - jawSlam);
+      ctx.quadraticCurveTo(jawBase + cupLen * 0.32, -cupSpread - R * 0.22 - jawSlam, cupTip, jawSlam * 0.65);
+      ctx.quadraticCurveTo(jawBase + cupLen * 0.62, -cupSpread * 0.35 + jawSlam * 0.4, jawBase + capRx * 0.06, -cupSpread * 0.12 - jawSlam * 0.5);
       ctx.closePath();
       ctx.fill();
       ctx.stroke();
-      // Mandíbula inferior.
+      // Mandíbula inferior — sube y se mete debajo de la superior.
       ctx.beginPath();
-      ctx.moveTo(jawBase, cupSpread * 0.35);
-      ctx.quadraticCurveTo(jawBase + cupLen * 0.38, cupSpread + R * 0.10, cupTip, cupSpread * 0.25);
-      ctx.quadraticCurveTo(jawBase + cupLen * 0.58, cupSpread * 0.55, jawBase + capRx * 0.08, cupSpread * 0.18);
+      ctx.moveTo(jawBase, cupSpread + jawSlam);
+      ctx.quadraticCurveTo(jawBase + cupLen * 0.32, cupSpread + R * 0.22 + jawSlam, cupTip, -jawSlam * 0.65);
+      ctx.quadraticCurveTo(jawBase + cupLen * 0.62, cupSpread * 0.35 - jawSlam * 0.4, jawBase + capRx * 0.06, cupSpread * 0.12 + jawSlam * 0.5);
       ctx.closePath();
       ctx.fill();
       ctx.stroke();
-      // Cavidad del copo (interior oscuro al cerrar sobre el germen).
-      if (biteClose > 0.18) {
-        ctx.fillStyle = "rgba(34, 16, 48, " + (0.35 + biteClose * 0.45) + ")";
+      // Dientes en el borde del copo (triángulos grotescos).
+      if (biteClose > 0.25) {
+        ctx.fillStyle = "#fff8f0";
+        ctx.strokeStyle = "#2a1810";
+        ctx.lineWidth = Math.max(0.8, 1 * U);
+        for (var jt = 0; jt < 5; jt++) {
+          var jtx = jawBase + cupLen * (0.38 + jt * 0.13);
+          var th = R * (0.10 + biteClose * 0.08);
+          ctx.beginPath();
+          ctx.moveTo(jtx - th * 0.55, -cupSpread * 0.05 - jawSlam * 0.3);
+          ctx.lineTo(jtx, -cupSpread * 0.05 + th + jawSlam * 0.5);
+          ctx.lineTo(jtx + th * 0.55, -cupSpread * 0.05 - jawSlam * 0.3);
+          ctx.closePath(); ctx.fill(); ctx.stroke();
+          ctx.beginPath();
+          ctx.moveTo(jtx - th * 0.55, cupSpread * 0.05 + jawSlam * 0.3);
+          ctx.lineTo(jtx, cupSpread * 0.05 - th - jawSlam * 0.5);
+          ctx.lineTo(jtx + th * 0.55, cupSpread * 0.05 + jawSlam * 0.3);
+          ctx.closePath(); ctx.fill(); ctx.stroke();
+        }
+      }
+      // Fauces abisales al tragar.
+      if (biteClose > 0.12) {
+        ctx.fillStyle = "rgba(18, 6, 28, " + (0.45 + biteClose * 0.5) + ")";
         ctx.beginPath();
-        ctx.ellipse(cupTip - cupLen * 0.18, 0, cupLen * 0.22, cupSpread * 0.55 + R * 0.05, 0, 0, Math.PI * 2);
+        ctx.ellipse(cupTip - cupLen * 0.12, 0, cupLen * 0.26, Math.max(R * 0.04, cupSpread * 0.65 + jawSlam), 0, 0, Math.PI * 2);
         ctx.fill();
       }
-      // Degranulación en la mordida (defensinas al contacto).
-      if (biteClose > 0.45) {
-        ctx.fillStyle = "rgba(170, 130, 255, " + (0.25 + biteClose * 0.45) + ")";
+      // Degranulación explosiva + marcas CHOMP.
+      if (biteClose > 0.38) {
+        var splatA = (biteClose - 0.38) * 1.6;
+        ctx.fillStyle = "rgba(170, 130, 255, " + (0.35 + splatA * 0.55) + ")";
         ctx.beginPath();
-        ctx.arc(cupTip, 0, R * (0.10 + biteClose * 0.06), 0, Math.PI * 2);
+        ctx.arc(cupTip, 0, R * (0.14 + biteClose * 0.12), 0, Math.PI * 2);
         ctx.fill();
-        ctx.strokeStyle = "rgba(110, 70, 190, 0.55)";
-        ctx.lineWidth = Math.max(0.9, 1.1 * U);
-        ctx.beginPath();
-        ctx.arc(cupTip, 0, R * (0.14 + biteClose * 0.08), 0, Math.PI * 2);
-        ctx.stroke();
+        ctx.strokeStyle = "rgba(255, 220, 120, " + (0.4 + splatA * 0.5) + ")";
+        ctx.lineWidth = Math.max(1.4, 1.8 * U);
+        ctx.lineCap = "round";
+        for (var cm = 0; cm < 5; cm++) {
+          var cma = (cm / 5) * Math.PI * 2 + time * 12;
+          ctx.beginPath();
+          ctx.moveTo(cupTip + Math.cos(cma) * R * 0.08, Math.sin(cma) * R * 0.08);
+          ctx.lineTo(cupTip + Math.cos(cma) * R * (0.22 + splatA * 0.18), Math.sin(cma) * R * (0.22 + splatA * 0.18));
+          ctx.stroke();
+        }
       }
     } else if (polarExt > 0.02) {
       ctx.fillStyle = "rgba(245, 228, 218, " + (0.65 + polarExt * 0.3) + ")";
@@ -17112,9 +17145,9 @@
     var shellPad = R * 0.07;
     var backX = -capRx * 0.78 - R * 0.17 - shellPad;
     var frontX = Math.max(R * 0.04 + capRx, faceDist + rTop * 0.48) + shellPad;
-    if (attacking) frontX = Math.max(frontX, baseX + capRx * 0.22 + cupLen + shellPad * 0.5);
+    if (attacking) frontX = Math.max(frontX, baseX + capRx * 0.18 + cupLen + shellPad * 0.65);
     else if (polarExt > 0.02) frontX = Math.max(frontX, baseX + podLen + shellPad * 0.6);
-    var topY = capRy + R * 0.15 + shellPad;
+    var topY = capRy + R * 0.15 + shellPad + (attacking ? biteClose * R * 0.08 : 0);
     ctx.beginPath();
     ctx.moveTo(backX, uroWobble);
     ctx.bezierCurveTo(
@@ -17127,9 +17160,10 @@
       frontX, topY * 0.38,
       frontX, 0
     );
-    if (polarExt > 0.02) {
+    if (attacking || polarExt > 0.02) {
+      var biteFrontH = attacking ? Math.max(R * 0.06, cupSpread + jawSlam + shellPad) : (podW * 0.55 + shellPad);
       ctx.bezierCurveTo(
-        frontX, -(podW * 0.55 + shellPad),
+        frontX, -biteFrontH,
         frontX * 0.72, -topY * 0.92,
         R * 0.04 + capRx * 0.35, -topY
       );
@@ -17238,9 +17272,77 @@
     else if (expression === "dying") drawHurtEyes(0, nfy, neR, ngap);
     else if (expression === "levelup") drawSparkleEyes(0, nfy, neR, ngap);
     else if (attacking) {
-      var chompM = Math.abs(Math.sin((t.attackAnim || 0) * 28));
-      drawFocusedEyes(0, nfy, neR, ngap, neR * 0.72, neR * 0.28);
-      drawAnimeMouth(0, nfy + rTop * 0.58, rTop * 0.88, rTop * (0.32 + 0.58 * chompM), "fanged");
+      var chompM = Math.abs(Math.sin((BITE_DUR - (t.attackAnim || 0)) * 52));
+      var biteSnap = Math.min(1, (t.attackAnim || 0) / (BITE_DUR * 0.45));
+      var eyeR = neR * (1.45 + biteSnap * 0.55);
+      var wildGap = ngap * (1.08 + biteSnap * 0.32);
+      // Ojos saltones hambrientos (grotesco-caricatura).
+      ctx.fillStyle = "#ffffff";
+      ctx.beginPath();
+      ctx.ellipse(-wildGap, nfy - eyeR * 0.08, eyeR * 1.08, eyeR * 1.18, -0.12, 0, Math.PI * 2);
+      ctx.ellipse( wildGap, nfy + eyeR * 0.06, eyeR * 1.12, eyeR * 1.22, 0.10, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "#1a1a22";
+      ctx.lineWidth = Math.max(1.2, 1.5 * U);
+      ctx.stroke();
+      ctx.fillStyle = "#1a1a22";
+      ctx.beginPath();
+      ctx.arc(-wildGap, nfy - eyeR * 0.12, eyeR * 0.22, 0, Math.PI * 2);
+      ctx.arc( wildGap, nfy + eyeR * 0.08, eyeR * 0.24, 0, Math.PI * 2);
+      ctx.fill();
+      // Cejas de depredador histérico.
+      ctx.strokeStyle = "#1a1a22";
+      ctx.lineWidth = Math.max(2, 2.5 * U);
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.moveTo(-wildGap - eyeR * 1.15, nfy - eyeR * 1.35);
+      ctx.lineTo(-wildGap + eyeR * 0.55, nfy - eyeR * 0.75);
+      ctx.moveTo( wildGap - eyeR * 0.55, nfy - eyeR * 0.65);
+      ctx.lineTo( wildGap + eyeR * 1.15, nfy - eyeR * 1.25);
+      ctx.stroke();
+      // Mega-boca que mastica (chomp visible).
+      var mw = rTop * (1.05 + chompM * 0.42);
+      var mh = rTop * (0.62 + chompM * 0.72);
+      var my = nfy + rTop * 0.62;
+      ctx.fillStyle = "#120818";
+      ctx.beginPath();
+      ctx.ellipse(0, my, mw, mh, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "#ff9bb0";
+      ctx.lineWidth = Math.max(1.8, 2.2 * U);
+      ctx.stroke();
+      ctx.fillStyle = "#ffffff";
+      var fTeeth = 7;
+      for (var fti = 0; fti < fTeeth; fti++) {
+        var fu = fti / (fTeeth - 1);
+        var ftx = -mw * 0.82 + fu * mw * 1.64;
+        var ftyTop = my - mh * 0.12;
+        var ftyBot = my + mh * (0.15 + chompM * 0.25);
+        ctx.beginPath();
+        ctx.moveTo(ftx - mw * 0.07, ftyTop);
+        ctx.lineTo(ftx, ftyTop + mh * (0.28 + (fti % 2) * 0.08));
+        ctx.lineTo(ftx + mw * 0.07, ftyTop);
+        ctx.closePath(); ctx.fill();
+        ctx.beginPath();
+        ctx.moveTo(ftx - mw * 0.06, ftyBot);
+        ctx.lineTo(ftx, ftyBot - mh * (0.22 + (fti % 2) * 0.06));
+        ctx.lineTo(ftx + mw * 0.06, ftyBot);
+        ctx.closePath(); ctx.fill();
+      }
+      // Lengua que cuelga y baba.
+      ctx.fillStyle = "#ff6a88";
+      ctx.beginPath();
+      ctx.ellipse(0, my + mh * 0.55, mw * 0.42, mh * (0.35 + chompM * 0.25), 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "rgba(200, 230, 255, 0.75)";
+      ctx.lineWidth = Math.max(1, 1.2 * U);
+      for (var dr = 0; dr < 3; dr++) {
+        var drx = (dr - 1) * mw * 0.22;
+        ctx.beginPath();
+        ctx.moveTo(drx, my + mh * 0.95);
+        ctx.quadraticCurveTo(drx + mw * 0.08, my + mh * 1.35, drx + mw * 0.18, my + mh * 1.55);
+        ctx.stroke();
+      }
     } else drawAnimeEyes(0, nfy, neR, ngap, 0, 0, neR * 0.50, neR * 0.40, "fierce");
     // Mouth offsets escalan con rTop (esfera-cabeza del snowman).
     if (doingUltimate) {

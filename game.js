@@ -22421,21 +22421,22 @@
     ctx.ellipse(biofilmCx, -biofilmRy * 0.78, biofilmRx * 0.62, bigR * 0.20, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    // Racimo en cadena de DIPLOCOCCOS (pares pegados) — silueta alargada
-    // irregular, NO circular. Signature S. epidermidis en piel/prótesis.
+    // Racimo en cadena de DIPLOCOCCOS — cada esfera con membrana CIRCULAR propia.
     function wrig(i, amp) {
       return Math.sin(t * 3.2 + i * 1.35 + e.wobble) * amp * 3.2 * U;
     }
     var cluster = [
-      { x: -bigR * 0.52, y:  bigR * 0.08 + wrig(0, 1.2), r: bigR * 0.58, pair: true },
-      { x: -bigR * 1.18, y: -bigR * 0.10 + wrig(1, 1.5), r: bigR * 0.54, pair: true },
-      { x: -bigR * 1.78, y:  bigR * 0.14 + wrig(2, 1.7), r: bigR * 0.50, pair: true },
-      { x: -bigR * 2.38, y: -bigR * 0.08 + wrig(3, 1.9), r: bigR * 0.44, pair: true },
-      { x: -bigR * 2.92, y:  bigR * 0.12 + wrig(4, 2.0), r: bigR * 0.36, pair: true },
-      { x: -bigR * 3.38, y: -bigR * 0.04 + wrig(5, 2.2), r: bigR * 0.28, pair: false },
-      { x: -bigR * 0.18, y: -bigR * 0.88 + wrig(6, 1.0), r: bigR * 0.30, pair: false }
+      { x: -bigR * 0.52, y:  bigR * 0.08 + wrig(0, 1.2), r: bigR * 0.58, pair: true,  ang: 0.08 },
+      { x: -bigR * 1.18, y: -bigR * 0.10 + wrig(1, 1.5), r: bigR * 0.54, pair: true,  ang: -0.12 },
+      { x: -bigR * 1.78, y:  bigR * 0.14 + wrig(2, 1.7), r: bigR * 0.50, pair: true,  ang: 0.10 },
+      { x: -bigR * 2.38, y: -bigR * 0.08 + wrig(3, 1.9), r: bigR * 0.44, pair: true,  ang: -0.08 },
+      { x: -bigR * 2.92, y:  bigR * 0.12 + wrig(4, 2.0), r: bigR * 0.36, pair: true,  ang: 0.06 },
+      { x: -bigR * 3.38, y: -bigR * 0.04 + wrig(5, 2.2), r: bigR * 0.28, pair: false, ang: 0 },
+      { x: -bigR * 0.18, y: -bigR * 0.88 + wrig(6, 1.0), r: bigR * 0.30, pair: false, ang: 0 }
     ];
-    function drawCoco(cx, cy, r, paired) {
+    var coccusSites = [];
+
+    function drawCoccusBody(cx, cy, r) {
       var grad = ctx.createRadialGradient(cx - r * 0.4, cy - r * 0.4, r * 0.2, cx, cy, r);
       grad.addColorStop(0,    "#D5DDE3");
       grad.addColorStop(0.55, "#90A4AE");
@@ -22444,23 +22445,44 @@
       ctx.beginPath();
       ctx.arc(cx, cy, r, 0, Math.PI * 2);
       ctx.fill();
-      ctx.strokeStyle = "#2e3f4b";
-      ctx.lineWidth = Math.max(1.4, 2.0 * U);
-      ctx.stroke();
       ctx.fillStyle = "rgba(255,255,255,0.42)";
       ctx.beginPath();
       ctx.arc(cx - r * 0.35, cy - r * 0.35, r * 0.30, 0, Math.PI * 2);
       ctx.fill();
-      // Plano de contacto diplocócico (dos cocos pegados).
+      coccusSites.push({ x: cx, y: cy, r: r });
+    }
+
+    function drawCoccusUnit(cx, cy, r, paired, ang) {
       if (paired) {
-        ctx.fillStyle = "rgba(70, 95, 110, 0.35)";
-        ctx.beginPath();
-        ctx.ellipse(cx + r * 0.42, cy, r * 0.22, r * 0.55, 0, 0, Math.PI * 2);
-        ctx.fill();
+        var sep = r * 0.52;
+        var nx = Math.cos(ang), ny = Math.sin(ang);
+        drawCoccusBody(cx + nx * sep, cy + ny * sep, r * 0.58);
+        drawCoccusBody(cx - nx * sep, cy - ny * sep, r * 0.58);
+      } else {
+        drawCoccusBody(cx, cy, r);
       }
     }
-    for (var i = 0; i < cluster.length; i++) drawCoco(cluster[i].x, cluster[i].y, cluster[i].r, !!cluster[i].pair);
-    drawCoco(0, 0, bigR, true);
+
+    function drawCoccusMembrane(cx, cy, r) {
+      var pad = 2 * U;
+      ctx.beginPath();
+      ctx.arc(cx, cy, r + pad, 0, Math.PI * 2);
+      ctx.strokeStyle = "#1a2830";
+      ctx.lineWidth = Math.max(2.4, 3 * U);
+      ctx.lineCap = "round";
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(cx, cy, r + pad, 0, Math.PI * 2);
+      ctx.strokeStyle = "rgba(210, 228, 238, 0.45)";
+      ctx.lineWidth = Math.max(1.0, 1.3 * U);
+      ctx.stroke();
+    }
+
+    for (var i = 0; i < cluster.length; i++) {
+      var cl = cluster[i];
+      drawCoccusUnit(cl.x, cl.y, cl.r, !!cl.pair, cl.ang || 0);
+    }
+    drawCoccusUnit(0, 0, bigR, true, 0);
 
     // Hilos pegajosos de biofilm entre cocos vecinos — matriz PNAG/PIA
     // cohesiva. Doble trazo (sombra ancha translúcida + núcleo claro)
@@ -22571,27 +22593,11 @@
       ctx.restore();
     }
 
-    // Envoltura peptidoglicano — contorno único del racimo (no círculo).
-    var envNodes = [{ x: 0, y: 0, r: bigR }].concat(cluster);
-    ctx.beginPath();
-    for (var ev = envNodes.length - 1; ev >= 0; ev--) {
-      var en = envNodes[ev];
-      var ex = en.x, ey = en.y - en.r - 2.2 * U;
-      ev === envNodes.length - 1 ? ctx.moveTo(ex, ey) : ctx.lineTo(ex, ey);
+    // Membrana peptidoglicano — un círculo por cada cocos (no contorno único).
+    for (var ms = 0; ms < coccusSites.length; ms++) {
+      var site = coccusSites[ms];
+      drawCoccusMembrane(site.x, site.y, site.r);
     }
-    for (var ev2 = 0; ev2 < envNodes.length; ev2++) {
-      var en2 = envNodes[ev2];
-      ctx.lineTo(en2.x, en2.y + en2.r + 2.2 * U);
-    }
-    ctx.closePath();
-    ctx.strokeStyle = "#1a2830";
-    ctx.lineWidth = Math.max(2.8, 3.4 * U);
-    ctx.lineJoin = "round";
-    ctx.lineCap = "round";
-    ctx.stroke();
-    ctx.strokeStyle = "rgba(210, 228, 238, 0.42)";
-    ctx.lineWidth = Math.max(1.1, 1.4 * U);
-    ctx.stroke();
 
     // === END BODY ROTATED ===
     ctx.restore();   // undo rotation antes de dibujar la cara

@@ -21681,36 +21681,6 @@
       ctx.restore();
     }
 
-    ctx.save();
-    ctx.rotate(e._heading || 0);
-
-    // 1. Charco de sebo en el suelo — mancha elíptica, no halo circular.
-    ctx.fillStyle = "rgba(210, 170, 50, 0.38)";
-    ctx.beginPath();
-    ctx.ellipse(-L * 0.12, fat * 1.22, L * 0.95, fat * 0.38, -0.18, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = "rgba(255, 230, 140, 0.28)";
-    ctx.beginPath();
-    ctx.ellipse(-L * 0.28, fat * 1.12, L * 0.48, fat * 0.16, -0.22, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = "rgba(150, 110, 30, 0.40)";
-    ctx.lineWidth = Math.max(1.0, 1.3 * U);
-    ctx.beginPath();
-    ctx.ellipse(-L * 0.12, fat * 1.22, L * 0.95, fat * 0.38, -0.18, 0, Math.PI * 2);
-    ctx.stroke();
-
-    // 2. Spaghetti cortos (hifas) + 2 albóndigas — firma de pitiriasis.
-    ctx.lineCap = "round";
-    ctx.strokeStyle = hit ? "#ffffff" : "#8a7320";
-    ctx.lineWidth = Math.max(1.8, 2.3 * U);
-    ctx.beginPath();
-    ctx.moveTo(-L * 0.15, fat * 0.55);
-    ctx.quadraticCurveTo(-L * 0.55, fat * 1.05, -L * 0.72, fat * 1.55);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(L * 0.12, fat * 0.50);
-    ctx.quadraticCurveTo(L * 0.38, fat * 1.15, L * 0.22, fat * 1.62);
-    ctx.stroke();
     function meatball(mx, my, mr) {
       var mg = ctx.createRadialGradient(mx - mr * 0.3, my - mr * 0.3, mr * 0.15, mx, my, mr);
       mg.addColorStop(0, hit ? "#ffffff" : "#f0e29a");
@@ -21724,10 +21694,40 @@
       ctx.lineWidth = Math.max(1.0, 1.3 * U);
       ctx.stroke();
     }
-    meatball(-L * 0.78, fat * 1.62, rad * 0.16);
-    meatball(L * 0.18, fat * 1.70, rad * 0.14);
 
-    // 3. Botella: panza gorda + cuello estrecho (un solo contorno).
+    // Charco + spaghetti en el suelo (no rotan: si no, el charco se lee anillo).
+    ctx.fillStyle = "rgba(210, 170, 50, 0.40)";
+    ctx.beginPath();
+    ctx.ellipse(0, fat * 1.35, L * 1.05, fat * 0.32, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "rgba(255, 230, 140, 0.30)";
+    ctx.beginPath();
+    ctx.ellipse(-L * 0.18, fat * 1.28, L * 0.42, fat * 0.12, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "rgba(150, 110, 30, 0.35)";
+    ctx.lineWidth = Math.max(1.0, 1.3 * U);
+    ctx.beginPath();
+    ctx.ellipse(0, fat * 1.35, L * 1.05, fat * 0.32, 0, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.lineCap = "round";
+    ctx.strokeStyle = hit ? "#ffffff" : "#8a7320";
+    ctx.lineWidth = Math.max(2.4, 3.0 * U);
+    ctx.beginPath();
+    ctx.moveTo(-L * 0.22, fat * 0.35);
+    ctx.bezierCurveTo(-L * 0.55, fat * 0.75, L * 0.05, fat * 1.05, -L * 0.48, fat * 1.38);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(L * 0.18, fat * 0.32);
+    ctx.bezierCurveTo(L * 0.52, fat * 0.85, -L * 0.05, fat * 1.15, L * 0.38, fat * 1.42);
+    ctx.stroke();
+    meatball(-L * 0.52, fat * 1.42, rad * 0.15);
+    meatball(L * 0.40, fat * 1.46, rad * 0.13);
+
+    ctx.save();
+    ctx.rotate(e._heading || 0);
+
+    // Botella: panza gorda + cuello estrecho (un solo contorno).
     function traceBottle() {
       var bx = -L * 0.18;
       ctx.beginPath();

@@ -27,25 +27,26 @@ await page.evaluate(() => {
   const g = window.__game;
   g.place("mastocito", 0.48, 0.50);
   g.place("neutrofilo", 0.62, 0.46);
-  const m = g.state.towers[0];
-  m.specialCharge = 0.65;
-  m.level = 1;
+  const m = g.state.towers.find((t) => t.def.id === "mastocito");
+  const n = g.state.towers.find((t) => t.def.id === "neutrofilo");
+  if (m) { m.specialCharge = 0.65; m.level = 1; }
+  if (n) n.histBuffT = 0.85;
 });
 await sleep(700);
 await page.screenshot({ path: join(ART, "mastocito_idle_aura.png") });
 await page.evaluate(() => {
   const g = window.__game;
-  const m = g.state.towers[0];
-  const n = g.state.towers[1];
-  n.histBuffT = 0.85;
-  m.attackAnim = 0.14;
-  m.ilc2MastoT = 4.5;
+  const m = g.state.towers.find((t) => t.def.id === "mastocito");
+  const n = g.state.towers.find((t) => t.def.id === "neutrofilo");
+  if (n) n.histBuffT = 0.85;
+  if (m) { m.attackAnim = 0.14; m.ilc2MastoT = 4.5; }
 });
 await sleep(400);
 await page.screenshot({ path: join(ART, "mastocito_degranulate.png") });
 await page.evaluate(() => {
   const g = window.__game;
-  const m = g.state.towers[0];
+  const m = g.state.towers.find((t) => t.def.id === "mastocito");
+  if (!m) return;
   m.specialReady = true;
   m.specialCharge = 1;
   m.specialAnim = 0.55;

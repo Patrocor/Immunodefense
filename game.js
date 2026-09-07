@@ -19848,9 +19848,8 @@
   }
 
   function drawMastocito(t, pulse, expression, blink) {
-    // Mastocito — CORONA PERIFÉRICA de gránulos basófilos (histología real:
-    // gránulos en anillo periférico + núcleo central). Silueta tipo "corona/
-    // frambuesa" — distinta del mosaico hex (KC) y cápsula polarizada (Neutrófilo).
+    // Mastocito — gránulos en arco ASIMÉTRICO (herradura abierta arriba-izq).
+    // Silueta ameboide, NO circular: distinta del hex KC y cápsula Neutrófilo.
     var kcR = 18 * U * pulse;
     var R = kcR;
     var time = state.time;
@@ -19862,45 +19861,66 @@
     var auraR = maStats.range * U;
     var bodySwell = 1 + chargeFrac * 0.08 + (ultActive ? Math.sin((1 - t.specialAnim / 1.0) * Math.PI) * 0.12 : 0);
     var degranPulse = attacking ? (1 - t.attackAnim / 0.2) : 0;
-    var nLob = 12;
+    var bodyTilt = -0.32;
+    // Gránulos en C (sin anillo 360°): ángulo, distancia, radio — layout fijo asimétrico.
+    var MA_LAYOUT = [
+      { a: 2.40, d: 0.72, r: 0.21 }, { a: 2.02, d: 0.86, r: 0.23 }, { a: 1.58, d: 0.90, r: 0.22 },
+      { a: 1.08, d: 0.86, r: 0.20 }, { a: 0.52, d: 0.78, r: 0.21 }, { a: -0.02, d: 0.72, r: 0.19 },
+      { a: -0.58, d: 0.76, r: 0.20 }, { a: -1.12, d: 0.82, r: 0.22 }, { a: -1.62, d: 0.74, r: 0.19 },
+      { a: -2.08, d: 0.62, r: 0.17 }, { a: 2.78, d: 0.40, r: 0.14 }, { a: -2.62, d: 0.36, r: 0.13 }
+    ];
+    var nLob = MA_LAYOUT.length;
+    var hubCx = R * -0.08, hubCy = R * 0.12;
 
-    // Posiciones de los gránulos-lobulillos periféricos (deterministas).
     function maLobules(scale) {
       scale = scale || 1;
       var list = [];
       for (var li = 0; li < nLob; li++) {
-        var la = (li / nLob) * Math.PI * 2 - Math.PI / 2 + phase * 0.015;
-        var wob = Math.sin(time * 1.8 + li * 0.9) * R * 0.025;
-        var dist = R * (0.62 + chargeFrac * 0.05 + degranPulse * 0.10) * bodySwell * scale + wob;
-        var lr = R * (0.19 + (li % 3) * 0.018 + chargeFrac * 0.025) * scale;
-        list.push({ a: la, x: Math.cos(la) * dist, y: Math.sin(la) * dist, r: lr, i: li });
+        var lay = MA_LAYOUT[li];
+        var wob = Math.sin(time * 1.8 + li * 0.9) * R * 0.018;
+        var dist = R * (lay.d + chargeFrac * 0.04 + degranPulse * 0.09) * bodySwell * scale + wob;
+        var lr = R * (lay.r + chargeFrac * 0.02) * scale;
+        list.push({ a: lay.a, x: Math.cos(lay.a) * dist, y: Math.sin(lay.a) * dist, r: lr, i: li });
       }
       return list;
     }
 
-    // Membrana que sigue la corona (valles entre lobulillos + picos en cada gránulo).
-    function maCrownMembrane(lobs, pad) {
+    // Membrana cerrada por arco de gránulos + curva cóncava en la abertura (no círculo).
+    function maBlobMembrane(lobs, pad) {
       pad = pad || 0;
       ctx.beginPath();
-      for (var mi = 0; mi <= nLob; mi++) {
-        var cur = lobs[mi % nLob];
-        var nxt = lobs[(mi + 1) % nLob];
-        var peakX = cur.x + Math.cos(cur.a) * (cur.r + pad);
-        var peakY = cur.y + Math.sin(cur.a) * (cur.r + pad);
-        var midA = (cur.a + nxt.a) * 0.5 + (nxt.a < cur.a ? Math.PI : 0);
-        var valleyR = R * 0.38 * bodySwell + pad * 0.4;
-        var valX = Math.cos(midA) * valleyR;
-        var valY = Math.sin(midA) * valleyR;
-        if (mi === 0) ctx.moveTo(peakX, peakY);
-        ctx.quadraticCurveTo(valX, valY, nxt.x + Math.cos(nxt.a) * (nxt.r + pad), nxt.y + Math.sin(nxt.a) * (nxt.r + pad));
+      for (var mi = 0; mi < lobs.length; mi++) {
+        var cur = lobs[mi];
+        var px = cur.x + Math.cos(cur.a) * (cur.r + pad);
+        var py = cur.y + Math.sin(cur.a) * (cur.r + pad);
+        if (mi === 0) ctx.moveTo(px, py);
+        else {
+          var prv = lobs[mi - 1];
+          var cx = (prv.x + cur.x) * 0.5 + hubCx * 0.35;
+          var cy = (prv.y + cur.y) * 0.5 + hubCy * 0.35;
+          ctx.quadraticCurveTo(cx, cy, px, py);
+        }
       }
+      var fst = lobs[0], lst = lobs[lobs.length - 1];
+      var openX = R * -0.22 + hubCx * 0.5, openY = R * -0.58;
+      ctx.quadraticCurveTo(openX, openY,
+        lst.x + Math.cos(lst.a) * (lst.r + pad), lst.y + Math.sin(lst.a) * (lst.r + pad));
       ctx.closePath();
+    }
+
+    function maBodyEllipse(rx, ry, stroke, lw, alpha) {
+      ctx.save();
+      ctx.rotate(bodyTilt);
+      if (alpha != null) ctx.globalAlpha = alpha;
+      ctx.beginPath(); ctx.ellipse(hubCx, hubCy, rx, ry, 0, 0, Math.PI * 2);
+      if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = lw; ctx.stroke(); }
+      ctx.restore();
     }
 
     ctx.save();
     ctx.translate(t.x, t.y);
 
-    // Aura de histamina — anillo punteado.
+    // Aura de juego (circular = rango mecánico; el CUERPO de la célula no lo es).
     var auraPulse = 0.30 + 0.22 * Math.sin(time * 2.4 + phase);
     ctx.save();
     ctx.strokeStyle = "rgba(140, 200, 255, " + auraPulse + ")";
@@ -19921,11 +19941,12 @@
 
     if ((t.ilc2MastoT || 0) > 0) {
       var il2a = Math.min(1, (t.ilc2MastoT || 0) / 6) * (0.42 + 0.35 * Math.sin(time * 8));
+      ctx.save(); ctx.rotate(bodyTilt);
       ctx.strokeStyle = "rgba(63, 193, 201, " + il2a + ")";
       ctx.lineWidth = Math.max(1.4, 1.8 * U);
       ctx.setLineDash([4 * U, 5 * U]);
-      ctx.beginPath(); ctx.arc(0, 0, R * 1.22, 0, Math.PI * 2); ctx.stroke();
-      ctx.setLineDash([]);
+      ctx.beginPath(); ctx.ellipse(hubCx, hubCy, R * 1.05, R * 0.82, 0, 0, Math.PI * 2); ctx.stroke();
+      ctx.setLineDash([]); ctx.restore();
     }
 
     if (attacking) {
@@ -19938,28 +19959,26 @@
         ctx.strokeStyle = "rgba(255, 170, 120, " + ha + ")";
         ctx.lineWidth = Math.max(1, 1.3 * U);
         ctx.setLineDash([3 * U, 4 * U]);
-        ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(hdx, hdy); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(hubCx, hubCy); ctx.lineTo(hdx, hdy); ctx.stroke();
         ctx.setLineDash([]);
       }
     }
 
     if (attacking) {
-      var pp = degranPulse;
-      ctx.strokeStyle = colorAlpha(t.def.color, 0.55 * (1 - pp));
-      ctx.lineWidth = Math.max(1.5, 2 * U);
-      ctx.beginPath(); ctx.arc(0, 0, R * (1.0 + pp * 0.85), 0, Math.PI * 2); ctx.stroke();
+      maBodyEllipse(R * (0.92 + degranPulse * 0.55), R * (0.72 + degranPulse * 0.38),
+        colorAlpha(t.def.color, 0.55 * (1 - degranPulse)), Math.max(1.5, 2 * U));
     }
 
     if (ultActive) {
       var dgFrac = 1 - t.specialAnim / 1.0;
       var dgSwell = dgFrac < 0.22 ? (dgFrac / 0.22) : (1 - (dgFrac - 0.22) / 0.78);
-      ctx.save();
-      ctx.scale(1 + dgSwell * 0.26, 1 + dgSwell * 0.26);
+      ctx.save(); ctx.rotate(bodyTilt);
+      ctx.scale(1 + dgSwell * 0.22, 1 + dgSwell * 0.18);
       for (var dgW = 0; dgW < 3; dgW++) {
         ctx.strokeStyle = colorAlpha(t.def.color, 0.75 * (1 - dgFrac) * (1 - dgW * 0.22));
         ctx.lineWidth = Math.max(2.5, (4 - dgW) * U);
         ctx.beginPath();
-        ctx.arc(0, 0, R * (1.1 + dgFrac * 6.5 - dgW * 0.65), 0, Math.PI * 2);
+        ctx.ellipse(hubCx, hubCy, R * (0.95 + dgFrac * 5.8 - dgW * 0.55), R * (0.75 + dgFrac * 4.2 - dgW * 0.4), 0, 0, Math.PI * 2);
         ctx.stroke();
       }
       ctx.restore();
@@ -19967,45 +19986,47 @@
 
     var lobs = maLobules(1);
 
-    // Citoplasma central (hub entre la corona de gránulos).
-    var hubR = R * 0.36 * bodySwell;
-    var hubGrad = ctx.createRadialGradient(-hubR * 0.2, -hubR * 0.25, hubR * 0.1, 0, 0, hubR);
+    // Hub citoplasmático elíptico (no disco circular).
+    var hubRx = R * 0.36 * bodySwell, hubRy = R * 0.26 * bodySwell;
+    ctx.save(); ctx.rotate(bodyTilt);
+    var hubGrad = ctx.createRadialGradient(hubCx - hubRx * 0.2, hubCy - hubRy * 0.25, hubRx * 0.08, hubCx, hubCy, hubRx);
     hubGrad.addColorStop(0, "#f4f9ff");
     hubGrad.addColorStop(0.55, "rgba(180, 210, 245, 0.92)");
     hubGrad.addColorStop(1, "rgba(100, 150, 210, 0.85)");
     ctx.fillStyle = hubGrad;
-    ctx.beginPath(); ctx.arc(0, 0, hubR, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(hubCx, hubCy, hubRx, hubRy, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
 
-    // Puentes citoplasmáticos hacia cada lobulillo (estructura en corona).
+    // Puentes citoplasmáticos hacia cada gránulo del arco.
     ctx.fillStyle = "rgba(160, 195, 235, 0.55)";
     for (var br = 0; br < nLob; br++) {
       var lb = lobs[br];
-      var bx0 = Math.cos(lb.a) * hubR * 0.55, by0 = Math.sin(lb.a) * hubR * 0.55;
-      var bx1 = lb.x - Math.cos(lb.a) * lb.r * 0.35;
-      var by1 = lb.y - Math.sin(lb.a) * lb.r * 0.35;
-      var bw = lb.r * 0.32;
-      var perpA = lb.a + Math.PI / 2;
+      var toHubA = Math.atan2(lb.y - hubCy, lb.x - hubCx);
+      var bx0 = hubCx + Math.cos(toHubA) * hubRx * 0.55, by0 = hubCy + Math.sin(toHubA) * hubRy * 0.55;
+      var bx1 = lb.x - Math.cos(lb.a) * lb.r * 0.32, by1 = lb.y - Math.sin(lb.a) * lb.r * 0.32;
+      var bw = lb.r * 0.30, perpA = toHubA + Math.PI / 2;
       ctx.beginPath();
       ctx.moveTo(bx0 + Math.cos(perpA) * bw, by0 + Math.sin(perpA) * bw);
-      ctx.lineTo(bx1 + Math.cos(perpA) * bw * 0.6, by1 + Math.sin(perpA) * bw * 0.6);
-      ctx.lineTo(bx1 - Math.cos(perpA) * bw * 0.6, by1 - Math.sin(perpA) * bw * 0.6);
+      ctx.lineTo(bx1 + Math.cos(perpA) * bw * 0.55, by1 + Math.sin(perpA) * bw * 0.55);
+      ctx.lineTo(bx1 - Math.cos(perpA) * bw * 0.55, by1 - Math.sin(perpA) * bw * 0.55);
       ctx.lineTo(bx0 - Math.cos(perpA) * bw, by0 - Math.sin(perpA) * bw);
-      ctx.closePath();
-      ctx.fill();
+      ctx.closePath(); ctx.fill();
     }
 
-    // Núcleo redondo central (signature mastocito — dentro del hub).
-    var nucR = R * 0.17;
-    var nucGrad = ctx.createRadialGradient(-nucR * 0.3, -nucR * 0.3, 0, 0, R * 0.04, nucR);
+    // Núcleo dentro del hub (pequeño, no define la silueta).
+    var nucR = R * 0.15;
+    var nucX = hubCx + R * 0.02, nucY = hubCy + R * 0.04;
+    ctx.save(); ctx.rotate(bodyTilt);
+    var nucGrad = ctx.createRadialGradient(nucX - nucR * 0.3, nucY - nucR * 0.3, 0, nucX, nucY, nucR);
     nucGrad.addColorStop(0, "rgba(150, 90, 180, 0.96)");
     nucGrad.addColorStop(1, "rgba(58, 24, 100, 0.96)");
     ctx.fillStyle = nucGrad;
-    ctx.beginPath(); ctx.arc(0, R * 0.04, nucR, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(nucX, nucY, nucR, 0, Math.PI * 2); ctx.fill();
     ctx.strokeStyle = "rgba(38, 14, 68, 0.72)";
-    ctx.lineWidth = Math.max(0.9, 1 * U);
-    ctx.stroke();
+    ctx.lineWidth = Math.max(0.9, 1 * U); ctx.stroke();
+    ctx.restore();
 
-    // Gránulos basófilos periféricos — la CORONA (signature visual única).
+    // Gránulos basófilos en arco herradura (signature).
     for (var lg = 0; lg < nLob; lg++) {
       var lob = lobs[lg];
       var gPulse = 0.5 + 0.5 * Math.sin(time * 2.4 + lob.i * 0.85);
@@ -20023,75 +20044,66 @@
       ctx.fillStyle = gGrad;
       ctx.beginPath(); ctx.arc(lob.x, lob.y, lob.r, 0, Math.PI * 2); ctx.fill();
       ctx.strokeStyle = isTrypt ? "rgba(35, 12, 72, 0.82)" : "rgba(42, 18, 78, 0.78)";
-      ctx.lineWidth = Math.max(0.9, 1.1 * U);
-      ctx.stroke();
-      // Meta-gránulo interno (textura metacromática).
+      ctx.lineWidth = Math.max(0.9, 1.1 * U); ctx.stroke();
       ctx.fillStyle = "rgba(220, 190, 255, " + (0.35 + chargeFrac * 0.25) + ")";
       ctx.beginPath(); ctx.arc(lob.x - lob.r * 0.18, lob.y - lob.r * 0.15, lob.r * 0.28, 0, Math.PI * 2); ctx.fill();
     }
 
-    // Gránulos eyectados desde cada lobulillo al desgranular.
     if (attacking || ultActive) {
       var ejProg = attacking ? degranPulse : (1 - t.specialAnim / 1.0);
       for (var ej = 0; ej < nLob; ej++) {
         var el = lobs[ej];
-        var ejDist = el.r * (1.2 + ejProg * (ultActive ? 3.8 : 1.6));
-        var ex = el.x + Math.cos(el.a) * ejDist;
-        var ey = el.y + Math.sin(el.a) * ejDist;
-        var esz = el.r * (0.42 + (ej % 3) * 0.06) * (1 - ejProg * 0.3);
+        var ejDist = el.r * (1.2 + ejProg * (ultActive ? 3.6 : 1.5));
+        var ex = el.x + Math.cos(el.a) * ejDist, ey = el.y + Math.sin(el.a) * ejDist;
+        var esz = el.r * (0.40 + (ej % 3) * 0.06) * (1 - ejProg * 0.3);
         ctx.fillStyle = "rgba(" + Math.round(165 + ejProg * 55) + ", 115, 235, " + (0.8 * (1 - ejProg * 0.5)) + ")";
         ctx.beginPath(); ctx.arc(ex, ey, esz, 0, Math.PI * 2); ctx.fill();
       }
     }
 
-    // Receptores IgE (FcεRI) en los valles entre lobulillos.
-    for (var ig = 0; ig < nLob; ig++) {
-      var igL = lobs[ig], igN = lobs[(ig + 1) % nLob];
-      var igA = (igL.a + igN.a) * 0.5 + (igN.a < igL.a ? Math.PI : 0);
-      var igDist = R * 0.44 * bodySwell + (2 + chargeFrac * 5.5) * U;
-      var igX = Math.cos(igA) * igDist;
-      var igY = Math.sin(igA) * igDist;
+    // IgE en valles del arco (no en la abertura).
+    for (var ig = 0; ig < nLob - 1; ig++) {
+      var igL = lobs[ig], igN = lobs[ig + 1];
+      var igX = (igL.x + igN.x) * 0.5 + hubCx * 0.12;
+      var igY = (igL.y + igN.y) * 0.5 + hubCy * 0.12;
+      var igA = Math.atan2(igY - hubCy, igX - hubCx);
       if (chargeFrac > 0.12) {
         ctx.fillStyle = "rgba(224, 200, 240, " + (chargeFrac * 0.48) + ")";
-        ctx.beginPath();
-        ctx.arc(igX, igY, 3.2 * U * (1 + chargeFrac * 0.5), 0, Math.PI * 2);
-        ctx.fill();
+        ctx.beginPath(); ctx.arc(igX, igY, 3 * U * (1 + chargeFrac * 0.5), 0, Math.PI * 2); ctx.fill();
       }
-      drawYShape(igX, igY, 2.8 * U * (1 + chargeFrac * 0.28), igA + Math.PI / 2, "#e8d0f8", t.def.colorDark);
+      drawYShape(igX, igY, 2.6 * U * (1 + chargeFrac * 0.28), igA + Math.PI / 2, "#e8d0f8", t.def.colorDark);
     }
 
-    // Membrana plasmática — sigue la corona de gránulos (doble trazo).
-    maCrownMembrane(lobs, 2.5 * U);
+    // Membrana ameboide — sigue el arco + cierre en la abertura.
+    maBlobMembrane(lobs, 2.5 * U);
     ctx.strokeStyle = t.def.colorDark;
     ctx.lineWidth = Math.max(2.6, 3.2 * U);
-    ctx.lineJoin = "round";
-    ctx.lineCap = "round";
-    ctx.stroke();
+    ctx.lineJoin = "round"; ctx.lineCap = "round"; ctx.stroke();
     ctx.strokeStyle = "rgba(210, 235, 255, 0.45)";
-    ctx.lineWidth = Math.max(1.1, 1.4 * U);
-    ctx.stroke();
+    ctx.lineWidth = Math.max(1.1, 1.4 * U); ctx.stroke();
 
     if (!ultActive && chargeFrac > 0.18) {
       var prePulse = 0.55 + 0.45 * Math.sin(time * 4.5);
-      ctx.save();
+      ctx.save(); ctx.rotate(bodyTilt);
       ctx.globalAlpha = chargeFrac * 0.42 * prePulse;
       ctx.strokeStyle = "#ffd24a";
       ctx.lineWidth = Math.max(1.5, 2 * U);
       ctx.setLineDash([4 * U, 5 * U]);
-      ctx.beginPath(); ctx.arc(0, 0, R * (1.08 + chargeFrac * 0.06), 0, Math.PI * 2); ctx.stroke();
-      ctx.setLineDash([]);
-      ctx.restore();
+      ctx.beginPath(); ctx.ellipse(hubCx, hubCy, R * 0.98, R * 0.76, 0, 0, Math.PI * 2); ctx.stroke();
+      ctx.setLineDash([]); ctx.restore();
     }
 
-    // Cara sobre el hub central (entre los gránulos superiores).
-    var faceY = -R * 0.48;
-    var eyeR = R * 0.11;
-    if (blink) drawClosedEyes(0, faceY, eyeR, R * 0.16);
-    else if (expression === "dying") drawHurtEyes(0, faceY, eyeR, R * 0.16);
-    else if (expression === "levelup") drawSparkleEyes(0, faceY, eyeR, R * 0.16);
-    else if (ultActive) drawAnimeEyes(0, faceY, eyeR * 1.12, R * 0.18, 0, 0, eyeR * 0.55, eyeR * 0.42, "fierce");
-    else drawAnimeEyes(0, faceY, eyeR, R * 0.16, 0, 0, eyeR * 0.48, eyeR * 0.38, attacking ? "fierce" : "happy");
-    drawAnimeMouth(0, faceY + R * 0.16, R * 0.28, R * 0.13, (attacking || ultActive) ? "open" : "smile");
+    // Cara en la abertura de la herradura (lado delgado, no centro circular).
+    var faceX = R * -0.14, faceY = R * -0.54;
+    var eyeR = R * 0.10;
+    ctx.save(); ctx.translate(faceX, faceY);
+    if (blink) drawClosedEyes(0, 0, eyeR, R * 0.15);
+    else if (expression === "dying") drawHurtEyes(0, 0, eyeR, R * 0.15);
+    else if (expression === "levelup") drawSparkleEyes(0, 0, eyeR, R * 0.15);
+    else if (ultActive) drawAnimeEyes(0, 0, eyeR * 1.12, R * 0.17, 0, 0, eyeR * 0.55, eyeR * 0.42, "fierce");
+    else drawAnimeEyes(0, 0, eyeR, R * 0.15, 0, 0, eyeR * 0.48, eyeR * 0.38, attacking ? "fierce" : "happy");
+    drawAnimeMouth(0, R * 0.14, R * 0.26, R * 0.12, (attacking || ultActive) ? "open" : "smile");
+    ctx.restore();
     ctx.restore();
   }
 

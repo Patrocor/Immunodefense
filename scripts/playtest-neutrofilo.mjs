@@ -40,12 +40,21 @@ await sleep(400);
 await page.screenshot({ path: join(ART, "neutrofilo_combat.png") });
 await page.evaluate(() => {
   const n = window.__game.state.towers[0];
-  n.attackAnim = 0.30;
-  n.muzzleFlash = 0.06;
-  n.lastTargetX = n.x + 120;
-  n.lastTargetY = n.y - 40;
+  n.specialReady = true;
+  n.specialCharge = 1;
+  const tx = n.x + 95;
+  const ty = n.y - 35;
+  n.biteUlt = { targets: [{ x: tx, y: ty, enemy: null }], idx: 0, nextAt: 0.04 };
+  n.specialAnim = 0.55;
+  n.lastTargetX = tx;
+  n.lastTargetY = ty;
 });
 await sleep(200);
-await page.screenshot({ path: join(ART, "neutrofilo_bite.png") });
+await page.screenshot({ path: join(ART, "neutrofilo_nam_ultimate.png") });
+await page.evaluate(() => {
+  window.__game.step(12, 0.05);
+});
+await sleep(400);
+await page.screenshot({ path: join(ART, "neutrofilo_nam_chomp.png") });
 await browser.close();
 console.log("OK: neutrofilo screenshots");

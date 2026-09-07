@@ -7,12 +7,11 @@ var TOWER_DEFS = {
     color: "#B79CE0",
     colorDark: "#7E5FB0",
     cost: 55,
-    desc: "Fagocitosis, NETs y degranulación — primera línea de defensa. Ultimate: Bombardeo de Defensinas que aniquila invasores cercanos.",
-    // Ultimate: BOMBARDEO DE DEFENSINAS — 7 gránulos caen escalonados
-    // sobre un tramo ancho del camino (dmg 2.2x c/u), cerrando con un
-    // shockwave propio (dmg 6x). Ver triggerTowerSpecial/updateTowers.
+    desc: "Fagocitosis, NETs y degranulación — primera línea de defensa. Ultimate: ÑAM — mordida fagocítica grotesca que devora gérmenes en rango.",
+    // Ultimate: ÑAM — hasta 5 mordidas fagocíticas en cadena sobre gérmenes
+    // en rango (dmg ×3.2 c/u). Ver triggerTowerSpecial/updateTowers.
     specialChargeSec: 24 * 1.15,  // +15%: poderes tardan un poco más en cargar
-    specialName: "Bombardeo de Defensinas",
+    specialName: "ÑAM",
     levels: [
       { range: 108, damage: 25, fireRate: 1.0, projectileSpeed:   0, splash:  0, hp: 120 },
       { range: 120, damage: 45, fireRate: 1.2, projectileSpeed:   0, splash:  0, hp: 160 },

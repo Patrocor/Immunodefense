@@ -7811,25 +7811,35 @@
     }
     triggerUltimateHitstop();
     if (def.id === "neutrofilo") {
-      // BOMBARDEO DE DEFENSINAS: 7 gránulos caen escalonados sobre un
-      // tramo ancho del camino (±70px de arco alrededor del punto que da
-      // computeUltimateTarget), seguidos de un shockwave propio al
-      // aterrizar. Ver updateTowers() para la resolución por frame.
-      var center = computeUltimateTarget(t);
-      var arc = nearestPathProgress(center.x, center.y);
-      var offsets = [-70, -46, -23, 0, 23, 46, 70];
-      t.bombardImpacts = [];
-      for (var bi = 0; bi < offsets.length; bi++) {
-        var pt;
-        if (arc) pt = pathPos(arc.progress + offsets[bi] * U, arc.heridaIdx);
-        else pt = center;
-        t.bombardImpacts.push({ x: pt.x, y: pt.y, tOffset: 0.3 + bi * 0.19, hit: false });
+      // ÑAM — mordida fagocítica ultimate: hasta 5 bocados en cadena.
+      var nbStats = towerStats(t);
+      var nbR = nbStats.range * U;
+      var nbCands = [];
+      for (var ni = 0; ni < state.enemies.length; ni++) {
+        var ne = state.enemies[ni];
+        if (ne.dead || ne.dying || ne.absorbing || ne.beingEngulfed || ne.beingDropped || ne.state === "falling" || ne.state === "entering") continue;
+        if (ne.burrowed && !ne.revealed) continue;
+        if (ne.def.cloaked && !ne.revealed) continue;
+        if (Math.hypot(ne.x - t.x, ne.y - t.y) > nbR) continue;
+        nbCands.push(ne);
       }
-      t.bombardLanded = false;
-      t.specialAnim = 2.4;
+      nbCands.sort(function (a, b) { return b.progress - a.progress; });
+      var nbTargets = [];
+      for (var nt = 0; nt < nbCands.length && nt < 5; nt++) {
+        nbTargets.push({ x: nbCands[nt].x, y: nbCands[nt].y, enemy: nbCands[nt] });
+      }
+      if (!nbTargets.length) {
+        var nbCenter = computeUltimateTarget(t);
+        nbTargets.push({ x: nbCenter.x, y: nbCenter.y, enemy: null });
+      }
+      t.biteUlt = { targets: nbTargets, idx: 0, nextAt: 0.06 };
+      t.specialAnim = nbTargets.length * 0.36 + 0.22;
       t.specialReady = false;
       t.specialCharge = 0;
-      sfx("upgrade");
+      t.lastTargetX = nbTargets[0].x;
+      t.lastTargetY = nbTargets[0].y;
+      showMsg("¡ÑAM!");
+      sfx("macroAttack");
       return;
     }
     if (def.id === "linfocitoB") {
@@ -8717,6 +8727,7 @@
         t.nextBlink = state.time + 2.5 + Math.random() * 3;
       }
       if (t.attackAnim > 0) t.attackAnim -= dt;
+      if (t.def.id === "neutrofilo" && t.attackAnim <= 0 && !t.biteUlt) t.biteGrotesque = false;
       if (t.levelupAnim > 0) t.levelupAnim -= dt;
       if (t.cooldown > 0) t.cooldown -= dt;
       // Tanque MAC móvil: patrulla automática por su eje (horizontal en Fase 1,
@@ -8779,32 +8790,42 @@
         t.ultimateTelegraphT = Math.max(0, t.ultimateTelegraphT - dt);
       }
       if ((t.specialAnim || 0) > 0) t.specialAnim -= dt;
-      // Neutrófilo ultimate: Bombardeo de Defensinas — dispara cada
-      // gránulo cuando le toca su turno y, al llegar a la fase de
-      // aterrizaje (1.6s), el shockwave propio una sola vez.
-      if (t.def.id === "neutrofilo" && t.bombardImpacts) {
-        var elapsed = 2.4 - (t.specialAnim || 0);
-        for (var nb = 0; nb < t.bombardImpacts.length; nb++) {
-          var imp = t.bombardImpacts[nb];
-          if (!imp.hit && elapsed >= imp.tOffset) {
-            imp.hit = true;
-            var nbStats = towerStats(t);
-            dealAoEDamageAt(imp.x, imp.y, 18 * U, nbStats.damage * 2.2);
-            triggerShake(0.08, 2);
-            pushEffect({ kind: "pathCrack", x: imp.x, y: imp.y, r: 16 * U, life: 1.2, max: 1.2, seed: Math.random() * 1000 });
+      // Neutrófilo ultimate: ÑAM — mordidas en cadena con texto flotante.
+      if (t.def.id === "neutrofilo" && t.biteUlt) {
+        t.biteUlt.nextAt -= dt;
+        if (t.biteUlt.nextAt <= 0 && t.biteUlt.idx < t.biteUlt.targets.length) {
+          var bt = t.biteUlt.targets[t.biteUlt.idx];
+          t.lastTargetX = bt.x;
+          t.lastTargetY = bt.y;
+          t.attackAnim = 0.36;
+          t.muzzleFlash = 0.10;
+          t.biteGrotesque = true;
+          var biteStats = towerStats(t);
+          if (bt.enemy && !bt.enemy.dead && !bt.enemy.dying && !bt.enemy.absorbing) {
+            damageEnemy(bt.enemy, biteStats.damage * 3.2, "neutrofilo");
+            pushEffect({ kind: "melee", x1: t.x, y1: t.y, x2: bt.x, y2: bt.y, life: 0.30, max: 0.30, color: t.def.color, towerId: t.def.id });
+          } else if (!bt.enemy) {
+            dealAoEDamageAt(bt.x, bt.y, 30 * U, biteStats.damage * 2.5);
           }
-        }
-        if (!t.bombardLanded && elapsed >= 1.6) {
-          t.bombardLanded = true;
-          var ndStats = towerStats(t);
-          dealAoEDamageAt(t.x, t.y, 32 * U, ndStats.damage * 6);
-          triggerShake(0.30, 7);
-          pushEffect({ kind: "pathCrack", x: t.x, y: t.y, r: 26 * U, life: 1.6, max: 1.6, seed: Math.random() * 1000 });
-          pushEffect({ kind: "defensinWave", x: t.x, y: t.y, r: ndStats.range * U * 1.1, life: 0.9, max: 0.9 });
+          pushEffect({
+            kind: "atpText",
+            x: bt.x + (Math.random() - 0.5) * 18 * U,
+            y: bt.y - 28 * U,
+            vy: -58 * U,
+            text: "ÑAM",
+            life: 1.05,
+            max: 1.05,
+            color: "#ffd24a",
+            big: true
+          });
+          triggerShake(0.16, 5);
+          sfx("macroAttack");
+          t.biteUlt.idx++;
+          t.biteUlt.nextAt = 0.34;
         }
         if ((t.specialAnim || 0) <= 0) {
-          t.bombardImpacts = null;
-          t.bombardLanded = false;
+          t.biteUlt = null;
+          t.biteGrotesque = false;
         }
       }
       // Linfocito B ultimate: cañones disparan rayos continuos mientras
@@ -9137,7 +9158,7 @@
         fireTower(t, target);
         t.cooldown = (1 / stats.fireRate) * (t.slowFireTimer > 0 ? 2 : 1);
         t.muzzleFlash = 0.08;
-        t.attackAnim = (t.def.id === "neutrofilo") ? 0.34 : 0.20;
+        t.attackAnim = 0.20;
         if (t.def.id === "neutrofilo") sfx("macroAttack");
         else if (t.def.id === "linfocitoB") sfx("linfBAttack");
         else sfx("linfTAttack");
@@ -16898,28 +16919,10 @@
     // de los pseudópodos, el brillo de los gránulos y el aro de
     // anticipación, todos más abajo.
     var chargeFrac = Math.max(0, Math.min(1, t.specialCharge || 0));
-    // Bombardeo de Defensinas: el cuerpo se contrae y se funde durante la
-    // anticipación/lluvia, y rebota al volver en el aterrizaje (resto de
-    // la secuencia se dibuja más abajo, fuera de este bloque local).
-    var bodyAlpha = 1, bodyScale = 1;
-    if (t.def.id === "neutrofilo" && (t.specialAnim || 0) > 0 && t.bombardImpacts) {
-      var bgElapsed = 2.4 - t.specialAnim;
-      if (bgElapsed < 0.3) {
-        var bgWu = bgElapsed / 0.3;
-        bodyAlpha = 1 - bgWu * 0.75;
-        bodyScale = 1 - bgWu * 0.25;
-      } else if (bgElapsed < 1.6) {
-        bodyAlpha = 0.25; bodyScale = 0.75;
-      } else if (bgElapsed < 2.1) {
-        var bgLd = (bgElapsed - 1.6) / 0.5;
-        bodyAlpha = 0.25 + bgLd * 0.75;
-        bodyScale = 0.75 + bgLd * 0.25 + Math.sin(bgLd * Math.PI) * 0.12;
-      }
-    }
+    var grotesqueBite = attacking && !!t.biteGrotesque;
     ctx.save();
     ctx.translate(x, y);
-    ctx.globalAlpha = bodyAlpha;
-    ctx.scale(bodyScale * fitSX, bodyScale * fitSY);
+    ctx.scale(fitSX, fitSY);
 
     // IL-8 (Queratinocito cercano): anillo ámbar de neutrófilo activado.
     if ((t.kcBuffT || 0) > 0) {
@@ -16937,8 +16940,9 @@
     var phase = t.idlePhase || 0;
     var faceAng = Math.PI * 0.55;
     if (t.lastTargetX != null) faceAng = Math.atan2(t.lastTargetY - y, t.lastTargetX - x);
-    var BITE_DUR = 0.34;
-    var polarExt = attacking ? Math.min(1, (t.attackAnim || 0) / BITE_DUR) : (chargeFrac * 0.35 + ((t.kcBuffT || 0) > 0 ? 0.12 : 0));
+    var BITE_DUR = grotesqueBite ? 0.36 : 0.20;
+    var polarExt = grotesqueBite ? Math.min(1, (t.attackAnim || 0) / BITE_DUR)
+      : (attacking ? Math.min(1, (t.attackAnim || 0) / 0.14) : (chargeFrac * 0.35 + ((t.kcBuffT || 0) > 0 ? 0.12 : 0)));
     var rTop = R * 0.46;
     var faceDist = R * (0.34 + polarExt * 0.12);
     var cyTop = Math.sin(faceAng) * faceDist;
@@ -16951,18 +16955,20 @@
     var podW = R * (0.18 + polarExt * 0.07);
     var baseX = capRx * 0.50;
     // Copo fagocítico (mordida grotesca): mandíbulas que se tragan el blanco.
-    var biteProg = attacking ? Math.min(1, (t.attackAnim || 0) / (BITE_DUR * 0.48)) : 0;
-    var biteClose = attacking ? Math.pow(biteProg, 0.42) : 0;
-    var chompWave = attacking ? 0.55 + 0.45 * Math.abs(Math.sin((BITE_DUR - (t.attackAnim || 0)) * 52)) : 0;
+    var biteProg = grotesqueBite ? Math.min(1, (t.attackAnim || 0) / (BITE_DUR * 0.48)) : 0;
+    var biteClose = grotesqueBite ? Math.pow(biteProg, 0.42) : 0;
+    var chompWave = grotesqueBite ? 0.55 + 0.45 * Math.abs(Math.sin((BITE_DUR - (t.attackAnim || 0)) * 52)) : 0;
     var cupLen = R * (0.50 + biteClose * 0.48 + chompWave * 0.06);
     var cupSpread = Math.max(R * 0.025, R * (0.30 + polarExt * 0.08) * (1 - biteClose * 0.97));
     var jawSlam = biteClose * R * 0.11;
 
     ctx.save();
     ctx.rotate(faceAng);
-    if (attacking) {
+    if (grotesqueBite) {
       ctx.scale(1 + biteClose * 0.16, 1 + biteClose * 0.24);
       ctx.translate(biteClose * R * 0.20, 0);
+    } else if (attacking) {
+      ctx.translate(Math.min(1, (t.attackAnim || 0) / 0.12) * R * 0.06, 0);
     }
 
     // Citoplasma: cápsula alargada (frente redondo + cola de uropodo).
@@ -16990,8 +16996,8 @@
       ctx.stroke();
     }
 
-    // Frente: copo fagocítico al morder (cierre exagerado), pseudópodo en carga.
-    if (attacking) {
+    // Frente: copo grotesco (ultimate ÑAM) o pseudópodo simple (ataque normal).
+    if (grotesqueBite) {
       var jawBase = baseX + capRx * 0.18;
       var cupTip = jawBase + cupLen;
       var cupFill = "rgba(245, 228, 218, " + (0.78 + biteClose * 0.2) + ")";
@@ -17059,6 +17065,18 @@
           ctx.stroke();
         }
       }
+    } else if (attacking) {
+      var quickExt = Math.min(1, (t.attackAnim || 0) / 0.12);
+      var qLen = R * (0.18 + quickExt * 0.38);
+      var qW = R * (0.14 + quickExt * 0.05);
+      ctx.fillStyle = "rgba(245, 228, 218, " + (0.6 + quickExt * 0.25) + ")";
+      ctx.beginPath();
+      ctx.moveTo(baseX, -qW * 0.48);
+      ctx.quadraticCurveTo(baseX + qLen * 0.45, -qW * 0.72, baseX + qLen, 0);
+      ctx.quadraticCurveTo(baseX + qLen * 0.45, qW * 0.72, baseX, qW * 0.48);
+      ctx.quadraticCurveTo(baseX + qLen * 0.10, 0, baseX, -qW * 0.48);
+      ctx.closePath();
+      ctx.fill();
     } else if (polarExt > 0.02) {
       ctx.fillStyle = "rgba(245, 228, 218, " + (0.65 + polarExt * 0.3) + ")";
       ctx.beginPath();
@@ -17145,9 +17163,10 @@
     var shellPad = R * 0.07;
     var backX = -capRx * 0.78 - R * 0.17 - shellPad;
     var frontX = Math.max(R * 0.04 + capRx, faceDist + rTop * 0.48) + shellPad;
-    if (attacking) frontX = Math.max(frontX, baseX + capRx * 0.18 + cupLen + shellPad * 0.65);
+    if (grotesqueBite) frontX = Math.max(frontX, baseX + capRx * 0.18 + cupLen + shellPad * 0.65);
+    else if (attacking) frontX = Math.max(frontX, baseX + R * 0.55 + shellPad * 0.4);
     else if (polarExt > 0.02) frontX = Math.max(frontX, baseX + podLen + shellPad * 0.6);
-    var topY = capRy + R * 0.15 + shellPad + (attacking ? biteClose * R * 0.08 : 0);
+    var topY = capRy + R * 0.15 + shellPad + (grotesqueBite ? biteClose * R * 0.08 : 0);
     ctx.beginPath();
     ctx.moveTo(backX, uroWobble);
     ctx.bezierCurveTo(
@@ -17161,7 +17180,8 @@
       frontX, 0
     );
     if (attacking || polarExt > 0.02) {
-      var biteFrontH = attacking ? Math.max(R * 0.06, cupSpread + jawSlam + shellPad) : (podW * 0.55 + shellPad);
+      var biteFrontH = grotesqueBite ? Math.max(R * 0.06, cupSpread + jawSlam + shellPad)
+        : (attacking ? R * 0.12 + shellPad : (podW * 0.55 + shellPad));
       ctx.bezierCurveTo(
         frontX, -biteFrontH,
         frontX * 0.72, -topY * 0.92,
@@ -17207,71 +17227,14 @@
 
     // CARA en el polo frontal (apunta hacia el germen).
     var neR = rTop * 0.34, ngap = rTop * 0.48, nfy = 0;
+    var doingUltimate = (t.def.id === "neutrofilo" && (t.specialAnim || 0) > 0);
+    var ultCharging = (t.biteUlt && doingUltimate && !grotesqueBite);
     ctx.save();
     ctx.translate(cxTop, cyTop);
-    // CARA LOCA durante el ultimate (martillazo) — sobrescribe lo demás.
-    var doingUltimate = (t.def.id === "neutrofilo" && (t.specialAnim || 0) > 0);
-    if (doingUltimate) {
-      var bigEyeR = neR * 1.55;
-      var crazyGap = ngap * 1.05;
-      // Ojos saltones (whites grandes, pupilas chiquititas dilatadas mirando arriba)
-      ctx.fillStyle = "#ffffff";
-      ctx.beginPath();
-      ctx.arc(-crazyGap, nfy, bigEyeR, 0, Math.PI * 2);
-      ctx.arc( crazyGap, nfy, bigEyeR, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = "#1a1a22";
-      ctx.lineWidth = Math.max(1.0, 1.2 * U);
-      ctx.beginPath(); ctx.arc(-crazyGap, nfy, bigEyeR, 0, Math.PI * 2); ctx.stroke();
-      ctx.beginPath(); ctx.arc( crazyGap, nfy, bigEyeR, 0, Math.PI * 2); ctx.stroke();
-      // Pupilas chiquitas dilatadas mirando arriba
-      var pupR = bigEyeR * 0.28;
-      ctx.fillStyle = "#1a1a22";
-      ctx.beginPath();
-      ctx.arc(-crazyGap, nfy - bigEyeR * 0.30, pupR, 0, Math.PI * 2);
-      ctx.arc( crazyGap, nfy - bigEyeR * 0.30, pupR, 0, Math.PI * 2);
-      ctx.fill();
-      // Cejas v: ultra enojadas
-      ctx.strokeStyle = "#1a1a22";
-      ctx.lineWidth = Math.max(1.8, 2.2 * U);
-      ctx.lineCap = "round";
-      ctx.beginPath();
-      ctx.moveTo(-crazyGap - bigEyeR * 1.0, nfy - bigEyeR * 1.40);
-      ctx.lineTo(-crazyGap + bigEyeR * 0.7, nfy - bigEyeR * 0.85);
-      ctx.moveTo( crazyGap - bigEyeR * 0.7, nfy - bigEyeR * 0.85);
-      ctx.lineTo( crazyGap + bigEyeR * 1.0, nfy - bigEyeR * 1.40);
-      ctx.stroke();
-      // Boca gigante abierta riendo (con dientes + lengua) — escala
-      // con la esfera-cabeza del snowman.
-      var mw = rTop * 0.85, mh = rTop * 0.65;
-      var my = nfy + rTop * 0.70;
-      ctx.fillStyle = "#1a1a22";
-      ctx.beginPath();
-      ctx.ellipse(0, my, mw, mh, 0, 0, Math.PI * 2);
-      ctx.fill();
-      // Dientes (zigzag arriba)
-      ctx.fillStyle = "#ffffff";
-      ctx.beginPath();
-      ctx.moveTo(-mw * 0.80, my - mh * 0.20);
-      var teeth = 5;
-      for (var ti = 0; ti < teeth; ti++) {
-        var u = ti / (teeth - 1);
-        var tx = -mw * 0.80 + u * mw * 1.60;
-        var ty = (ti % 2 === 0) ? my - mh * 0.20 : my + mh * 0.15;
-        ctx.lineTo(tx, ty);
-      }
-      ctx.lineTo(mw * 0.80, my - mh * 0.20);
-      ctx.closePath();
-      ctx.fill();
-      // Lengua rosada abajo
-      ctx.fillStyle = "#e85a7a";
-      ctx.beginPath();
-      ctx.ellipse(0, my + mh * 0.30, mw * 0.55, mh * 0.40, 0, 0, Math.PI * 2);
-      ctx.fill();
-    } else if (blink) drawClosedEyes(0, nfy, neR, ngap);
+    if (blink) drawClosedEyes(0, nfy, neR, ngap);
     else if (expression === "dying") drawHurtEyes(0, nfy, neR, ngap);
     else if (expression === "levelup") drawSparkleEyes(0, nfy, neR, ngap);
-    else if (attacking) {
+    else if (grotesqueBite) {
       var chompM = Math.abs(Math.sin((BITE_DUR - (t.attackAnim || 0)) * 52));
       var biteSnap = Math.min(1, (t.attackAnim || 0) / (BITE_DUR * 0.45));
       var eyeR = neR * (1.45 + biteSnap * 0.55);
@@ -17343,13 +17306,18 @@
         ctx.quadraticCurveTo(drx + mw * 0.08, my + mh * 1.35, drx + mw * 0.18, my + mh * 1.55);
         ctx.stroke();
       }
+    } else if (ultCharging) {
+      drawAnimeEyes(0, nfy, neR * 1.15, ngap * 1.05, 0, 0, neR * 0.62, neR * 0.48, "fierce");
+      drawAnimeMouth(0, nfy + rTop * 0.58, rTop * 0.72, rTop * 0.55, "open");
+    } else if (attacking) {
+      drawFocusedEyes(0, nfy, neR, ngap, neR * 0.65, neR * 0.22);
+      drawAnimeMouth(0, nfy + rTop * 0.60, rTop * 0.72, rTop * 0.55, "fanged");
     } else drawAnimeEyes(0, nfy, neR, ngap, 0, 0, neR * 0.50, neR * 0.40, "fierce");
-    // Mouth offsets escalan con rTop (esfera-cabeza del snowman).
-    if (doingUltimate) {
-      // boca ya dibujada arriba
-    } else if (expression === "dying") drawAnimeMouth(0, nfy + rTop * 0.65, rTop * 0.75, rTop * 0.65, "open");
-    else if (expression === "levelup") drawAnimeMouth(0, nfy + rTop * 0.60, rTop * 0.78, rTop * 0.50, "smile");
-    else if (!attacking) drawAnimeMouth(0, nfy + rTop * 0.60, rTop * 0.65, rTop * 0.32, "serious");
+    if (!grotesqueBite && !ultCharging) {
+      if (expression === "dying") drawAnimeMouth(0, nfy + rTop * 0.65, rTop * 0.75, rTop * 0.65, "open");
+      else if (expression === "levelup") drawAnimeMouth(0, nfy + rTop * 0.60, rTop * 0.78, rTop * 0.50, "smile");
+      else if (!attacking) drawAnimeMouth(0, nfy + rTop * 0.60, rTop * 0.65, rTop * 0.32, "serious");
+    }
     ctx.restore();
 
     // Aro dorado de anticipación: asoma gradualmente con la carga real
@@ -17385,99 +17353,6 @@
     }
 
     ctx.restore();
-
-    // ── BOMBARDEO DE DEFENSINAS ──
-    // Fases por `bElapsed` (segundos desde el trigger, ver
-    // triggerTowerSpecial/updateTowers): anticipación (0-0.3s, aro dorado;
-    // el cuerpo ya se contrae/funde arriba), lluvia (0.3-1.6s, gránulos
-    // cayendo + impactos), aterrizaje (1.6-2.1s, shockwave + rebote del
-    // cuerpo, también ya aplicado arriba).
-    if (t.def.id === "neutrofilo" && (t.specialAnim || 0) > 0 && t.bombardImpacts) {
-      var bElapsed = 2.4 - t.specialAnim;
-
-      if (bElapsed < 0.3) {
-        var wuP = bElapsed / 0.3;
-        ctx.save();
-        ctx.globalAlpha = 0.25 + wuP * 0.55;
-        ctx.strokeStyle = "#ffd24a";
-        ctx.lineWidth = 2.5 * U;
-        ctx.beginPath();
-        ctx.arc(x, y, Rfx * (1.1 + wuP * 0.6), 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.restore();
-      }
-
-      for (var bi2 = 0; bi2 < t.bombardImpacts.length; bi2++) {
-        var imp2 = t.bombardImpacts[bi2];
-        var fallStart = imp2.tOffset - 0.35;
-        if (bElapsed >= fallStart && bElapsed < imp2.tOffset) {
-          var fallU = (bElapsed - fallStart) / 0.35;
-          var fallE = fallU * fallU;
-          var fy = imp2.y - 220 * U * (1 - fallE);
-          // Squash sutil en el último tramo antes de tocar el piso.
-          var squashU = Math.max(0, (fallU - 0.85) / 0.15);
-          var dropRX = 8 * U * (1 + squashU * 0.35);
-          var dropRY = 8 * U * (1 - squashU * 0.30);
-          ctx.save();
-          ctx.globalAlpha = 0.9;
-          // Cola tipo cometa: cuña ancha junto a la gota, afinándose hacia arriba.
-          var tailLen = 30 * U;
-          var tailHalfW = dropRX * 0.7;
-          var tailGrad = ctx.createLinearGradient(imp2.x, fy - tailLen, imp2.x, fy);
-          tailGrad.addColorStop(0, "rgba(202,168,255,0)");
-          tailGrad.addColorStop(1, "rgba(202,168,255,0.55)");
-          ctx.fillStyle = tailGrad;
-          ctx.beginPath();
-          ctx.moveTo(imp2.x, fy - tailLen);
-          ctx.lineTo(imp2.x - tailHalfW, fy);
-          ctx.lineTo(imp2.x + tailHalfW, fy);
-          ctx.closePath();
-          ctx.fill();
-          // Gota: gradiente radial para volumen.
-          var dropGrad = ctx.createRadialGradient(
-            imp2.x - dropRX * 0.3, fy - dropRY * 0.3, dropRX * 0.15,
-            imp2.x, fy, dropRX
-          );
-          dropGrad.addColorStop(0, "#e8d4ff");
-          dropGrad.addColorStop(0.55, "#caa8ff");
-          dropGrad.addColorStop(1, "#8a5fc0");
-          ctx.fillStyle = dropGrad;
-          ctx.beginPath();
-          ctx.ellipse(imp2.x, fy, dropRX, dropRY, 0, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.restore();
-        } else if (imp2.hit) {
-          var sinceHit = bElapsed - imp2.tOffset;
-          if (sinceHit >= 0 && sinceHit < 0.25) {
-            var burstP = sinceHit / 0.25;
-            ctx.save();
-            ctx.globalAlpha = 1 - burstP;
-            var burstR = 6 * U + burstP * 22 * U;
-            var burstGrad = ctx.createRadialGradient(imp2.x, imp2.y, 0, imp2.x, imp2.y, burstR);
-            burstGrad.addColorStop(0, "rgba(255,250,210,0.9)");
-            burstGrad.addColorStop(0.5, "rgba(255,210,74,0.6)");
-            burstGrad.addColorStop(1, "rgba(202,168,255,0)");
-            ctx.fillStyle = burstGrad;
-            ctx.beginPath();
-            ctx.arc(imp2.x, imp2.y, burstR, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.restore();
-          }
-        }
-      }
-
-      if (bElapsed >= 1.6 && bElapsed < 2.1) {
-        var landP = (bElapsed - 1.6) / 0.5;
-        ctx.save();
-        ctx.globalAlpha = 1 - landP;
-        ctx.strokeStyle = "#ffd24a";
-        ctx.lineWidth = 4 * U;
-        ctx.beginPath();
-        ctx.arc(x, y, landP * 55 * U, 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.restore();
-      }
-    }
   }
 
   function drawMacrofago(t, pulse, expression, blink) {
@@ -25880,7 +25755,7 @@
       ctx.globalAlpha = 1;
     } else if (ef.kind === "atpText") {
       ctx.globalAlpha = alpha;
-      var fs2 = Math.max(12, 14 * U);
+      var fs2 = Math.max(12, (ef.big ? 28 : 14) * U);
       ctx.font = "bold " + fs2 + "px Fredoka, sans-serif";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
@@ -26267,7 +26142,7 @@
       hitFlash: 0,
       blinkTimer: 0, attackAnim: 0, levelupAnim: 0, muzzleFlash: 0,
       stunTimer: 0, slowFireTimer: 0,
-      bombardImpacts: null, cannonTarget: null, frenzyTarget: null
+      bombardImpacts: null, biteUlt: null, biteGrotesque: false, cannonTarget: null, frenzyTarget: null
     };
     var factor = TOWER_PREVIEW_PULSE_FACTOR[typeId] || 0.82;
     var pulse = (R / (18 * U)) * factor;

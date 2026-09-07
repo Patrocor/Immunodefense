@@ -43,7 +43,7 @@ const GERMS = [
 
 // ── Catálogo completo de torres ──────────────────────────────────────────────
 const TOWERS = [
-  { id: "neutrofilo",    name: "Neutrófilo",                   role: "Primera línea — fagocitosis, NET (trampas extracelulares), degranulación. Ultimate: Bombardeo de Defensinas." },
+  { id: "neutrofilo",    name: "Neutrófilo",                   role: "Primera línea — fagocitosis, NET (trampas extracelulares), degranulación. Ultimate: ÑAM (mordida fagocítica)." },
   { id: "linfocitoB",    name: "Linfocito B / Plasmocito",     role: "Produce anticuerpos IgG/IgM que opsonizan bacterias. Ultimate: cañones de anticuerpos penetrantes." },
   { id: "linfocitoT",    name: "Linfocito T citotóxico (CD8+)",role: "Reconoce péptidos en MHC-I; libera granzima B y perforina para apoptosis. Ultimate: Apoptosis en 5 enemigos." },
   { id: "langerhans",    name: "Célula de Langerhans",         role: "CPA de la epidermis; captura antígenos, migra al ganglio, activa Th. Ultimate: Presentación Antigénica Masiva — marca y bufa aliados." },

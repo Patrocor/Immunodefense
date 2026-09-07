@@ -22939,8 +22939,8 @@
         ctx.stroke();
       }
     }
-    paintVesicle(-len * 0.55,  fat * 0.62, len * 0.38, fat * 0.36, false);
-    paintVesicle(-len * 0.72, -fat * 0.48, len * 0.30, fat * 0.28, false);
+    paintVesicle(-len * 0.42,  fat * 0.58, len * 0.46, fat * 0.42, false);
+    paintVesicle(-len * 0.48, -fat * 0.52, len * 0.40, fat * 0.36, false);
 
     // Ampolla principal.
     paintVesicle(0, 0, len, fat, true);

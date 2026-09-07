@@ -21626,12 +21626,9 @@
 
   // MALASSEZIA — racimo de levaduras redondas con brillo aceitoso y yemas.
   function drawMalassezia(e, rad, expression, blink) {
-    // Malassezia furfur — levadura lipofílica en FORMA DE BOTELLA.
-    //  · Cuerpo gordo + cuello estrecho + brote monopolar (no círculo)
-    //  · COLLARETE = anillo de cicatriz en el cuello (firma diagnóstica)
-    //  · Charco de sebo bajo el cuerpo (no aura radial)
-    //  · 2 hifas cortas "spaghetti" + 2 albóndigas (tiña versicolor)
-    // Cara smug aceitosa en la panza, siempre upright.
+    // Malassezia furfur v2 — "spaghetti & meatballs" (tiña versicolor).
+    // Ya no es botella/lágrima con cañón. Silueta = nido de fideos cortos
+    // + levaduras ovaladas metidas en los bucles. Aceite gotea de la pasta.
 
     var hit = e.hitFlash > 0;
     var t = state.time;
@@ -21651,11 +21648,57 @@
     ctx.save();
     ctx.translate(e.x, e.y);
 
-    var breathe = 1 + Math.sin(t * 1.25 + e.wobble) * 0.035;
-    var L = rad * 1.08 * breathe;   // eje de la botella
-    var fat = rad * 0.62 * breathe; // panza (más baja que ancha del eje)
-    var neckW = rad * 0.20 * breathe;
-    var budP = 0.5 + 0.5 * Math.sin(t * 2.2 + e.wobble);
+    var breathe = 1 + Math.sin(t * 1.3 + e.wobble) * 0.03;
+    var R = rad * breathe;
+    var sway = Math.sin(t * 1.6 + e.wobble);
+
+    function drawNoodle(x0, y0, cx, cy, x1, y1, w) {
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      ctx.strokeStyle = hit ? "#ffffff" : "#5a4810";
+      ctx.lineWidth = w + 3.2 * U;
+      ctx.beginPath();
+      ctx.moveTo(x0, y0);
+      ctx.quadraticCurveTo(cx, cy, x1, y1);
+      ctx.stroke();
+      ctx.strokeStyle = hit ? "#ffffff" : "#d4b24a";
+      ctx.lineWidth = w;
+      ctx.stroke();
+      ctx.strokeStyle = hit ? "#ffffff" : "rgba(255, 244, 190, 0.55)";
+      ctx.lineWidth = Math.max(1.4, w * 0.28);
+      ctx.beginPath();
+      ctx.moveTo(x0, y0 - w * 0.18);
+      ctx.quadraticCurveTo(cx, cy - w * 0.22, x1, y1 - w * 0.18);
+      ctx.stroke();
+    }
+
+    function meatball(cx, cy, rx, ry, ang) {
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.rotate(ang || 0);
+      var g = ctx.createRadialGradient(-rx * 0.35, -ry * 0.4, rx * 0.12, 0, 0, rx);
+      g.addColorStop(0, hit ? "#ffffff" : "#fff6d0");
+      g.addColorStop(0.5, hit ? "#ffffff" : "#e4c868");
+      g.addColorStop(1, hit ? "#ffffff" : "#7a6218");
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "#4a3c0c";
+      ctx.lineWidth = Math.max(1.6, 2.1 * U);
+      ctx.stroke();
+      ctx.fillStyle = "rgba(255,255,235,0.5)";
+      ctx.beginPath();
+      ctx.ellipse(-rx * 0.28, -ry * 0.32, rx * 0.32, ry * 0.20, -0.4, 0, Math.PI * 2);
+      ctx.fill();
+      // Mini collarete en un polo (detalle, no la silueta entera).
+      ctx.strokeStyle = "#6a5414";
+      ctx.lineWidth = Math.max(1.3, 1.7 * U);
+      ctx.beginPath();
+      ctx.ellipse(rx * 0.62, 0, rx * 0.16, ry * 0.42, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
 
     function oilDrop(x, y, s, ang) {
       ctx.save();
@@ -21674,162 +21717,61 @@
       ctx.strokeStyle = "rgba(90, 60, 12, 0.55)";
       ctx.lineWidth = Math.max(0.8, 1.05 * U);
       ctx.stroke();
-      ctx.fillStyle = "rgba(255, 255, 230, 0.55)";
-      ctx.beginPath();
-      ctx.ellipse(-s * 0.2, -s * 0.12, s * 0.22, s * 0.14, -0.4, 0, Math.PI * 2);
-      ctx.fill();
       ctx.restore();
     }
-
-    function meatball(mx, my, mr) {
-      var mg = ctx.createRadialGradient(mx - mr * 0.3, my - mr * 0.3, mr * 0.15, mx, my, mr);
-      mg.addColorStop(0, hit ? "#ffffff" : "#f0e29a");
-      mg.addColorStop(0.6, hit ? "#ffffff" : "#d8c060");
-      mg.addColorStop(1, hit ? "#ffffff" : "#8a7320");
-      ctx.fillStyle = mg;
-      ctx.beginPath();
-      ctx.ellipse(mx, my, mr * 1.15, mr * 0.85, 0.3, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = "#6a5410";
-      ctx.lineWidth = Math.max(1.0, 1.3 * U);
-      ctx.stroke();
-    }
-
-    // Charco + spaghetti en el suelo (no rotan: si no, el charco se lee anillo).
-    ctx.fillStyle = "rgba(210, 170, 50, 0.40)";
-    ctx.beginPath();
-    ctx.ellipse(0, fat * 1.35, L * 1.05, fat * 0.32, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = "rgba(255, 230, 140, 0.30)";
-    ctx.beginPath();
-    ctx.ellipse(-L * 0.18, fat * 1.28, L * 0.42, fat * 0.12, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = "rgba(150, 110, 30, 0.35)";
-    ctx.lineWidth = Math.max(1.0, 1.3 * U);
-    ctx.beginPath();
-    ctx.ellipse(0, fat * 1.35, L * 1.05, fat * 0.32, 0, 0, Math.PI * 2);
-    ctx.stroke();
-
-    ctx.lineCap = "round";
-    ctx.strokeStyle = hit ? "#ffffff" : "#8a7320";
-    ctx.lineWidth = Math.max(2.4, 3.0 * U);
-    ctx.beginPath();
-    ctx.moveTo(-L * 0.22, fat * 0.35);
-    ctx.bezierCurveTo(-L * 0.55, fat * 0.75, L * 0.05, fat * 1.05, -L * 0.48, fat * 1.38);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(L * 0.18, fat * 0.32);
-    ctx.bezierCurveTo(L * 0.52, fat * 0.85, -L * 0.05, fat * 1.15, L * 0.38, fat * 1.42);
-    ctx.stroke();
-    meatball(-L * 0.52, fat * 1.42, rad * 0.15);
-    meatball(L * 0.40, fat * 1.46, rad * 0.13);
 
     ctx.save();
     ctx.rotate(e._heading || 0);
 
-    // Botella: panza gorda + cuello estrecho (un solo contorno).
-    function traceBottle() {
-      var bx = -L * 0.18;
-      ctx.beginPath();
-      ctx.moveTo(bx, -fat);
-      ctx.bezierCurveTo(bx - L * 0.85, -fat * 1.05, bx - L * 0.95, fat * 1.05, bx, fat);
-      ctx.bezierCurveTo(bx + L * 0.55, fat * 0.98, L * 0.42, neckW * 1.15, L * 0.62, neckW);
-      ctx.lineTo(L * 0.98, neckW * 0.82);
-      ctx.quadraticCurveTo(L * 1.08, 0, L * 0.98, -neckW * 0.82);
-      ctx.lineTo(L * 0.62, -neckW);
-      ctx.bezierCurveTo(L * 0.42, -neckW * 1.15, bx + L * 0.55, -fat * 0.98, bx, -fat);
-      ctx.closePath();
-    }
-    var bellyG = ctx.createRadialGradient(-L * 0.35, -fat * 0.35, rad * 0.12, -L * 0.1, 0, L * 0.95);
-    bellyG.addColorStop(0,    hit ? "#ffffff" : "#fff8dc");
-    bellyG.addColorStop(0.45, hit ? "#ffffff" : "#e8d070");
-    bellyG.addColorStop(1,    hit ? "#ffffff" : "#8a7320");
-    ctx.fillStyle = bellyG;
-    traceBottle();
-    ctx.fill();
-    ctx.strokeStyle = "#5a4a12";
-    ctx.lineWidth = Math.max(2.2, 2.8 * U);
-    traceBottle();
-    ctx.stroke();
-    ctx.strokeStyle = "rgba(255, 240, 180, 0.40)";
-    ctx.lineWidth = Math.max(0.9, 1.2 * U);
-    traceBottle();
-    ctx.stroke();
+    var nW = R * 0.34;
+    // Fideos gruesos: nido alargado, no disco. Cola atrás, bucles adelante.
+    drawNoodle(
+      -R * 1.45, -R * 0.18 + sway * 1.2 * U,
+      -R * 0.15, -R * 0.95,
+      R * 1.15, -R * 0.22,
+      nW
+    );
+    drawNoodle(
+      -R * 1.35, R * 0.28 + sway * 1.1 * U,
+      R * 0.05, R * 1.02,
+      R * 1.05, R * 0.18,
+      nW * 0.92
+    );
+    drawNoodle(
+      -R * 0.55, -R * 0.72,
+      R * 0.55, R * 0.08 + sway * 1.4 * U,
+      -R * 0.85, R * 0.78,
+      nW * 0.78
+    );
+    drawNoodle(
+      -R * 1.55, R * 0.02,
+      -R * 1.15, -R * 0.55,
+      -R * 0.72, -R * 0.08,
+      nW * 0.62
+    );
 
-    // Manchas versicolor (crema / café) sobre la panza.
-    if (!hit) {
-      ctx.fillStyle = "rgba(180, 140, 50, 0.35)";
-      ctx.beginPath();
-      ctx.ellipse(-L * 0.38, fat * 0.18, fat * 0.28, fat * 0.16, 0.4, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = "rgba(255, 248, 220, 0.40)";
-      ctx.beginPath();
-      ctx.ellipse(-L * 0.08, -fat * 0.42, fat * 0.22, fat * 0.12, -0.3, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = "rgba(140, 100, 30, 0.28)";
-      ctx.beginPath();
-      ctx.ellipse(-L * 0.52, -fat * 0.12, fat * 0.16, fat * 0.10, 0.6, 0, Math.PI * 2);
-      ctx.fill();
-    }
+    // Albóndigas = levaduras ovaladas (no racimo circular de aureus).
+    meatball(-R * 0.72, R * 0.08, R * 0.32, R * 0.24, -0.35);
+    meatball(R * 0.62, -R * 0.42, R * 0.28, R * 0.21, 0.45);
+    meatball(R * 0.78, R * 0.32, R * 0.26, R * 0.20, 0.15);
+    meatball(0, 0, R * 0.50, R * 0.38, 0.08);
 
-    // Brillo untuoso.
-    ctx.fillStyle = "rgba(255, 255, 240, 0.48)";
-    ctx.beginPath();
-    ctx.ellipse(-L * 0.32, -fat * 0.38, L * 0.28, fat * 0.16, -0.45, 0, Math.PI * 2);
-    ctx.fill();
-
-    // 4. Collarete — arandela en el cuello (cicatriz de gemación).
-    var colX = L * 0.62;
-    ctx.fillStyle = hit ? "#ffffff" : "#6e5814";
-    ctx.beginPath();
-    ctx.ellipse(colX, 0, neckW * 0.38, neckW * 1.55, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = hit ? "#ffffff" : "#c9a84a";
-    ctx.beginPath();
-    ctx.ellipse(colX + neckW * 0.08, 0, neckW * 0.22, neckW * 1.22, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = "#3d3208";
-    ctx.lineWidth = Math.max(1.4, 1.8 * U);
-    ctx.beginPath();
-    ctx.ellipse(colX, 0, neckW * 0.38, neckW * 1.55, 0, 0, Math.PI * 2);
-    ctx.stroke();
-
-    // 5. Brote monopolar al final del cuello (late).
-    var budR = rad * (0.26 + 0.06 * budP);
-    var budX = L * 1.18 + budP * rad * 0.04;
-    var budG = ctx.createRadialGradient(budX - budR * 0.3, -budR * 0.3, budR * 0.15, budX, 0, budR);
-    budG.addColorStop(0, hit ? "#ffffff" : "#fff4c0");
-    budG.addColorStop(0.55, hit ? "#ffffff" : "#e0c050");
-    budG.addColorStop(1, hit ? "#ffffff" : "#7a6218");
-    ctx.fillStyle = budG;
-    ctx.beginPath();
-    ctx.ellipse(budX, 0, budR * 1.05, budR * 0.82, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = "#5a4a12";
-    ctx.lineWidth = Math.max(1.6, 2.1 * U);
-    ctx.stroke();
-    ctx.fillStyle = "rgba(255,255,230,0.5)";
-    ctx.beginPath();
-    ctx.ellipse(budX - budR * 0.28, -budR * 0.22, budR * 0.32, budR * 0.20, -0.4, 0, Math.PI * 2);
-    ctx.fill();
-
-    // 6. Gotas de sebo colgando de la panza (no órbita).
-    oilDrop(-L * 0.05, fat * 0.95, rad * 0.18, 0.12 + Math.sin(t * 2) * 0.08);
-    oilDrop(L * 0.28, fat * 0.82, rad * 0.14, 0.45);
+    oilDrop(-R * 0.15, R * 0.92, R * 0.16, 0.15 + sway * 0.08);
+    oilDrop(R * 0.42, R * 0.78, R * 0.12, 0.4);
 
     ctx.restore(); // end body rotated
 
     var hpFracFace = (def && def.hp > 0) ? (e.hp / def.hp) : 1;
     var lowHp = hpFracFace < 0.20;
     var sadFace = (expression === "dying" || expression === "hurt" || lowHp);
-    var eyeR = fat * 0.42;
-    var faceY = -fat * 0.08;
-    var gap = fat * 0.42;
+    var eyeR = R * 0.22;
+    var faceY = -R * 0.04;
+    var gap = R * 0.24;
     if (sadFace) drawHurtEyes(0, faceY, eyeR, gap);
     else if (blink) drawClosedEyes(0, faceY, eyeR, gap);
-    else drawAnimeEyes(0, faceY, eyeR, gap, 0, 0, fat * 0.12, fat * 0.05, "smug");
-    if (sadFace) drawAnimeMouth(0, fat * 0.42, fat * 0.55, fat * 0.42, "open");
-    else drawAnimeMouth(0, fat * 0.42, fat * 0.52, fat * 0.28, "smirk");
+    else drawAnimeEyes(0, faceY, eyeR, gap, 0, 0, R * 0.08, R * 0.03, "smug");
+    if (sadFace) drawAnimeMouth(0, R * 0.22, R * 0.32, R * 0.26, "open");
+    else drawAnimeMouth(0, R * 0.22, R * 0.30, R * 0.16, "smirk");
 
     ctx.restore();
   }

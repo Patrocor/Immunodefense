@@ -1,4 +1,4 @@
-/** Showcase Malassezia bottle yeast — DISPLAY=:1 node scripts/playtest-malassezia.mjs */
+/** Showcase Malassezia spaghetti — DISPLAY=:1 node scripts/playtest-malassezia.mjs */
 import { chromium } from "playwright";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
@@ -30,7 +30,7 @@ function placeMalassezia() {
     dying: false,
     dead: false,
     wobble: 0.9,
-    _heading: 0.18,
+    _heading: -0.4,
     _lastPosX: cx - 14,
     _lastPosY: cy + 4,
   };
@@ -49,7 +49,7 @@ function placeMalassezia() {
   const sy = rect.top + (cy / g.metrics.VH) * rect.height;
   return {
     ok: true,
-    clip: { x: Math.round(sx - 250), y: Math.round(sy - 200), width: 500, height: 400 },
+    clip: { x: Math.round(sx - 270), y: Math.round(sy - 210), width: 540, height: 420 },
   };
 }
 
@@ -106,9 +106,9 @@ console.log("Spawn:", spawned);
 const shown = await page.evaluate(placeMalassezia);
 console.log("Placed:", shown);
 await sleep(900);
-await page.screenshot({ path: join(ART, "malassezia_bottle_field.png") });
+await page.screenshot({ path: join(ART, "malassezia_spaghetti_field.png") });
 if (shown.ok) {
-  await page.screenshot({ path: join(ART, "malassezia_bottle.png"), clip: shown.clip });
+  await page.screenshot({ path: join(ART, "malassezia_spaghetti.png"), clip: shown.clip });
 }
 
 await page.evaluate(() => window.__game.hold(false));

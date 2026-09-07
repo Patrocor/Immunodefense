@@ -16956,6 +16956,7 @@
 
     ctx.save();
     ctx.rotate(faceAng);
+    if (attacking) ctx.translate(biteClose * R * 0.11, 0);
 
     // Citoplasma: cápsula alargada (frente redondo + cola de uropodo).
     var bodyGrad = ctx.createRadialGradient(-R * 0.12, -R * 0.08, R * 0.08, R * 0.04, 0, capRx * 1.05);

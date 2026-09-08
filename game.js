@@ -24000,30 +24000,31 @@
       ctx.stroke();
     }
 
-    var nSeg = 12;
-    var bigPat = [false, true, false, true, false, true, false, true, true, false, true];
+    var sizeMul = [0.30, 0.68, 0.26, 0.58, 0.28, 0.72, 0.32, 0.62, 0.34];
+    var nBody = sizeMul.length;
     var segs = [];
-    for (var s = 0; s < nSeg; s++) {
-      var u = s / (nSeg - 1);
+    var aWalk = aTail;
+    for (var s = 0; s < nBody; s++) {
       var seed = 2.1 + s * 1.17;
-      var big = s < nSeg - 1 ? bigPat[s] : false;
-      var taper = 0.26 + 0.16 * u;
-      var bodyR = rad * taper * (big ? 1.90 : 0.48);
-      var p = spineAt(u);
-      if (!big && s < nSeg - 1) {
-        var nudge = (hash01(seed, 8) - 0.5) * rad * 0.16;
+      var bodyR = rad * sizeMul[s];
+      var big = sizeMul[s] >= 0.50;
+      if (s > 0) aWalk -= 0.72 * (rad * sizeMul[s - 1] + bodyR) / rArc;
+      var p = { x: Math.cos(aWalk) * rArc, y: Math.sin(aWalk) * rArc, a: aWalk };
+      if (!big) {
+        var nudge = (hash01(seed, 8) - 0.5) * rad * 0.10;
         p.x += Math.cos(p.a) * nudge;
         p.y += Math.sin(p.a) * nudge;
       }
-      segs.push({ u: u, p: p, r: bodyR, seed: seed, big: big });
+      segs.push({ u: s / (nBody - 1), p: p, r: bodyR, seed: seed, big: big });
     }
+    var head = { x: Math.cos(aHead) * rArc, y: Math.sin(aHead) * rArc, a: aHead };
 
     // Baba hialurónica entre cocos (cápsula), no un tubo.
     if (shieldFrac > 0.04) {
-      for (var j = 0; j < nSeg - 1; j++) {
+      for (var j = 0; j < nBody - 1; j++) {
         var ja = segs[j], jb = segs[j + 1];
         var mx = (ja.p.x + jb.p.x) / 2, my = (ja.p.y + jb.p.y) / 2;
-        var jr = (ja.r + jb.r) * 0.22 * (0.65 + shieldFrac);
+        var jr = (ja.r + jb.r) * 0.18 * (0.65 + shieldFrac);
         ctx.fillStyle = hit ? "rgba(255,255,255,0.4)" : "rgba(255, 224, 230, " + (0.32 + 0.42 * shieldFrac) + ")";
         ctx.beginPath();
         ctx.ellipse(mx, my, jr * 1.05, jr * 0.58, ja.p.a + Math.PI / 2, 0, Math.PI * 2);
@@ -24032,14 +24033,14 @@
     }
 
     var buds = [];
-    for (var k = 0; k < nSeg - 1; k++) {
+    for (var k = 0; k < nBody; k++) {
       fillCoco(segs[k].p.x, segs[k].p.y, segs[k].r, segs[k].seed, segs[k].p.a + Math.PI / 2);
-      if (segs[k].big && k < nSeg - 2) {
-        var out = segs[k].p.a + (k % 3 === 1 ? 0.35 : -0.15);
-        var br = segs[k].r * (0.32 + 0.10 * hash01(segs[k].seed, 9));
+      if (segs[k].big && k > 0 && k < nBody - 1) {
+        var out = segs[k].p.a + (k % 2 === 0 ? 0.40 : -0.22);
+        var br = segs[k].r * 0.36;
         buds.push({
-          x: segs[k].p.x + Math.cos(out) * segs[k].r * 0.82,
-          y: segs[k].p.y + Math.sin(out) * segs[k].r * 0.82,
+          x: segs[k].p.x + Math.cos(out) * segs[k].r * 0.88,
+          y: segs[k].p.y + Math.sin(out) * segs[k].r * 0.88,
           r: br,
           seed: segs[k].seed + 11,
           a: out
@@ -24051,7 +24052,6 @@
     }
 
     // Cráneo en CUÑA, mucho más grande que el cuello.
-    var head = segs[nSeg - 1].p;
     var hR = rad * 0.82;
     ctx.save();
     ctx.translate(head.x, head.y);

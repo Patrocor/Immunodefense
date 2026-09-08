@@ -24019,36 +24019,40 @@
       fillBoulder(p.x, p.y, r, 1.7 + s * 0.73, s === nSeg - 1 ? 7 : 8);
     }
 
-    // Cuerno (proteína M) en lo alto de la cabeza — la silueta Onix.
+    // Cuerno (proteína M): losa alta y ancha, no un pelo.
     var head = spineAt(1);
     var hR = radAt(1);
-    var hornA = head.a - 1.25;
-    var hx0 = head.x + Math.cos(hornA) * hR * 0.55;
-    var hy0 = head.y + Math.sin(hornA) * hR * 0.55;
-    var hx1 = head.x + Math.cos(hornA) * (hR + rad * (0.62 + chargeFrac * 0.25));
-    var hy1 = head.y + Math.sin(hornA) * (hR + rad * (0.62 + chargeFrac * 0.25));
-    var hxL = head.x + Math.cos(hornA + 0.38) * hR * 0.22;
-    var hyL = head.y + Math.sin(hornA + 0.38) * hR * 0.22;
-    var hxR = head.x + Math.cos(hornA - 0.38) * hR * 0.22;
-    var hyR = head.y + Math.sin(hornA - 0.38) * hR * 0.22;
-    var hornG = ctx.createLinearGradient(hx0, hy0, hx1, hy1);
-    hornG.addColorStop(0, hit ? "#ffffff" : def.color);
-    hornG.addColorStop(1, hit ? "#ffffff" : "#3a0010");
+    var hornA = head.a - 1.22;
+    var px = -Math.sin(hornA), py = Math.cos(hornA);
+    var base = hR * 0.42;
+    var tip = hR + rad * 0.92;
+    var bx = head.x + Math.cos(hornA) * hR * 0.35;
+    var by = head.y + Math.sin(hornA) * hR * 0.35;
+    var tx = head.x + Math.cos(hornA) * tip;
+    var ty = head.y + Math.sin(hornA) * tip;
+    var midX = head.x + Math.cos(hornA) * (hR + rad * 0.28);
+    var midY = head.y + Math.sin(hornA) * (hR + rad * 0.28);
+    var hornG = ctx.createLinearGradient(bx, by, tx, ty);
+    hornG.addColorStop(0, hit ? "#ffffff" : "#ff6a8a");
+    hornG.addColorStop(0.55, hit ? "#ffffff" : def.color);
+    hornG.addColorStop(1, hit ? "#ffffff" : "#2a000c");
     ctx.fillStyle = hornG;
     ctx.beginPath();
-    ctx.moveTo(hxL, hyL);
-    ctx.quadraticCurveTo(hx0, hy0, hx1, hy1);
-    ctx.quadraticCurveTo(hx0, hy0, hxR, hyR);
+    ctx.moveTo(bx + px * base, by + py * base);
+    ctx.lineTo(midX + px * base * 0.55, midY + py * base * 0.55);
+    ctx.lineTo(tx, ty);
+    ctx.lineTo(midX - px * base * 0.55, midY - py * base * 0.55);
+    ctx.lineTo(bx - px * base, by - py * base);
     ctx.closePath();
     ctx.fill();
     ctx.strokeStyle = "#2a000c";
-    ctx.lineWidth = Math.max(1.3, 1.6 * U);
+    ctx.lineWidth = Math.max(1.5, 1.9 * U);
     ctx.stroke();
 
     if (!hit && chargeFrac > 0.1) {
       ctx.fillStyle = "rgba(255, 210, 80, " + (chargeFrac * 0.5) + ")";
       ctx.beginPath();
-      ctx.arc(hx1, hy1, rad * 0.10 * (1 + chargeFrac), 0, Math.PI * 2);
+      ctx.arc(tx, ty, rad * 0.08 * (1 + chargeFrac), 0, Math.PI * 2);
       ctx.fill();
     }
 

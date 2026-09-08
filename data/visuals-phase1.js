@@ -55,7 +55,7 @@
     bossPyogenes: { silhouette: "coccihook",    accent: "#C62828", label: "Cuerno" },
     bossPseudomonas: { silhouette: "ecthyma", accent: "#00ACC1", label: "Ectima" },
     bossClostridium: { silhouette: "flytrap", accent: "#6a7a48", label: "Fauces" },
-    bossMRSA: { silhouette: "carbuncle", accent: "#E0A820", label: "Carbunco" }
+    bossMRSA: { silhouette: "grape", accent: "#E0A820", label: "Megaracimo" }
   };
 
   // Pistas de counter por germen Fase 1 (pip inferior).

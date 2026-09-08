@@ -21415,13 +21415,13 @@
     ctx.save();
     ctx.translate(e.x, e.y);
     if (enraged) {
-      var furyA = 0.18 + 0.12 * Math.sin(t * 6 + w);
-      var fg = ctx.createRadialGradient(0, 0, R * 0.4, 0, 0, R * 1.7);
+      var furyA = 0.20 + 0.12 * Math.sin(t * 6 + w);
+      var fg = ctx.createRadialGradient(0, -R * 0.15, R * 0.3, 0, 0, R * 1.55);
       fg.addColorStop(0, "rgba(220, 60, 40, " + furyA + ")");
       fg.addColorStop(1, "rgba(220, 60, 40, 0)");
       ctx.fillStyle = fg;
       ctx.beginPath();
-      ctx.arc(0, 0, R * 1.7, 0, Math.PI * 2);
+      ctx.ellipse(0, -R * 0.05, R * 1.25, R * 1.55, 0, 0, Math.PI * 2);
       ctx.fill();
     }
 

@@ -54,7 +54,7 @@
     candida:      { silhouette: "germtube",    accent: "#EC407A", label: "Tubo" },
     bossPyogenes: { silhouette: "coccihook",    accent: "#C62828", label: "Cuerno" },
     bossPseudomonas: { silhouette: "ecthyma", accent: "#00ACC1", label: "Ectima" },
-    bossClostridium: { silhouette: "myonecrosis", accent: "#7a5a38", label: "Gangrena" }
+    bossClostridium: { silhouette: "drumstick", accent: "#8a9a70", label: "Espora" }
   };
 
   // Pistas de counter por germen Fase 1 (pip inferior).

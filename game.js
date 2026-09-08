@@ -20856,7 +20856,7 @@
       ctx.translate(-e.x, -e.y);
     }
     drawShadow(e.x, e.y + rad * 0.85, rad * 0.85 * scale, rad * 0.22 * scale);
-    if (def.id !== "saureus" && def.id !== "malassezia" && def.id !== "dermatofito") drawGermKindFrame(e, rad * scale);
+    if (def.id !== "saureus" && def.id !== "malassezia" && def.id !== "dermatofito" && def.id !== "neisseria") drawGermKindFrame(e, rad * scale);
     // Halo de daño genérico: pulso radial DRAMÁTICO amarillo→rojo
     // alrededor del germen cuando recibe golpe. Combina varias capas
     // (glow externo + flash blanco central + anillo dorado + chispas
@@ -24608,81 +24608,185 @@
   }
 
   function drawNeisseria(e, rad, expression, blink) {
-    // Neisseria (gonococo) — diplococo gram-negativo. Biología real:
-    //  · PAR de cocos en grano de café (dos cocos ovalados adyacentes).
-    //  · Membrana externa gram-neg → cápsula/halo tenue rosado.
-    //  · PILI (fimbrias): muchas hebras finas de adhesión, SIEMPRE presentes.
-    var R = rad, t = state.time, w = e.wobble || 0, hit = e.hitFlash > 0;
+    // Neisseria gonorrhoeae — GRANO DE CAFÉ + pili tipo IV polares.
+    //  · Diplococo: dos riñones aplastados en el contacto (no dos círculos sueltos)
+    //  · Membrana por coco; sin halo circular alrededor del par
+    //  · Pili en PENACHOS polares (no sol 360°) — twitching / arpones
+    var t = state.time, w = e.wobble || 0, hit = e.hitFlash > 0;
+    var def = e.def;
+    var R = rad * 0.95;
+
+    if (e._lastPosX == null) { e._lastPosX = e.x; e._lastPosY = e.y; e._heading = 0; }
+    var dxM = e.x - e._lastPosX, dyM = e.y - e._lastPosY;
+    var dMag = Math.hypot(dxM, dyM);
+    if (dMag > 0.5) {
+      var targetAng = Math.atan2(dyM, dxM);
+      var diffAng = targetAng - e._heading;
+      while (diffAng >  Math.PI) diffAng -= Math.PI * 2;
+      while (diffAng < -Math.PI) diffAng += Math.PI * 2;
+      e._heading += diffAng * 0.12;
+    }
+    e._lastPosX = e.x; e._lastPosY = e.y;
+    var heading = e._heading || 0;
+    var attached = !!(e.piliTarget && state.towers.indexOf(e.piliTarget) !== -1);
+    var attachDir = 0;
+    if (attached) {
+      var aimAng = Math.atan2(e.piliTarget.y - e.y, e.piliTarget.x - e.x);
+      attachDir = Math.cos(aimAng - heading) >= 0 ? 1 : -1;
+    }
+
+    var sep = R * 0.46;
+    var rx = R * 0.50, ry = R * 0.64;
+    var pole = sep + rx * 0.92;
+
     ctx.save();
     ctx.translate(e.x, e.y);
 
-    // Pili de ATAQUE hacia el objetivo (se conserva).
-    if (e.piliTarget) {
+    // Arpones tensos hacia la torre (coords mundo, antes de rotar el cuerpo).
+    if (attached) {
       var ptx = e.piliTarget.x - e.x, pty = e.piliTarget.y - e.y;
-      var piliPulse = 0.5 + 0.5 * Math.sin(t * 8);
-      ctx.strokeStyle = "rgba(212,124,58," + (0.4 + piliPulse * 0.25) + ")";
-      ctx.lineWidth = Math.max(0.8, 1.0 * U);
-      ctx.setLineDash([2 * U, 2 * U]);
-      ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(ptx, pty); ctx.stroke();
-      ctx.setLineDash([]);
+      var tAng = Math.atan2(pty, ptx);
+      var useFront = Math.cos(tAng - heading) >= 0;
+      var ox = Math.cos(heading) * pole * (useFront ? 1 : -1);
+      var oy = Math.sin(heading) * pole * (useFront ? 1 : -1);
+      var taut = 0.55 + 0.45 * Math.sin(t * 10);
+      ctx.lineCap = "round";
+      for (var pi = 0; pi < 3; pi++) {
+        var side = (pi - 1) * 7 * U;
+        var px0 = ox + Math.cos(heading + Math.PI / 2) * side;
+        var py0 = oy + Math.sin(heading + Math.PI / 2) * side;
+        ctx.strokeStyle = "rgba(212,124,58," + (0.42 + taut * 0.35) + ")";
+        ctx.lineWidth = Math.max(1.4, (1.6 + pi * 0.15) * U);
+        ctx.beginPath();
+        ctx.moveTo(px0, py0);
+        ctx.lineTo(ptx, pty);
+        ctx.stroke();
+        ctx.fillStyle = "rgba(240, 184, 128, 0.9)";
+        ctx.beginPath();
+        ctx.arc(ptx + Math.cos(heading + Math.PI / 2) * (pi - 1) * 4 * U,
+                pty + Math.sin(heading + Math.PI / 2) * (pi - 1) * 4 * U,
+                R * 0.07, 0, Math.PI * 2);
+        ctx.fill();
+      }
     }
 
-    var angle = -Math.PI / 2;
-    if (e.lastTargetX != null) angle = Math.atan2(e.lastTargetY - e.y, e.lastTargetX - e.x);
-    angle += Math.sin(t * 3 + w) * 0.06;   // balanceo idle
-    var offX = Math.cos(angle) * R * 0.5, offY = Math.sin(angle) * R * 0.5;
-    var perpA = angle + Math.PI / 2;
+    ctx.save();
+    ctx.rotate(heading);
+    if (attached) ctx.scale(1.06, 0.92);
 
-    // Cápsula / membrana externa: halo que respira.
-    var capPulse = 0.5 + 0.5 * Math.sin(t * 2 + w);
-    var cap = ctx.createRadialGradient(0, 0, R * 0.6, 0, 0, R * (1.4 + 0.1 * capPulse));
-    cap.addColorStop(0, "rgba(240,160,150," + (0.16 + 0.06 * capPulse) + ")"); cap.addColorStop(1, "rgba(240,160,150,0)");
-    ctx.fillStyle = cap; ctx.beginPath(); ctx.arc(0, 0, R * (1.4 + 0.1 * capPulse), 0, Math.PI * 2); ctx.fill();
-
-    // PILI en reposo: 16 hebras largas radiando del par, latigueando.
-    ctx.strokeStyle = "rgba(214,150,120,0.6)"; ctx.lineWidth = Math.max(0.7, 1.0 * U); ctx.lineCap = "round";
-    for (var p = 0; p < 16; p++) {
-      var pa = (p / 16) * Math.PI * 2 + w + Math.sin(t * 1.5) * 0.1;
-      var len = R * (1.0 + 0.35 * Math.sin(t * 4 + p));
-      var wob = Math.sin(t * 6 + p * 2) * R * 0.22;
-      var sx = Math.cos(pa) * R * 0.66, sy = Math.sin(pa) * R * 0.66;
-      var ex = Math.cos(pa) * len, ey = Math.sin(pa) * len;
-      var pperp = pa + Math.PI / 2;
+    function traceKidney(cx, flattenSign) {
       ctx.beginPath();
-      ctx.moveTo(sx, sy);
-      ctx.quadraticCurveTo((sx + ex) / 2 + Math.cos(pperp) * wob, (sy + ey) / 2 + Math.sin(pperp) * wob, ex, ey);
+      var n = 28;
+      for (var i = 0; i <= n; i++) {
+        var a = (i / n) * Math.PI * 2;
+        var x = Math.cos(a) * rx;
+        var y = Math.sin(a) * ry;
+        if (x * flattenSign > 0) {
+          var k = (x * flattenSign) / rx;
+          x *= (1 - 0.50 * k);
+          y *= (1 + 0.10 * k);
+        }
+        if (i === 0) ctx.moveTo(cx + x, y);
+        else ctx.lineTo(cx + x, y);
+      }
+      ctx.closePath();
+    }
+
+    function drawPiliTuft(originX, dirSign) {
+      var nP = 8;
+      ctx.lineCap = "round";
+      for (var p = 0; p < nP; p++) {
+        var spread = (p / (nP - 1) - 0.5) * 1.05;
+        var twitch = 0.55 + 0.45 * (0.5 + 0.5 * Math.sin(t * 5.5 + p * 1.3 + w));
+        if (attachDir === dirSign) twitch *= 0.45;
+        var len = R * (0.55 + 0.50 * twitch);
+        var ang = (dirSign > 0 ? 0 : Math.PI) + spread;
+        var sx = originX;
+        var sy = Math.sin(spread) * ry * 0.35;
+        var mx = originX + Math.cos(ang) * len * 0.5;
+        var my = sy + Math.sin(ang) * len * 0.5 + Math.sin(t * 6 + p) * R * 0.10;
+        var ex = originX + Math.cos(ang) * len;
+        var ey = sy + Math.sin(ang) * len;
+        ctx.strokeStyle = hit ? "rgba(255,255,255,0.85)" : "rgba(180, 96, 40, 0.78)";
+        ctx.lineWidth = Math.max(1.1, 1.35 * U);
+        ctx.beginPath();
+        ctx.moveTo(sx, sy);
+        ctx.quadraticCurveTo(mx, my, ex, ey);
+        ctx.stroke();
+        ctx.fillStyle = hit ? "#fff" : (def.colorLight || "#f0b880");
+        ctx.beginPath();
+        ctx.arc(ex, ey, R * 0.055, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    drawPiliTuft(-pole, -1);
+    drawPiliTuft(pole, 1);
+
+    var throb = 1 + Math.sin(t * 2.6 + w) * 0.04;
+    var beans = [{ cx: -sep, flatten: 1 }, { cx: sep, flatten: -1 }];
+    for (var bi = 0; bi < beans.length; bi++) {
+      var b = beans[bi];
+      ctx.save();
+      ctx.translate(b.cx, 0);
+      ctx.scale(throb, throb);
+      var g = ctx.createRadialGradient(-rx * 0.25, -ry * 0.35, rx * 0.08, 0, 0, ry);
+      g.addColorStop(0, hit ? "#ffffff" : "#f7d8b0");
+      g.addColorStop(0.5, hit ? "#ffffff" : def.color);
+      g.addColorStop(1, hit ? "#ffffff" : def.colorDark);
+      ctx.fillStyle = g;
+      traceKidney(0, b.flatten);
+      ctx.fill();
+      ctx.strokeStyle = def.colorDark;
+      ctx.lineWidth = Math.max(1.6, 2.0 * U);
+      ctx.stroke();
+      ctx.strokeStyle = "rgba(247, 216, 176, 0.45)";
+      ctx.lineWidth = Math.max(0.9, 1.15 * U);
+      ctx.stroke();
+      ctx.fillStyle = "rgba(255,255,255,0.40)";
+      ctx.beginPath();
+      ctx.ellipse(-rx * 0.18 * b.flatten, -ry * 0.32, rx * 0.22, ry * 0.14, -0.4 * b.flatten, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    // Surco del grano de café.
+    ctx.strokeStyle = "rgba(70, 28, 8, 0.55)";
+    ctx.lineWidth = Math.max(1.4, 1.8 * U);
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(0, -ry * 0.72);
+    ctx.quadraticCurveTo(R * 0.04, 0, 0, ry * 0.72);
+    ctx.stroke();
+
+    // Vesículas de membrana (blebs) en los flancos, no en órbita circular.
+    ctx.fillStyle = hit ? "#fff" : colorAlpha(def.colorLight || "#f0b880", 0.85);
+    var blebs = [
+      { x: -sep * 0.15, y: -ry * 0.95, r: R * 0.09 },
+      { x: sep * 0.55, y: ry * 0.88, r: R * 0.08 },
+      { x: -sep * 0.70, y: ry * 0.78, r: R * 0.07 }
+    ];
+    for (var bl = 0; bl < blebs.length; bl++) {
+      var bb = blebs[bl];
+      var bob = 1 + 0.12 * Math.sin(t * 2.8 + bl);
+      ctx.beginPath();
+      ctx.ellipse(bb.x, bb.y * bob, bb.r, bb.r * 0.85, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = def.colorDark;
+      ctx.lineWidth = Math.max(0.8, 1.0 * U);
       ctx.stroke();
     }
 
-    // Los dos cocos ovalados (grano de café), con latido propio.
-    var throb = 1 + Math.sin(t * 3 + w) * 0.05;
-    for (var si = -1; si <= 1; si += 2) {
-      var cx2 = si * offX, cy2 = si * offY;
-      ctx.save(); ctx.translate(cx2, cy2); ctx.rotate(angle); ctx.scale(throb, throb);
-      var g = ctx.createRadialGradient(-R * 0.2, -R * 0.24, R * 0.06, 0, 0, R * 0.72);
-      g.addColorStop(0, "#f7d8b0"); g.addColorStop(0.5, e.def.color); g.addColorStop(1, e.def.colorDark);
-      ctx.fillStyle = hit ? "#fff" : g;
-      ctx.beginPath(); ctx.ellipse(0, 0, R * 0.6, R * 0.72, 0, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = e.def.colorDark; ctx.lineWidth = Math.max(1, 1.4 * U); ctx.stroke();
-      ctx.fillStyle = "rgba(255,255,255,0.42)";
-      ctx.beginPath(); ctx.ellipse(-R * 0.2, -R * 0.3, R * 0.22, R * 0.11, -0.5, 0, Math.PI * 2); ctx.fill();
-      ctx.restore();
-    }
-    // Vesículas de membrana externa (blebs) desprendiéndose, animadas.
-    ctx.fillStyle = colorAlpha(e.def.colorLight || "#f0b880", 0.7);
-    for (var bl = 0; bl < 4; bl++) {
-      var ba = t * 0.9 + bl * 1.6, brd = R * (1.05 + 0.15 * Math.sin(t * 2.5 + bl));
-      ctx.beginPath(); ctx.arc(Math.cos(ba) * brd, Math.sin(ba) * brd, R * 0.08, 0, Math.PI * 2); ctx.fill();
-    }
-    // Surco central del grano de café (contacto entre cocos).
-    ctx.strokeStyle = "rgba(80,30,10,0.3)"; ctx.lineWidth = Math.max(1, 1.4 * U);
-    ctx.beginPath();
-    ctx.moveTo(Math.cos(perpA) * R * 0.55, Math.sin(perpA) * R * 0.55);
-    ctx.lineTo(-Math.cos(perpA) * R * 0.55, -Math.sin(perpA) * R * 0.55);
-    ctx.stroke();
+    ctx.restore(); // end body rotated
 
-    // Cara villana sobre el par (antes no tenía).
-    germFace(R * 0.82, expression, blink, R * 0.34);
+    var faceR = R * 0.78;
+    var eyeR = faceR * 0.26, faceY = -faceR * 0.06, gap = faceR * 0.30;
+    if (expression === "dying" || expression === "hurt") drawHurtEyes(0, faceY, eyeR, gap);
+    else if (blink) drawClosedEyes(0, faceY, eyeR, gap);
+    else drawAnimeEyes(0, faceY, eyeR, gap, 0, 0, faceR * 0.10, faceR * 0.04, "evil");
+    if (expression === "dying" || expression === "hurt") drawAnimeMouth(0, faceR * 0.32, faceR * 0.48, faceR * 0.40, "open");
+    else drawAnimeMouth(0, faceR * 0.32, faceR * 0.46, faceR * 0.22, "smirk");
+
     ctx.restore();
   }
 

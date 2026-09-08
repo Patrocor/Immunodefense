@@ -4771,8 +4771,8 @@
     }
     // Candida: yeast deflate — gotas verde-amarillo
     if (id === "candida") {
-      burst(10, "#A8D070", 100 * U, 0.75, rad * 0.16);
-      burst(4, "#D8EFA8", 65 * U, 0.65, rad * 0.10);
+      burst(10, "#EC407A", 100 * U, 0.75, rad * 0.16);
+      burst(4, "#f7dce6", 65 * U, 0.65, rad * 0.10);
       return;
     }
     // Dermatofito: spore release — esporas dispersas
@@ -20856,7 +20856,7 @@
       ctx.translate(-e.x, -e.y);
     }
     drawShadow(e.x, e.y + rad * 0.85, rad * 0.85 * scale, rad * 0.22 * scale);
-    if (def.id !== "saureus" && def.id !== "malassezia" && def.id !== "dermatofito" && def.id !== "neisseria" && def.id !== "hpv" && def.id !== "sarna" && def.id !== "leishmania") drawGermKindFrame(e, rad * scale);
+    if (def.id !== "saureus" && def.id !== "malassezia" && def.id !== "dermatofito" && def.id !== "neisseria" && def.id !== "hpv" && def.id !== "sarna" && def.id !== "leishmania" && def.id !== "candida") drawGermKindFrame(e, rad * scale);
     // Halo de daño genérico: pulso radial DRAMÁTICO amarillo→rojo
     // alrededor del germen cuando recibe golpe. Combina varias capas
     // (glow externo + flash blanco central + anillo dorado + chispas
@@ -20999,7 +20999,7 @@
     // Shield overlay (drawn on top of body but under HP bar).
     // S. aureus dibuja su cápsula como casco irregular del racimo;
     // el anillo circular genérico lo volvería otra vez un círculo dorado.
-    if (def.shield && def.id !== "saureus" && def.id !== "dermatofito" && def.id !== "hpv" &&
+    if (def.shield && def.id !== "saureus" && def.id !== "dermatofito" && def.id !== "hpv" && def.id !== "candida" &&
         (e.shieldHP > 0 || e.shieldShatterTimer > 0)) {
       drawShield(e, rad * scale);
     }
@@ -23732,218 +23732,162 @@
   }
 
   function drawCandida(e, rad, expression, blink) {
-    // Levadura ovalada vertical con pseudohifas serpenteantes segmentadas.
-    var hit = e.hitFlash > 0;
-    var t = state.time;
+    // Candida v1 — TUBO GERMINATIVO (test diagnóstico de C. albicans).
+    //  · Madre cremosa irregular (rosa, no óvalo-moho verde)
+    //  · Un tubo hifal con constricciones + yemas + clamidospora en la punta
+    //  · Escudo wall = costra de quitina, no anillo circular
+    var hit = e.hitFlash > 0, t = state.time, w = e.wobble || 0;
+    var def = e.def;
+    var R = rad * 0.95;
+    var col = def.color, cold = def.colorDark;
+    var cream = "#f7dce6";
+    var sd = def.shield;
+    var shieldRatio = (sd && sd.maxHP > 0) ? Math.max(0, (e.shieldHP || 0) / sd.maxHP) : 0;
+
+    if (e._lastPosX == null) { e._lastPosX = e.x; e._lastPosY = e.y; e._heading = 0; }
+    var dxM = e.x - e._lastPosX, dyM = e.y - e._lastPosY;
+    var dMag = Math.hypot(dxM, dyM);
+    if (dMag > 0.5) {
+      var targetAng = Math.atan2(dyM, dxM);
+      var diffAng = targetAng - e._heading;
+      while (diffAng >  Math.PI) diffAng -= Math.PI * 2;
+      while (diffAng < -Math.PI) diffAng += Math.PI * 2;
+      e._heading += diffAng * 0.12;
+    }
+    e._lastPosX = e.x; e._lastPosY = e.y;
+
+    function smoothBlob(pts) {
+      ctx.beginPath();
+      var n = pts.length;
+      ctx.moveTo((pts[n - 1].x + pts[0].x) / 2, (pts[n - 1].y + pts[0].y) / 2);
+      for (var i = 0; i < n; i++) {
+        var p = pts[i], q = pts[(i + 1) % n];
+        ctx.quadraticCurveTo(p.x, p.y, (p.x + q.x) / 2, (p.y + q.y) / 2);
+      }
+      ctx.closePath();
+    }
+    function amoeba(cx, cy, rx, ry, n, seed) {
+      var pts = [];
+      for (var i = 0; i < n; i++) {
+        var a = (i / n) * Math.PI * 2;
+        var lump = 1
+          + 0.12 * Math.sin(a * 3 + t * 1.4 + seed + w)
+          + 0.08 * Math.sin(a * 5 + t * 0.9 + seed * 1.6);
+        pts.push({ x: cx + Math.cos(a) * rx * lump, y: cy + Math.sin(a) * ry * lump });
+      }
+      return pts;
+    }
+    function fillYeast(cx, cy, rx, ry, seed) {
+      var pts = amoeba(cx, cy, rx, ry, 14, seed);
+      var g = ctx.createRadialGradient(cx - rx * 0.28, cy - ry * 0.32, rx * 0.12, cx, cy, rx * 1.15);
+      g.addColorStop(0, hit ? "#ffffff" : cream);
+      g.addColorStop(0.45, hit ? "#ffffff" : col);
+      g.addColorStop(1, hit ? "#ffffff" : cold);
+      ctx.fillStyle = g;
+      smoothBlob(pts);
+      ctx.fill();
+      ctx.strokeStyle = cold;
+      ctx.lineWidth = Math.max(1.2, 1.5 * U);
+      ctx.stroke();
+    }
+
     ctx.save();
     ctx.translate(e.x, e.y);
-    var breathe = 1 + Math.sin(t * 1.5 + e.wobble) * 0.04;
-    var bw = rad * 0.85 * breathe;
-    var bh = rad * 1.20 * (2 - breathe);
-    // Pseudohifas (3) saliendo desde la base — ciclo real de
-    // crecimiento-retracción (se alargan segmento a segmento y luego se
-    // reabsorben), en vez de tener un largo fijo.
-    var hyphae = [
-      { angle:  Math.PI * 0.55, maxSegs: 6, growSpeed: 0.45, phase: 0 },
-      { angle:  Math.PI * 0.40, maxSegs: 5, growSpeed: 0.40, phase: 2.4 },
-      { angle:  Math.PI * 0.65, maxSegs: 6, growSpeed: 0.50, phase: 4.6 }
-    ];
-    for (var hi = 0; hi < hyphae.length; hi++) {
-      var h = hyphae[hi];
-      var ox = Math.cos(h.angle) * bw * 0.6;
-      var oy = Math.sin(h.angle) * bh * 0.8;
-      var dirX = Math.cos(h.angle);
-      var dirY = Math.sin(h.angle);
-      var perpX = -dirY;
-      var perpY = dirX;
-      var segLen = 6 * U;
-      var segR = 3.2 * U;
-      var cyclePeriod = 6.0;
-      var cyclePos = ((t * h.growSpeed + h.phase) % cyclePeriod) / cyclePeriod;
-      var growFrac = cyclePos < 0.5 ? cyclePos * 2 : (1 - cyclePos) * 2;
-      var visibleLen = 1 + growFrac * (h.maxSegs - 1);
-      var segCount = Math.floor(visibleLen);
-      var partialFrac = visibleLen - segCount;
-      var px = ox, py = oy;
-      for (var sg = 0; sg < segCount; sg++) {
-        var wave = Math.sin(t * 2.5 + hi * 1.7 + sg * 0.9 + e.wobble) * 3.8 * U;
-        var nx = ox + dirX * segLen * (sg + 1) + perpX * wave;
-        var ny = oy + dirY * segLen * (sg + 1) + perpY * wave;
-        var midX = (px + nx) / 2;
-        var midY = (py + ny) / 2;
-        // Salchicha: óvalo orientado al segmento
-        var ang = Math.atan2(ny - py, nx - px);
-        var grad = ctx.createRadialGradient(midX - segR * 0.3, midY - segR * 0.3, segR * 0.2,
-                                             midX, midY, segR);
-        grad.addColorStop(0, "#D8EFA8");
-        grad.addColorStop(0.6, "#C0E090");
-        grad.addColorStop(1, "#6B8E47");
-        ctx.fillStyle = hit ? "#ffffff" : grad;
-        ctx.beginPath();
-        ctx.ellipse(midX, midY, segLen * 0.55, segR, ang, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.strokeStyle = "#6B8E47";
-        ctx.lineWidth = Math.max(0.9, 1.1 * U);
-        ctx.stroke();
-        px = nx; py = ny;
-      }
-      // Punta brotando a medio crecer — escala con la fracción del ciclo.
-      if (partialFrac > 0.08) {
-        var tipWave = Math.sin(t * 2.5 + hi * 1.7 + segCount * 0.9 + e.wobble) * 2.5 * U * partialFrac;
-        var tipX = ox + dirX * segLen * (segCount + partialFrac) + perpX * tipWave;
-        var tipY = oy + dirY * segLen * (segCount + partialFrac) + perpY * tipWave;
-        var tipMidX = (px + tipX) / 2, tipMidY = (py + tipY) / 2;
-        var tipAng = Math.atan2(tipY - py, tipX - px);
-        var tipR = segR * (0.45 + partialFrac * 0.55);
-        var tipGrad = ctx.createRadialGradient(tipMidX - tipR * 0.3, tipMidY - tipR * 0.3, tipR * 0.2,
-                                                tipMidX, tipMidY, tipR);
-        tipGrad.addColorStop(0, "#D8EFA8");
-        tipGrad.addColorStop(0.6, "#C0E090");
-        tipGrad.addColorStop(1, "#6B8E47");
-        ctx.fillStyle = hit ? "#ffffff" : tipGrad;
-        ctx.beginPath();
-        ctx.ellipse(tipMidX, tipMidY, segLen * 0.55 * partialFrac, tipR, tipAng, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.strokeStyle = "#6B8E47";
-        ctx.lineWidth = Math.max(0.7, 0.9 * U);
-        ctx.stroke();
-      }
+    ctx.lineJoin = "round";
+    ctx.lineCap = "round";
+    ctx.save();
+    ctx.rotate(e._heading || 0);
+
+    // Costra de quitina (escudo wall) — envuelve la madre, irregular.
+    if (shieldRatio > 0.02) {
+      var crust = amoeba(-R * 0.08, 0, R * (0.82 + 0.16 * shieldRatio), R * (0.70 + 0.12 * shieldRatio), 16, 0.7);
+      ctx.fillStyle = hit ? "rgba(255,255,255,0.55)" : "rgba(245, 232, 196, " + (0.55 + 0.35 * shieldRatio) + ")";
+      smoothBlob(crust);
+      ctx.fill();
+      ctx.strokeStyle = "rgba(168, 140, 72, " + (0.55 + 0.35 * shieldRatio) + ")";
+      ctx.lineWidth = Math.max(2.0, (2.2 + 1.6 * shieldRatio) * U);
+      ctx.stroke();
     }
-    // Cuerpo (levadura ovalada vertical)
-    var grad = ctx.createRadialGradient(-bw * 0.35, -bh * 0.40, bh * 0.2, 0, 0, bh);
-    grad.addColorStop(0, "#D8EFA8");
-    grad.addColorStop(0.55, "#A8D070");
-    grad.addColorStop(1, "#6B8E47");
-    ctx.fillStyle = hit ? "#ffffff" : grad;
-    ctx.beginPath();
-    ctx.ellipse(0, 0, bw, bh, 0, 0, Math.PI * 2);
+
+    // Tubo germinativo: una hifa gruesa con constricciones (pseudohifa).
+    var tube = [];
+    var nT = 18;
+    var len = R * 1.72;
+    var x0 = R * 0.38;
+    for (var ti = 0; ti <= nT; ti++) {
+      var u = ti / nT;
+      var constrict = 0.70 + 0.30 * Math.abs(Math.sin(u * 5.2 * Math.PI));
+      var wave = Math.sin(t * 1.8 + u * Math.PI * 2.1 + w) * R * 0.10 * u;
+      var th = R * (0.22 - 0.05 * u) * constrict * (1 + 0.06 * Math.sin(t * 1.5 + u * 6));
+      tube.push({ x: x0 + u * len, y: wave - th });
+    }
+    for (var tj = nT; tj >= 0; tj--) {
+      var v = tj / nT;
+      var con2 = 0.70 + 0.30 * Math.abs(Math.sin(v * 5.2 * Math.PI));
+      var wv = Math.sin(t * 1.8 + v * Math.PI * 2.1 + w) * R * 0.10 * v;
+      var th2 = R * (0.22 - 0.05 * v) * con2 * (1 + 0.06 * Math.sin(t * 1.5 + v * 6));
+      tube.push({ x: x0 + v * len, y: wv + th2 });
+    }
+    var tg = ctx.createLinearGradient(x0, 0, x0 + len, 0);
+    tg.addColorStop(0, hit ? "#ffffff" : cream);
+    tg.addColorStop(0.45, hit ? "#ffffff" : col);
+    tg.addColorStop(1, hit ? "#ffffff" : cold);
+    ctx.fillStyle = tg;
+    smoothBlob(tube);
     ctx.fill();
-    ctx.strokeStyle = "#6B8E47";
-    ctx.lineWidth = Math.max(1.0, 1.3 * U);
+    ctx.strokeStyle = cold;
+    ctx.lineWidth = Math.max(1.3, 1.6 * U);
     ctx.stroke();
-    // Pared celular: mosaico de placas de quitina/β-glucano, levemente
-    // abultadas. Se generan UNA sola vez por instancia (cacheadas en el
-    // germen) para que el mosaico no titile ni se reordene cada frame.
-    if (!hit) {
-      if (!e._chitinPlates) {
-        var plateCount = 7;
-        e._chitinPlates = [];
-        for (var pc = 0; pc < plateCount; pc++) {
-          e._chitinPlates.push({
-            angle: (pc / plateCount) * Math.PI * 2 + (Math.random() - 0.5) * 0.30,
-            rScale: 0.88 + Math.random() * 0.16,
-            w: 0.28 + Math.random() * 0.14,
-            h: 0.20 + Math.random() * 0.10,
-            phase: Math.random() * Math.PI * 2
-          });
-        }
-      }
-      for (var pl = 0; pl < e._chitinPlates.length; pl++) {
-        var plate = e._chitinPlates[pl];
-        var bulge = 1 + Math.sin(t * 1.1 + plate.phase) * 0.11;
-        var pcx = Math.cos(plate.angle) * bw * plate.rScale * bulge;
-        var pcy = Math.sin(plate.angle) * bh * plate.rScale * bulge;
-        ctx.fillStyle = "rgba(245, 235, 180, 0.30)";
-        ctx.beginPath();
-        ctx.ellipse(pcx, pcy, bw * plate.w, bh * plate.h, plate.angle, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.strokeStyle = "rgba(70, 95, 35, 0.65)";
-        ctx.lineWidth = Math.max(1.0, 1.3 * U);
-        ctx.stroke();
-      }
+
+    // Septos suaves en el tubo (no palitos).
+    ctx.strokeStyle = "rgba(122, 29, 62, 0.35)";
+    ctx.lineWidth = Math.max(1.0, 1.2 * U);
+    for (var s = 1; s <= 4; s++) {
+      var su = s / 5;
+      var sx = x0 + su * len;
+      var sw = Math.sin(t * 1.8 + su * Math.PI * 2.1 + w) * R * 0.10 * su;
+      var sth = R * (0.20 - 0.04 * su);
+      ctx.beginPath();
+      ctx.moveTo(sx, sw - sth * 0.75);
+      ctx.quadraticCurveTo(sx + R * 0.04, sw, sx, sw + sth * 0.75);
+      ctx.stroke();
     }
-    // Highlight arriba-izquierda
-    ctx.fillStyle = "rgba(255,255,255,0.32)";
+
+    // Blastoconidios (yemas ovaladas, no cocos).
+    var buds = [
+      { x: R * 0.72, y: -R * 0.28, rx: R * 0.20, ry: R * 0.16, seed: 1.2 },
+      { x: R * 1.18, y:  R * 0.32, rx: R * 0.18, ry: R * 0.14, seed: 2.1 },
+      { x: R * 1.55, y: -R * 0.18, rx: R * 0.16, ry: R * 0.13, seed: 3.0 }
+    ];
+    for (var b = 0; b < buds.length; b++) {
+      fillYeast(buds[b].x, buds[b].y, buds[b].rx, buds[b].ry, buds[b].seed);
+    }
+
+    // Clamidospora en la punta — pared gruesa, ovoide.
+    var tipX = x0 + len + R * 0.06;
+    var tipY = Math.sin(t * 1.8 + Math.PI * 2.1 + w) * R * 0.10;
+    fillYeast(tipX, tipY, R * 0.24, R * 0.20, 4.4);
+    ctx.strokeStyle = "rgba(122, 29, 62, 0.45)";
+    ctx.lineWidth = Math.max(2.0, 2.4 * U);
+    smoothBlob(amoeba(tipX, tipY, R * 0.28, R * 0.24, 12, 4.4));
+    ctx.stroke();
+
+    // Madre: papa cremosa, no elipse limpia.
+    fillYeast(-R * 0.12, 0, R * 0.62, R * 0.52, 0.4);
+    ctx.fillStyle = "rgba(255,255,255,0.38)";
     ctx.beginPath();
-    ctx.ellipse(-bw * 0.35, -bh * 0.40, bw * 0.32, bh * 0.20, -0.3, 0, Math.PI * 2);
+    ctx.ellipse(-R * 0.28, -R * 0.18, R * 0.22, R * 0.12, -0.4, 0, Math.PI * 2);
     ctx.fill();
 
-    // YEAST BUDDING (gemación asexual) — signature de Candida. Ciclo real:
-    // la yema crece, el cuello se estrecha hasta separarse (pinch-off),
-    // queda una cicatriz en la madre, y brota una yema nueva en otro punto
-    // del perímetro. Todo derivado de `t`, sin estado mutable que inicializar.
-    var budPeriod = 5.0;
-    var budSlots = [{ speed: 1.0, offset: 0 }, { speed: 0.85, offset: 2.7 }];
-    for (var bd = 0; bd < budSlots.length; bd++) {
-      var slot = budSlots[bd];
-      var rawT = t * slot.speed + slot.offset;
-      var cycIndex = Math.floor(rawT / budPeriod);
-      var cyc = (rawT - cycIndex * budPeriod) / budPeriod;
-      // Ángulo pseudo-random estable durante todo el ciclo (cambia solo al
-      // arrancar un ciclo nuevo — sin necesitar estado persistente).
-      var angleSeed = Math.sin(cycIndex * 12.9898 + bd * 78.233) * 43758.5453;
-      var angleFrac = angleSeed - Math.floor(angleSeed);
-      var bdAng = (bd === 0 ? 1 : -1) * (Math.PI * 0.12 + angleFrac * Math.PI * 0.32);
-      var sizeFrac, neckFrac, scarAlpha;
-      if (cyc < 0.62) {
-        sizeFrac = Math.min(1, cyc / 0.62);
-        neckFrac = 1;
-        scarAlpha = 0;
-      } else if (cyc < 0.78) {
-        sizeFrac = 1;
-        neckFrac = Math.max(0, 1 - (cyc - 0.62) / 0.16);
-        scarAlpha = 0;
-      } else {
-        sizeFrac = 0;
-        neckFrac = 0;
-        scarAlpha = Math.max(0, 1 - (cyc - 0.78) / 0.22);
-      }
-      if (sizeFrac > 0.02) {
-        var bdDist = bw * (0.85 + sizeFrac * 0.20);
-        var bdX = Math.cos(bdAng) * bdDist;
-        var bdY = Math.sin(bdAng) * bdDist * (bh / bw);
-        var bdR = bw * 0.34 * sizeFrac;
-        // Cuello que conecta con la madre — se estrecha hasta separarse.
-        if (neckFrac > 0.02) {
-          var baseX = Math.cos(bdAng) * bw, baseY = Math.sin(bdAng) * bh;
-          ctx.strokeStyle = "#A8D070";
-          ctx.lineCap = "round";
-          ctx.lineWidth = Math.max(0.8, bdR * 1.1 * neckFrac);
-          ctx.beginPath();
-          ctx.moveTo(baseX, baseY);
-          ctx.lineTo(bdX, bdY);
-          ctx.stroke();
-        }
-        // Cuerpo de la yeast hija
-        var bdGrad = ctx.createRadialGradient(bdX - bdR * 0.3, bdY - bdR * 0.3, bdR * 0.15, bdX, bdY, bdR);
-        bdGrad.addColorStop(0, "#D8EFA8");
-        bdGrad.addColorStop(0.6, "#A8D070");
-        bdGrad.addColorStop(1, "#6B8E47");
-        ctx.fillStyle = hit ? "#ffffff" : bdGrad;
-        ctx.beginPath();
-        ctx.arc(bdX, bdY, bdR, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.strokeStyle = "#6B8E47";
-        ctx.lineWidth = Math.max(0.9, 1.2 * U);
-        ctx.stroke();
-        // Mini-highlight
-        ctx.fillStyle = "rgba(255,255,255,0.32)";
-        ctx.beginPath();
-        ctx.arc(bdX - bdR * 0.30, bdY - bdR * 0.32, bdR * 0.30, 0, Math.PI * 2);
-        ctx.fill();
-      } else if (scarAlpha > 0.02 && !hit) {
-        // Cicatriz de gemación: marca oscura donde se separó la última yema.
-        var scarX = Math.cos(bdAng) * bw * 0.90, scarY = Math.sin(bdAng) * bh * 0.90;
-        ctx.fillStyle = "rgba(50, 70, 25, " + (0.80 * scarAlpha) + ")";
-        ctx.beginPath();
-        ctx.arc(scarX, scarY, bw * 0.15, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.strokeStyle = "rgba(30, 45, 15, " + (0.70 * scarAlpha) + ")";
-        ctx.lineWidth = Math.max(0.8, 1.0 * U);
-        ctx.stroke();
-      }
-    }
-    // Cara
-    var eyeR = bw * 0.28;
-    var faceY = -bh * 0.10;
-    var gap = bw * 0.32;
-    if (expression === "dying") drawHurtEyes(0, faceY, eyeR, gap);
-    else if (expression === "hurt") drawHurtEyes(0, faceY, eyeR, gap);
-    else if (blink) drawClosedEyes(0, faceY, eyeR, gap);
-    else drawAnimeEyes(0, faceY, eyeR, gap, 0, 0, bh * 0.08, bh * 0.06, "angry");
-    if (expression === "dying") drawAnimeMouth(0, bh * 0.30, bw * 0.55, bh * 0.40, "open");
-    else if (expression === "hurt") drawAnimeMouth(0, bh * 0.30, bw * 0.45, bh * 0.35, "open");
-    else drawAnimeMouth(0, bh * 0.30, bw * 0.55, bh * 0.28, "wicked");
+    ctx.restore();
+
+    var eyeR = R * 0.20, faceY = -R * 0.08, gap = R * 0.24;
+    if (expression === "dying" || expression === "hurt") drawHurtEyes(-R * 0.12, faceY, eyeR, gap);
+    else if (blink) drawClosedEyes(-R * 0.12, faceY, eyeR, gap);
+    else drawAnimeEyes(-R * 0.12, faceY, eyeR, gap, 0, 0, R * 0.07, R * 0.03, "smug");
+    if (expression === "dying" || expression === "hurt") drawAnimeMouth(-R * 0.12, R * 0.18, R * 0.32, R * 0.22, "open");
+    else drawAnimeMouth(-R * 0.12, R * 0.18, R * 0.30, R * 0.14, "smirk");
+
     ctx.restore();
   }
 
@@ -25783,6 +25727,7 @@
     // Leishmania v4 — silueta distinta de la pera-alubia.
     //  · Promastigote: ANGUILA en S (cuerpo largo + vela ondulante + flagelo)
     //  · Amastigote: colonia de olivas en BURBUJA (no un macrófago-saco)
+    // LOCKED: v4 anguila 1.1× (user OK).
     var R = rad * 1.1, t = state.time, w = e.wobble || 0, hit = e.hitFlash > 0;
     var def = e.def;
     var ama = !!e.leishAmastigote;
@@ -28452,7 +28397,7 @@
     else if (kind === "virus") drawVirus(fakeEnemy, R, "idle", false);
     else if (kind === "hongo") drawHongo(fakeEnemy, R, "idle", false);
     else drawBoss(fakeEnemy, R, "idle", false);
-    if (def.shield && def.id !== "saureus" && def.id !== "dermatofito" && def.id !== "hpv") drawShield(fakeEnemy, R);
+    if (def.shield && def.id !== "saureus" && def.id !== "dermatofito" && def.id !== "hpv" && def.id !== "candida") drawShield(fakeEnemy, R);
     ctx.restore();
   }
 

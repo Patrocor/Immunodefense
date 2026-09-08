@@ -50,7 +50,8 @@
     neisseria:    { silhouette: "coffeebean", accent: "#d47c3a", label: "Pili" },
     hpv:          { silhouette: "wart",       accent: "#8a9a5e", label: "Verruga" },
     sarna:        { silhouette: "tortoise",   accent: "#8a5a2b", label: "Galería" },
-    leishmania:   { silhouette: "eel",         accent: "#7aaa44", label: "Vacuola" }
+    leishmania:   { silhouette: "eel",         accent: "#7aaa44", label: "Vacuola" },
+    candida:      { silhouette: "germtube",    accent: "#EC407A", label: "Tubo" }
   };
 
   // Pistas de counter por germen Fase 1 (pip inferior).
@@ -66,6 +67,7 @@
     neisseria:    { glyph: "antibody",color: "#50C878", tip: "×2 Ig" },
     saureus:      { glyph: "antibody",color: "#50C878", tip: "Opsoniza" },
     leishmania:   { glyph: "granule", color: "#F2774E", tip: "×2.6 Eos" },
-    sarna:        { glyph: "granule", color: "#F2774E", tip: "Parásito" }
+    sarna:        { glyph: "granule", color: "#F2774E", tip: "Parásito" },
+    candida:      { glyph: "star",    color: "#B79CE0", tip: "PMN" }
   };
 })(window.ImmunoDefenseData);

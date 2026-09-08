@@ -23895,19 +23895,18 @@
   // ---- Sprint 8C-2: morfologías microbiológicas reales para los 4 bosses ---
 
   function drawBossPyogenes(e, rad, expression, blink) {
-    // Pyogenes v3 — silueta tipo "roca-serpiente": cabeza enorme, cuerno,
-    // segmentos que se AFILAN hasta un guijarro, pose en C. Sigue siendo
-    // estreptococo rojo (no piedra gris): cada bloque es un coco irregular.
+    // Pyogenes v4 — silueta Onix: cantos VIVOS (miter), pentágonos
+    // irregulares con facetas, cabeza enorme + cuerno triangular, C abierta.
     var hit = e.hitFlash > 0;
     var t = state.time;
-    var wv = e.wobble || 0;
     var def = e.def;
     var sd = def.shield;
     var shieldFrac = (sd && sd.maxHP) ? Math.max(0, (e.shieldHP || 0) / sd.maxHP) : 1;
     ctx.save();
     ctx.translate(e.x, e.y);
-    ctx.lineJoin = "round";
-    ctx.lineCap = "round";
+    ctx.lineJoin = "miter";
+    ctx.miterLimit = 2.4;
+    ctx.lineCap = "butt";
 
     if (e._lastPosX == null) { e._lastPosX = e.x; e._lastPosY = e.y; e._heading = 0; }
     var dxM = e.x - e._lastPosX, dyM = e.y - e._lastPosY;
@@ -23920,153 +23919,229 @@
       e._heading += diffAng * 0.08;
     }
     e._lastPosX = e.x; e._lastPosY = e.y;
-    e._slitherPhase = (e._slitherPhase || 0) + Math.max(0.02, dMag * 0.10);
+    e._slitherPhase = (e._slitherPhase || 0) + Math.max(0.018, dMag * 0.09);
     var phase = e._slitherPhase;
     var chargeFrac = 0;
     if ((e.powerCharge || 0) > 0 && e.powerTarget) chargeFrac = Math.max(0, Math.min(1, 1 - e.powerCharge / 0.55));
 
-    function smoothBlob(pts) {
-      ctx.beginPath();
-      var nn = pts.length;
-      ctx.moveTo((pts[nn - 1].x + pts[0].x) / 2, (pts[nn - 1].y + pts[0].y) / 2);
-      for (var i = 0; i < nn; i++) {
-        var p = pts[i], q = pts[(i + 1) % nn];
-        ctx.quadraticCurveTo(p.x, p.y, (p.x + q.x) / 2, (p.y + q.y) / 2);
-      }
-      ctx.closePath();
-    }
-    // Arco en C: cabeza arriba-derecha, cola abajo-izquierda.
-    var aTail = 2.35, aHead = -0.55;
-    var rArc = rad * (1.12 + 0.04 * Math.sin(phase));
+    var aTail = 2.92, aHead = -1.12;
+    var rArc = rad * (1.46 + 0.03 * Math.sin(phase));
     function spineAt(u) {
       var a = aTail + (aHead - aTail) * u;
       return { x: Math.cos(a) * rArc, y: Math.sin(a) * rArc, a: a };
     }
     function radAt(u) {
-      return rad * (0.07 + 0.46 * Math.pow(u, 1.55));
+      // Guijarros visibles en la cola; cuello ya grande; la cabeza se dibuja aparte.
+      return rad * (0.14 + 0.30 * Math.pow(u, 1.55));
     }
-    function boulderPts(cx, cy, r, seed, nPts) {
+    function hash01(s, i) {
+      var x = Math.sin(s * 12.9898 + i * 78.233) * 43758.5453;
+      return x - Math.floor(x);
+    }
+    function rockPts(cx, cy, r, seed) {
+      var nB = 5;
+      var spans = [];
+      var sum = 0;
+      var i;
+      for (i = 0; i < nB; i++) {
+        var sp = 0.52 + 0.95 * hash01(seed, i);
+        spans.push(sp);
+        sum += sp;
+      }
       var pts = [];
-      var nB = nPts || 8;
-      for (var i = 0; i < nB; i++) {
-        var a = (i / nB) * Math.PI * 2 + seed * 0.15;
-        var lump = 0.72 + 0.32 * Math.abs(Math.sin(a * 2.1 + seed * 2.7 + wv * 0.3));
-        lump += 0.06 * Math.sin(a * 4 + t * 0.8 + seed);
-        pts.push({ x: cx + Math.cos(a) * r * lump, y: cy + Math.sin(a) * r * lump });
+      var acc = 0;
+      var a0 = seed * 1.9;
+      var sharp = (Math.floor(seed * 17) % nB + nB) % nB;
+      for (i = 0; i < nB; i++) {
+        var a = a0 + (acc / sum) * Math.PI * 2;
+        acc += spans[i];
+        var mag = 0.58 + 0.48 * hash01(seed, i + 20);
+        if (i === sharp) mag = 1.16;
+        pts.push({ x: cx + Math.cos(a) * r * mag, y: cy + Math.sin(a) * r * mag });
       }
       return pts;
     }
-    function fillBoulder(cx, cy, r, seed, nPts) {
-      var pts = boulderPts(cx, cy, r, seed, nPts);
-      var g = ctx.createRadialGradient(cx - r * 0.28, cy - r * 0.32, r * 0.12, cx, cy, r * 1.05);
-      g.addColorStop(0, hit ? "#ffffff" : "#ff7a9a");
+    function fillRock(cx, cy, r, seed) {
+      var pts = rockPts(cx, cy, r, seed);
+      ctx.beginPath();
+      ctx.moveTo(pts[0].x, pts[0].y);
+      var i;
+      for (i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+      ctx.closePath();
+      var g = ctx.createLinearGradient(cx - r, cy - r, cx + r * 0.85, cy + r);
+      g.addColorStop(0, hit ? "#ffffff" : "#ff8aa6");
       g.addColorStop(0.45, hit ? "#ffffff" : def.color);
       g.addColorStop(1, hit ? "#ffffff" : def.colorDark);
       ctx.fillStyle = g;
-      smoothBlob(pts);
       ctx.fill();
-      ctx.strokeStyle = "#2a000c";
-      ctx.lineWidth = Math.max(1.4, 1.8 * U);
+      ctx.strokeStyle = "#140008";
+      ctx.lineWidth = Math.max(1.7, 2.1 * U);
       ctx.stroke();
-      if (!hit) {
-        ctx.strokeStyle = "rgba(40, 0, 12, 0.35)";
-        ctx.lineWidth = Math.max(0.8, 1.0 * U);
-        ctx.beginPath();
-        ctx.moveTo(cx - r * 0.18, cy - r * 0.12);
-        ctx.quadraticCurveTo(cx, cy + r * 0.08, cx + r * 0.22, cy - r * 0.04);
-        ctx.stroke();
+      if (hit) return;
+      var scored = [];
+      for (i = 0; i < pts.length; i++) {
+        scored.push({ i: i, d: (pts[i].x - cx) * -0.62 + (pts[i].y - cy) * -0.78 });
       }
-    }
-
-    ctx.save();
-    ctx.rotate((e._heading || 0) * 0.35 - 0.15);
-
-    // Halo necrótico siguiendo el gancho.
-    if (!hit) {
-      var necroPulse = 0.5 + 0.4 * Math.sin(t * 1.7);
-      ctx.fillStyle = "rgba(110, 8, 20, " + (0.22 * necroPulse) + ")";
-      var aura = [];
-      for (var ai = 0; ai <= 12; ai++) {
-        var au = ai / 12, sp = spineAt(au), rr = radAt(au) * 1.85;
-        aura.push({ x: sp.x + Math.cos(sp.a) * rr * 0.15 - Math.sin(sp.a) * rr, y: sp.y + Math.sin(sp.a) * rr * 0.15 + Math.cos(sp.a) * rr });
-      }
-      for (var aj = 12; aj >= 0; aj--) {
-        var av = aj / 12, sq = spineAt(av), rs = radAt(av) * 1.85;
-        aura.push({ x: sq.x - Math.cos(sq.a) * rs * 0.15 + Math.sin(sq.a) * rs, y: sq.y - Math.sin(sq.a) * rs * 0.15 - Math.cos(sq.a) * rs });
-      }
-      smoothBlob(aura);
-      ctx.fill();
-    }
-
-    // Baba de hialuronato: junta los bloques cuando hay cápsula.
-    if (shieldFrac > 0.04) {
-      ctx.strokeStyle = "rgba(255, 214, 224, " + (0.35 + 0.45 * shieldFrac) + ")";
-      ctx.lineWidth = Math.max(6, (7 + 6 * shieldFrac) * U);
+      scored.sort(function (a, b) { return b.d - a.d; });
+      var p0 = pts[scored[0].i], p1 = pts[scored[1].i];
+      ctx.fillStyle = "rgba(255, 176, 192, 0.62)";
       ctx.beginPath();
-      for (var hu = 0; hu <= 16; hu++) {
-        var hp = spineAt(hu / 16);
-        if (hu === 0) ctx.moveTo(hp.x, hp.y); else ctx.lineTo(hp.x, hp.y);
-      }
+      ctx.moveTo(p0.x, p0.y);
+      ctx.lineTo(p1.x, p1.y);
+      ctx.lineTo(cx + (p0.x - cx) * 0.12, cy + (p0.y - cy) * 0.12);
+      ctx.closePath();
+      ctx.fill();
+      var q0 = pts[scored[scored.length - 1].i];
+      var q1 = pts[scored[scored.length - 2].i];
+      ctx.fillStyle = "rgba(42, 0, 10, 0.34)";
+      ctx.beginPath();
+      ctx.moveTo(q0.x, q0.y);
+      ctx.lineTo(q1.x, q1.y);
+      ctx.lineTo(cx, cy);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = "rgba(18, 0, 8, 0.45)";
+      ctx.lineWidth = Math.max(0.9, 1.1 * U);
+      ctx.beginPath();
+      ctx.moveTo(p1.x * 0.35 + q0.x * 0.65, p1.y * 0.35 + q0.y * 0.65);
+      ctx.lineTo(cx + r * 0.08, cy + r * 0.06);
       ctx.stroke();
     }
 
-    // Segmentos cola → cabeza (el grande tapa a los demás).
-    var nSeg = 12;
+    var pose = (e._heading || 0) * 0.28 - 0.12;
+    ctx.save();
+    ctx.rotate(pose);
+
+    if (!hit) {
+      var necroPulse = 0.5 + 0.4 * Math.sin(t * 1.6);
+      ctx.strokeStyle = "rgba(90, 6, 16, " + (0.22 * necroPulse) + ")";
+      ctx.lineWidth = rad * 0.48;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, rArc * 0.95, rArc * 0.95, 0, aHead - 0.28, aTail + 0.22);
+      ctx.stroke();
+    }
+
+    var nSeg = 10;
+    var segs = [];
     for (var s = 0; s < nSeg; s++) {
       var u = s / (nSeg - 1);
-      var p = spineAt(u);
-      var r = radAt(u);
-      fillBoulder(p.x, p.y, r, 1.7 + s * 0.73, s === nSeg - 1 ? 7 : 8);
+      segs.push({ u: u, p: spineAt(u), r: radAt(u), seed: 2.1 + s * 1.17 });
     }
 
-    // Cuerno (proteína M): losa alta y ancha, no un pelo.
-    var head = spineAt(1);
-    var hR = radAt(1);
-    var hornA = head.a - 1.22;
-    var px = -Math.sin(hornA), py = Math.cos(hornA);
-    var base = hR * 0.42;
-    var tip = hR + rad * 0.92;
-    var bx = head.x + Math.cos(hornA) * hR * 0.35;
-    var by = head.y + Math.sin(hornA) * hR * 0.35;
-    var tx = head.x + Math.cos(hornA) * tip;
-    var ty = head.y + Math.sin(hornA) * tip;
-    var midX = head.x + Math.cos(hornA) * (hR + rad * 0.28);
-    var midY = head.y + Math.sin(hornA) * (hR + rad * 0.28);
-    var hornG = ctx.createLinearGradient(bx, by, tx, ty);
-    hornG.addColorStop(0, hit ? "#ffffff" : "#ff6a8a");
-    hornG.addColorStop(0.55, hit ? "#ffffff" : def.color);
-    hornG.addColorStop(1, hit ? "#ffffff" : "#2a000c");
-    ctx.fillStyle = hornG;
-    ctx.beginPath();
-    ctx.moveTo(bx + px * base, by + py * base);
-    ctx.lineTo(midX + px * base * 0.55, midY + py * base * 0.55);
-    ctx.lineTo(tx, ty);
-    ctx.lineTo(midX - px * base * 0.55, midY - py * base * 0.55);
-    ctx.lineTo(bx - px * base, by - py * base);
-    ctx.closePath();
-    ctx.fill();
-    ctx.strokeStyle = "#2a000c";
-    ctx.lineWidth = Math.max(1.5, 1.9 * U);
-    ctx.stroke();
+    // Baba hialurónica entre rocas (cápsula), no un tubo que unifica la silueta.
+    if (shieldFrac > 0.04) {
+      for (var j = 0; j < nSeg - 1; j++) {
+        var ja = segs[j], jb = segs[j + 1];
+        var mx = (ja.p.x + jb.p.x) / 2, my = (ja.p.y + jb.p.y) / 2;
+        var jr = (ja.r + jb.r) * 0.20 * (0.65 + shieldFrac);
+        ctx.fillStyle = hit ? "rgba(255,255,255,0.4)" : "rgba(255, 224, 230, " + (0.32 + 0.42 * shieldFrac) + ")";
+        ctx.beginPath();
+        ctx.ellipse(mx, my, jr * 1.05, jr * 0.58, ja.p.a + Math.PI / 2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
 
-    if (!hit && chargeFrac > 0.1) {
-      ctx.fillStyle = "rgba(255, 210, 80, " + (chargeFrac * 0.5) + ")";
+    for (var k = 0; k < nSeg - 1; k++) {
+      fillRock(segs[k].p.x, segs[k].p.y, segs[k].r, segs[k].seed);
+    }
+
+    // Cráneo en CUÑA, mucho más grande que el cuello.
+    var head = segs[nSeg - 1].p;
+    var hR = rad * 0.82;
+    ctx.save();
+    ctx.translate(head.x, head.y);
+    ctx.rotate(head.a - 1.22);
+    var wedge = [
+      { x: 0, y: -hR * 1.12 },
+      { x: hR * 0.86, y: -hR * 0.38 },
+      { x: hR * 0.92, y:  hR * 0.22 },
+      { x: hR * 0.28, y:  hR * 0.86 },
+      { x: -hR * 0.34, y: hR * 0.80 },
+      { x: -hR * 0.96, y: hR * 0.12 },
+      { x: -hR * 0.78, y: -hR * 0.52 }
+    ];
+    ctx.beginPath();
+    ctx.moveTo(wedge[0].x, wedge[0].y);
+    for (var wi = 1; wi < wedge.length; wi++) ctx.lineTo(wedge[wi].x, wedge[wi].y);
+    ctx.closePath();
+    var hg = ctx.createLinearGradient(-hR, -hR, hR, hR);
+    hg.addColorStop(0, hit ? "#ffffff" : "#ff93ad");
+    hg.addColorStop(0.38, hit ? "#ffffff" : def.color);
+    hg.addColorStop(1, hit ? "#ffffff" : def.colorDark);
+    ctx.fillStyle = hg;
+    ctx.fill();
+    ctx.strokeStyle = "#140008";
+    ctx.lineWidth = Math.max(2.1, 2.5 * U);
+    ctx.stroke();
+    if (!hit) {
+      ctx.fillStyle = "rgba(255, 176, 192, 0.55)";
       ctx.beginPath();
-      ctx.arc(tx, ty, rad * 0.08 * (1 + chargeFrac), 0, Math.PI * 2);
+      ctx.moveTo(wedge[0].x, wedge[0].y);
+      ctx.lineTo(wedge[1].x, wedge[1].y);
+      ctx.lineTo(wedge[6].x * 0.2, wedge[6].y * 0.2);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = "rgba(42, 0, 10, 0.32)";
+      ctx.beginPath();
+      ctx.moveTo(wedge[3].x, wedge[3].y);
+      ctx.lineTo(wedge[4].x, wedge[4].y);
+      ctx.lineTo(0, hR * 0.1);
+      ctx.closePath();
       ctx.fill();
     }
+    // Ceja-cresta (reborde de Onix).
+    ctx.fillStyle = hit ? "#ffffff" : def.colorDark;
+    ctx.beginPath();
+    ctx.moveTo(-hR * 0.70, -hR * 0.16);
+    ctx.lineTo(hR * 0.68, -hR * 0.08);
+    ctx.lineTo(hR * 0.52, -hR * 0.38);
+    ctx.lineTo(-hR * 0.52, -hR * 0.46);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = "#140008";
+    ctx.lineWidth = Math.max(1.5, 1.8 * U);
+    ctx.stroke();
+    // Cuerno triangular, alto y barrido atrás.
+    ctx.beginPath();
+    ctx.moveTo(-hR * 0.22, -hR * 0.88);
+    ctx.lineTo(hR * 0.20, -hR * 0.84);
+    ctx.lineTo(-hR * 0.06, -hR * 2.22);
+    ctx.closePath();
+    var hng = ctx.createLinearGradient(0, -hR * 0.7, -hR * 0.08, -hR * 2.25);
+    hng.addColorStop(0, hit ? "#ffffff" : "#ff7a96");
+    hng.addColorStop(0.55, hit ? "#ffffff" : def.color);
+    hng.addColorStop(1, hit ? "#ffffff" : "#1a0008");
+    ctx.fillStyle = hng;
+    ctx.fill();
+    ctx.strokeStyle = "#140008";
+    ctx.lineWidth = Math.max(1.7, 2.1 * U);
+    ctx.stroke();
+    if (!hit) {
+      ctx.strokeStyle = "rgba(255, 210, 220, 0.55)";
+      ctx.lineWidth = Math.max(1.3, 1.6 * U);
+      ctx.beginPath();
+      ctx.moveTo(-hR * 0.02, -hR * 0.92);
+      ctx.lineTo(-hR * 0.05, -hR * 2.02);
+      ctx.stroke();
+    }
+    if (!hit && chargeFrac > 0.1) {
+      ctx.fillStyle = "rgba(255, 210, 80, " + (chargeFrac * 0.55) + ")";
+      ctx.beginPath();
+      ctx.arc(-hR * 0.06, -hR * 2.18, rad * 0.09 * (1 + chargeFrac), 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
 
     ctx.restore();
 
-    var pose = (e._heading || 0) * 0.35 - 0.15;
     var faceX = head.x * Math.cos(pose) - head.y * Math.sin(pose);
     var faceY = head.x * Math.sin(pose) + head.y * Math.cos(pose);
-    var eyeR = hR * 0.28, gap = hR * 0.32;
-    if (expression === "dying" || expression === "hurt") drawHurtEyes(faceX, faceY - hR * 0.04, eyeR, gap);
-    else if (blink) drawClosedEyes(faceX, faceY - hR * 0.04, eyeR, gap);
-    else drawAnimeEyes(faceX, faceY - hR * 0.04, eyeR, gap, 0, 0, hR * 0.10, hR * 0.05, "evil");
-    if (expression === "dying" || expression === "hurt") drawAnimeMouth(faceX, faceY + hR * 0.28, hR * 0.48, hR * 0.36, "open");
-    else drawAnimeMouth(faceX, faceY + hR * 0.28, hR * 0.50, hR * 0.28, "fanged");
+    var eyeR = hR * 0.20, gap = hR * 0.28;
+    if (expression === "dying" || expression === "hurt") drawHurtEyes(faceX, faceY + hR * 0.04, eyeR, gap);
+    else if (blink) drawClosedEyes(faceX, faceY + hR * 0.04, eyeR, gap);
+    else drawAnimeEyes(faceX, faceY + hR * 0.04, eyeR, gap, 0, 0, hR * 0.08, hR * 0.04, "evil");
+    if (expression === "dying" || expression === "hurt") drawAnimeMouth(faceX, faceY + hR * 0.34, hR * 0.42, hR * 0.28, "open");
+    else drawAnimeMouth(faceX, faceY + hR * 0.34, hR * 0.44, hR * 0.22, "fanged");
 
     ctx.restore();
   }

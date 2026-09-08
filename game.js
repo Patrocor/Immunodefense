@@ -23895,8 +23895,8 @@
   // ---- Sprint 8C-2: morfologías microbiológicas reales para los 4 bosses ---
 
   function drawBossPyogenes(e, rad, expression, blink) {
-    // Pyogenes v4 — silueta Onix: cantos VIVOS (miter), pentágonos
-    // irregulares con facetas, cabeza enorme + cuerno triangular, C abierta.
+    // Pyogenes v5 — gancho Onix (cabeza + cuerno), cuerpo de COCOS
+    // deformes grandes y chicos. Visual 0.9×; hitbox sin cambiar.
     var hit = e.hitFlash > 0;
     var t = state.time;
     var def = e.def;
@@ -23904,9 +23904,9 @@
     var shieldFrac = (sd && sd.maxHP) ? Math.max(0, (e.shieldHP || 0) / sd.maxHP) : 1;
     ctx.save();
     ctx.translate(e.x, e.y);
-    ctx.lineJoin = "miter";
-    ctx.miterLimit = 2.4;
-    ctx.lineCap = "butt";
+    ctx.scale(0.9, 0.9);
+    ctx.lineJoin = "round";
+    ctx.lineCap = "round";
 
     if (e._lastPosX == null) { e._lastPosX = e.x; e._lastPosY = e.y; e._heading = 0; }
     var dxM = e.x - e._lastPosX, dyM = e.y - e._lastPosY;
@@ -23930,82 +23930,61 @@
       var a = aTail + (aHead - aTail) * u;
       return { x: Math.cos(a) * rArc, y: Math.sin(a) * rArc, a: a };
     }
-    function radAt(u) {
-      // Guijarros visibles en la cola; cuello ya grande; la cabeza se dibuja aparte.
-      return rad * (0.14 + 0.30 * Math.pow(u, 1.55));
-    }
     function hash01(s, i) {
       var x = Math.sin(s * 12.9898 + i * 78.233) * 43758.5453;
       return x - Math.floor(x);
     }
-    function rockPts(cx, cy, r, seed) {
-      var nB = 5;
-      var spans = [];
-      var sum = 0;
-      var i;
-      for (i = 0; i < nB; i++) {
-        var sp = 0.52 + 0.95 * hash01(seed, i);
-        spans.push(sp);
-        sum += sp;
-      }
+    function traceCoco(cx, cy, rx, ry, rot, seed, pad) {
+      var n = 7;
       var pts = [];
-      var acc = 0;
-      var a0 = seed * 1.9;
-      var sharp = (Math.floor(seed * 17) % nB + nB) % nB;
-      for (i = 0; i < nB; i++) {
-        var a = a0 + (acc / sum) * Math.PI * 2;
-        acc += spans[i];
-        var mag = 0.58 + 0.48 * hash01(seed, i + 20);
-        if (i === sharp) mag = 1.16;
-        pts.push({ x: cx + Math.cos(a) * r * mag, y: cy + Math.sin(a) * r * mag });
-      }
-      return pts;
-    }
-    function fillRock(cx, cy, r, seed) {
-      var pts = rockPts(cx, cy, r, seed);
-      ctx.beginPath();
-      ctx.moveTo(pts[0].x, pts[0].y);
       var i;
-      for (i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+      for (i = 0; i < n; i++) {
+        var a = rot + (i / n) * Math.PI * 2;
+        var mag = 0.78 + 0.34 * hash01(seed, i + 1);
+        if (i === 0 || i === 3) mag *= 0.86;
+        pts.push({
+          x: cx + Math.cos(a) * (rx * mag + pad),
+          y: cy + Math.sin(a) * (ry * mag + pad)
+        });
+      }
+      ctx.beginPath();
+      ctx.moveTo((pts[n - 1].x + pts[0].x) / 2, (pts[n - 1].y + pts[0].y) / 2);
+      for (i = 0; i < n; i++) {
+        var p = pts[i];
+        var n1 = pts[(i + 1) % n];
+        ctx.quadraticCurveTo(p.x, p.y, (p.x + n1.x) / 2, (p.y + n1.y) / 2);
+      }
       ctx.closePath();
-      var g = ctx.createLinearGradient(cx - r, cy - r, cx + r * 0.85, cy + r);
+    }
+    function fillCoco(cx, cy, r, seed, tangent) {
+      var squash = 0.78 + 0.16 * hash01(seed, 40);
+      var rx = r * (1.08 + 0.10 * hash01(seed, 41));
+      var ry = r * squash;
+      var rot = (tangent || 0) + (hash01(seed, 42) - 0.5) * 0.55;
+      var g = ctx.createRadialGradient(cx - rx * 0.32, cy - ry * 0.38, r * 0.16, cx, cy, r * 1.05);
       g.addColorStop(0, hit ? "#ffffff" : "#ff8aa6");
-      g.addColorStop(0.45, hit ? "#ffffff" : def.color);
+      g.addColorStop(0.48, hit ? "#ffffff" : def.color);
       g.addColorStop(1, hit ? "#ffffff" : def.colorDark);
       ctx.fillStyle = g;
+      traceCoco(cx, cy, rx, ry, rot, seed, 0);
       ctx.fill();
-      ctx.strokeStyle = "#140008";
-      ctx.lineWidth = Math.max(1.7, 2.1 * U);
-      ctx.stroke();
-      if (hit) return;
-      var scored = [];
-      for (i = 0; i < pts.length; i++) {
-        scored.push({ i: i, d: (pts[i].x - cx) * -0.62 + (pts[i].y - cy) * -0.78 });
+      if (!hit) {
+        ctx.fillStyle = "rgba(255, 210, 220, 0.42)";
+        ctx.beginPath();
+        ctx.ellipse(cx - rx * 0.28, cy - ry * 0.32, rx * 0.28, ry * 0.20, rot, 0, Math.PI * 2);
+        ctx.fill();
       }
-      scored.sort(function (a, b) { return b.d - a.d; });
-      var p0 = pts[scored[0].i], p1 = pts[scored[1].i];
-      ctx.fillStyle = "rgba(255, 176, 192, 0.62)";
-      ctx.beginPath();
-      ctx.moveTo(p0.x, p0.y);
-      ctx.lineTo(p1.x, p1.y);
-      ctx.lineTo(cx + (p0.x - cx) * 0.12, cy + (p0.y - cy) * 0.12);
-      ctx.closePath();
-      ctx.fill();
-      var q0 = pts[scored[scored.length - 1].i];
-      var q1 = pts[scored[scored.length - 2].i];
-      ctx.fillStyle = "rgba(42, 0, 10, 0.34)";
-      ctx.beginPath();
-      ctx.moveTo(q0.x, q0.y);
-      ctx.lineTo(q1.x, q1.y);
-      ctx.lineTo(cx, cy);
-      ctx.closePath();
-      ctx.fill();
-      ctx.strokeStyle = "rgba(18, 0, 8, 0.45)";
-      ctx.lineWidth = Math.max(0.9, 1.1 * U);
-      ctx.beginPath();
-      ctx.moveTo(p1.x * 0.35 + q0.x * 0.65, p1.y * 0.35 + q0.y * 0.65);
-      ctx.lineTo(cx + r * 0.08, cy + r * 0.06);
+      var padM = Math.max(1.4, 1.8 * U);
+      ctx.strokeStyle = "#140008";
+      ctx.lineWidth = Math.max(1.8, 2.2 * U);
+      traceCoco(cx, cy, rx, ry, rot, seed, padM);
       ctx.stroke();
+      if (!hit) {
+        ctx.strokeStyle = "rgba(255, 190, 200, 0.35)";
+        ctx.lineWidth = Math.max(0.8, 1.0 * U);
+        traceCoco(cx, cy, rx, ry, rot, seed, padM * 0.35);
+        ctx.stroke();
+      }
     }
 
     var pose = (e._heading || 0) * 0.28 - 0.12;
@@ -24021,19 +24000,25 @@
       ctx.stroke();
     }
 
-    var nSeg = 10;
+    var nSeg = 12;
+    var bigPat = [false, true, false, true, false, true, false, true, true, false, true];
     var segs = [];
     for (var s = 0; s < nSeg; s++) {
       var u = s / (nSeg - 1);
-      segs.push({ u: u, p: spineAt(u), r: radAt(u), seed: 2.1 + s * 1.17 });
+      var seed = 2.1 + s * 1.17;
+      var big = s < nSeg - 1 ? bigPat[s] : false;
+      if (s < nSeg - 1 && hash01(seed, 7) > 0.82) big = !big;
+      var taper = 0.22 + 0.20 * u;
+      var bodyR = rad * taper * (big ? 1.55 : 0.70);
+      segs.push({ u: u, p: spineAt(u), r: bodyR, seed: seed, big: big });
     }
 
-    // Baba hialurónica entre rocas (cápsula), no un tubo que unifica la silueta.
+    // Baba hialurónica entre cocos (cápsula), no un tubo.
     if (shieldFrac > 0.04) {
       for (var j = 0; j < nSeg - 1; j++) {
         var ja = segs[j], jb = segs[j + 1];
         var mx = (ja.p.x + jb.p.x) / 2, my = (ja.p.y + jb.p.y) / 2;
-        var jr = (ja.r + jb.r) * 0.20 * (0.65 + shieldFrac);
+        var jr = (ja.r + jb.r) * 0.22 * (0.65 + shieldFrac);
         ctx.fillStyle = hit ? "rgba(255,255,255,0.4)" : "rgba(255, 224, 230, " + (0.32 + 0.42 * shieldFrac) + ")";
         ctx.beginPath();
         ctx.ellipse(mx, my, jr * 1.05, jr * 0.58, ja.p.a + Math.PI / 2, 0, Math.PI * 2);
@@ -24041,8 +24026,23 @@
       }
     }
 
+    var buds = [];
     for (var k = 0; k < nSeg - 1; k++) {
-      fillRock(segs[k].p.x, segs[k].p.y, segs[k].r, segs[k].seed);
+      fillCoco(segs[k].p.x, segs[k].p.y, segs[k].r, segs[k].seed, segs[k].p.a + Math.PI / 2);
+      if (segs[k].big && k < nSeg - 3 && (k % 2 === 1)) {
+        var out = segs[k].p.a;
+        var br = segs[k].r * (0.38 + 0.10 * hash01(segs[k].seed, 9));
+        buds.push({
+          x: segs[k].p.x + Math.cos(out) * segs[k].r * 0.78,
+          y: segs[k].p.y + Math.sin(out) * segs[k].r * 0.78,
+          r: br,
+          seed: segs[k].seed + 11,
+          a: out
+        });
+      }
+    }
+    for (var b = 0; b < buds.length; b++) {
+      fillCoco(buds[b].x, buds[b].y, buds[b].r, buds[b].seed, buds[b].a);
     }
 
     // Cráneo en CUÑA, mucho más grande que el cuello.

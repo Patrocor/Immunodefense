@@ -21721,13 +21721,15 @@
 
       function flakePath() {
         ctx.beginPath();
-        ctx.moveTo(-R * 1.08, -R * 0.08);
-        ctx.quadraticCurveTo(-R * 0.85, -R * 0.72, -R * 0.22, -R * 0.98);
-        ctx.quadraticCurveTo(R * 0.42, -R * 1.12, R * 0.88, -R * 0.52);
-        ctx.quadraticCurveTo(R * 1.18, -R * 0.08, R * 0.95, R * 0.38);
-        ctx.quadraticCurveTo(R * 0.55, R * 0.72, R * 0.08, R * 0.55);
-        ctx.quadraticCurveTo(-R * 0.22, R * 0.95, -R * 0.62, R * 0.78);
-        ctx.quadraticCurveTo(-R * 1.22, R * 0.42, -R * 1.08, -R * 0.08);
+        ctx.moveTo(-R * 1.12, -R * 0.05);
+        ctx.lineTo(-R * 0.62, -R * 0.78);
+        ctx.quadraticCurveTo(-R * 0.15, -R * 1.08, R * 0.22, -R * 0.92);
+        ctx.lineTo(R * 0.95, -R * 0.48);
+        ctx.lineTo(R * 1.12, R * 0.08);
+        ctx.lineTo(R * 0.72, R * 0.55);
+        ctx.quadraticCurveTo(R * 0.18, R * 0.42, -R * 0.08, R * 0.68);
+        ctx.lineTo(-R * 0.58, R * 0.92);
+        ctx.lineTo(-R * 1.18, R * 0.32);
         ctx.closePath();
       }
 

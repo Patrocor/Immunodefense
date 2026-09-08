@@ -69,7 +69,7 @@ function spawnLeish() {
   st.showTitle = false;
   st.showIntro = false;
   st.atp = 200;
-  st.waveIdx = 5;
+  st.waveIdx = 0;
   st.waveActive = false;
   st.nextWaveAt = 0.05;
   st.waveCountdownActive = true;
@@ -84,25 +84,11 @@ function spawnLeish() {
   st.selectedTower = null;
   st.selectedToBuild = null;
   st.msgTimer = 0;
-  let src = null;
-  for (let i = 0; i < 90 && !src; i++) {
-    g.step(1, 0.05);
-    src = st.enemies.find((en) => en.def?.id === "leishmania");
-  }
-  if (!src) {
-    const def = window.ImmunoDefenseData?.enemyDefs?.leishmania;
-    if (!def) {
-      const types = {};
-      for (const en of st.enemies) {
-        const id = en.def?.id || "?";
-        types[id] = (types[id] || 0) + 1;
-      }
-      return { ok: false, reason: "no leishmania spawned", waveIdx: st.waveIdx, types };
-    }
-    src = { def, hp: def.hp, maxHp: def.hp, wobble: 0.55 };
-  }
-  st._leishSrc = src;
-  return { ok: true, waveIdx: st.waveIdx, radius: src.def.radius };
+  g.step(1.2, 0.05);
+  const def = window.ImmunoDefenseData.enemyDefs.leishmania;
+  if (!def) return { ok: false, reason: "no leishmania def", screen: !!st.showTitle };
+  st._leishSrc = { def, hp: def.hp, maxHp: def.hp, wobble: 0.55 };
+  return { ok: true, waveIdx: st.waveIdx, radius: def.radius, via: "def" };
 }
 
 const browser = await chromium.launch({
@@ -138,7 +124,7 @@ if (!pro.ok || !ama.ok) {
   console.error("Showcase failed", { spawned, pro, ama });
   process.exit(1);
 }
-copyFileSync(join(TMP, "leish_pro.png"), join(ART, "leish_v2_comma.png"));
-copyFileSync(join(TMP, "leish_field.png"), join(ART, "leish_v2_field.png"));
-copyFileSync(join(TMP, "leish_ama.png"), join(ART, "leish_v2_peek.png"));
+copyFileSync(join(TMP, "leish_pro.png"), join(ART, "leish_v2b_comma.png"));
+copyFileSync(join(TMP, "leish_field.png"), join(ART, "leish_v2b_field.png"));
+copyFileSync(join(TMP, "leish_ama.png"), join(ART, "leish_v2b_peek.png"));
 console.log("OK: leishmania screenshots in", ART);

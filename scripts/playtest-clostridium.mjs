@@ -126,7 +126,7 @@ if (!withWall.ok || !bare.ok) {
   console.error("Showcase failed", { spawned, withWall, bare });
   process.exit(1);
 }
-copyFileSync(join(TMP, "clo_wall.png"), join(ART, "clostridium_v4c_flytrap_wall.png"));
-copyFileSync(join(TMP, "clo_bare.png"), join(ART, "clostridium_v4c_flytrap_bare.png"));
-copyFileSync(join(TMP, "clo_field.png"), join(ART, "clostridium_v4c_flytrap_field.png"));
+copyFileSync(join(TMP, "clo_wall.png"), join(ART, "clostridium_v4d_jaws_wall.png"));
+copyFileSync(join(TMP, "clo_bare.png"), join(ART, "clostridium_v4d_jaws_bare.png"));
+copyFileSync(join(TMP, "clo_field.png"), join(ART, "clostridium_v4d_jaws_field.png"));
 console.log("OK: clostridium screenshots in", ART);

@@ -24756,7 +24756,7 @@
 
     var R = rad;
     var pose = (e._heading || 0) + lumber;
-    var hx = R * 0.82, hy = -R * 0.28;
+    var hx = R * 0.78, hy = -R * 0.36;
     var ink = hit ? "#ffffff" : "#14110c";
     var rodA = hit ? "#ffffff" : "#6d7f6a";
     var rodB = hit ? "#ffffff" : (def.color || "#546E7A");
@@ -24889,112 +24889,101 @@
       ctx.fill();
     }
 
-    // Mandíbulas-GANCHO de músculo: pinza que cierra sobre la presa.
+    // Mandíbulas-GANCHO: tienen que SALIRSE de la cabeza para leerse.
     var palpLift = gait * R * 0.06;
     var muscleA = hit ? "#ffffff" : "#c07050";
     var muscleC = hit ? "#ffffff" : "#3a1810";
     var palps = [
       [
-        { x: R * 0.58, y:  R * 0.06 },
-        { x: R * 1.02, y:  R * 0.32 + palpLift },
-        { x: R * 1.28, y:  R * 0.22 + palpLift },
-        { x: R * 1.12, y:  R * 0.08 + palpLift },
-        { x: R * 0.72, y:  R * 0.02 }
+        { x: R * 0.62, y:  R * 0.10 },
+        { x: R * 1.15, y:  R * 0.42 + palpLift },
+        { x: R * 1.42, y:  R * 0.28 + palpLift },
+        { x: R * 1.22, y:  R * 0.08 + palpLift },
+        { x: R * 0.78, y:  R * 0.02 }
       ],
       [
-        { x: R * 0.55, y: -R * 0.12 },
-        { x: R * 0.98, y: -R * 0.38 - palpLift },
-        { x: R * 1.22, y: -R * 0.28 - palpLift },
-        { x: R * 1.08, y: -R * 0.12 - palpLift },
-        { x: R * 0.68, y: -R * 0.06 }
+        { x: R * 0.58, y: -R * 0.18 },
+        { x: R * 1.12, y: -R * 0.52 - palpLift },
+        { x: R * 1.38, y: -R * 0.38 - palpLift },
+        { x: R * 1.18, y: -R * 0.16 - palpLift },
+        { x: R * 0.72, y: -R * 0.08 }
       ]
     ];
     for (var p = 0; p < palps.length; p++) {
-      var pg = ctx.createLinearGradient(R * 0.55, 0, palps[p][2].x, palps[p][2].y);
+      var pg = ctx.createLinearGradient(R * 0.6, 0, palps[p][2].x, palps[p][2].y);
       pg.addColorStop(0, muscleA);
       pg.addColorStop(1, muscleC);
-      fillStrokeBlob(palps[p], pg, ink, Math.max(1.6, 2.0 * U));
+      fillStrokeBlob(palps[p], pg, ink, Math.max(1.7, 2.1 * U));
     }
 
-    // ESPORA ABIERTA EN DOS VALVAS — silueta de trampa, no de huevo.
-    var jawDrop = R * (0.10 + devourK * 0.28);
+    // ESPORA ABIERTA — silueta en V / trampa. Valvas BIEN separadas.
+    var jawDrop = R * (0.16 + devourK * 0.32);
 
-    // Valva inferior (mandíbula).
     var lower = [
-      { x: R * 0.40, y:  R * 0.04 },
-      { x: R * 0.62, y:  R * 0.18 },
-      { x: R * 0.98, y:  R * 0.48 + jawDrop },
-      { x: R * 1.26, y:  R * 0.22 + jawDrop * 0.5 },
-      { x: R * 1.08, y:  R * 0.06 },
-      { x: R * 0.70, y:  R * 0.02 }
+      { x: R * 0.38, y:  R * 0.08 },
+      { x: R * 0.58, y:  R * 0.28 },
+      { x: R * 0.92, y:  R * 0.62 + jawDrop },
+      { x: R * 1.32, y:  R * 0.38 + jawDrop * 0.6 },
+      { x: R * 1.18, y:  R * 0.12 },
+      { x: R * 0.72, y:  R * 0.06 }
     ];
-    var lg = ctx.createLinearGradient(R * 0.7, R * 0.05, R * 1.1, R * 0.5);
+    var lg = ctx.createLinearGradient(R * 0.7, R * 0.1, R * 1.15, R * 0.6);
     lg.addColorStop(0, sporeB);
     lg.addColorStop(1, rodC);
-    fillStrokeBlob(lower, lg, ink, Math.max(2.0, 2.4 * U));
+    fillStrokeBlob(lower, lg, ink, Math.max(2.0, 2.5 * U));
 
-    // Valva superior + cuerno de exosporio (el "cuerno" que da miedo).
     var upper = [
-      { x: R * 0.38, y: -R * 0.12 },
-      { x: R * 0.52, y: -R * 0.48 },
-      { x: R * 0.78, y: -R * 0.78 },
-      { x: R * 0.92, y: -R * 0.52 },
-      { x: R * 1.18, y: -R * 0.32 },
-      { x: R * 1.08, y: -R * 0.04 },
-      { x: R * 0.62, y: -R * 0.02 }
+      { x: R * 0.36, y: -R * 0.10 },
+      { x: R * 0.48, y: -R * 0.48 },
+      { x: R * 0.70, y: -R * 0.92 },
+      { x: R * 0.86, y: -R * 0.58 },
+      { x: R * 1.22, y: -R * 0.42 },
+      { x: R * 1.12, y: -R * 0.08 },
+      { x: R * 0.62, y: -R * 0.04 }
     ];
-    var ug = ctx.createLinearGradient(R * 0.6, -R * 0.8, R * 1.1, 0);
+    var ug = ctx.createLinearGradient(R * 0.55, -R * 0.95, R * 1.15, 0);
     ug.addColorStop(0, sporeA);
     ug.addColorStop(0.55, sporeB);
     ug.addColorStop(1, rodC);
     fillStrokeBlob(upper, ug, ink, Math.max(2.1, 2.6 * U));
 
-    // Abismo entre valvas.
-    ctx.fillStyle = hit ? "rgba(40,20,20,0.4)" : "#120404";
-    smoothBlob([
-      { x: R * 0.68, y: -R * 0.04 },
-      { x: R * 1.10, y: -R * 0.10 },
-      { x: R * 1.18, y:  R * 0.08 + jawDrop * 0.3 },
-      { x: R * 0.92, y:  R * 0.22 + jawDrop * 0.6 },
-      { x: R * 0.62, y:  R * 0.06 }
-    ]);
+    // El tajo: triángulo negro que COME la silueta de frente.
+    ctx.fillStyle = hit ? "rgba(40,20,20,0.45)" : "#0a0202";
+    ctx.beginPath();
+    ctx.moveTo(R * 0.58, -R * 0.02);
+    ctx.lineTo(R * 1.28, -R * 0.18);
+    ctx.lineTo(R * 1.32,  R * 0.22 + jawDrop * 0.35);
+    ctx.lineTo(R * 0.58,  R * 0.08);
+    ctx.closePath();
     ctx.fill();
+    ctx.strokeStyle = ink;
+    ctx.lineWidth = Math.max(1.4, 1.8 * U);
+    ctx.stroke();
 
     if (!hit) {
-      ctx.fillStyle = "rgba(255,255,255,0.22)";
+      ctx.fillStyle = "rgba(255,255,255,0.20)";
       smoothBlob([
-        { x: R * 0.62, y: -R * 0.38 },
-        { x: R * 0.78, y: -R * 0.55 },
-        { x: R * 0.88, y: -R * 0.28 },
-        { x: R * 0.68, y: -R * 0.18 }
+        { x: R * 0.58, y: -R * 0.42 },
+        { x: R * 0.72, y: -R * 0.62 },
+        { x: R * 0.82, y: -R * 0.32 },
+        { x: R * 0.62, y: -R * 0.22 }
       ]);
       ctx.fill();
-      // Dientes en AMBOS bordes: sierra, no dos colmillos.
       ctx.fillStyle = "#f4f0d8";
-      var upTeeth = [
-        [R * 0.78, -R * 0.02, R * 0.86, R * 0.12],
-        [R * 0.94, -R * 0.06, R * 1.02, R * 0.10],
-        [R * 1.08, -R * 0.08, R * 1.14, R * 0.08]
+      var teeth = [
+        [R * 0.78, -R * 0.06, R * 0.08],
+        [R * 0.96, -R * 0.10, R * 0.09],
+        [R * 1.12, -R * 0.12, R * 0.08],
+        [R * 0.82,  R * 0.10, -R * 0.10],
+        [R * 1.00,  R * 0.14, -R * 0.11],
+        [R * 1.16,  R * 0.16, -R * 0.09]
       ];
-      for (var ut = 0; ut < upTeeth.length; ut++) {
-        var tth = upTeeth[ut];
+      for (var ti = 0; ti < teeth.length; ti++) {
+        var td = teeth[ti];
         ctx.beginPath();
-        ctx.moveTo(tth[0], tth[1]);
-        ctx.lineTo((tth[0] + tth[2]) / 2, (tth[1] + tth[3]) / 2 + R * 0.02);
-        ctx.lineTo(tth[2], tth[1] + R * 0.02);
-        ctx.closePath();
-        ctx.fill();
-      }
-      var loTeeth = [
-        [R * 0.78, R * 0.10, R * 0.88, R * 0.28 + jawDrop * 0.4],
-        [R * 0.96, R * 0.12, R * 1.08, R * 0.30 + jawDrop * 0.4]
-      ];
-      for (var lt = 0; lt < loTeeth.length; lt++) {
-        var lth = loTeeth[lt];
-        ctx.beginPath();
-        ctx.moveTo(lth[0], lth[1]);
-        ctx.lineTo((lth[0] + lth[2]) / 2, lth[1] - R * 0.10);
-        ctx.lineTo(lth[2], lth[1]);
+        ctx.moveTo(td[0] - R * 0.045, td[1]);
+        ctx.lineTo(td[0], td[1] + td[2]);
+        ctx.lineTo(td[0] + R * 0.045, td[1]);
         ctx.closePath();
         ctx.fill();
       }

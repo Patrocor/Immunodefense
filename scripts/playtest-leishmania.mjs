@@ -130,7 +130,7 @@ if (ama.ok) {
 
 await page.evaluate(() => window.__game.hold(false));
 await browser.close();
-copyFileSync(join(TMP, "leish_pro.png"), join(ART, "leish_spindle.png"));
-copyFileSync(join(TMP, "leish_field.png"), join(ART, "leish_spindle_field.png"));
-copyFileSync(join(TMP, "leish_ama.png"), join(ART, "leish_macrophage.png"));
+copyFileSync(join(TMP, "leish_pro.png"), join(ART, "leish_v2_comma.png"));
+copyFileSync(join(TMP, "leish_field.png"), join(ART, "leish_v2_field.png"));
+copyFileSync(join(TMP, "leish_ama.png"), join(ART, "leish_v2_peek.png"));
 console.log("OK: leishmania screenshots in", ART);

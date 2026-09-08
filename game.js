@@ -25780,9 +25780,9 @@
   }
 
   function drawLeishmania(e, rad, expression, blink) {
-    // Leishmania major — dos formas, ninguna es un óvalo genérico.
-    //  · Promastigote: HUSO + flagelo anterior (nado) + cinetoplasto en barra
-    //  · Amastigote: parásito DENTRO de un macrófago irregular (no bola marrón)
+    // Leishmania v2 — ni hoja-huso ni macrófago-torre.
+    //  · Promastigote: COMA / renacuajo + flagelo en HÉLICE
+    //  · Amastigote: parásito asomando de un SACO ROTO (cara en el bicho, no en el huésped)
     var R = rad * 0.95, t = state.time, w = e.wobble || 0, hit = e.hitFlash > 0;
     var def = e.def;
     var ama = !!e.leishAmastigote;
@@ -25803,164 +25803,161 @@
       e._heading += diffAng * 0.16;
     }
     e._lastPosX = e.x; e._lastPosY = e.y;
-    e._leishFlagPhase = (e._leishFlagPhase || 0) + Math.max(0.04, dMag * 0.10);
-    var flagPhase = e._leishFlagPhase + t * 0.55;
+    e._leishFlagPhase = (e._leishFlagPhase || 0) + Math.max(0.05, dMag * 0.12);
+    var flagPhase = e._leishFlagPhase + t * 0.7;
 
     ctx.save();
     ctx.translate(e.x, e.y);
 
     if (ama) {
-      // Macrófago irregular (ameboide), vacuola con el amastigote.
-      var pulse = 1 + Math.sin(t * 1.8 + w) * 0.03;
+      // Saco de macrófago rasgado (C abierto), sin cara.
       ctx.save();
-      ctx.rotate(0.15 + Math.sin(t * 0.6 + w) * 0.06);
+      ctx.rotate(-0.35 + Math.sin(t * 0.7 + w) * 0.05);
       ctx.beginPath();
-      var lobes = [
-        [0.95, -0.15], [0.62, -0.78], [0.05, -0.92], [-0.55, -0.70],
-        [-0.98, -0.08], [-0.72, 0.62], [-0.10, 0.95], [0.58, 0.72], [0.92, 0.22]
-      ];
-      for (var li = 0; li < lobes.length; li++) {
-        var lr = (1 + 0.08 * Math.sin(t * 1.4 + li + w)) * pulse;
-        var lx = lobes[li][0] * R * 1.12 * lr;
-        var ly = lobes[li][1] * R * 1.05 * lr;
-        if (li === 0) ctx.moveTo(lx, ly); else ctx.lineTo(lx, ly);
-      }
+      ctx.moveTo(R * 0.15, -R * 0.92);
+      ctx.quadraticCurveTo(-R * 0.55, -R * 1.05, -R * 1.05, -R * 0.35);
+      ctx.quadraticCurveTo(-R * 1.18, 0.05 * R, -R * 0.92, R * 0.72);
+      ctx.quadraticCurveTo(-R * 0.25, R * 1.12, R * 0.42, R * 0.78);
+      ctx.quadraticCurveTo(R * 0.22, R * 0.35, R * 0.08, 0);
+      ctx.quadraticCurveTo(R * 0.18, -R * 0.38, R * 0.15, -R * 0.92);
       ctx.closePath();
-      var macG = ctx.createRadialGradient(-R * 0.2, -R * 0.25, R * 0.15, 0, 0, R * 1.15);
-      macG.addColorStop(0, hit ? "#ffffff" : "#e8d4c4");
-      macG.addColorStop(0.55, hit ? "#ffffff" : "#c4a090");
-      macG.addColorStop(1, hit ? "#ffffff" : "#7a5848");
-      ctx.fillStyle = macG;
+      var sackG = ctx.createLinearGradient(-R, -R, R * 0.2, R);
+      sackG.addColorStop(0, hit ? "#ffffff" : "#ead8c8");
+      sackG.addColorStop(0.55, hit ? "#ffffff" : "#b8947c");
+      sackG.addColorStop(1, hit ? "#ffffff" : "#6a4838");
+      ctx.fillStyle = sackG;
       ctx.fill();
-      ctx.strokeStyle = "#5a3a30";
-      ctx.lineWidth = Math.max(1.6, 2.0 * U);
+      ctx.strokeStyle = "#4a3024";
+      ctx.lineWidth = Math.max(1.8, 2.3 * U);
       ctx.stroke();
-
-      // Núcleo en riñón del macrófago (no círculo).
-      ctx.fillStyle = "rgba(90, 50, 70, 0.55)";
+      ctx.strokeStyle = "rgba(90, 50, 35, 0.7)";
+      ctx.lineWidth = Math.max(1.2, 1.5 * U);
+      ctx.setLineDash([3 * U, 2.5 * U]);
       ctx.beginPath();
-      ctx.ellipse(-R * 0.38, -R * 0.12, R * 0.38, R * 0.52, -0.4, 0.35, Math.PI * 2 - 0.35);
-      ctx.fill();
-
-      // Vacuola parasitófora (hueco irregular).
-      ctx.fillStyle = "rgba(40, 70, 20, 0.35)";
-      ctx.beginPath();
-      ctx.ellipse(R * 0.28, R * 0.08, R * 0.42, R * 0.34, 0.2, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = "rgba(60, 90, 30, 0.55)";
-      ctx.lineWidth = Math.max(1.1, 1.4 * U);
+      ctx.moveTo(R * 0.15, -R * 0.88);
+      ctx.quadraticCurveTo(R * 0.08, 0, R * 0.40, R * 0.75);
       ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = "rgba(80, 40, 60, 0.45)";
+      ctx.beginPath();
+      ctx.ellipse(-R * 0.48, R * 0.08, R * 0.28, R * 0.42, -0.5, 0.4, Math.PI * 2 - 0.3);
+      ctx.fill();
       ctx.restore();
 
-      // Amastigote (huso corto + cinetoplasto en barra) dentro de la vacuola.
+      // Amastigote asomando por el desgarro (semilla + barra + muñón de flagelo).
       ctx.save();
-      ctx.translate(R * 0.28, R * 0.08);
-      ctx.rotate(0.4);
-      var aG = ctx.createLinearGradient(-R * 0.28, 0, R * 0.28, 0);
-      aG.addColorStop(0, hit ? "#ffffff" : def.colorLight || "#b8d880");
-      aG.addColorStop(0.5, hit ? "#ffffff" : def.color);
-      aG.addColorStop(1, hit ? "#ffffff" : def.colorDark);
-      ctx.fillStyle = aG;
+      ctx.translate(R * 0.38, R * 0.06);
+      ctx.rotate(0.55);
+      if (morph > 0.1) ctx.scale(1 + morph * 0.25, 1);
       ctx.beginPath();
-      ctx.ellipse(0, 0, R * 0.32, R * 0.16, 0, 0, Math.PI * 2);
+      ctx.moveTo(-R * 0.38, 0);
+      ctx.quadraticCurveTo(-R * 0.12, -R * 0.28, R * 0.22, -R * 0.18);
+      ctx.quadraticCurveTo(R * 0.42, 0, R * 0.22, R * 0.18);
+      ctx.quadraticCurveTo(-R * 0.12, R * 0.28, -R * 0.38, 0);
+      ctx.closePath();
+      var seedG = ctx.createLinearGradient(-R * 0.3, 0, R * 0.3, 0);
+      seedG.addColorStop(0, hit ? "#ffffff" : def.colorDark);
+      seedG.addColorStop(0.5, hit ? "#ffffff" : def.color);
+      seedG.addColorStop(1, hit ? "#ffffff" : (def.colorLight || "#b8d880"));
+      ctx.fillStyle = seedG;
       ctx.fill();
       ctx.strokeStyle = def.colorDark;
-      ctx.lineWidth = Math.max(1.1, 1.4 * U);
+      ctx.lineWidth = Math.max(1.4, 1.8 * U);
       ctx.stroke();
       ctx.fillStyle = "#1a3008";
       ctx.beginPath();
-      ctx.ellipse(R * 0.14, 0, R * 0.07, R * 0.12, 0, 0, Math.PI * 2);
+      ctx.ellipse(R * 0.16, 0, R * 0.055, R * 0.14, 0.2, 0, Math.PI * 2);
       ctx.fill();
+      ctx.strokeStyle = def.colorLight || "#b8d880";
+      ctx.lineWidth = Math.max(1.3, 1.6 * U);
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.moveTo(R * 0.28, 0);
+      ctx.quadraticCurveTo(R * 0.48, -R * 0.12, R * 0.62, R * 0.04);
+      ctx.stroke();
       ctx.restore();
-
-      if (morph > 0.08) {
-        ctx.strokeStyle = "rgba(180, 220, 90, " + (morph * 0.7) + ")";
-        ctx.lineWidth = Math.max(1.6, 2.0 * U);
-        ctx.beginPath();
-        ctx.moveTo(R * 0.55, R * 0.08);
-        ctx.quadraticCurveTo(R * 0.95, -R * 0.2, R * 1.35, R * 0.05);
-        ctx.stroke();
-      }
     } else {
       ctx.save();
       ctx.rotate(e._heading || 0);
 
-      // Flagelo anterior (tira, no círculo) + membrana ondulante.
+      // Flagelo en hélice (espiral 3D), no onda plana.
       ctx.lineCap = "round";
-      ctx.strokeStyle = hit ? "#ffffff" : (def.colorLight || "#b8d880");
-      ctx.lineWidth = Math.max(1.6, 2.1 * U);
-      ctx.beginPath();
-      ctx.moveTo(R * 0.72, 0);
-      for (var fp = 1; fp <= 16; fp++) {
-        var ft = fp / 16;
-        var fx = R * 0.72 + ft * R * 1.85;
-        var fy = (Math.sin(flagPhase + ft * Math.PI * 3.2) * 0.38 + Math.sin(flagPhase * 1.8 + ft * 5) * 0.10) * R * ft;
-        ctx.lineTo(fx, fy);
-      }
-      ctx.stroke();
-      ctx.strokeStyle = "rgba(180, 220, 120, 0.45)";
-      ctx.lineWidth = Math.max(3.2, 4.0 * U);
-      ctx.beginPath();
-      ctx.moveTo(R * 0.55, 0);
-      for (var um = 1; um <= 8; um++) {
-        var ut = um / 8;
-        ctx.lineTo(R * 0.55 + ut * R * 0.72, Math.sin(flagPhase + ut * Math.PI * 2.4) * R * 0.22 * ut);
-      }
-      ctx.stroke();
-
-      // Huso fusiforme (punta posterior, vientre anterior).
-      function spindle() {
+      ctx.lineJoin = "round";
+      var coils = 11;
+      for (var hp = 0; hp < coils; hp++) {
+        var ht = hp / (coils - 1);
+        var ang = flagPhase * 2.4 + ht * Math.PI * 4.2;
+        var hx = R * 0.62 + ht * R * 1.55;
+        var hy = Math.sin(ang) * R * 0.28;
+        var hz = Math.cos(ang);
+        var nextT = Math.min(1, (hp + 1) / (coils - 1));
+        var nAng = flagPhase * 2.4 + nextT * Math.PI * 4.2;
+        var nx = R * 0.62 + nextT * R * 1.55;
+        var ny = Math.sin(nAng) * R * 0.28;
+        var nz = Math.cos(nAng);
+        var thick = (1.3 + (hz + 1) * 0.7) * U;
+        ctx.strokeStyle = hit ? "#ffffff" : (hz > 0 ? (def.colorLight || "#b8d880") : def.colorDark);
+        ctx.lineWidth = Math.max(1.4, thick);
+        ctx.globalAlpha = 0.55 + (hz + 1) * 0.22;
         ctx.beginPath();
-        ctx.moveTo(-R * 1.05, 0);
-        ctx.quadraticCurveTo(-R * 0.35, -R * 0.42, R * 0.25, -R * 0.38);
-        ctx.quadraticCurveTo(R * 0.72, -R * 0.18, R * 0.88, 0);
-        ctx.quadraticCurveTo(R * 0.72, R * 0.18, R * 0.25, R * 0.38);
-        ctx.quadraticCurveTo(-R * 0.35, R * 0.42, -R * 1.05, 0);
+        ctx.moveTo(hx, hy);
+        ctx.lineTo(nx, ny);
+        ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+
+      function commaBody() {
+        ctx.beginPath();
+        ctx.moveTo(R * 0.72, -R * 0.08);
+        ctx.quadraticCurveTo(R * 0.55, -R * 0.55, R * 0.05, -R * 0.48);
+        ctx.quadraticCurveTo(-R * 0.55, -R * 0.22, -R * 0.92, R * 0.32);
+        ctx.quadraticCurveTo(-R * 0.55, R * 0.58, -R * 0.08, R * 0.28);
+        ctx.quadraticCurveTo(R * 0.42, R * 0.22, R * 0.70, R * 0.10);
+        ctx.quadraticCurveTo(R * 0.82, 0.02 * R, R * 0.72, -R * 0.08);
         ctx.closePath();
       }
-      var sg = ctx.createLinearGradient(-R * 0.8, 0, R * 0.7, 0);
-      sg.addColorStop(0, hit ? "#ffffff" : def.colorDark);
-      sg.addColorStop(0.45, hit ? "#ffffff" : def.color);
-      sg.addColorStop(1, hit ? "#ffffff" : (def.colorLight || "#b8d880"));
-      ctx.fillStyle = sg;
-      spindle(); ctx.fill();
+      var cg = ctx.createLinearGradient(R * 0.5, -R * 0.3, -R * 0.6, R * 0.4);
+      cg.addColorStop(0, hit ? "#ffffff" : (def.colorLight || "#b8d880"));
+      cg.addColorStop(0.45, hit ? "#ffffff" : def.color);
+      cg.addColorStop(1, hit ? "#ffffff" : def.colorDark);
+      ctx.fillStyle = cg;
+      commaBody(); ctx.fill();
       ctx.strokeStyle = def.colorDark;
-      ctx.lineWidth = Math.max(1.5, 1.9 * U);
+      ctx.lineWidth = Math.max(1.6, 2.0 * U);
       ctx.stroke();
 
-      // Cinetoplasto: barra junto al bolsillo flagelar (no bolita).
-      ctx.fillStyle = hit ? "#ffffff" : "#1a3008";
+      ctx.strokeStyle = hit ? "#ffffff" : "#1a3008";
+      ctx.lineWidth = Math.max(2.2, 2.8 * U);
       ctx.beginPath();
-      ctx.ellipse(R * 0.48, 0, R * 0.08, R * 0.18, 0.15, 0, Math.PI * 2);
-      ctx.fill();
+      ctx.ellipse(R * 0.52, 0, R * 0.16, R * 0.22, 0.2, -0.4, Math.PI + 0.4);
+      ctx.stroke();
       ctx.fillStyle = "rgba(255,255,255,0.28)";
       ctx.beginPath();
-      ctx.ellipse(-R * 0.15, -R * 0.08, R * 0.22, R * 0.12, -0.3, 0, Math.PI * 2);
+      ctx.ellipse(R * 0.08, -R * 0.18, R * 0.18, R * 0.10, -0.5, 0, Math.PI * 2);
       ctx.fill();
 
       ctx.restore();
 
       if (morph > 0.08) {
-        ctx.globalAlpha = morph * 0.45;
-        ctx.fillStyle = "#c4a090";
+        ctx.globalAlpha = morph * 0.4;
+        ctx.strokeStyle = "#b8947c";
+        ctx.lineWidth = Math.max(2.4, 3.0 * U);
         ctx.beginPath();
-        ctx.moveTo(-R * 0.9, -R * 0.3);
-        ctx.quadraticCurveTo(-R * 0.2, -R * 1.05, R * 0.6, -R * 0.4);
-        ctx.quadraticCurveTo(R * 1.1, R * 0.2, R * 0.3, R * 0.85);
-        ctx.quadraticCurveTo(-R * 0.6, R * 0.7, -R * 0.9, -R * 0.3);
-        ctx.fill();
+        ctx.arc(-R * 0.15, 0, R * 0.85, 0.6, Math.PI * 1.55);
+        ctx.stroke();
         ctx.globalAlpha = 1;
       }
     }
 
-    var faceY = ama ? R * 0.06 : -R * 0.08;
-    var eyeR = ama ? R * 0.18 : R * 0.20;
-    var gap = ama ? R * 0.22 : R * 0.24;
-    if (expression === "dying" || expression === "hurt") drawHurtEyes(0, faceY, eyeR, gap);
-    else if (blink) drawClosedEyes(0, faceY, eyeR, gap);
-    else drawAnimeEyes(0, faceY, eyeR, gap, 0, 0, R * 0.08, R * 0.04, ama ? "smug" : "evil");
-    if (expression === "dying" || expression === "hurt") drawAnimeMouth(0, faceY + R * 0.28, R * 0.32, R * 0.26, "open");
-    else drawAnimeMouth(0, faceY + R * 0.26, R * 0.30, R * 0.16, ama ? "smirk" : "wicked");
+    var faceX = ama ? R * 0.42 : R * 0.06;
+    var faceY = ama ? R * 0.02 : -R * 0.10;
+    var eyeR = ama ? R * 0.16 : R * 0.19;
+    var gap = ama ? R * 0.18 : R * 0.22;
+    if (expression === "dying" || expression === "hurt") drawHurtEyes(faceX, faceY, eyeR, gap);
+    else if (blink) drawClosedEyes(faceX, faceY, eyeR, gap);
+    else drawAnimeEyes(faceX, faceY, eyeR, gap, 0, 0, R * 0.08, R * 0.04, ama ? "smug" : "evil");
+    if (expression === "dying" || expression === "hurt") drawAnimeMouth(faceX, faceY + R * 0.24, R * 0.28, R * 0.22, "open");
+    else drawAnimeMouth(faceX, faceY + R * 0.22, R * 0.26, R * 0.14, ama ? "smirk" : "wicked");
 
     ctx.restore();
   }

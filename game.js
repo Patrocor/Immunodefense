@@ -24570,15 +24570,15 @@
 
     // Labio inflamado en creciente (eritema), no un donut alrededor.
     var rim = [
-      { x: -R * 0.15, y: -R * 0.92 },
-      { x: -R * 0.72, y: -R * 0.68 },
-      { x: -R * 1.08, y: -R * 0.08 },
-      { x: -R * 0.82, y:  R * 0.62 },
-      { x: -R * 0.12, y:  R * 0.98 },
-      { x:  R * 0.48, y:  R * 0.72 },
-      { x:  R * 0.38, y:  R * 0.32 },
-      { x: -R * 0.12, y:  R * 0.12 },
-      { x: -R * 0.32, y: -R * 0.28 }
+      { x:  R * 0.15, y: -R * 1.05 },
+      { x: -R * 0.55, y: -R * 0.95 },
+      { x: -R * 1.12, y: -R * 0.22 },
+      { x: -R * 0.95, y:  R * 0.55 },
+      { x: -R * 0.22, y:  R * 1.08 },
+      { x:  R * 0.62, y:  R * 0.82 },
+      { x:  R * 0.52, y:  R * 0.22 },
+      { x: -R * 0.05, y:  R * 0.08 },
+      { x: -R * 0.22, y: -R * 0.32 }
     ];
     var rg = ctx.createRadialGradient(-R * 0.1, 0, R * 0.2, 0, 0, R * 1.1);
     rg.addColorStop(0, hit ? "#ffffff" : "#e07060");
@@ -24593,14 +24593,17 @@
 
     // Cuerpo del carbunco: tres lóbulos de absceso, no un círculo.
     var body = [
-      { x:  R * 0.72, y: -R * 0.08 },
-      { x:  R * 0.48, y: -R * 0.62 },
-      { x: -R * 0.08, y: -R * 0.78 },
-      { x: -R * 0.68, y: -R * 0.42 },
-      { x: -R * 0.82, y:  R * 0.12 },
-      { x: -R * 0.48, y:  R * 0.58 },
-      { x:  R * 0.12, y:  R * 0.72 },
-      { x:  R * 0.62, y:  R * 0.38 }
+      { x:  R * 0.88, y: -R * 0.12 },
+      { x:  R * 0.62, y: -R * 0.52 },
+      { x:  R * 0.18, y: -R * 0.38 },
+      { x: -R * 0.22, y: -R * 0.88 },
+      { x: -R * 0.78, y: -R * 0.58 },
+      { x: -R * 0.52, y: -R * 0.08 },
+      { x: -R * 0.88, y:  R * 0.28 },
+      { x: -R * 0.42, y:  R * 0.72 },
+      { x:  R * 0.08, y:  R * 0.42 },
+      { x:  R * 0.55, y:  R * 0.68 },
+      { x:  R * 0.78, y:  R * 0.22 }
     ];
     var bg = ctx.createLinearGradient(-R * 0.4, -R * 0.6, R * 0.5, R * 0.5);
     bg.addColorStop(0, hit ? "#ffffff" : "#c45a48");

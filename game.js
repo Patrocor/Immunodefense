@@ -23940,8 +23940,8 @@
       var i;
       for (i = 0; i < n; i++) {
         var a = rot + (i / n) * Math.PI * 2;
-        var mag = 0.78 + 0.34 * hash01(seed, i + 1);
-        if (i === 0 || i === 3) mag *= 0.86;
+        var mag = 0.62 + 0.58 * hash01(seed, i + 1);
+        if (i === 0 || i === 3) mag *= 0.78;
         pts.push({
           x: cx + Math.cos(a) * (rx * mag + pad),
           y: cy + Math.sin(a) * (ry * mag + pad)
@@ -23957,10 +23957,10 @@
       ctx.closePath();
     }
     function fillCoco(cx, cy, r, seed, tangent) {
-      var squash = 0.78 + 0.16 * hash01(seed, 40);
-      var rx = r * (1.08 + 0.10 * hash01(seed, 41));
+      var squash = 0.62 + 0.28 * hash01(seed, 40);
+      var rx = r * (1.12 + 0.18 * hash01(seed, 41));
       var ry = r * squash;
-      var rot = (tangent || 0) + (hash01(seed, 42) - 0.5) * 0.55;
+      var rot = (tangent || 0) + (hash01(seed, 42) - 0.5) * 0.85;
       var g = ctx.createRadialGradient(cx - rx * 0.32, cy - ry * 0.38, r * 0.16, cx, cy, r * 1.05);
       g.addColorStop(0, hit ? "#ffffff" : "#ff8aa6");
       g.addColorStop(0.48, hit ? "#ffffff" : def.color);
@@ -24007,10 +24007,15 @@
       var u = s / (nSeg - 1);
       var seed = 2.1 + s * 1.17;
       var big = s < nSeg - 1 ? bigPat[s] : false;
-      if (s < nSeg - 1 && hash01(seed, 7) > 0.82) big = !big;
-      var taper = 0.22 + 0.20 * u;
-      var bodyR = rad * taper * (big ? 1.55 : 0.70);
-      segs.push({ u: u, p: spineAt(u), r: bodyR, seed: seed, big: big });
+      var taper = 0.26 + 0.16 * u;
+      var bodyR = rad * taper * (big ? 1.90 : 0.48);
+      var p = spineAt(u);
+      if (!big && s < nSeg - 1) {
+        var nudge = (hash01(seed, 8) - 0.5) * rad * 0.16;
+        p.x += Math.cos(p.a) * nudge;
+        p.y += Math.sin(p.a) * nudge;
+      }
+      segs.push({ u: u, p: p, r: bodyR, seed: seed, big: big });
     }
 
     // Baba hialurónica entre cocos (cápsula), no un tubo.
@@ -24029,12 +24034,12 @@
     var buds = [];
     for (var k = 0; k < nSeg - 1; k++) {
       fillCoco(segs[k].p.x, segs[k].p.y, segs[k].r, segs[k].seed, segs[k].p.a + Math.PI / 2);
-      if (segs[k].big && k < nSeg - 3 && (k % 2 === 1)) {
-        var out = segs[k].p.a;
-        var br = segs[k].r * (0.38 + 0.10 * hash01(segs[k].seed, 9));
+      if (segs[k].big && k < nSeg - 2) {
+        var out = segs[k].p.a + (k % 3 === 1 ? 0.35 : -0.15);
+        var br = segs[k].r * (0.32 + 0.10 * hash01(segs[k].seed, 9));
         buds.push({
-          x: segs[k].p.x + Math.cos(out) * segs[k].r * 0.78,
-          y: segs[k].p.y + Math.sin(out) * segs[k].r * 0.78,
+          x: segs[k].p.x + Math.cos(out) * segs[k].r * 0.82,
+          y: segs[k].p.y + Math.sin(out) * segs[k].r * 0.82,
           r: br,
           seed: segs[k].seed + 11,
           a: out

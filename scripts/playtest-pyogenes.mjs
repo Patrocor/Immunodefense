@@ -125,7 +125,7 @@ if (!withCap.ok || !bare.ok) {
   console.error("Showcase failed", { spawned, withCap, bare });
   process.exit(1);
 }
-copyFileSync(join(TMP, "pyo_cap.png"), join(ART, "pyogenes_v5_cocci_cap.png"));
-copyFileSync(join(TMP, "pyo_bare.png"), join(ART, "pyogenes_v5_cocci_bare.png"));
-copyFileSync(join(TMP, "pyo_field.png"), join(ART, "pyogenes_v5_cocci_field.png"));
+copyFileSync(join(TMP, "pyo_cap.png"), join(ART, "pyogenes_v5b_lumpy_cap.png"));
+copyFileSync(join(TMP, "pyo_bare.png"), join(ART, "pyogenes_v5b_lumpy_bare.png"));
+copyFileSync(join(TMP, "pyo_field.png"), join(ART, "pyogenes_v5b_lumpy_field.png"));
 console.log("OK: pyogenes screenshots in", ART);

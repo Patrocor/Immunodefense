@@ -24696,15 +24696,15 @@
     ctx.restore();
   }
 
-  // Clostridium perfringens: ESPORA-RAQUETA (drumstick).
-  // Palo vegetativo largo y fino + cabeza-espora lumpy. Ni vagón, ni pera.
+  // Clostridium perfringens: ESPORA-MAZA (martillo en T).
+  // Palo vegetativo horizontal + cabeza vertical lumpy. Ni vagón, ni pera, ni chupetín.
   function drawBossClostridium(e, rad, expression, blink) {
-    // Clostridium v3 — silueta de raqueta / palillo de tambor:
+    // Clostridium v3 — silueta de MAZA / martillo:
     //  · Bastón romo paralelo (cuerpo vegetativo), no dos vagones
-    //  · Espora terminal deformada (papa/maza), no círculo ni pera
-    //  · Cuello pellizcado: el palo NO se ensancha hacia la cabeza
+    //  · Espora terminal ALARGADA EN VERTICAL (bloque lumpy), no bola ni pera
+    //  · En conjunto lee T / martillo, no raqueta-círculo
     //  · Gas en bolsas irregulares en el cuello, no burbujas redondas
-    //  · Escudo = casquete de exosporio sobre la cabeza, no anillo
+    //  · Escudo = casquete de exosporio en el lomo de la maza, no anillo
     var hit = e.hitFlash > 0;
     var t = state.time;
     var def = e.def;
@@ -24747,21 +24747,21 @@
 
     var R = rad;
     var pose = (e._heading || 0) + lumber;
-    // Cabeza desplazada del eje del palo (espora subterminal): evita la pera.
-    var hx = R * 0.58, hy = -R * 0.16;
+    // Centro de la maza (cabeza), un poco adelante del origen.
+    var hx = R * 0.42, hy = -R * 0.04;
     ctx.save();
     ctx.rotate(pose);
 
     // Palo vegetativo: largo, fino, lados casi paralelos, punta roma atrás.
     var shaft = [
-      { x:  R * 0.06, y: -R * 0.13 },
-      { x: -R * 0.55, y: -R * 0.16 },
-      { x: -R * 1.18, y: -R * 0.14 },
-      { x: -R * 1.38, y: -R * 0.04 },
-      { x: -R * 1.36, y:  R * 0.10 },
-      { x: -R * 1.10, y:  R * 0.18 },
-      { x: -R * 0.50, y:  R * 0.17 },
-      { x:  R * 0.08, y:  R * 0.14 }
+      { x:  R * 0.18, y: -R * 0.12 },
+      { x: -R * 0.50, y: -R * 0.15 },
+      { x: -R * 1.12, y: -R * 0.13 },
+      { x: -R * 1.36, y: -R * 0.03 },
+      { x: -R * 1.34, y:  R * 0.10 },
+      { x: -R * 1.05, y:  R * 0.17 },
+      { x: -R * 0.45, y:  R * 0.16 },
+      { x:  R * 0.20, y:  R * 0.13 }
     ];
     var shg = ctx.createLinearGradient(-R * 1.3, 0, R * 0.1, 0);
     shg.addColorStop(0, hit ? "#ffffff" : "#1c2830");
@@ -24791,9 +24791,9 @@
     if (!hit) {
       var gPulse = 1 + 0.14 * Math.sin(t * 2.4) + devourK * 0.22;
       var vents = [
-        { x: R * 0.10, y: -R * 0.38, s: 0.15 },
-        { x: R * 0.18, y:  R * 0.32, s: 0.13 },
-        { x: -R * 0.08, y:  R * 0.02, s: 0.09 }
+        { x: R * 0.16, y: -R * 0.52, s: 0.14 },
+        { x: R * 0.22, y:  R * 0.48, s: 0.12 },
+        { x: -R * 0.06, y:  R * 0.22, s: 0.09 }
       ];
       for (var v = 0; v < vents.length; v++) {
         var vt = vents[v];
@@ -24813,31 +24813,34 @@
       }
     }
 
-    // Exosporio (escudo) = casquete sobre la espora, no anillo.
+    // Exosporio (escudo) = casquete en el LOMO de la maza, no anillo.
     if (shieldFrac > 0.04) {
       var sa = 0.30 + 0.45 * shieldFrac;
       ctx.fillStyle = hit ? "rgba(255,255,255,0.35)" : "rgba(232, 226, 186, " + sa + ")";
       smoothBlob([
-        { x: hx + R * 0.42, y: hy - R * 0.18 },
-        { x: hx + R * 0.08, y: hy - R * 0.62 },
-        { x: hx - R * 0.38, y: hy - R * 0.50 },
-        { x: hx - R * 0.22, y: hy - R * 0.08 },
-        { x: hx + R * 0.22, y: hy - R * 0.02 }
+        { x: hx + R * 0.22, y: hy - R * 0.18 },
+        { x: hx + R * 0.08, y: hy - R * 0.78 },
+        { x: hx - R * 0.28, y: hy - R * 0.70 },
+        { x: hx - R * 0.18, y: hy - R * 0.12 },
+        { x: hx + R * 0.10, y: hy - R * 0.04 }
       ]);
       ctx.fill();
     }
 
-    // Cabeza-espora lumpy (maza / papa), más ancha que el palo, NO un círculo.
+    // Cabeza-espora VERTICAL lumpy (maza / yunque vivo), NO un círculo.
+    // Más alta que ancha: el conjunto palo+cabeza lee T, no chupetín.
     var head = [
-      { x: hx + R * 0.62, y: hy - R * 0.08 },
-      { x: hx + R * 0.38, y: hy - R * 0.48 },
-      { x: hx - R * 0.08, y: hy - R * 0.58 },
-      { x: hx - R * 0.48, y: hy - R * 0.22 },
-      { x: hx - R * 0.42, y: hy + R * 0.22 },
-      { x: hx - R * 0.02, y: hy + R * 0.52 },
-      { x: hx + R * 0.40, y: hy + R * 0.38 }
+      { x: hx + R * 0.38, y: hy - R * 0.22 },
+      { x: hx + R * 0.22, y: hy - R * 0.78 },
+      { x: hx - R * 0.08, y: hy - R * 0.92 },
+      { x: hx - R * 0.38, y: hy - R * 0.55 },
+      { x: hx - R * 0.32, y: hy - R * 0.05 },
+      { x: hx - R * 0.42, y: hy + R * 0.38 },
+      { x: hx - R * 0.12, y: hy + R * 0.82 },
+      { x: hx + R * 0.28, y: hy + R * 0.70 },
+      { x: hx + R * 0.48, y: hy + R * 0.22 }
     ];
-    var hg = ctx.createLinearGradient(hx, hy - R * 0.7, hx, hy + R * 0.6);
+    var hg = ctx.createLinearGradient(hx, hy - R * 1.0, hx, hy + R * 0.9);
     hg.addColorStop(0, hit ? "#ffffff" : "#e8eed4");
     hg.addColorStop(0.42, hit ? "#ffffff" : "#b4c48c");
     hg.addColorStop(1, hit ? "#ffffff" : "#3e4c30");
@@ -24848,12 +24851,12 @@
     ctx.lineWidth = Math.max(2.0, 2.4 * U);
     ctx.stroke();
     if (!hit) {
-      ctx.fillStyle = "rgba(255,255,255,0.30)";
+      ctx.fillStyle = "rgba(255,255,255,0.28)";
       smoothBlob([
-        { x: hx + R * 0.18, y: hy - R * 0.22 },
-        { x: hx + R * 0.02, y: hy - R * 0.34 },
-        { x: hx - R * 0.16, y: hy - R * 0.18 },
-        { x: hx + R * 0.02, y: hy - R * 0.08 }
+        { x: hx + R * 0.10, y: hy - R * 0.42 },
+        { x: hx - R * 0.04, y: hy - R * 0.62 },
+        { x: hx - R * 0.18, y: hy - R * 0.38 },
+        { x: hx - R * 0.02, y: hy - R * 0.22 }
       ]);
       ctx.fill();
     }
@@ -24862,9 +24865,9 @@
       ctx.strokeStyle = "rgba(140, 230, 120, " + (0.5 + crackPulse * 0.45) + ")";
       ctx.lineWidth = Math.max(1.4, 1.8 * U);
       ctx.beginPath();
-      ctx.moveTo(hx - R * 0.12, hy - R * 0.28);
-      ctx.lineTo(hx + R * 0.10, hy);
-      ctx.lineTo(hx - R * 0.04, hy + R * 0.32);
+      ctx.moveTo(hx - R * 0.10, hy - R * 0.55);
+      ctx.lineTo(hx + R * 0.08, hy - R * 0.05);
+      ctx.lineTo(hx - R * 0.06, hy + R * 0.48);
       ctx.stroke();
     }
 
@@ -24872,14 +24875,14 @@
 
     var faceX = hx * Math.cos(pose) - hy * Math.sin(pose);
     var faceY = hx * Math.sin(pose) + hy * Math.cos(pose);
-    var eyeR = R * 0.16, gap = R * 0.24;
+    var eyeR = R * 0.15, gap = R * 0.22;
     if (expression === "dying" || expression === "hurt") drawHurtEyes(faceX, faceY, eyeR, gap, "#1f2e22");
     else if (blink) drawClosedEyes(faceX, faceY, eyeR, gap);
-    else drawAnimeEyes(faceX, faceY, eyeR, gap, 0, 0, R * 0.055, R * 0.028, "evil");
+    else drawAnimeEyes(faceX, faceY, eyeR, gap, 0, 0, R * 0.05, R * 0.026, "evil");
     if (expression === "dying" || expression === "hurt" || devourK > 0.35) {
-      drawAnimeMouth(faceX, faceY + R * 0.26, R * 0.30, R * 0.20, "open");
+      drawAnimeMouth(faceX, faceY + R * 0.28, R * 0.28, R * 0.20, "open");
     } else {
-      drawAnimeMouth(faceX, faceY + R * 0.24, R * 0.28, R * 0.15, "fanged");
+      drawAnimeMouth(faceX, faceY + R * 0.26, R * 0.26, R * 0.14, "fanged");
     }
 
     ctx.restore();

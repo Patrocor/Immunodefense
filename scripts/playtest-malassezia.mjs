@@ -1,10 +1,12 @@
 /** Showcase Malassezia — pasta 0.95 + escama furfurácea. DISPLAY=:1 node scripts/playtest-malassezia.mjs */
 import { chromium } from "playwright";
-import { mkdirSync } from "node:fs";
+import { mkdirSync, copyFileSync } from "node:fs";
 import { join } from "node:path";
 
 const ART = "/opt/cursor/artifacts";
+const TMP = "/tmp/malassezia-shots";
 mkdirSync(ART, { recursive: true });
+mkdirSync(TMP, { recursive: true });
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 function placeMalassezia(alt) {
@@ -108,19 +110,23 @@ console.log("Spawn:", spawned);
 const pasta = await page.evaluate(placeMalassezia, false);
 console.log("Pasta 0.95:", pasta);
 await sleep(800);
-await page.screenshot({ path: join(ART, "malassezia_spaghetti_095_field.png") });
+await page.screenshot({ path: join(TMP, "malassezia_spaghetti_095_field.png") });
 if (pasta.ok) {
-  await page.screenshot({ path: join(ART, "malassezia_spaghetti_095.png"), clip: pasta.clip });
+  await page.screenshot({ path: join(TMP, "malassezia_spaghetti_095.png"), clip: pasta.clip });
 }
 
 const flake = await page.evaluate(placeMalassezia, true);
 console.log("Flake alt:", flake);
 await sleep(800);
-await page.screenshot({ path: join(ART, "malassezia_flake_field.png") });
+await page.screenshot({ path: join(TMP, "malassezia_flake_field.png") });
 if (flake.ok) {
-  await page.screenshot({ path: join(ART, "malassezia_flake.png"), clip: flake.clip });
+  await page.screenshot({ path: join(TMP, "malassezia_flake.png"), clip: flake.clip });
 }
 
 await page.evaluate(() => window.__game.hold(false));
 await browser.close();
+copyFileSync(join(TMP, "malassezia_spaghetti_095.png"), join(ART, "malassezia_v2_pasta095.png"));
+copyFileSync(join(TMP, "malassezia_spaghetti_095_field.png"), join(ART, "malassezia_v2_pasta095_field.png"));
+copyFileSync(join(TMP, "malassezia_flake.png"), join(ART, "malassezia_v3_flake.png"));
+copyFileSync(join(TMP, "malassezia_flake_field.png"), join(ART, "malassezia_v3_flake_field.png"));
 console.log("OK: malassezia screenshots in", ART);

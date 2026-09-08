@@ -126,7 +126,7 @@ if (!withCap.ok || !bare.ok) {
   console.error("Showcase failed", { spawned, withCap, bare });
   process.exit(1);
 }
-copyFileSync(join(TMP, "mrsa_cap.png"), join(ART, "mrsa_v1b_lobes_cap.png"));
-copyFileSync(join(TMP, "mrsa_bare.png"), join(ART, "mrsa_v1b_lobes_bare.png"));
-copyFileSync(join(TMP, "mrsa_field.png"), join(ART, "mrsa_v1b_lobes_field.png"));
+copyFileSync(join(TMP, "mrsa_cap.png"), join(ART, "mrsa_v2_lobes_cap.png"));
+copyFileSync(join(TMP, "mrsa_bare.png"), join(ART, "mrsa_v2_lobes_bare.png"));
+copyFileSync(join(TMP, "mrsa_field.png"), join(ART, "mrsa_v2_lobes_field.png"));
 console.log("OK: MRSA screenshots in", ART);

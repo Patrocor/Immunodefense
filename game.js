@@ -24515,12 +24515,12 @@
   }
 
   function drawBossMRSA(e, rad, expression, blink) {
-    // MRSA v1 — CARBUNCO, no racimo-círculo ni cúpula de biofilm.
-    //  · Tres lóbulos de absceso fusionados (no un anillo, no uvas sueltas)
-    //  · Cráteres que drenan pus dorado
-    //  · Racimo de cocos asomando por el cráter principal (cara)
-    //  · Escudo = costra de fibrina/coagulasa sobre los lóbulos, no anillo
-    //  · PVL chorrea verde del cráter cuando carga el spray
+    // MRSA v2 — CARBUNCO: tres lóbulos separados, no bola roja + cara amarilla.
+    //  · Tres abscesos dibujados por separado con surcos oscuros entre ellos
+    //  · Cráteres que drenan pus dorado (principal adelante-derecha)
+    //  · Cocos pequeños hundidos en el cráter (cara), no racimo dominante
+    //  · Escudo = parches de fibrina/coagulasa sobre cada lóbulo, no anillo
+    //  · PVL verde del cráter principal cuando carga el spray
     var hit = e.hitFlash > 0;
     var t = state.time;
     var def = e.def;
@@ -24563,130 +24563,168 @@
       ctx.closePath();
     }
 
+    function fillStrokeBlob(pts, fill, strokeCol, lw) {
+      ctx.fillStyle = fill;
+      smoothBlob(pts);
+      ctx.fill();
+      ctx.strokeStyle = strokeCol;
+      ctx.lineWidth = lw;
+      ctx.stroke();
+    }
+
     var R = rad;
     var pose = e._heading || 0;
     ctx.save();
     ctx.rotate(pose);
 
-    // Labio inflamado en creciente (eritema), no un donut alrededor.
+    // Eritema en creciente alrededor del racimo de lóbulos, no donut.
     var rim = [
-      { x:  R * 0.15, y: -R * 1.05 },
-      { x: -R * 0.55, y: -R * 0.95 },
-      { x: -R * 1.12, y: -R * 0.22 },
-      { x: -R * 0.95, y:  R * 0.55 },
-      { x: -R * 0.22, y:  R * 1.08 },
-      { x:  R * 0.62, y:  R * 0.82 },
-      { x:  R * 0.52, y:  R * 0.22 },
-      { x: -R * 0.05, y:  R * 0.08 },
-      { x: -R * 0.22, y: -R * 0.32 }
+      { x:  R * 0.42, y: -R * 1.02 },
+      { x: -R * 0.38, y: -R * 1.08 },
+      { x: -R * 1.05, y: -R * 0.35 },
+      { x: -R * 0.92, y:  R * 0.62 },
+      { x: -R * 0.08, y:  R * 1.05 },
+      { x:  R * 0.72, y:  R * 0.78 },
+      { x:  R * 0.82, y:  R * 0.08 },
+      { x:  R * 0.18, y: -R * 0.05 }
     ];
-    var rg = ctx.createRadialGradient(-R * 0.1, 0, R * 0.2, 0, 0, R * 1.1);
-    rg.addColorStop(0, hit ? "#ffffff" : "#e07060");
-    rg.addColorStop(0.55, hit ? "#ffffff" : "#a02830");
+    var rg = ctx.createRadialGradient(-R * 0.05, R * 0.05, R * 0.15, 0, 0, R * 1.08);
+    rg.addColorStop(0, hit ? "#ffffff" : "#dc7068");
+    rg.addColorStop(0.55, hit ? "#ffffff" : "#9a2830");
     rg.addColorStop(1, hit ? "#ffffff" : "#4a1014");
-    ctx.fillStyle = rg;
-    smoothBlob(rim);
-    ctx.fill();
-    ctx.strokeStyle = hit ? "#ffffff" : "#2a080c";
-    ctx.lineWidth = Math.max(1.6, 2.0 * U);
-    ctx.stroke();
+    fillStrokeBlob(rim, rg, hit ? "#ffffff" : "#2a080c", Math.max(1.6, 2.0 * U));
 
-    // Cuerpo del carbunco: tres lóbulos de absceso, no un círculo.
-    var body = [
-      { x:  R * 0.88, y: -R * 0.12 },
-      { x:  R * 0.62, y: -R * 0.52 },
-      { x:  R * 0.18, y: -R * 0.38 },
-      { x: -R * 0.22, y: -R * 0.88 },
-      { x: -R * 0.78, y: -R * 0.58 },
-      { x: -R * 0.52, y: -R * 0.08 },
-      { x: -R * 0.88, y:  R * 0.28 },
-      { x: -R * 0.42, y:  R * 0.72 },
-      { x:  R * 0.08, y:  R * 0.42 },
-      { x:  R * 0.55, y:  R * 0.68 },
-      { x:  R * 0.78, y:  R * 0.22 }
+    // Tres lóbulos de absceso por separado (triángulo irregular).
+    var lobeMain = [
+      { x:  R * 0.92, y: -R * 0.08 },
+      { x:  R * 0.72, y: -R * 0.52 },
+      { x:  R * 0.28, y: -R * 0.42 },
+      { x:  R * 0.08, y: -R * 0.02 },
+      { x:  R * 0.22, y:  R * 0.38 },
+      { x:  R * 0.62, y:  R * 0.48 },
+      { x:  R * 0.88, y:  R * 0.18 }
     ];
-    var bg = ctx.createLinearGradient(-R * 0.4, -R * 0.6, R * 0.5, R * 0.5);
-    bg.addColorStop(0, hit ? "#ffffff" : "#c45a48");
-    bg.addColorStop(0.45, hit ? "#ffffff" : "#8a3028");
-    bg.addColorStop(1, hit ? "#ffffff" : "#3a1210");
-    ctx.fillStyle = bg;
-    smoothBlob(body);
-    ctx.fill();
-    ctx.strokeStyle = hit ? "#ffffff" : "#1a0808";
-    ctx.lineWidth = Math.max(2.0, 2.4 * U);
-    ctx.stroke();
+    var lobeLeft = [
+      { x: -R * 0.08, y: -R * 0.82 },
+      { x: -R * 0.62, y: -R * 0.72 },
+      { x: -R * 0.88, y: -R * 0.28 },
+      { x: -R * 0.72, y:  R * 0.08 },
+      { x: -R * 0.28, y: -R * 0.08 },
+      { x: -R * 0.18, y: -R * 0.48 }
+    ];
+    var lobeLow = [
+      { x: -R * 0.42, y:  R * 0.72 },
+      { x: -R * 0.82, y:  R * 0.55 },
+      { x: -R * 0.78, y:  R * 0.18 },
+      { x: -R * 0.35, y:  R * 0.08 },
+      { x:  R * 0.02, y:  R * 0.42 },
+      { x:  R * 0.08, y:  R * 0.78 }
+    ];
+    var lobes = [
+      { pts: lobeMain, hi: "#c85848", mid: "#8a3028", lo: "#3a1210" },
+      { pts: lobeLeft, hi: "#b85042", mid: "#782428", lo: "#321010" },
+      { pts: lobeLow, hi: "#a84840", mid: "#6a2018", lo: "#2a0c0c" }
+    ];
+    for (var li = 0; li < lobes.length; li++) {
+      var lb = lobes[li];
+      var lg = ctx.createLinearGradient(-R * 0.5, -R * 0.5, R * 0.4, R * 0.4);
+      lg.addColorStop(0, hit ? "#ffffff" : lb.hi);
+      lg.addColorStop(0.5, hit ? "#ffffff" : lb.mid);
+      lg.addColorStop(1, hit ? "#ffffff" : lb.lo);
+      fillStrokeBlob(lb.pts, lg, hit ? "#ffffff" : "#1a0808", Math.max(1.8, 2.2 * U));
+    }
 
-    // Costra de fibrina (escudo) sobre los lóbulos — no anillo.
-    if (!hit && (shieldFrac > 0.04 || shatterFrac > 0.02)) {
-      var sa = 0.28 + 0.50 * shieldFrac;
-      ctx.fillStyle = "rgba(255, 236, 180, " + sa + ")";
-      smoothBlob([
-        { x:  R * 0.22, y: -R * 0.18 },
-        { x: -R * 0.08, y: -R * 0.68 },
-        { x: -R * 0.58, y: -R * 0.42 },
-        { x: -R * 0.42, y: -R * 0.04 },
-        { x:  R * 0.08, y: -R * 0.02 }
-      ]);
-      ctx.fill();
-      ctx.strokeStyle = "rgba(180, 140, 60, " + (0.55 * shieldFrac + shatterFrac) + ")";
-      ctx.lineWidth = Math.max(1.2, 1.5 * U) * (1 + shatterFrac);
-      var snap = shatterFrac * R * 0.55;
+    // Surcos oscuros entre lóbulos — la silueta se lee como tres, no una bola.
+    if (!hit) {
+      ctx.strokeStyle = "#180606";
+      ctx.lineWidth = Math.max(2.0, 2.5 * U);
       ctx.beginPath();
-      ctx.moveTo(-R * 0.35, -R * 0.50 - snap);
-      ctx.quadraticCurveTo(-R * 0.10, -R * 0.72 - snap, R * 0.18, -R * 0.38 - snap * 0.4);
+      ctx.moveTo(R * 0.12, -R * 0.08);
+      ctx.quadraticCurveTo(-R * 0.08, -R * 0.22, -R * 0.38, -R * 0.18);
       ctx.stroke();
       ctx.beginPath();
-      ctx.moveTo(-R * 0.55, -R * 0.18);
-      ctx.quadraticCurveTo(-R * 0.72 - snap, R * 0.08, -R * 0.32, R * 0.22);
+      ctx.moveTo(R * 0.18, R * 0.28);
+      ctx.quadraticCurveTo(-R * 0.12, R * 0.18, -R * 0.48, R * 0.32);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(-R * 0.28, -R * 0.12);
+      ctx.quadraticCurveTo(-R * 0.42, R * 0.08, -R * 0.38, R * 0.38);
+      ctx.stroke();
+    }
+
+    // Parches de fibrina (escudo) sobre cada lóbulo — no anillo.
+    if (!hit && (shieldFrac > 0.04 || shatterFrac > 0.02)) {
+      var sa = 0.26 + 0.48 * shieldFrac;
+      var fibrin = [
+        [{ x: R * 0.55, y: -R * 0.28 }, { x: R * 0.38, y: -R * 0.08 }, { x: R * 0.52, y: R * 0.12 }, { x: R * 0.72, y: -R * 0.05 }],
+        [{ x: -R * 0.48, y: -R * 0.52 }, { x: -R * 0.68, y: -R * 0.38 }, { x: -R * 0.55, y: -R * 0.18 }, { x: -R * 0.32, y: -R * 0.32 }],
+        [{ x: -R * 0.58, y: R * 0.42 }, { x: -R * 0.42, y: R * 0.55 }, { x: -R * 0.22, y: R * 0.38 }, { x: -R * 0.38, y: R * 0.28 }]
+      ];
+      for (var fi = 0; fi < fibrin.length; fi++) {
+        ctx.fillStyle = "rgba(255, 236, 180, " + sa + ")";
+        smoothBlob(fibrin[fi]);
+        ctx.fill();
+      }
+      ctx.strokeStyle = "rgba(180, 140, 60, " + (0.50 * shieldFrac + shatterFrac) + ")";
+      ctx.lineWidth = Math.max(1.1, 1.4 * U) * (1 + shatterFrac);
+      var snap = shatterFrac * R * 0.50;
+      ctx.beginPath();
+      ctx.moveTo(R * 0.42, -R * 0.18 - snap);
+      ctx.quadraticCurveTo(R * 0.58, R * 0.02, R * 0.48, R * 0.22 + snap * 0.5);
       ctx.stroke();
     }
 
     function crater(cx, cy, s) {
-      ctx.fillStyle = hit ? "rgba(40,20,10,0.35)" : "#2a1408";
+      ctx.fillStyle = hit ? "rgba(40,20,10,0.35)" : "#241008";
       smoothBlob([
-        { x: cx + s * 1.05, y: cy },
-        { x: cx + s * 0.25, y: cy - s * 0.85 },
-        { x: cx - s * 0.90, y: cy - s * 0.25 },
-        { x: cx - s * 0.35, y: cy + s * 0.90 },
-        { x: cx + s * 0.45, y: cy + s * 0.55 }
+        { x: cx + s * 0.95, y: cy + s * 0.05 },
+        { x: cx + s * 0.18, y: cy - s * 0.82 },
+        { x: cx - s * 0.85, y: cy - s * 0.18 },
+        { x: cx - s * 0.28, y: cy + s * 0.88 },
+        { x: cx + s * 0.42, y: cy + s * 0.52 }
       ]);
       ctx.fill();
     }
-    crater(R * 0.28, -R * 0.06, R * 0.38);
-    crater(-R * 0.38, -R * 0.22, R * 0.20);
-    crater(-R * 0.12,  R * 0.38, R * 0.18);
+    crater(R * 0.42, R * 0.08, R * 0.32);
+    crater(-R * 0.52, -R * 0.38, R * 0.14);
+    crater(-R * 0.48, R * 0.42, R * 0.12);
 
-    // Pus dorado chorreando de los cráteres.
+    // Pus dorado del cráter principal + gotas secundarias.
     if (!hit) {
       var drip = 0.55 + 0.45 * Math.sin(t * 2.2);
-      ctx.fillStyle = "rgba(232, 180, 40, " + (0.75 + drip * 0.2) + ")";
+      ctx.fillStyle = "rgba(232, 180, 40, " + (0.72 + drip * 0.22) + ")";
       smoothBlob([
-        { x: R * 0.34, y: R * 0.22 },
-        { x: R * 0.42, y: R * 0.48 + drip * R * 0.08 },
-        { x: R * 0.22, y: R * 0.42 },
-        { x: R * 0.20, y: R * 0.18 }
+        { x: R * 0.48, y: R * 0.32 },
+        { x: R * 0.58, y: R * 0.58 + drip * R * 0.07 },
+        { x: R * 0.38, y: R * 0.52 },
+        { x: R * 0.34, y: R * 0.28 }
       ]);
+      ctx.fill();
+      ctx.fillStyle = "rgba(210, 160, 35, 0.55)";
+      ctx.beginPath();
+      ctx.ellipse(-R * 0.50, -R * 0.28, R * 0.06, R * 0.10, 0.3, 0, Math.PI * 2);
       ctx.fill();
       if (chargeFrac > 0.08) {
         ctx.fillStyle = "rgba(140, 230, 90, " + (0.55 * chargeFrac) + ")";
         smoothBlob([
-          { x: R * 0.30, y: R * 0.10 },
-          { x: R * 0.48, y: R * 0.55 + chargeFrac * R * 0.12 },
-          { x: R * 0.18, y: R * 0.38 }
+          { x: R * 0.44, y: R * 0.18 },
+          { x: R * 0.62, y: R * 0.62 + chargeFrac * R * 0.10 },
+          { x: R * 0.32, y: R * 0.45 }
         ]);
         ctx.fill();
       }
     }
 
-    // Racimo de cocos DENTRO del cráter principal (sí círculos: son cocos).
+    // Cocos pequeños hundidos en el cráter principal (sí círculos: son cocos).
+    var hx = R * 0.44, hy = R * 0.06;
     var cocos = [
-      { x: R * 0.18, y: -R * 0.12, r: R * 0.16 },
-      { x: R * 0.42, y: -R * 0.02, r: R * 0.14 },
-      { x: R * 0.22, y:  R * 0.12, r: R * 0.13 },
-      { x: R * 0.38, y:  R * 0.14, r: R * 0.11 }
+      { x: hx - R * 0.06, y: hy - R * 0.10, r: R * 0.11 },
+      { x: hx + R * 0.10, y: hy - R * 0.02, r: R * 0.10 },
+      { x: hx - R * 0.02, y: hy + R * 0.08, r: R * 0.09 },
+      { x: hx + R * 0.08, y: hy + R * 0.10, r: R * 0.08 }
     ];
     function drawCoco(cx, cy, r) {
-      var grad = ctx.createRadialGradient(cx - r * 0.35, cy - r * 0.35, r * 0.15, cx, cy, r);
+      var grad = ctx.createRadialGradient(cx - r * 0.35, cy - r * 0.35, r * 0.12, cx, cy, r);
       grad.addColorStop(0, "#FFE085");
       grad.addColorStop(0.5, "#E0A820");
       grad.addColorStop(1, "#5A3F08");
@@ -24695,31 +24733,32 @@
       ctx.arc(cx, cy, r, 0, Math.PI * 2);
       ctx.fill();
       ctx.strokeStyle = "#3D2A05";
-      ctx.lineWidth = Math.max(1.1, 1.4 * U);
+      ctx.lineWidth = Math.max(1.0, 1.2 * U);
       ctx.stroke();
-      ctx.fillStyle = "rgba(255,250,210,0.50)";
-      ctx.beginPath();
-      ctx.arc(cx - r * 0.32, cy - r * 0.32, r * 0.28, 0, Math.PI * 2);
-      ctx.fill();
+      if (!hit) {
+        ctx.fillStyle = "rgba(255,250,210,0.45)";
+        ctx.beginPath();
+        ctx.arc(cx - r * 0.30, cy - r * 0.30, r * 0.26, 0, Math.PI * 2);
+        ctx.fill();
+      }
     }
     for (var ci = 0; ci < cocos.length; ci++) {
       drawCoco(cocos[ci].x + wrig(ci, 0), cocos[ci].y + wrig(ci, 1.4), cocos[ci].r);
     }
-    var hx = R * 0.28, hy = -R * 0.02;
-    drawCoco(hx, hy, R * 0.20);
+    drawCoco(hx, hy, R * 0.13);
 
     ctx.restore();
 
     var faceX = hx * Math.cos(pose) - hy * Math.sin(pose);
     var faceY = hx * Math.sin(pose) + hy * Math.cos(pose);
-    var eyeR = R * 0.09, gap = R * 0.14;
+    var eyeR = R * 0.075, gap = R * 0.12;
     if (expression === "dying" || expression === "hurt") drawHurtEyes(faceX, faceY, eyeR, gap, "#7d1818");
     else if (blink) drawClosedEyes(faceX, faceY, eyeR, gap);
-    else drawAnimeEyes(faceX, faceY, eyeR, gap, 0, 0, R * 0.035, R * 0.018, "evil");
+    else drawAnimeEyes(faceX, faceY, eyeR, gap, 0, 0, R * 0.030, R * 0.016, "evil");
     if (expression === "dying" || expression === "hurt") {
-      drawAnimeMouth(faceX, faceY + R * 0.16, R * 0.20, R * 0.14, "open");
+      drawAnimeMouth(faceX, faceY + R * 0.13, R * 0.17, R * 0.12, "open");
     } else {
-      drawAnimeMouth(faceX, faceY + R * 0.14, R * 0.18, R * 0.10, "fanged");
+      drawAnimeMouth(faceX, faceY + R * 0.11, R * 0.15, R * 0.09, "fanged");
     }
 
     ctx.restore();

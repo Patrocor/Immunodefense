@@ -1,4 +1,4 @@
-/** Showcase Malassezia spaghetti — DISPLAY=:1 node scripts/playtest-malassezia.mjs */
+/** Showcase Malassezia — pasta 0.95 + escama furfurácea. DISPLAY=:1 node scripts/playtest-malassezia.mjs */
 import { chromium } from "playwright";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
@@ -7,7 +7,7 @@ const ART = "/opt/cursor/artifacts";
 mkdirSync(ART, { recursive: true });
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-function placeMalassezia() {
+function placeMalassezia(alt) {
   const g = window.__game;
   const st = g.state;
   const src = st._malasseziaSrc;
@@ -30,9 +30,10 @@ function placeMalassezia() {
     dying: false,
     dead: false,
     wobble: 0.9,
-    _heading: -0.4,
+    _heading: alt ? -0.25 : -0.4,
     _lastPosX: cx - 14,
     _lastPosY: cy + 4,
+    _malasseziaAlt: !!alt,
   };
   st.enemies = [e];
   st.effects = [];
@@ -49,6 +50,7 @@ function placeMalassezia() {
   const sy = rect.top + (cy / g.metrics.VH) * rect.height;
   return {
     ok: true,
+    alt: !!alt,
     clip: { x: Math.round(sx - 270), y: Math.round(sy - 210), width: 540, height: 420 },
   };
 }
@@ -103,12 +105,20 @@ await page.waitForFunction(() => window.__game?.state);
 const spawned = await page.evaluate(spawnMalassezia);
 console.log("Spawn:", spawned);
 
-const shown = await page.evaluate(placeMalassezia);
-console.log("Placed:", shown);
-await sleep(900);
-await page.screenshot({ path: join(ART, "malassezia_spaghetti_field.png") });
-if (shown.ok) {
-  await page.screenshot({ path: join(ART, "malassezia_spaghetti.png"), clip: shown.clip });
+const pasta = await page.evaluate(placeMalassezia, false);
+console.log("Pasta 0.95:", pasta);
+await sleep(800);
+await page.screenshot({ path: join(ART, "malassezia_spaghetti_095_field.png") });
+if (pasta.ok) {
+  await page.screenshot({ path: join(ART, "malassezia_spaghetti_095.png"), clip: pasta.clip });
+}
+
+const flake = await page.evaluate(placeMalassezia, true);
+console.log("Flake alt:", flake);
+await sleep(800);
+await page.screenshot({ path: join(ART, "malassezia_flake_field.png") });
+if (flake.ok) {
+  await page.screenshot({ path: join(ART, "malassezia_flake.png"), clip: flake.clip });
 }
 
 await page.evaluate(() => window.__game.hold(false));

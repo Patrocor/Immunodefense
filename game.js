@@ -21626,9 +21626,10 @@
 
   // MALASSEZIA — racimo de levaduras redondas con brillo aceitoso y yemas.
   function drawMalassezia(e, rad, expression, blink) {
-    // Malassezia furfur v2 — "spaghetti & meatballs" (tiña versicolor).
-    // Ya no es botella/lágrima con cañón. Silueta = nido de fideos cortos
-    // + levaduras ovaladas metidas en los bucles. Aceite gotea de la pasta.
+    // Malassezia furfur. Escala visual 0.95 (como molluscum).
+    // v2 default: spaghetti & meatballs (tiña versicolor al microscopio).
+    // v3 alt (_malasseziaAlt): escama furfurácea / caspa (el nombre furfur).
+    rad = rad * 0.95;
 
     var hit = e.hitFlash > 0;
     var t = state.time;
@@ -21652,26 +21653,6 @@
     var R = rad * breathe;
     var sway = Math.sin(t * 1.6 + e.wobble);
 
-    function drawNoodle(x0, y0, cx, cy, x1, y1, w) {
-      ctx.lineCap = "round";
-      ctx.lineJoin = "round";
-      ctx.strokeStyle = hit ? "#ffffff" : "#5a4810";
-      ctx.lineWidth = w + 3.2 * U;
-      ctx.beginPath();
-      ctx.moveTo(x0, y0);
-      ctx.quadraticCurveTo(cx, cy, x1, y1);
-      ctx.stroke();
-      ctx.strokeStyle = hit ? "#ffffff" : "#d4b24a";
-      ctx.lineWidth = w;
-      ctx.stroke();
-      ctx.strokeStyle = hit ? "#ffffff" : "rgba(255, 244, 190, 0.55)";
-      ctx.lineWidth = Math.max(1.4, w * 0.28);
-      ctx.beginPath();
-      ctx.moveTo(x0, y0 - w * 0.18);
-      ctx.quadraticCurveTo(cx, cy - w * 0.22, x1, y1 - w * 0.18);
-      ctx.stroke();
-    }
-
     function meatball(cx, cy, rx, ry, ang) {
       ctx.save();
       ctx.translate(cx, cy);
@@ -21691,7 +21672,6 @@
       ctx.beginPath();
       ctx.ellipse(-rx * 0.28, -ry * 0.32, rx * 0.32, ry * 0.20, -0.4, 0, Math.PI * 2);
       ctx.fill();
-      // Mini collarete en un polo (detalle, no la silueta entera).
       ctx.strokeStyle = "#6a5414";
       ctx.lineWidth = Math.max(1.3, 1.7 * U);
       ctx.beginPath();
@@ -21720,11 +21700,126 @@
       ctx.restore();
     }
 
+    function drawFace(scale) {
+      var hpFracFace = (def && def.hp > 0) ? (e.hp / def.hp) : 1;
+      var lowHp = hpFracFace < 0.20;
+      var sadFace = (expression === "dying" || expression === "hurt" || lowHp);
+      var eyeR = scale * 0.22;
+      var faceY = -scale * 0.04;
+      var gap = scale * 0.24;
+      if (sadFace) drawHurtEyes(0, faceY, eyeR, gap);
+      else if (blink) drawClosedEyes(0, faceY, eyeR, gap);
+      else drawAnimeEyes(0, faceY, eyeR, gap, 0, 0, scale * 0.08, scale * 0.03, "smug");
+      if (sadFace) drawAnimeMouth(0, scale * 0.22, scale * 0.32, scale * 0.26, "open");
+      else drawAnimeMouth(0, scale * 0.22, scale * 0.30, scale * 0.16, "smirk");
+    }
+
+    if (e._malasseziaAlt) {
+      // v3 — escama furfurácea (caspa / salvado). Irregular, no hexágono.
+      ctx.save();
+      ctx.rotate(e._heading || 0);
+
+      function flakePath() {
+        ctx.beginPath();
+        ctx.moveTo(-R * 1.08, -R * 0.08);
+        ctx.quadraticCurveTo(-R * 0.85, -R * 0.72, -R * 0.22, -R * 0.98);
+        ctx.quadraticCurveTo(R * 0.42, -R * 1.12, R * 0.88, -R * 0.52);
+        ctx.quadraticCurveTo(R * 1.18, -R * 0.08, R * 0.95, R * 0.38);
+        ctx.quadraticCurveTo(R * 0.55, R * 0.72, R * 0.08, R * 0.55);
+        ctx.quadraticCurveTo(-R * 0.22, R * 0.95, -R * 0.62, R * 0.78);
+        ctx.quadraticCurveTo(-R * 1.22, R * 0.42, -R * 1.08, -R * 0.08);
+        ctx.closePath();
+      }
+
+      // Sombra de la lámina (grosor de queratina).
+      ctx.save();
+      ctx.translate(R * 0.06, R * 0.10);
+      ctx.fillStyle = "rgba(90, 70, 20, 0.35)";
+      flakePath();
+      ctx.fill();
+      ctx.restore();
+
+      var fg = ctx.createLinearGradient(-R, -R, R * 0.8, R * 0.9);
+      fg.addColorStop(0, hit ? "#ffffff" : "#fff6d4");
+      fg.addColorStop(0.45, hit ? "#ffffff" : "#e8d078");
+      fg.addColorStop(1, hit ? "#ffffff" : "#8a6e22");
+      ctx.fillStyle = fg;
+      flakePath();
+      ctx.fill();
+      ctx.strokeStyle = "#4a3c0c";
+      ctx.lineWidth = Math.max(2.2, 2.8 * U);
+      flakePath();
+      ctx.stroke();
+
+      // Manchas versicolor (hipo / hiperpigmentadas) sobre la escama.
+      if (!hit) {
+        ctx.fillStyle = "rgba(255, 252, 235, 0.50)";
+        ctx.beginPath();
+        ctx.ellipse(-R * 0.22, -R * 0.38, R * 0.32, R * 0.18, -0.4, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "rgba(140, 100, 30, 0.32)";
+        ctx.beginPath();
+        ctx.ellipse(R * 0.38, R * 0.12, R * 0.28, R * 0.16, 0.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "rgba(255, 248, 210, 0.35)";
+        ctx.beginPath();
+        ctx.ellipse(-R * 0.55, R * 0.22, R * 0.22, R * 0.12, 0.2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // Borde curvado (lámina que se despega, no ficha plana).
+      ctx.strokeStyle = "rgba(255, 240, 180, 0.55)";
+      ctx.lineWidth = Math.max(1.4, 1.8 * U);
+      ctx.beginPath();
+      ctx.moveTo(-R * 0.75, -R * 0.55);
+      ctx.quadraticCurveTo(-R * 0.1, -R * 0.92, R * 0.55, -R * 0.48);
+      ctx.stroke();
+
+      // Grieta de queratina.
+      ctx.strokeStyle = "rgba(90, 70, 20, 0.45)";
+      ctx.lineWidth = Math.max(1.0, 1.3 * U);
+      ctx.beginPath();
+      ctx.moveTo(-R * 0.15, -R * 0.55);
+      ctx.quadraticCurveTo(R * 0.05, -R * 0.05, R * 0.42, R * 0.28);
+      ctx.stroke();
+
+      // Levaduras ovaladas agarradas al borde (no el cuerpo entero).
+      meatball(-R * 0.82, R * 0.42, R * 0.22, R * 0.16, -0.7);
+      meatball(R * 0.78, -R * 0.18, R * 0.20, R * 0.15, 0.4);
+      meatball(R * 0.22, R * 0.68, R * 0.18, R * 0.14, 0.15);
+
+      oilDrop(R * 0.12, R * 0.92, R * 0.15, 0.2 + sway * 0.06);
+
+      ctx.restore();
+      drawFace(R * 0.92);
+      ctx.restore();
+      return;
+    }
+
+    function drawNoodle(x0, y0, cx, cy, x1, y1, w) {
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      ctx.strokeStyle = hit ? "#ffffff" : "#5a4810";
+      ctx.lineWidth = w + 3.2 * U;
+      ctx.beginPath();
+      ctx.moveTo(x0, y0);
+      ctx.quadraticCurveTo(cx, cy, x1, y1);
+      ctx.stroke();
+      ctx.strokeStyle = hit ? "#ffffff" : "#d4b24a";
+      ctx.lineWidth = w;
+      ctx.stroke();
+      ctx.strokeStyle = hit ? "#ffffff" : "rgba(255, 244, 190, 0.55)";
+      ctx.lineWidth = Math.max(1.4, w * 0.28);
+      ctx.beginPath();
+      ctx.moveTo(x0, y0 - w * 0.18);
+      ctx.quadraticCurveTo(cx, cy - w * 0.22, x1, y1 - w * 0.18);
+      ctx.stroke();
+    }
+
     ctx.save();
     ctx.rotate(e._heading || 0);
 
     var nW = R * 0.34;
-    // Fideos gruesos: nido alargado, no disco. Cola atrás, bucles adelante.
     drawNoodle(
       -R * 1.45, -R * 0.18 + sway * 1.2 * U,
       -R * 0.15, -R * 0.95,
@@ -21750,7 +21845,6 @@
       nW * 0.62
     );
 
-    // Albóndigas = levaduras ovaladas (no racimo circular de aureus).
     meatball(-R * 0.72, R * 0.08, R * 0.32, R * 0.24, -0.35);
     meatball(R * 0.62, -R * 0.42, R * 0.28, R * 0.21, 0.45);
     meatball(R * 0.78, R * 0.32, R * 0.26, R * 0.20, 0.15);
@@ -21759,20 +21853,8 @@
     oilDrop(-R * 0.15, R * 0.92, R * 0.16, 0.15 + sway * 0.08);
     oilDrop(R * 0.42, R * 0.78, R * 0.12, 0.4);
 
-    ctx.restore(); // end body rotated
-
-    var hpFracFace = (def && def.hp > 0) ? (e.hp / def.hp) : 1;
-    var lowHp = hpFracFace < 0.20;
-    var sadFace = (expression === "dying" || expression === "hurt" || lowHp);
-    var eyeR = R * 0.22;
-    var faceY = -R * 0.04;
-    var gap = R * 0.24;
-    if (sadFace) drawHurtEyes(0, faceY, eyeR, gap);
-    else if (blink) drawClosedEyes(0, faceY, eyeR, gap);
-    else drawAnimeEyes(0, faceY, eyeR, gap, 0, 0, R * 0.08, R * 0.03, "smug");
-    if (sadFace) drawAnimeMouth(0, R * 0.22, R * 0.32, R * 0.26, "open");
-    else drawAnimeMouth(0, R * 0.22, R * 0.30, R * 0.16, "smirk");
-
+    ctx.restore();
+    drawFace(R);
     ctx.restore();
   }
 

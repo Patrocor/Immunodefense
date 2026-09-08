@@ -45,7 +45,7 @@
     molluscum:    { silhouette: "bivalve",    accent: "#e8d6c0", label: "Concha" },
     demodex:      { silhouette: "poremite",   accent: "#c8a86a", label: "Poro" },
     saureus:      { silhouette: "grape",      accent: "#F9A825", label: "Racimo" },
-    malassezia:   { silhouette: "spaghetti",  accent: "#d8c060", label: "Pasta" }
+    malassezia:   { silhouette: "fan",        accent: "#d8c060", label: "Abanico" }
   };
 
   // Pistas de counter por germen Fase 1 (pip inferior).

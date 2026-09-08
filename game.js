@@ -21626,11 +21626,12 @@
 
   // MALASSEZIA — racimo de levaduras redondas con brillo aceitoso y yemas.
   function drawMalassezia(e, rad, expression, blink) {
-    // Malassezia furfur. Escala visual 0.95 (como molluscum).
-    // v2 default: spaghetti & meatballs (tiña versicolor al microscopio).
-    // v3 alt (_malasseziaAlt): escama furfurácea / caspa (el nombre furfur).
-    rad = rad * 0.95;
+    // Malassezia furfur v4 — ABANICO DE FIALIDES (0.95).
+    // Células botella reales, pero en racimo en abanico hacia adelante:
+    // no una sola lágrima-cañón, no pasta, no escama. Cada fialide tiene
+    // collarete y brote monopolar. Madre central con cara.
 
+    rad = rad * 0.95;
     var hit = e.hitFlash > 0;
     var t = state.time;
     var def = e.def;
@@ -21651,34 +21652,7 @@
 
     var breathe = 1 + Math.sin(t * 1.3 + e.wobble) * 0.03;
     var R = rad * breathe;
-    var sway = Math.sin(t * 1.6 + e.wobble);
-
-    function meatball(cx, cy, rx, ry, ang) {
-      ctx.save();
-      ctx.translate(cx, cy);
-      ctx.rotate(ang || 0);
-      var g = ctx.createRadialGradient(-rx * 0.35, -ry * 0.4, rx * 0.12, 0, 0, rx);
-      g.addColorStop(0, hit ? "#ffffff" : "#fff6d0");
-      g.addColorStop(0.5, hit ? "#ffffff" : "#e4c868");
-      g.addColorStop(1, hit ? "#ffffff" : "#7a6218");
-      ctx.fillStyle = g;
-      ctx.beginPath();
-      ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = "#4a3c0c";
-      ctx.lineWidth = Math.max(1.6, 2.1 * U);
-      ctx.stroke();
-      ctx.fillStyle = "rgba(255,255,235,0.5)";
-      ctx.beginPath();
-      ctx.ellipse(-rx * 0.28, -ry * 0.32, rx * 0.32, ry * 0.20, -0.4, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = "#6a5414";
-      ctx.lineWidth = Math.max(1.3, 1.7 * U);
-      ctx.beginPath();
-      ctx.ellipse(rx * 0.62, 0, rx * 0.16, ry * 0.42, 0, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.restore();
-    }
+    var budP = 0.5 + 0.5 * Math.sin(t * 2.1 + e.wobble);
 
     function oilDrop(x, y, s, ang) {
       ctx.save();
@@ -21700,163 +21674,113 @@
       ctx.restore();
     }
 
-    function drawFace(scale) {
-      var hpFracFace = (def && def.hp > 0) ? (e.hp / def.hp) : 1;
-      var lowHp = hpFracFace < 0.20;
-      var sadFace = (expression === "dying" || expression === "hurt" || lowHp);
-      var eyeR = scale * 0.22;
-      var faceY = -scale * 0.04;
-      var gap = scale * 0.24;
-      if (sadFace) drawHurtEyes(0, faceY, eyeR, gap);
-      else if (blink) drawClosedEyes(0, faceY, eyeR, gap);
-      else drawAnimeEyes(0, faceY, eyeR, gap, 0, 0, scale * 0.08, scale * 0.03, "smug");
-      if (sadFace) drawAnimeMouth(0, scale * 0.22, scale * 0.32, scale * 0.26, "open");
-      else drawAnimeMouth(0, scale * 0.22, scale * 0.30, scale * 0.16, "smirk");
-    }
-
-    if (e._malasseziaAlt) {
-      // v3 — escama furfurácea (caspa / salvado). Irregular, no hexágono.
-      ctx.save();
-      ctx.rotate(e._heading || 0);
-
-      function flakePath() {
-        ctx.beginPath();
-        ctx.moveTo(-R * 1.12, -R * 0.05);
-        ctx.lineTo(-R * 0.62, -R * 0.78);
-        ctx.quadraticCurveTo(-R * 0.15, -R * 1.08, R * 0.22, -R * 0.92);
-        ctx.lineTo(R * 0.95, -R * 0.48);
-        ctx.lineTo(R * 1.12, R * 0.08);
-        ctx.lineTo(R * 0.72, R * 0.55);
-        ctx.quadraticCurveTo(R * 0.18, R * 0.42, -R * 0.08, R * 0.68);
-        ctx.lineTo(-R * 0.58, R * 0.92);
-        ctx.lineTo(-R * 1.18, R * 0.32);
-        ctx.closePath();
-      }
-
-      // Sombra de la lámina (grosor de queratina).
-      ctx.save();
-      ctx.translate(R * 0.06, R * 0.10);
-      ctx.fillStyle = "rgba(90, 70, 20, 0.35)";
-      flakePath();
-      ctx.fill();
-      ctx.restore();
-
-      var fg = ctx.createLinearGradient(-R, -R, R * 0.8, R * 0.9);
-      fg.addColorStop(0, hit ? "#ffffff" : "#fff6d4");
-      fg.addColorStop(0.45, hit ? "#ffffff" : "#e8d078");
-      fg.addColorStop(1, hit ? "#ffffff" : "#8a6e22");
-      ctx.fillStyle = fg;
-      flakePath();
+    function fillYeast(cx, cy, rx, ry) {
+      var g = ctx.createRadialGradient(cx - rx * 0.35, cy - ry * 0.4, rx * 0.12, cx, cy, rx);
+      g.addColorStop(0, hit ? "#ffffff" : "#fff6d0");
+      g.addColorStop(0.5, hit ? "#ffffff" : "#e4c868");
+      g.addColorStop(1, hit ? "#ffffff" : "#7a6218");
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
       ctx.fill();
       ctx.strokeStyle = "#4a3c0c";
-      ctx.lineWidth = Math.max(2.2, 2.8 * U);
-      flakePath();
+      ctx.lineWidth = Math.max(1.5, 2.0 * U);
       ctx.stroke();
-
-      // Manchas versicolor (hipo / hiperpigmentadas) sobre la escama.
-      if (!hit) {
-        ctx.fillStyle = "rgba(255, 252, 235, 0.50)";
-        ctx.beginPath();
-        ctx.ellipse(-R * 0.22, -R * 0.38, R * 0.32, R * 0.18, -0.4, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = "rgba(140, 100, 30, 0.32)";
-        ctx.beginPath();
-        ctx.ellipse(R * 0.38, R * 0.12, R * 0.28, R * 0.16, 0.5, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = "rgba(255, 248, 210, 0.35)";
-        ctx.beginPath();
-        ctx.ellipse(-R * 0.55, R * 0.22, R * 0.22, R * 0.12, 0.2, 0, Math.PI * 2);
-        ctx.fill();
-      }
-
-      // Borde curvado (lámina que se despega, no ficha plana).
-      ctx.strokeStyle = "rgba(255, 240, 180, 0.55)";
-      ctx.lineWidth = Math.max(1.4, 1.8 * U);
+      ctx.fillStyle = "rgba(255,255,235,0.48)";
       ctx.beginPath();
-      ctx.moveTo(-R * 0.75, -R * 0.55);
-      ctx.quadraticCurveTo(-R * 0.1, -R * 0.92, R * 0.55, -R * 0.48);
-      ctx.stroke();
-
-      // Grieta de queratina.
-      ctx.strokeStyle = "rgba(90, 70, 20, 0.45)";
-      ctx.lineWidth = Math.max(1.0, 1.3 * U);
-      ctx.beginPath();
-      ctx.moveTo(-R * 0.15, -R * 0.55);
-      ctx.quadraticCurveTo(R * 0.05, -R * 0.05, R * 0.42, R * 0.28);
-      ctx.stroke();
-
-      // Levaduras ovaladas agarradas al borde (no el cuerpo entero).
-      meatball(-R * 0.82, R * 0.42, R * 0.22, R * 0.16, -0.7);
-      meatball(R * 0.78, -R * 0.18, R * 0.20, R * 0.15, 0.4);
-      meatball(R * 0.22, R * 0.68, R * 0.18, R * 0.14, 0.15);
-
-      oilDrop(R * 0.12, R * 0.92, R * 0.15, 0.2 + sway * 0.06);
-
-      ctx.restore();
-      drawFace(R * 0.92);
-      ctx.restore();
-      return;
+      ctx.ellipse(cx - rx * 0.28, cy - ry * 0.32, rx * 0.30, ry * 0.18, -0.4, 0, Math.PI * 2);
+      ctx.fill();
     }
 
-    function drawNoodle(x0, y0, cx, cy, x1, y1, w) {
-      ctx.lineCap = "round";
-      ctx.lineJoin = "round";
-      ctx.strokeStyle = hit ? "#ffffff" : "#5a4810";
-      ctx.lineWidth = w + 3.2 * U;
+    function drawPhialide(ang, len, fat) {
+      ctx.save();
+      ctx.rotate(ang);
+      var x0 = R * 0.18;
+      var xBelly = x0 + len * 0.36;
+      var xNeck = x0 + len * 0.70;
+      var xTip = x0 + len;
+      function trace() {
+        ctx.beginPath();
+        ctx.moveTo(x0, fat * 0.28);
+        ctx.quadraticCurveTo(x0 - fat * 0.12, 0, x0, -fat * 0.28);
+        ctx.quadraticCurveTo(xBelly, -fat * 1.05, xNeck, -fat * 0.42);
+        ctx.lineTo(xTip - fat * 0.18, -fat * 0.22);
+        ctx.quadraticCurveTo(xTip + fat * 0.06, 0, xTip - fat * 0.18, fat * 0.22);
+        ctx.lineTo(xNeck, fat * 0.42);
+        ctx.quadraticCurveTo(xBelly, fat * 1.05, x0, fat * 0.28);
+        ctx.closePath();
+      }
+      var pg = ctx.createLinearGradient(x0, 0, xTip, 0);
+      pg.addColorStop(0, hit ? "#ffffff" : "#fff4c8");
+      pg.addColorStop(0.55, hit ? "#ffffff" : "#e0c050");
+      pg.addColorStop(1, hit ? "#ffffff" : "#8a6a18");
+      ctx.fillStyle = pg;
+      trace();
+      ctx.fill();
+      ctx.strokeStyle = "#4a3c0c";
+      ctx.lineWidth = Math.max(1.6, 2.1 * U);
+      trace();
+      ctx.stroke();
+      // Collarete — arandela en el cuello.
+      ctx.fillStyle = hit ? "#ffffff" : "#6e5814";
       ctx.beginPath();
-      ctx.moveTo(x0, y0);
-      ctx.quadraticCurveTo(cx, cy, x1, y1);
-      ctx.stroke();
-      ctx.strokeStyle = hit ? "#ffffff" : "#d4b24a";
-      ctx.lineWidth = w;
-      ctx.stroke();
-      ctx.strokeStyle = hit ? "#ffffff" : "rgba(255, 244, 190, 0.55)";
-      ctx.lineWidth = Math.max(1.4, w * 0.28);
+      ctx.ellipse(xNeck, 0, fat * 0.22, fat * 0.72, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = hit ? "#ffffff" : "#d4b24a";
       ctx.beginPath();
-      ctx.moveTo(x0, y0 - w * 0.18);
-      ctx.quadraticCurveTo(cx, cy - w * 0.22, x1, y1 - w * 0.18);
+      ctx.ellipse(xNeck + fat * 0.06, 0, fat * 0.12, fat * 0.52, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "#3d3208";
+      ctx.lineWidth = Math.max(1.2, 1.5 * U);
+      ctx.beginPath();
+      ctx.ellipse(xNeck, 0, fat * 0.22, fat * 0.72, 0, 0, Math.PI * 2);
       ctx.stroke();
+      // Brote monopolar en la punta.
+      var br = fat * (0.42 + 0.10 * budP);
+      fillYeast(xTip + br * 0.15, 0, br * 1.05, br * 0.78);
+      ctx.restore();
     }
 
     ctx.save();
     ctx.rotate(e._heading || 0);
 
-    var nW = R * 0.34;
-    drawNoodle(
-      -R * 1.45, -R * 0.18 + sway * 1.2 * U,
-      -R * 0.15, -R * 0.95,
-      R * 1.15, -R * 0.22,
-      nW
-    );
-    drawNoodle(
-      -R * 1.35, R * 0.28 + sway * 1.1 * U,
-      R * 0.05, R * 1.02,
-      R * 1.05, R * 0.18,
-      nW * 0.92
-    );
-    drawNoodle(
-      -R * 0.55, -R * 0.72,
-      R * 0.55, R * 0.08 + sway * 1.4 * U,
-      -R * 0.85, R * 0.78,
-      nW * 0.78
-    );
-    drawNoodle(
-      -R * 1.55, R * 0.02,
-      -R * 1.15, -R * 0.55,
-      -R * 0.72, -R * 0.08,
-      nW * 0.62
-    );
+    // 5 fialides en abanico hacia +X (apertura ~140°). Largos irregulares.
+    var fan = [
+      { a: -0.98, len: R * 0.92, fat: R * 0.20 },
+      { a: -0.50, len: R * 1.12, fat: R * 0.23 },
+      { a:  0.04, len: R * 1.28, fat: R * 0.26 },
+      { a:  0.54, len: R * 1.08, fat: R * 0.22 },
+      { a:  1.00, len: R * 0.86, fat: R * 0.19 }
+    ];
+    for (var fi = 0; fi < fan.length; fi++) {
+      drawPhialide(fan[fi].a, fan[fi].len, fan[fi].fat);
+    }
 
-    meatball(-R * 0.72, R * 0.08, R * 0.32, R * 0.24, -0.35);
-    meatball(R * 0.62, -R * 0.42, R * 0.28, R * 0.21, 0.45);
-    meatball(R * 0.78, R * 0.32, R * 0.26, R * 0.20, 0.15);
-    meatball(0, 0, R * 0.50, R * 0.38, 0.08);
+    // Madre (hub) — ovalada, no círculo perfecto.
+    fillYeast(-R * 0.06, 0, R * 0.50, R * 0.40);
+    ctx.strokeStyle = "#4a3c0c";
+    ctx.lineWidth = Math.max(2.0, 2.6 * U);
+    ctx.beginPath();
+    ctx.ellipse(-R * 0.06, 0, R * 0.50, R * 0.40, 0, 0, Math.PI * 2);
+    ctx.stroke();
 
-    oilDrop(-R * 0.15, R * 0.92, R * 0.16, 0.15 + sway * 0.08);
-    oilDrop(R * 0.42, R * 0.78, R * 0.12, 0.4);
+    oilDrop(R * 0.22, R * 0.72, R * 0.14, 0.35);
+    oilDrop(-R * 0.08, R * 0.62, R * 0.11, 0.12);
 
     ctx.restore();
-    drawFace(R);
+
+    var hpFracFace = (def && def.hp > 0) ? (e.hp / def.hp) : 1;
+    var lowHp = hpFracFace < 0.20;
+    var sadFace = (expression === "dying" || expression === "hurt" || lowHp);
+    var eyeR = R * 0.20;
+    var faceY = -R * 0.04;
+    var gap = R * 0.22;
+    if (sadFace) drawHurtEyes(0, faceY, eyeR, gap);
+    else if (blink) drawClosedEyes(0, faceY, eyeR, gap);
+    else drawAnimeEyes(0, faceY, eyeR, gap, 0, 0, R * 0.07, R * 0.03, "smug");
+    if (sadFace) drawAnimeMouth(0, R * 0.20, R * 0.28, R * 0.22, "open");
+    else drawAnimeMouth(0, R * 0.20, R * 0.26, R * 0.14, "smirk");
+
     ctx.restore();
   }
 

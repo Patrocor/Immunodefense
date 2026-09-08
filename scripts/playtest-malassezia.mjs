@@ -1,4 +1,4 @@
-/** Showcase Malassezia — pasta 0.95 + escama furfurácea. DISPLAY=:1 node scripts/playtest-malassezia.mjs */
+/** Showcase Malassezia v4 fan of phialides — DISPLAY=:1 node scripts/playtest-malassezia.mjs */
 import { chromium } from "playwright";
 import { mkdirSync, copyFileSync } from "node:fs";
 import { join } from "node:path";
@@ -9,7 +9,7 @@ mkdirSync(ART, { recursive: true });
 mkdirSync(TMP, { recursive: true });
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-function placeMalassezia(alt) {
+function placeMalassezia() {
   const g = window.__game;
   const st = g.state;
   const src = st._malasseziaSrc;
@@ -32,10 +32,9 @@ function placeMalassezia(alt) {
     dying: false,
     dead: false,
     wobble: 0.9,
-    _heading: alt ? -0.25 : -0.4,
+    _heading: 0.15,
     _lastPosX: cx - 14,
     _lastPosY: cy + 4,
-    _malasseziaAlt: !!alt,
   };
   st.enemies = [e];
   st.effects = [];
@@ -52,7 +51,6 @@ function placeMalassezia(alt) {
   const sy = rect.top + (cy / g.metrics.VH) * rect.height;
   return {
     ok: true,
-    alt: !!alt,
     clip: { x: Math.round(sx - 270), y: Math.round(sy - 210), width: 540, height: 420 },
   };
 }
@@ -107,26 +105,16 @@ await page.waitForFunction(() => window.__game?.state);
 const spawned = await page.evaluate(spawnMalassezia);
 console.log("Spawn:", spawned);
 
-const pasta = await page.evaluate(placeMalassezia, false);
-console.log("Pasta 0.95:", pasta);
-await sleep(800);
-await page.screenshot({ path: join(TMP, "malassezia_spaghetti_095_field.png") });
-if (pasta.ok) {
-  await page.screenshot({ path: join(TMP, "malassezia_spaghetti_095.png"), clip: pasta.clip });
-}
-
-const flake = await page.evaluate(placeMalassezia, true);
-console.log("Flake alt:", flake);
-await sleep(800);
-await page.screenshot({ path: join(TMP, "malassezia_flake_field.png") });
-if (flake.ok) {
-  await page.screenshot({ path: join(TMP, "malassezia_flake.png"), clip: flake.clip });
+const shown = await page.evaluate(placeMalassezia);
+console.log("Placed:", shown);
+await sleep(900);
+await page.screenshot({ path: join(TMP, "malassezia_fan_field.png") });
+if (shown.ok) {
+  await page.screenshot({ path: join(TMP, "malassezia_fan.png"), clip: shown.clip });
 }
 
 await page.evaluate(() => window.__game.hold(false));
 await browser.close();
-copyFileSync(join(TMP, "malassezia_spaghetti_095.png"), join(ART, "malassezia_v2_pasta095.png"));
-copyFileSync(join(TMP, "malassezia_spaghetti_095_field.png"), join(ART, "malassezia_v2_pasta095_field.png"));
-copyFileSync(join(TMP, "malassezia_flake.png"), join(ART, "malassezia_v3_flake.png"));
-copyFileSync(join(TMP, "malassezia_flake_field.png"), join(ART, "malassezia_v3_flake_field.png"));
+copyFileSync(join(TMP, "malassezia_fan.png"), join(ART, "malassezia_v4_fan.png"));
+copyFileSync(join(TMP, "malassezia_fan_field.png"), join(ART, "malassezia_v4_fan_field.png"));
 console.log("OK: malassezia screenshots in", ART);

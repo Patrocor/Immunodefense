@@ -24697,15 +24697,16 @@
   }
 
   // Clostridium perfringens: BESTIA DE GANGRENA GASEOSA.
-  // Un solo monstruo (hocico + tronco + patas), no palo+bola ni pera de músculo.
+  // Un solo monstruo (hocico + tronco + patas + cola-espora).
+  // El bacilo ES el cuerpo: rod vegetativo = tronco, espora terminal = cola.
   function drawBossClostridium(e, rad, expression, blink) {
-    // Clostridium v4 — creature de mionecrosis:
-    //  · Cabeza con hocico y fauces (α-toxina / devour)
-    //  · Tronco jorobado hinchado de gas, cintura entre pecho y anca
-    //  · Dos patas de músculo desgarrado (no insecto, no vagón)
-    //  · Cuerno-espora creciendo de la nuca (espora terminal, parte del bicho)
-    //  · Bolsas de gas FUSIONADAS al lomo, no burbujas sueltas
-    //  · Escudo = fascia húmeda sobre la joroba, no anillo
+    // Clostridium v4 — creature tipo varano/necrotico, no tortuga ni palo:
+    //  · Hocico-cuña con fauces (α-toxina / devour)
+    //  · Tronco alargado con cintura (el bacilo), no caparazón
+    //  · Patas de músculo con rodilla, no aletas
+    //  · Cola-espora lumpy (espora terminal, morfología clostridial)
+    //  · Cresta de gas en el lomo (crepitus), no caparazón ni burbujas
+    //  · Escudo = jirones de fascia en el flanco, no anillo ni concha
     var hit = e.hitFlash > 0;
     var t = state.time;
     var def = e.def;
@@ -24713,7 +24714,7 @@
     var shieldFrac = (sd && sd.maxHP) ? Math.max(0, (e.shieldHP || 0) / sd.maxHP) : 1;
     ctx.save();
     ctx.translate(e.x, e.y);
-    ctx.scale(0.84, 0.84);
+    ctx.scale(0.82, 0.82);
     ctx.lineJoin = "round";
     ctx.lineCap = "round";
 
@@ -24758,169 +24759,183 @@
 
     var R = rad;
     var pose = (e._heading || 0) + lumber;
-    var hx = R * 0.62, hy = -R * 0.12;
+    var hx = R * 0.78, hy = -R * 0.18;
     var ink = hit ? "#ffffff" : "#14110c";
-    var muscleA = hit ? "#ffffff" : "#6a7a48";
-    var muscleB = hit ? "#ffffff" : "#3a4228";
-    var muscleC = hit ? "#ffffff" : "#1e2414";
+    var muscleA = hit ? "#ffffff" : "#7a8a50";
+    var muscleB = hit ? "#ffffff" : "#4a5630";
+    var muscleC = hit ? "#ffffff" : "#1c2210";
     ctx.save();
     ctx.rotate(pose);
 
-    var frontLift = gait * R * 0.06;
-    var hindLift = -gait * R * 0.05;
+    var frontLift = gait * R * 0.07;
+    var hindLift = -gait * R * 0.06;
 
-    // Pata trasera (atrás del tronco) — músculo desgarrado, no pata de insecto.
+    // Pata trasera (atrás): muslo + rodilla + pie garras, no aleta.
     var hind = [
-      { x: -R * 0.42, y:  R * 0.08 },
-      { x: -R * 0.72, y:  R * 0.18 + hindLift },
-      { x: -R * 0.88, y:  R * 0.48 + hindLift },
-      { x: -R * 0.62, y:  R * 0.70 + hindLift },
-      { x: -R * 0.38, y:  R * 0.58 + hindLift * 0.4 },
-      { x: -R * 0.22, y:  R * 0.28 }
+      { x: -R * 0.28, y:  R * 0.02 },
+      { x: -R * 0.55, y:  R * 0.18 + hindLift * 0.4 },
+      { x: -R * 0.62, y:  R * 0.48 + hindLift },
+      { x: -R * 0.38, y:  R * 0.72 + hindLift },
+      { x: -R * 0.18, y:  R * 0.58 + hindLift * 0.5 },
+      { x: -R * 0.12, y:  R * 0.22 }
     ];
-    var hgHind = ctx.createLinearGradient(-R * 0.8, R * 0.1, -R * 0.4, R * 0.7);
+    var hgHind = ctx.createLinearGradient(-R * 0.5, 0, -R * 0.3, R * 0.7);
     hgHind.addColorStop(0, muscleA);
     hgHind.addColorStop(1, muscleC);
     fillStrokeBlob(hind, hgHind, ink, Math.max(1.6, 2.0 * U));
     if (!hit) {
-      ctx.strokeStyle = "rgba(20, 18, 10, 0.45)";
+      ctx.strokeStyle = ink;
+      ctx.lineWidth = Math.max(1.5, 1.9 * U);
+      ctx.beginPath();
+      ctx.moveTo(-R * 0.32, R * 0.58 + hindLift);
+      ctx.lineTo(-R * 0.28, R * 0.78 + hindLift);
+      ctx.moveTo(-R * 0.42, R * 0.60 + hindLift);
+      ctx.lineTo(-R * 0.46, R * 0.78 + hindLift);
+      ctx.stroke();
+      ctx.strokeStyle = "rgba(22, 20, 10, 0.45)";
       ctx.lineWidth = Math.max(0.8, 1.0 * U);
       ctx.beginPath();
-      ctx.moveTo(-R * 0.58, R * 0.22);
-      ctx.lineTo(-R * 0.70, R * 0.52 + hindLift);
+      ctx.moveTo(-R * 0.40, R * 0.12);
+      ctx.lineTo(-R * 0.50, R * 0.42 + hindLift);
       ctx.stroke();
     }
 
-    // Tronco jorobado: pecho + panza de gas + anca, con CINTURA (no pera).
+    // Tronco ALARGADO (el bacilo): pecho, cintura, anca. No caparazón ni pera.
     var torso = [
-      { x:  R * 0.38, y: -R * 0.18 },
-      { x:  R * 0.18, y: -R * 0.52 },
-      { x: -R * 0.18, y: -R * 0.58 },
-      { x: -R * 0.58, y: -R * 0.38 },
-      { x: -R * 0.78, y: -R * 0.02 },
-      { x: -R * 0.70, y:  R * 0.32 },
-      { x: -R * 0.28, y:  R * 0.22 },
-      { x: -R * 0.08, y:  R * 0.55 },
-      { x:  R * 0.28, y:  R * 0.48 },
-      { x:  R * 0.42, y:  R * 0.12 }
+      { x:  R * 0.48, y: -R * 0.22 },
+      { x:  R * 0.22, y: -R * 0.42 },
+      { x: -R * 0.18, y: -R * 0.38 },
+      { x: -R * 0.55, y: -R * 0.22 },
+      { x: -R * 0.68, y:  R * 0.08 },
+      { x: -R * 0.42, y:  R * 0.18 },
+      { x: -R * 0.12, y:  R * 0.08 },
+      { x:  R * 0.12, y:  R * 0.32 },
+      { x:  R * 0.42, y:  R * 0.22 },
+      { x:  R * 0.55, y: -R * 0.02 }
     ];
-    var tg = ctx.createLinearGradient(0, -R * 0.6, 0, R * 0.6);
+    var tg = ctx.createLinearGradient(0, -R * 0.45, 0, R * 0.35);
     tg.addColorStop(0, muscleA);
-    tg.addColorStop(0.45, hit ? "#ffffff" : (def.color || "#546E7A"));
+    tg.addColorStop(0.5, hit ? "#ffffff" : (def.color || "#546E7A"));
     tg.addColorStop(1, muscleC);
     fillStrokeBlob(torso, tg, ink, Math.max(2.0, 2.4 * U));
     if (!hit) {
-      // Fibras de músculo necrótico (mionecrosis), no geometría.
-      ctx.strokeStyle = "rgba(22, 20, 12, 0.40)";
+      ctx.strokeStyle = "rgba(22, 20, 12, 0.42)";
       ctx.lineWidth = Math.max(0.9, 1.1 * U);
       ctx.beginPath();
-      ctx.moveTo(-R * 0.48, -R * 0.18);
-      ctx.quadraticCurveTo(-R * 0.22, 0.0, R * 0.12, R * 0.08);
+      ctx.moveTo(-R * 0.48, -R * 0.08);
+      ctx.quadraticCurveTo(-R * 0.10, 0.02, R * 0.32, 0.00);
       ctx.stroke();
       ctx.beginPath();
-      ctx.moveTo(-R * 0.32, -R * 0.38);
-      ctx.quadraticCurveTo(-R * 0.05, -R * 0.12, R * 0.22, -R * 0.02);
+      ctx.moveTo(-R * 0.30, -R * 0.22);
+      ctx.quadraticCurveTo(R * 0.05, -R * 0.08, R * 0.38, -R * 0.10);
       ctx.stroke();
     }
 
-    // Bolsas de gas FUSIONADAS al lomo (crepitus), no burbujas sueltas.
+    // Cresta de gas (crepitus) a lo largo del lomo — joroba rota, no concha.
     if (!hit) {
       var gPulse = 1 + 0.12 * Math.sin(t * 2.2) + devourK * 0.18;
       var sacs = [
-        { x: -R * 0.08, y: -R * 0.62, s: 0.20 },
-        { x: -R * 0.38, y: -R * 0.52, s: 0.16 },
-        { x:  R * 0.12, y: -R * 0.42, s: 0.13 }
+        { x:  R * 0.18, y: -R * 0.48, s: 0.15 },
+        { x: -R * 0.08, y: -R * 0.50, s: 0.18 },
+        { x: -R * 0.38, y: -R * 0.38, s: 0.14 }
       ];
       for (var v = 0; v < sacs.length; v++) {
         var vt = sacs[v];
         var vs = R * vt.s * gPulse;
-        ctx.fillStyle = "rgba(198, 214, 110, 0.62)";
         fillStrokeBlob([
-          { x: vt.x + vs * 1.05, y: vt.y },
-          { x: vt.x + vs * 0.15, y: vt.y - vs * 1.15 },
-          { x: vt.x - vs * 1.00, y: vt.y - vs * 0.20 },
-          { x: vt.x - vs * 0.20, y: vt.y + vs * 0.75 },
-          { x: vt.x + vs * 0.45, y: vt.y + vs * 0.40 }
-        ], "rgba(198, 214, 110, 0.62)", "rgba(50, 58, 24, 0.50)", Math.max(0.8, 1.0 * U));
+          { x: vt.x + vs * 1.10, y: vt.y + vs * 0.10 },
+          { x: vt.x + vs * 0.20, y: vt.y - vs * 1.20 },
+          { x: vt.x - vs * 0.95, y: vt.y - vs * 0.15 },
+          { x: vt.x - vs * 0.15, y: vt.y + vs * 0.70 },
+          { x: vt.x + vs * 0.40, y: vt.y + vs * 0.35 }
+        ], "rgba(198, 214, 110, 0.70)", "rgba(50, 58, 24, 0.55)", Math.max(0.8, 1.0 * U));
       }
     }
 
-    // Escudo = fascia húmeda sobre la joroba (pared), no anillo.
+    // Escudo = jirones de fascia en el flanco, no cúpula/concha.
     if (shieldFrac > 0.04) {
-      var sa = 0.28 + 0.48 * shieldFrac;
+      var sa = 0.30 + 0.50 * shieldFrac;
       ctx.fillStyle = hit ? "rgba(255,255,255,0.35)" : "rgba(228, 214, 168, " + sa + ")";
       smoothBlob([
-        { x:  R * 0.22, y: -R * 0.18 },
-        { x:  R * 0.02, y: -R * 0.62 },
-        { x: -R * 0.42, y: -R * 0.58 },
-        { x: -R * 0.55, y: -R * 0.18 },
-        { x: -R * 0.12, y: -R * 0.08 }
+        { x:  R * 0.28, y: -R * 0.08 },
+        { x:  R * 0.08, y: -R * 0.38 },
+        { x: -R * 0.22, y: -R * 0.32 },
+        { x: -R * 0.38, y:  R * 0.02 },
+        { x: -R * 0.08, y:  R * 0.10 },
+        { x:  R * 0.18, y:  R * 0.04 }
       ]);
       ctx.fill();
+      ctx.strokeStyle = hit ? "#ffffff" : "rgba(90, 70, 40, 0.55)";
+      ctx.lineWidth = Math.max(1.0, 1.3 * U);
+      ctx.beginPath();
+      ctx.moveTo(R * 0.22, -R * 0.18);
+      ctx.lineTo(-R * 0.08, R * 0.02);
+      ctx.lineTo(-R * 0.28, -R * 0.12);
+      ctx.stroke();
     }
 
-    // Cuerno-espora en la nuca: espora terminal, parte del bicho (no palo suelto).
-    var horn = [
-      { x: -R * 0.22, y: -R * 0.48 },
-      { x: -R * 0.32, y: -R * 0.78 },
-      { x: -R * 0.12, y: -R * 0.98 },
-      { x:  R * 0.12, y: -R * 0.88 },
-      { x:  R * 0.08, y: -R * 0.52 }
+    // Cola-espora (espora terminal): maza lumpy detrás, morfología del bacilo.
+    var tail = [
+      { x: -R * 0.52, y: -R * 0.08 },
+      { x: -R * 0.88, y: -R * 0.22 },
+      { x: -R * 1.18, y: -R * 0.08 },
+      { x: -R * 1.22, y:  R * 0.18 },
+      { x: -R * 0.92, y:  R * 0.28 },
+      { x: -R * 0.55, y:  R * 0.12 }
     ];
-    var hornG = ctx.createLinearGradient(-R * 0.2, -R, 0, -R * 0.45);
-    hornG.addColorStop(0, hit ? "#ffffff" : "#e8edd4");
-    hornG.addColorStop(1, hit ? "#ffffff" : "#5a6840");
-    fillStrokeBlob(horn, hornG, ink, Math.max(1.5, 1.9 * U));
+    var tailG = ctx.createLinearGradient(-R * 1.2, 0, -R * 0.5, 0);
+    tailG.addColorStop(0, hit ? "#ffffff" : "#e4ecd0");
+    tailG.addColorStop(0.55, hit ? "#ffffff" : "#a8b878");
+    tailG.addColorStop(1, muscleB);
+    fillStrokeBlob(tail, tailG, ink, Math.max(1.7, 2.1 * U));
 
-    // Brazo delantero — zarpa de músculo plantada hacia adelante.
+    // Pata delantera: hombro → codo → zarpa plantada.
     var fore = [
-      { x:  R * 0.18, y:  R * 0.10 },
-      { x:  R * 0.48, y:  R * 0.28 + frontLift },
-      { x:  R * 0.72, y:  R * 0.52 + frontLift },
-      { x:  R * 0.58, y:  R * 0.70 + frontLift },
-      { x:  R * 0.32, y:  R * 0.58 + frontLift * 0.5 },
-      { x:  R * 0.08, y:  R * 0.28 }
+      { x:  R * 0.22, y:  R * 0.02 },
+      { x:  R * 0.48, y:  R * 0.22 + frontLift * 0.4 },
+      { x:  R * 0.42, y:  R * 0.52 + frontLift },
+      { x:  R * 0.18, y:  R * 0.72 + frontLift },
+      { x:  R * 0.05, y:  R * 0.52 + frontLift * 0.5 },
+      { x:  R * 0.08, y:  R * 0.18 }
     ];
-    var fg = ctx.createLinearGradient(R * 0.2, R * 0.1, R * 0.65, R * 0.7);
+    var fg = ctx.createLinearGradient(R * 0.2, 0, R * 0.3, R * 0.7);
     fg.addColorStop(0, muscleA);
     fg.addColorStop(1, muscleC);
     fillStrokeBlob(fore, fg, ink, Math.max(1.6, 2.0 * U));
     if (!hit) {
-      // Dedos romos (zarpa), no pata articulado de ácaro.
       ctx.strokeStyle = ink;
-      ctx.lineWidth = Math.max(1.6, 2.0 * U);
-      var clawY = R * 0.68 + frontLift;
+      ctx.lineWidth = Math.max(1.5, 1.9 * U);
       ctx.beginPath();
-      ctx.moveTo(R * 0.50, R * 0.58 + frontLift);
-      ctx.lineTo(R * 0.46, clawY);
-      ctx.moveTo(R * 0.60, R * 0.56 + frontLift);
-      ctx.lineTo(R * 0.66, clawY);
+      ctx.moveTo(R * 0.22, R * 0.58 + frontLift);
+      ctx.lineTo(R * 0.16, R * 0.80 + frontLift);
+      ctx.moveTo(R * 0.32, R * 0.58 + frontLift);
+      ctx.lineTo(R * 0.36, R * 0.80 + frontLift);
       ctx.stroke();
     }
 
-    // Cabeza + hocico (cuña viva, no círculo). Fauces se abren al devour.
-    var jawDrop = R * (0.06 + devourK * 0.16);
+    // Cabeza + hocico largo (cuña), fauces que se abren al devour.
+    var jawDrop = R * (0.05 + devourK * 0.18);
     var head = [
-      { x:  R * 0.42, y: -R * 0.42 },
-      { x:  R * 0.62, y: -R * 0.58 },
-      { x:  R * 0.92, y: -R * 0.28 },
-      { x:  R * 1.08, y: -R * 0.02 },
-      { x:  R * 0.92, y:  R * 0.18 + jawDrop },
-      { x:  R * 0.58, y:  R * 0.22 + jawDrop * 0.6 },
-      { x:  R * 0.32, y:  R * 0.02 }
+      { x:  R * 0.48, y: -R * 0.38 },
+      { x:  R * 0.72, y: -R * 0.52 },
+      { x:  R * 1.02, y: -R * 0.28 },
+      { x:  R * 1.22, y: -R * 0.06 },
+      { x:  R * 1.08, y:  R * 0.16 + jawDrop },
+      { x:  R * 0.72, y:  R * 0.18 + jawDrop * 0.5 },
+      { x:  R * 0.42, y: -R * 0.02 }
     ];
-    var hd = ctx.createLinearGradient(R * 0.5, -R * 0.6, R * 0.9, R * 0.2);
-    hd.addColorStop(0, hit ? "#ffffff" : "#c8d090");
+    var hd = ctx.createLinearGradient(R * 0.6, -R * 0.55, R * 1.1, R * 0.15);
+    hd.addColorStop(0, hit ? "#ffffff" : "#d0d898");
     hd.addColorStop(0.55, muscleA);
     hd.addColorStop(1, muscleB);
     fillStrokeBlob(head, hd, ink, Math.max(2.0, 2.4 * U));
     if (!hit) {
       ctx.fillStyle = "rgba(255,255,255,0.22)";
       smoothBlob([
-        { x: R * 0.58, y: -R * 0.32 },
-        { x: R * 0.70, y: -R * 0.42 },
-        { x: R * 0.78, y: -R * 0.22 },
-        { x: R * 0.62, y: -R * 0.16 }
+        { x: R * 0.70, y: -R * 0.32 },
+        { x: R * 0.88, y: -R * 0.38 },
+        { x: R * 0.92, y: -R * 0.18 },
+        { x: R * 0.74, y: -R * 0.14 }
       ]);
       ctx.fill();
     }
@@ -24929,9 +24944,9 @@
       ctx.strokeStyle = "rgba(140, 230, 120, " + (0.5 + crackPulse * 0.45) + ")";
       ctx.lineWidth = Math.max(1.4, 1.8 * U);
       ctx.beginPath();
-      ctx.moveTo(R * 0.52, -R * 0.38);
-      ctx.lineTo(R * 0.72, -R * 0.08);
-      ctx.lineTo(R * 0.58, R * 0.12);
+      ctx.moveTo(R * 0.62, -R * 0.32);
+      ctx.lineTo(R * 0.88, -R * 0.06);
+      ctx.lineTo(R * 0.70, R * 0.10);
       ctx.stroke();
     }
 
@@ -24939,14 +24954,14 @@
 
     var faceX = hx * Math.cos(pose) - hy * Math.sin(pose);
     var faceY = hx * Math.sin(pose) + hy * Math.cos(pose);
-    var eyeR = R * 0.14, gap = R * 0.20;
+    var eyeR = R * 0.13, gap = R * 0.18;
     if (expression === "dying" || expression === "hurt") drawHurtEyes(faceX, faceY, eyeR, gap, "#1f2e22");
     else if (blink) drawClosedEyes(faceX, faceY, eyeR, gap);
-    else drawAnimeEyes(faceX, faceY, eyeR, gap, 0, 0, R * 0.048, R * 0.024, "evil");
+    else drawAnimeEyes(faceX, faceY, eyeR, gap, 0, 0, R * 0.045, R * 0.022, "evil");
     if (expression === "dying" || expression === "hurt" || devourK > 0.35) {
-      drawAnimeMouth(faceX, faceY + R * 0.22, R * 0.28, R * 0.20, "open");
+      drawAnimeMouth(faceX + R * 0.06, faceY + R * 0.20, R * 0.30, R * 0.18, "open");
     } else {
-      drawAnimeMouth(faceX, faceY + R * 0.20, R * 0.26, R * 0.14, "fanged");
+      drawAnimeMouth(faceX + R * 0.06, faceY + R * 0.18, R * 0.26, R * 0.12, "fanged");
     }
 
     ctx.restore();

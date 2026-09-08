@@ -20856,7 +20856,7 @@
       ctx.translate(-e.x, -e.y);
     }
     drawShadow(e.x, e.y + rad * 0.85, rad * 0.85 * scale, rad * 0.22 * scale);
-    if (def.id !== "saureus" && def.id !== "malassezia" && def.id !== "dermatofito" && def.id !== "neisseria" && def.id !== "hpv" && def.id !== "sarna" && def.id !== "leishmania" && def.id !== "candida" && def.id !== "bossPyogenes") drawGermKindFrame(e, rad * scale);
+    if (def.id !== "saureus" && def.id !== "malassezia" && def.id !== "dermatofito" && def.id !== "neisseria" && def.id !== "hpv" && def.id !== "sarna" && def.id !== "leishmania" && def.id !== "candida" && def.id !== "bossPyogenes" && def.id !== "bossPseudomonas") drawGermKindFrame(e, rad * scale);
     // Halo de daño genérico: pulso radial DRAMÁTICO amarillo→rojo
     // alrededor del germen cuando recibe golpe. Combina varias capas
     // (glow externo + flash blanco central + anillo dorado + chispas
@@ -20923,7 +20923,7 @@
     // Fase 1 piel: bacilos cutáneos reusan drawEcoli (recoloreado por def).
     else if (def.id === "cacnes")       drawCacnes(e, rad * scale, expression, blink);
     else if (def.id === "pseudomonas")  drawPseudomonas(e, rad * scale, expression, blink);
-    else if (def.id === "bossPseudomonas") drawPseudomonas(e, rad * scale, expression, blink);
+    else if (def.id === "bossPseudomonas") drawBossPseudomonas(e, rad * scale, expression, blink);
     // Sprint 8C-2: bosses con morfología real, antes del fallback genérico.
     else if (def.id === "demodex")           drawDemodex(e, rad * scale, expression, blink);
     else if (def.id === "neisseria")         drawNeisseria(e, rad * scale, expression, blink);
@@ -20999,7 +20999,7 @@
     // Shield overlay (drawn on top of body but under HP bar).
     // S. aureus dibuja su cápsula como casco irregular del racimo;
     // el anillo circular genérico lo volvería otra vez un círculo dorado.
-    if (def.shield && def.id !== "saureus" && def.id !== "dermatofito" && def.id !== "hpv" && def.id !== "candida" && def.id !== "bossPyogenes" &&
+    if (def.shield && def.id !== "saureus" && def.id !== "dermatofito" && def.id !== "hpv" && def.id !== "candida" && def.id !== "bossPyogenes" && def.id !== "bossPseudomonas" &&
         (e.shieldHP > 0 || e.shieldShatterTimer > 0)) {
       drawShield(e, rad * scale);
     }
@@ -23895,6 +23895,7 @@
   // ---- Sprint 8C-2: morfologías microbiológicas reales para los 4 bosses ---
 
   function drawBossPyogenes(e, rad, expression, blink) {
+    // LOCKED v5 — gancho de cocos deformes 0.72× (user OK).
     // Pyogenes v5 — gancho Onix (cabeza + cuerno), cuerpo de COCOS
     // deformes grandes y chicos. Visual 0.72× (0.8 del 0.9 anterior);
     // hitbox sin cambiar.
@@ -24145,6 +24146,187 @@
     else drawAnimeEyes(faceX, faceY + hR * 0.04, eyeR, gap, 0, 0, hR * 0.08, hR * 0.04, "evil");
     if (expression === "dying" || expression === "hurt") drawAnimeMouth(faceX, faceY + hR * 0.34, hR * 0.42, hR * 0.28, "open");
     else drawAnimeMouth(faceX, faceY + hR * 0.34, hR * 0.44, hR * 0.22, "fanged");
+
+    ctx.restore();
+  }
+
+  function drawBossPseudomonas(e, rad, expression, blink) {
+    // Pseudomonas boss v1 — no el bacilo-cápsula de la oleada.
+    //  · Cuerpo: bacilo vivo panzón (blob), no rect redondeado
+    //  · Frente: AGUJA T3SS (inyectisoma)
+    //  · Atrás: flagelo polar en sacacorchos
+    //  · Piocianina: manchas/goteos teal, no halo circular
+    //  · Escudo wall = baba de alginato en el lomo, no anillo
+    var hit = e.hitFlash > 0;
+    var t = state.time;
+    var def = e.def;
+    var sd = def.shield;
+    var shieldFrac = (sd && sd.maxHP) ? Math.max(0, (e.shieldHP || 0) / sd.maxHP) : 1;
+    ctx.save();
+    ctx.translate(e.x, e.y);
+    ctx.scale(0.88, 0.88);
+    ctx.lineJoin = "round";
+    ctx.lineCap = "round";
+
+    if (e._lastPosX == null) { e._lastPosX = e.x; e._lastPosY = e.y; e._heading = 0; }
+    var dxM = e.x - e._lastPosX, dyM = e.y - e._lastPosY;
+    var dMag = Math.hypot(dxM, dyM);
+    if (dMag > 0.5) {
+      var targetAng = Math.atan2(dyM, dxM);
+      var diffAng = targetAng - e._heading;
+      while (diffAng >  Math.PI) diffAng -= Math.PI * 2;
+      while (diffAng < -Math.PI) diffAng += Math.PI * 2;
+      e._heading += diffAng * 0.12;
+    }
+    e._lastPosX = e.x; e._lastPosY = e.y;
+
+    var bL = rad * 1.12;
+    var bW = rad * 0.46;
+    var col = def.color, cold = def.colorDark, colL = def.colorLight || "#4DD0E1";
+
+    function smoothBlob(pts) {
+      ctx.beginPath();
+      var n = pts.length;
+      ctx.moveTo((pts[n - 1].x + pts[0].x) / 2, (pts[n - 1].y + pts[0].y) / 2);
+      for (var i = 0; i < n; i++) {
+        var p = pts[i], q = pts[(i + 1) % n];
+        ctx.quadraticCurveTo(p.x, p.y, (p.x + q.x) / 2, (p.y + q.y) / 2);
+      }
+      ctx.closePath();
+    }
+
+    ctx.save();
+    ctx.rotate(e._heading || 0);
+
+    // Piocianina: manchas, no halo.
+    if (!hit) {
+      var stains = [
+        { x: -bL * 0.15, y: -bW * 1.42, rx: bW * 0.58, ry: bW * 0.32, a: -0.45 },
+        { x:  bL * 0.40, y:  bW * 1.32, rx: bW * 0.44, ry: bW * 0.26, a:  0.55 },
+        { x: -bL * 0.62, y:  bW * 1.05, rx: bW * 0.30, ry: bW * 0.20, a:  0.25 }
+      ];
+      for (var si = 0; si < stains.length; si++) {
+        var stn = stains[si];
+        ctx.fillStyle = "rgba(20, 170, 155, 0.38)";
+        ctx.beginPath();
+        ctx.ellipse(stn.x, stn.y, stn.rx, stn.ry, stn.a, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    // Flagelo polar en sacacorchos.
+    ctx.strokeStyle = hit ? "#ffffff" : "#0a4a46";
+    ctx.lineWidth = Math.max(2.4, 3.0 * U);
+    ctx.beginPath();
+    var flagSegs = 16;
+    for (var fs = 0; fs <= flagSegs; fs++) {
+      var fsF = fs / flagSegs;
+      var fx = -bL * 1.02 - fsF * bL * 1.05;
+      var fy = Math.sin(fsF * Math.PI * 4.2 + t * 5.2 + e.wobble) * bW * 0.70 * (0.35 + 0.65 * fsF);
+      if (fs === 0) ctx.moveTo(fx, fy); else ctx.lineTo(fx, fy);
+    }
+    ctx.stroke();
+    ctx.strokeStyle = hit ? "#ffffff" : "#26A69A";
+    ctx.lineWidth = Math.max(1.2, 1.5 * U);
+    ctx.stroke();
+
+    // Baba de alginato (escudo wall) en el lomo.
+    if (shieldFrac > 0.04) {
+      var slime = [
+        { x: -bL * 0.15, y: -bW * 1.05, rx: bW * 0.85, ry: bW * 0.48, a: -0.2 },
+        { x:  bL * 0.35, y: -bW * 0.92, rx: bW * 0.62, ry: bW * 0.38, a:  0.15 },
+        { x: -bL * 0.55, y:  bW * 0.82, rx: bW * 0.55, ry: bW * 0.32, a:  0.25 }
+      ];
+      var sa = 0.28 + 0.40 * shieldFrac;
+      for (var sl = 0; sl < slime.length; sl++) {
+        var sm = slime[sl];
+        ctx.fillStyle = hit ? "rgba(255,255,255,0.35)" : "rgba(200, 245, 235, " + sa + ")";
+        ctx.beginPath();
+        ctx.ellipse(sm.x, sm.y, sm.rx, sm.ry, sm.a, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = "rgba(40, 120, 115, " + (0.35 + 0.25 * shieldFrac) + ")";
+        ctx.lineWidth = Math.max(1.0, 1.3 * U);
+        ctx.stroke();
+      }
+    }
+
+    // Bacilo vivo (blob), no cápsula geométrica.
+    var breathe = 1 + Math.sin(t * 1.6 + e.wobble) * 0.03;
+    var bodyPts = [
+      { x:  bL * 0.98 * breathe, y:  0 },
+      { x:  bL * 0.72, y: -bW * 0.70 },
+      { x:  bL * 0.12, y: -bW * 1.10 },
+      { x: -bL * 0.48, y: -bW * 0.92 },
+      { x: -bL * 1.08, y: -bW * 0.32 },
+      { x: -bL * 1.14, y:  bW * 0.28 },
+      { x: -bL * 0.42, y:  bW * 0.98 },
+      { x:  bL * 0.28, y:  bW * 0.90 },
+      { x:  bL * 0.80, y:  bW * 0.40 }
+    ];
+    var bg = ctx.createLinearGradient(0, -bW, 0, bW);
+    bg.addColorStop(0, hit ? "#ffffff" : colL);
+    bg.addColorStop(0.45, hit ? "#ffffff" : col);
+    bg.addColorStop(1, hit ? "#ffffff" : cold);
+    ctx.fillStyle = bg;
+    smoothBlob(bodyPts);
+    ctx.fill();
+    ctx.strokeStyle = hit ? "#ffffff" : "#00363d";
+    ctx.lineWidth = Math.max(1.8, 2.3 * U);
+    ctx.stroke();
+    if (!hit) {
+      ctx.fillStyle = "rgba(255, 255, 255, 0.32)";
+      ctx.beginPath();
+      ctx.ellipse(-bL * 0.08, -bW * 0.42, bL * 0.42, bW * 0.18, -0.12, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Collar del inyectisoma (base de la aguja).
+    ctx.fillStyle = hit ? "#ffffff" : cold;
+    smoothBlob([
+      { x: bL * 0.78, y: -bW * 0.42 },
+      { x: bL * 1.02, y: -bW * 0.22 },
+      { x: bL * 1.08, y:  0 },
+      { x: bL * 1.02, y:  bW * 0.22 },
+      { x: bL * 0.78, y:  bW * 0.42 },
+      { x: bL * 0.70, y:  0 }
+    ]);
+    ctx.fill();
+    ctx.strokeStyle = "#00363d";
+    ctx.lineWidth = Math.max(1.3, 1.6 * U);
+    ctx.stroke();
+
+    // Aguja T3SS — tapón vivo, no triángulo cortado.
+    ctx.beginPath();
+    ctx.moveTo(bL * 0.92, -bW * 0.22);
+    ctx.quadraticCurveTo(bL * 1.38, -bW * 0.10, bL * 1.92, 0);
+    ctx.quadraticCurveTo(bL * 1.38,  bW * 0.10, bL * 0.92, bW * 0.22);
+    ctx.closePath();
+    var ng = ctx.createLinearGradient(bL * 0.9, 0, bL * 1.92, 0);
+    ng.addColorStop(0, hit ? "#ffffff" : colL);
+    ng.addColorStop(0.55, hit ? "#ffffff" : col);
+    ng.addColorStop(1, hit ? "#ffffff" : "#002428");
+    ctx.fillStyle = ng;
+    ctx.fill();
+    ctx.strokeStyle = "#00363d";
+    ctx.lineWidth = Math.max(1.5, 1.9 * U);
+    ctx.stroke();
+    if (!hit) {
+      ctx.strokeStyle = "rgba(180, 255, 245, 0.50)";
+      ctx.lineWidth = Math.max(1.0, 1.3 * U);
+      ctx.beginPath();
+      ctx.moveTo(bL * 1.00, -bW * 0.06);
+      ctx.quadraticCurveTo(bL * 1.40, -bW * 0.04, bL * 1.78, 0);
+      ctx.stroke();
+    }
+
+    ctx.restore();
+
+    var eyeR = bW * 0.38, gap = bW * 0.52;
+    if (expression === "dying" || expression === "hurt") drawHurtEyes(0, 0, eyeR, gap);
+    else if (blink) drawClosedEyes(0, 0, eyeR, gap);
+    else drawAnimeEyes(0, 0, eyeR, gap, 0, 0, bW * 0.14, bW * 0.06, "evil");
+    if (expression === "dying" || expression === "hurt") drawAnimeMouth(0, bW * 0.52, bW * 0.55, bW * 0.38, "open");
+    else drawAnimeMouth(0, bW * 0.52, bW * 0.52, bW * 0.20, "fanged");
 
     ctx.restore();
   }
@@ -28469,7 +28651,7 @@
     else if (def.id === "molluscum") drawMolluscum(fakeEnemy, R, "idle", false);
     else if (def.id === "malassezia") drawMalassezia(fakeEnemy, R, "idle", false);
     else if (def.id === "pseudomonas") drawPseudomonas(fakeEnemy, R, "idle", false);
-    else if (def.id === "bossPseudomonas") drawPseudomonas(fakeEnemy, R, "idle", false);
+    else if (def.id === "bossPseudomonas") drawBossPseudomonas(fakeEnemy, R, "idle", false);
     else if (def.id === "influenza") drawInfluenza(fakeEnemy, R, "idle", false);
     else if (def.id === "vih") drawVih(fakeEnemy, R, "idle", false);
     else if (def.id === "candida") drawCandida(fakeEnemy, R, "idle", false);
@@ -28499,7 +28681,7 @@
     else if (kind === "virus") drawVirus(fakeEnemy, R, "idle", false);
     else if (kind === "hongo") drawHongo(fakeEnemy, R, "idle", false);
     else drawBoss(fakeEnemy, R, "idle", false);
-    if (def.shield && def.id !== "saureus" && def.id !== "dermatofito" && def.id !== "hpv" && def.id !== "candida" && def.id !== "bossPyogenes") drawShield(fakeEnemy, R);
+    if (def.shield && def.id !== "saureus" && def.id !== "dermatofito" && def.id !== "hpv" && def.id !== "candida" && def.id !== "bossPyogenes" && def.id !== "bossPseudomonas") drawShield(fakeEnemy, R);
     ctx.restore();
   }
 

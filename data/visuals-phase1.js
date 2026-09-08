@@ -52,7 +52,8 @@
     sarna:        { silhouette: "tortoise",   accent: "#8a5a2b", label: "Galería" },
     leishmania:   { silhouette: "eel",         accent: "#7aaa44", label: "Vacuola" },
     candida:      { silhouette: "germtube",    accent: "#EC407A", label: "Tubo" },
-    bossPyogenes: { silhouette: "coccihook",    accent: "#C62828", label: "Cuerno" }
+    bossPyogenes: { silhouette: "coccihook",    accent: "#C62828", label: "Cuerno" },
+    bossPseudomonas: { silhouette: "injectisome", accent: "#00ACC1", label: "Aguja" }
   };
 
   // Pistas de counter por germen Fase 1 (pip inferior).
@@ -70,6 +71,7 @@
     leishmania:   { glyph: "granule", color: "#F2774E", tip: "×2.6 Eos" },
     sarna:        { glyph: "granule", color: "#F2774E", tip: "Parásito" },
     candida:      { glyph: "star",    color: "#B79CE0", tip: "PMN" },
-    bossPyogenes: { glyph: "net",     color: "#FFD24A", tip: "MAC" }
+    bossPyogenes: { glyph: "net",     color: "#FFD24A", tip: "MAC" },
+    bossPseudomonas: { glyph: "net",  color: "#FFD24A", tip: "MAC" }
   };
 })(window.ImmunoDefenseData);

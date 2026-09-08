@@ -20856,7 +20856,7 @@
       ctx.translate(-e.x, -e.y);
     }
     drawShadow(e.x, e.y + rad * 0.85, rad * 0.85 * scale, rad * 0.22 * scale);
-    if (def.id !== "saureus" && def.id !== "malassezia" && def.id !== "dermatofito" && def.id !== "neisseria" && def.id !== "hpv" && def.id !== "sarna" && def.id !== "leishmania" && def.id !== "candida") drawGermKindFrame(e, rad * scale);
+    if (def.id !== "saureus" && def.id !== "malassezia" && def.id !== "dermatofito" && def.id !== "neisseria" && def.id !== "hpv" && def.id !== "sarna" && def.id !== "leishmania" && def.id !== "candida" && def.id !== "bossPyogenes") drawGermKindFrame(e, rad * scale);
     // Halo de daño genérico: pulso radial DRAMÁTICO amarillo→rojo
     // alrededor del germen cuando recibe golpe. Combina varias capas
     // (glow externo + flash blanco central + anillo dorado + chispas
@@ -20999,7 +20999,7 @@
     // Shield overlay (drawn on top of body but under HP bar).
     // S. aureus dibuja su cápsula como casco irregular del racimo;
     // el anillo circular genérico lo volvería otra vez un círculo dorado.
-    if (def.shield && def.id !== "saureus" && def.id !== "dermatofito" && def.id !== "hpv" && def.id !== "candida" &&
+    if (def.shield && def.id !== "saureus" && def.id !== "dermatofito" && def.id !== "hpv" && def.id !== "candida" && def.id !== "bossPyogenes" &&
         (e.shieldHP > 0 || e.shieldShatterTimer > 0)) {
       drawShield(e, rad * scale);
     }
@@ -23736,6 +23736,7 @@
     //  · Madre cremosa irregular (rosa, no óvalo-moho verde)
     //  · Un tubo hifal con constricciones + yemas + clamidospora en la punta
     //  · Escudo wall = costra de quitina, no anillo circular
+    // LOCKED v1 — tubo germinativo crema (user OK).
     var hit = e.hitFlash > 0, t = state.time, w = e.wobble || 0;
     var def = e.def;
     var R = rad * 0.95;
@@ -23894,156 +23895,176 @@
   // ---- Sprint 8C-2: morfologías microbiológicas reales para los 4 bosses ---
 
   function drawBossPyogenes(e, rad, expression, blink) {
-    // Streptococcus pyogenes: cadena de cocos con proteína M, halo necrótico.
+    // Pyogenes v1 — CADENA de cocos en BABA de hialuronato (cápsula).
+    // Distinto del racimo-uva de S. aureus: es un GUSANO de cuentas.
+    // Proteína M = fibrillas suaves. Escudo = la baba, no un anillo.
     var hit = e.hitFlash > 0;
     var t = state.time;
+    var def = e.def;
+    var sd = def.shield;
+    var shieldFrac = (sd && sd.maxHP) ? Math.max(0, (e.shieldHP || 0) / sd.maxHP) : 1;
     ctx.save();
     ctx.translate(e.x, e.y);
-    var breathe = 1 + Math.sin(t * 1.7 + e.wobble) * 0.05;
-    var n = 9;
-    var coR = rad * 0.32 * breathe;
-    var spacing = rad * 0.42;
-    var chainHalfW = (n - 1) * spacing / 2;
+    ctx.lineJoin = "round";
+    ctx.lineCap = "round";
+    var breathe = 1 + Math.sin(t * 1.7 + e.wobble) * 0.04;
+    var n = 7;
+    var coR = rad * 0.28 * breathe;
+    var spacing = rad * 0.46;
 
-    // Movimiento real: ata la ondulación serpenteante al desplazamiento de
-    // verdad — bien dramática slitherando, casi una vara rígida si está
-    // detenida/bloqueada/stunned.
-    if (e._lastPosX == null) { e._lastPosX = e.x; e._lastPosY = e.y; }
-    var dMag = Math.hypot(e.x - e._lastPosX, e.y - e._lastPosY);
+    if (e._lastPosX == null) { e._lastPosX = e.x; e._lastPosY = e.y; e._heading = 0; }
+    var dxM = e.x - e._lastPosX, dyM = e.y - e._lastPosY;
+    var dMag = Math.hypot(dxM, dyM);
+    if (dMag > 0.5) {
+      var targetAng = Math.atan2(dyM, dxM);
+      var diffAng = targetAng - e._heading;
+      while (diffAng >  Math.PI) diffAng -= Math.PI * 2;
+      while (diffAng < -Math.PI) diffAng += Math.PI * 2;
+      e._heading += diffAng * 0.10;
+    }
     e._lastPosX = e.x; e._lastPosY = e.y;
     var moving = dMag > 1;
     e._slitherPhase = (e._slitherPhase || 0) + dMag * 0.16;
-    var waveAmp = rad * (moving ? 0.46 : 0.06);
-    // Carga real del burst (e.powerCharge cuenta 0.55→0 hasta disparar) —
-    // alimenta el erizado dramático de la proteína M más abajo.
+    var waveAmp = rad * (moving ? 0.38 : 0.07);
     var chargeFrac = 0;
     if ((e.powerCharge || 0) > 0 && e.powerTarget) chargeFrac = Math.max(0, Math.min(1, 1 - e.powerCharge / 0.55));
 
-    // Halo necrótico (rojo oscuro pulsante) — denota tejido muerto.
-    if (!hit) {
-      var necroPulse = 0.55 + 0.45 * Math.sin(t * 2.0);
-      var auraR = rad * 1.45;
-      var auraG = ctx.createRadialGradient(0, 0, rad * 0.6, 0, 0, auraR);
-      auraG.addColorStop(0, "rgba(160, 20, 35, " + (0.28 * necroPulse) + ")");
-      auraG.addColorStop(0.55, "rgba(100, 8, 20, " + (0.22 * necroPulse) + ")");
-      auraG.addColorStop(1, "rgba(40, 4, 10, 0)");
-      ctx.fillStyle = auraG;
+    function smoothBlob(pts) {
       ctx.beginPath();
-      ctx.ellipse(0, 0, auraR, auraR * 0.55, 0, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    // Nimbo dorado de carga: estalla alrededor de TODA la cadena cuando el
-    // burst real está cerca de dispararse — telegraph grande, no sutil.
-    if (!hit && chargeFrac > 0.12) {
-      var burstR = rad * (1.5 + chargeFrac * 1.4);
-      var burstG = ctx.createRadialGradient(0, 0, rad * 0.5, 0, 0, burstR);
-      burstG.addColorStop(0, "rgba(255, 225, 120, " + (chargeFrac * 0.50) + ")");
-      burstG.addColorStop(0.6, "rgba(255, 180, 60, " + (chargeFrac * 0.30) + ")");
-      burstG.addColorStop(1, "rgba(255, 160, 40, 0)");
-      ctx.fillStyle = burstG;
-      ctx.beginPath();
-      ctx.ellipse(0, 0, burstR, burstR * 0.62, 0, 0, Math.PI * 2);
-      ctx.fill();
+      var nn = pts.length;
+      ctx.moveTo((pts[nn - 1].x + pts[0].x) / 2, (pts[nn - 1].y + pts[0].y) / 2);
+      for (var i = 0; i < nn; i++) {
+        var p = pts[i], q = pts[(i + 1) % nn];
+        ctx.quadraticCurveTo(p.x, p.y, (p.x + q.x) / 2, (p.y + q.y) / 2);
+      }
+      ctx.closePath();
     }
 
-    function drawCoco(cx, cy, r, isCenter) {
-      var grad = ctx.createRadialGradient(cx - r * 0.4, cy - r * 0.4, r * 0.2, cx, cy, r);
-      grad.addColorStop(0, "#FF7AAB");
-      grad.addColorStop(0.50, "#D81B5E");
-      grad.addColorStop(1, "#5D0024");
-      ctx.fillStyle = hit ? "#ffffff" : grad;
-      ctx.beginPath();
-      ctx.arc(cx, cy, r, 0, Math.PI * 2);
-      ctx.fill();
-      // Contorno oscuro fuerte (carnívora).
-      ctx.strokeStyle = "#3A0014";
-      ctx.lineWidth = Math.max(1.0, 1.6 * U);
-      ctx.stroke();
-      // Highlight
-      ctx.fillStyle = "rgba(255,200,210,0.45)";
-      ctx.beginPath();
-      ctx.arc(cx - r * 0.38, cy - r * 0.38, r * 0.28, 0, Math.PI * 2);
-      ctx.fill();
-      // Proteína M: espigas que se erizan (más largas, más brillantes y
-      // giran más rápido) a medida que el burst real está por dispararse.
-      if (!hit) {
-        var spikes = isCenter ? 7 : 5;
-        var spikeBoost = 1 + chargeFrac * 1.8;
-        ctx.strokeStyle = "rgba(255, " + Math.round(210 + chargeFrac * 45) + ", " + Math.round(74 - chargeFrac * 60) + ", " + (0.85 + chargeFrac * 0.15) + ")";
-        ctx.lineWidth = Math.max(0.8, 1.0 * U) * (1 + chargeFrac * 0.8);
-        for (var sp = 0; sp < spikes; sp++) {
-          var sa = (sp / spikes) * Math.PI * 2 + t * (0.4 + chargeFrac * 2.6);
-          var x0 = cx + Math.cos(sa) * r * 0.95;
-          var y0 = cy + Math.sin(sa) * r * 0.95;
-          var spikeLen = r * (0.30 + 0.05 * Math.sin(t * 3 + sp)) * spikeBoost;
-          var x1 = cx + Math.cos(sa) * (r + spikeLen);
-          var y1 = cy + Math.sin(sa) * (r + spikeLen);
-          ctx.beginPath();
-          ctx.moveTo(x0, y0);
-          ctx.lineTo(x1, y1);
-          ctx.stroke();
-          if (chargeFrac > 0.1) {
-            ctx.fillStyle = "rgba(255, 240, 160, " + (chargeFrac * 0.85) + ")";
-            ctx.beginPath();
-            ctx.arc(x1, y1, 1.6 * U * (1 + chargeFrac), 0, Math.PI * 2);
-            ctx.fill();
-          }
-        }
-      }
-    }
+    ctx.save();
+    ctx.rotate(e._heading || 0);
 
     var positions = [];
     for (var i = 0; i < n; i++) {
-      var px = -chainHalfW + i * spacing;
-      // Serpenteo dramático: amplitud ligada al movimiento real (no al reloj).
-      var py = Math.sin((i / (n - 1)) * Math.PI * 1.5 + e._slitherPhase) * waveAmp - rad * 0.04;
+      var px = (i - (n - 1) / 2) * spacing;
+      var py = Math.sin((i / (n - 1)) * Math.PI * 1.4 + e._slitherPhase) * waveAmp;
       positions.push({ x: px, y: py });
     }
-    // Estelas fantasma del cuerpo slitherando — refuerzan la sensación de
-    // serpiente en movimiento (motion blur), solo si avanza de verdad.
-    if (!hit && moving) {
-      for (var ghost = 1; ghost <= 2; ghost++) {
-        var ghostPhase = e._slitherPhase - ghost * 0.35;
-        ctx.strokeStyle = "rgba(200, 20, 40, " + (0.18 / ghost) + ")";
-        ctx.lineWidth = Math.max(2.0, 3.0 * U) * 1.4;
-        ctx.beginPath();
-        for (var gi = 0; gi < n; gi++) {
-          var gpx = -chainHalfW + gi * spacing;
-          var gpy = Math.sin((gi / (n - 1)) * Math.PI * 1.5 + ghostPhase) * waveAmp - rad * 0.04;
-          if (gi === 0) ctx.moveTo(gpx, gpy); else ctx.lineTo(gpx, gpy);
-        }
-        ctx.stroke();
-      }
-    }
-    // Línea uniendo cocos (cápsula compartida)
-    if (!hit) {
-      ctx.strokeStyle = "rgba(80, 0, 20, 0.55)";
-      ctx.lineWidth = Math.max(2.0, 3.0 * U);
-      ctx.beginPath();
-      ctx.moveTo(positions[0].x, positions[0].y);
-      for (var li = 1; li < positions.length; li++) {
-        ctx.lineTo(positions[li].x, positions[li].y);
-      }
-      ctx.stroke();
-    }
-    var centerIdx = Math.floor(n / 2);
-    for (var i = 0; i < n; i++) drawCoco(positions[i].x, positions[i].y, coR, i === centerIdx);
 
-    // Cara en el coco central (más imponente, ojos malevolentes)
-    var center = positions[centerIdx];
-    ctx.save();
-    ctx.translate(center.x, center.y);
-    var eyeR = coR * 0.46;
-    var faceY = -coR * 0.10;
-    var gap = coR * 0.42;
-    if (expression === "dying") drawHurtEyes(0, faceY, eyeR, gap);
-    else if (expression === "hurt") drawHurtEyes(0, faceY, eyeR, gap);
-    else if (blink) drawClosedEyes(0, faceY, eyeR, gap);
-    else drawAnimeEyes(0, faceY, eyeR, gap, 0, 0, coR * 0.18, coR * 0.09, "evil");
-    if (expression === "dying") drawAnimeMouth(0, coR * 0.45, coR * 0.70, coR * 0.55, "open");
-    else if (expression === "hurt") drawAnimeMouth(0, coR * 0.45, coR * 0.60, coR * 0.45, "open");
-    else drawAnimeMouth(0, coR * 0.45, coR * 0.75, coR * 0.45, "fanged");
+    // Halo necrótico alargado (come carne), no un disco.
+    if (!hit) {
+      var necroPulse = 0.55 + 0.45 * Math.sin(t * 2.0);
+      var auraG = ctx.createRadialGradient(0, 0, rad * 0.4, 0, 0, rad * 1.7);
+      auraG.addColorStop(0, "rgba(160, 20, 35, " + (0.22 * necroPulse) + ")");
+      auraG.addColorStop(0.55, "rgba(100, 8, 20, " + (0.16 * necroPulse) + ")");
+      auraG.addColorStop(1, "rgba(40, 4, 10, 0)");
+      ctx.fillStyle = auraG;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, rad * 1.85, rad * 0.72, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    if (!hit && chargeFrac > 0.12) {
+      ctx.fillStyle = "rgba(255, 200, 80, " + (chargeFrac * 0.28) + ")";
+      ctx.beginPath();
+      ctx.ellipse(0, 0, rad * (1.6 + chargeFrac * 0.8), rad * (0.65 + chargeFrac * 0.3), 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Baba de hialuronato: cápsula compartida que sigue la cadena.
+    var hull = [];
+    var nH = 16;
+    for (var hi = 0; hi <= nH; hi++) {
+      var u = hi / nH;
+      var idx = u * (n - 1);
+      var i0 = Math.min(n - 2, Math.floor(idx));
+      var f = idx - i0;
+      var ax = positions[i0].x + (positions[i0 + 1].x - positions[i0].x) * f;
+      var ay = positions[i0].y + (positions[i0 + 1].y - positions[i0].y) * f;
+      var pad = coR * (1.55 + 0.35 * shieldFrac) * (1 + 0.08 * Math.sin(u * 8 + t));
+      hull.push({ x: ax, y: ay - pad });
+    }
+    for (var hj = nH; hj >= 0; hj--) {
+      var v = hj / nH;
+      var jdx = v * (n - 1);
+      var j0 = Math.min(n - 2, Math.floor(jdx));
+      var g = jdx - j0;
+      var bx = positions[j0].x + (positions[j0 + 1].x - positions[j0].x) * g;
+      var by = positions[j0].y + (positions[j0 + 1].y - positions[j0].y) * g;
+      var pad2 = coR * (1.55 + 0.35 * shieldFrac) * (1 + 0.08 * Math.sin(v * 8 + t + 1));
+      hull.push({ x: bx, y: by + pad2 });
+    }
+    ctx.fillStyle = hit ? "rgba(255,255,255,0.45)" : "rgba(255, 220, 230, " + (0.22 + 0.38 * shieldFrac) + ")";
+    smoothBlob(hull);
+    ctx.fill();
+    ctx.strokeStyle = "rgba(180, 40, 70, " + (0.35 + 0.40 * shieldFrac) + ")";
+    ctx.lineWidth = Math.max(1.6, (1.8 + 1.4 * shieldFrac) * U);
+    ctx.stroke();
+
+    // Goteo necrótico (fascitis).
+    if (!hit) {
+      ctx.fillStyle = "rgba(90, 8, 18, 0.45)";
+      for (var d = 0; d < 4; d++) {
+        var dp = ((t * 0.35 + d * 0.22) % 1);
+        ctx.beginPath();
+        ctx.ellipse((d - 1.5) * spacing * 0.7, rad * (0.55 + dp * 0.45), coR * 0.18, coR * (0.22 + dp * 0.2), 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    // Proteína M: fibrillas suaves (curvas), no palitos.
+    if (!hit) {
+      ctx.strokeStyle = "rgba(255, " + Math.round(180 + chargeFrac * 60) + ", 90, " + (0.55 + chargeFrac * 0.35) + ")";
+      ctx.lineWidth = Math.max(1.1, 1.4 * U);
+      for (var ci = 0; ci < n; ci++) {
+        var c = positions[ci];
+        var spikes = ci === Math.floor(n / 2) ? 6 : 4;
+        for (var sp = 0; sp < spikes; sp++) {
+          var sa = (sp / spikes) * Math.PI * 2 + t * (0.5 + chargeFrac * 2.2) + ci * 0.4;
+          var len = coR * (0.55 + 0.55 * chargeFrac) * (1 + 0.12 * Math.sin(t * 3 + sp));
+          ctx.beginPath();
+          ctx.moveTo(c.x + Math.cos(sa) * coR * 0.9, c.y + Math.sin(sa) * coR * 0.9);
+          ctx.quadraticCurveTo(
+            c.x + Math.cos(sa + 0.4) * (coR + len * 0.55),
+            c.y + Math.sin(sa + 0.4) * (coR + len * 0.55),
+            c.x + Math.cos(sa) * (coR + len),
+            c.y + Math.sin(sa) * (coR + len)
+          );
+          ctx.stroke();
+        }
+      }
+    }
+
+    function drawCoco(cx, cy, r) {
+      var grad = ctx.createRadialGradient(cx - r * 0.35, cy - r * 0.38, r * 0.15, cx, cy, r);
+      grad.addColorStop(0, hit ? "#ffffff" : "#ff8aaa");
+      grad.addColorStop(0.5, hit ? "#ffffff" : def.color);
+      grad.addColorStop(1, hit ? "#ffffff" : def.colorDark);
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "#3A0014";
+      ctx.lineWidth = Math.max(1.2, 1.6 * U);
+      ctx.stroke();
+      ctx.fillStyle = "rgba(255,210,220,0.42)";
+      ctx.beginPath();
+      ctx.arc(cx - r * 0.32, cy - r * 0.34, r * 0.26, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    for (var k = 0; k < n; k++) drawCoco(positions[k].x, positions[k].y, coR);
+
     ctx.restore();
+
+    var center = positions[Math.floor(n / 2)];
+    var ca = e._heading || 0;
+    var faceX = center.x * Math.cos(ca) - center.y * Math.sin(ca);
+    var faceY = center.x * Math.sin(ca) + center.y * Math.cos(ca);
+    var eyeR = coR * 0.48, gap = coR * 0.44;
+    if (expression === "dying" || expression === "hurt") drawHurtEyes(faceX, faceY - coR * 0.08, eyeR, gap);
+    else if (blink) drawClosedEyes(faceX, faceY - coR * 0.08, eyeR, gap);
+    else drawAnimeEyes(faceX, faceY - coR * 0.08, eyeR, gap, 0, 0, coR * 0.16, coR * 0.08, "evil");
+    if (expression === "dying" || expression === "hurt") drawAnimeMouth(faceX, faceY + coR * 0.42, coR * 0.70, coR * 0.50, "open");
+    else drawAnimeMouth(faceX, faceY + coR * 0.42, coR * 0.72, coR * 0.40, "fanged");
+
     ctx.restore();
   }
 
@@ -28397,7 +28418,7 @@
     else if (kind === "virus") drawVirus(fakeEnemy, R, "idle", false);
     else if (kind === "hongo") drawHongo(fakeEnemy, R, "idle", false);
     else drawBoss(fakeEnemy, R, "idle", false);
-    if (def.shield && def.id !== "saureus" && def.id !== "dermatofito" && def.id !== "hpv" && def.id !== "candida") drawShield(fakeEnemy, R);
+    if (def.shield && def.id !== "saureus" && def.id !== "dermatofito" && def.id !== "hpv" && def.id !== "candida" && def.id !== "bossPyogenes") drawShield(fakeEnemy, R);
     ctx.restore();
   }
 

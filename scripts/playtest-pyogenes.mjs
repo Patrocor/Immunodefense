@@ -1,4 +1,4 @@
-/** Showcase S. pyogenes chain + hyaluronic capsule — DISPLAY=:1 node scripts/playtest-pyogenes.mjs */
+/** Showcase S. pyogenes diplococcal serpent — DISPLAY=:1 node scripts/playtest-pyogenes.mjs */
 import { chromium } from "playwright";
 import { mkdirSync, copyFileSync } from "node:fs";
 import { join } from "node:path";
@@ -39,7 +39,7 @@ function placePyogenes(shieldOn) {
     _heading: 0.15,
     _lastPosX: cx - 28,
     _lastPosY: cy + 6,
-    _slitherPhase: 1.2,
+    _slitherPhase: 2.4,
     isBoss: true,
   };
   st.enemies = [e];
@@ -125,7 +125,7 @@ if (!withCap.ok || !bare.ok) {
   console.error("Showcase failed", { spawned, withCap, bare });
   process.exit(1);
 }
-copyFileSync(join(TMP, "pyo_cap.png"), join(ART, "pyogenes_v1_cap.png"));
-copyFileSync(join(TMP, "pyo_bare.png"), join(ART, "pyogenes_v1_bare.png"));
-copyFileSync(join(TMP, "pyo_field.png"), join(ART, "pyogenes_v1_field.png"));
+copyFileSync(join(TMP, "pyo_cap.png"), join(ART, "pyogenes_v2_cap.png"));
+copyFileSync(join(TMP, "pyo_bare.png"), join(ART, "pyogenes_v2_bare.png"));
+copyFileSync(join(TMP, "pyo_field.png"), join(ART, "pyogenes_v2_field.png"));
 console.log("OK: pyogenes screenshots in", ART);

@@ -52,7 +52,7 @@
     sarna:        { silhouette: "tortoise",   accent: "#8a5a2b", label: "Galería" },
     leishmania:   { silhouette: "eel",         accent: "#7aaa44", label: "Vacuola" },
     candida:      { silhouette: "germtube",    accent: "#EC407A", label: "Tubo" },
-    bossPyogenes: { silhouette: "strepchain",  accent: "#C62828", label: "Cadena" }
+    bossPyogenes: { silhouette: "strepserpent", accent: "#C62828", label: "Serpiente" }
   };
 
   // Pistas de counter por germen Fase 1 (pip inferior).

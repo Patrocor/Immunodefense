@@ -25783,7 +25783,7 @@
     // Leishmania v4 — silueta distinta de la pera-alubia.
     //  · Promastigote: ANGUILA en S (cuerpo largo + vela ondulante + flagelo)
     //  · Amastigote: colonia de olivas en BURBUJA (no un macrófago-saco)
-    var R = rad * 0.95, t = state.time, w = e.wobble || 0, hit = e.hitFlash > 0;
+    var R = rad * 1.1, t = state.time, w = e.wobble || 0, hit = e.hitFlash > 0;
     var def = e.def;
     var ama = !!e.leishAmastigote;
     var morph = 0;

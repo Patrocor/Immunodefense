@@ -127,7 +127,7 @@ if (!pro.ok || !ama.ok) {
   console.error("Showcase failed", { spawned, pro, ama });
   process.exit(1);
 }
-copyFileSync(join(TMP, "leish_pro.png"), join(ART, "leish_v4_pro.png"));
-copyFileSync(join(TMP, "leish_field.png"), join(ART, "leish_v4_field.png"));
-copyFileSync(join(TMP, "leish_ama.png"), join(ART, "leish_v4_ama.png"));
+copyFileSync(join(TMP, "leish_pro.png"), join(ART, "leish_v4_1_1_pro.png"));
+copyFileSync(join(TMP, "leish_field.png"), join(ART, "leish_v4_1_1_field.png"));
+copyFileSync(join(TMP, "leish_ama.png"), join(ART, "leish_v4_1_1_ama.png"));
 console.log("OK: leishmania screenshots in", ART);

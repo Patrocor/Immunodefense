@@ -20856,7 +20856,7 @@
       ctx.translate(-e.x, -e.y);
     }
     drawShadow(e.x, e.y + rad * 0.85, rad * 0.85 * scale, rad * 0.22 * scale);
-    if (def.id !== "saureus" && def.id !== "malassezia") drawGermKindFrame(e, rad * scale);
+    if (def.id !== "saureus" && def.id !== "malassezia" && def.id !== "dermatofito") drawGermKindFrame(e, rad * scale);
     // Halo de daño genérico: pulso radial DRAMÁTICO amarillo→rojo
     // alrededor del germen cuando recibe golpe. Combina varias capas
     // (glow externo + flash blanco central + anillo dorado + chispas
@@ -20999,7 +20999,7 @@
     // Shield overlay (drawn on top of body but under HP bar).
     // S. aureus dibuja su cápsula como casco irregular del racimo;
     // el anillo circular genérico lo volvería otra vez un círculo dorado.
-    if (def.shield && def.id !== "saureus" &&
+    if (def.shield && def.id !== "saureus" && def.id !== "dermatofito" &&
         (e.shieldHP > 0 || e.shieldShatterTimer > 0)) {
       drawShield(e, rad * scale);
     }
@@ -21962,93 +21962,191 @@
   }
 
   function drawDermatofito(e, rad, expression, blink) {
-    // Hongo filamentoso (dermatofito): cuerpo alto + hifas con esporas arriba.
+    // Trichophyton rubrum — TIÑA (anillo con claro central), no óvalo-moho.
+    //  · Placa anular irregular (borde avanzante, no círculo perfecto)
+    //  · Queratina: un pelo atraviesa la lesión
+    //  · Escamas + hifas en el borde; macroconidio-canoa = espora cazadora
+    //  · Escudo "wall" = el propio anillo más denso, no un halo circular
     var hit = e.hitFlash > 0, t = state.time;
-    var col = e.def.color, cold = e.def.colorDark;
-    ctx.save();
-    ctx.translate(e.x, e.y);
-    var breathe = 1 + Math.sin(t * 1.6 + (e.wobble || 0)) * 0.04;
-    var bw = rad * 0.82 * breathe;
-    var bh = rad * 1.30 * (2 - breathe);   // notablemente más alto que ancho
-    // Movimiento real (alimenta la cascada de septos más abajo) — no rota
-    // el cuerpo, solo mide cuánto se desplazó este frame.
-    if (e._lastPosX == null) { e._lastPosX = e.x; e._lastPosY = e.y; }
-    var dMag = Math.hypot(e.x - e._lastPosX, e.y - e._lastPosY);
+    var def = e.def;
+    var col = def.color, cold = def.colorDark;
+    var sd = def.shield;
+    var shieldRatio = (sd && sd.maxHP > 0) ? Math.max(0, (e.shieldHP || 0) / sd.maxHP) : 0;
+
+    if (e._lastPosX == null) { e._lastPosX = e.x; e._lastPosY = e.y; e._heading = 0; }
+    var dxM = e.x - e._lastPosX, dyM = e.y - e._lastPosY;
+    var dMag = Math.hypot(dxM, dyM);
+    if (dMag > 0.5) {
+      var targetAng = Math.atan2(dyM, dxM);
+      var diffAng = targetAng - e._heading;
+      while (diffAng >  Math.PI) diffAng -= Math.PI * 2;
+      while (diffAng < -Math.PI) diffAng += Math.PI * 2;
+      e._heading += diffAng * 0.10;
+    }
     e._lastPosX = e.x; e._lastPosY = e.y;
     var moving = dMag > 1;
-    // Próxima espora cazadora real (huntsTowers: sale a correr a atacar una
-    // torre): qué hifa la va a soltar y qué tan cerca está, derivado de
-    // e.childTimer/e.childCount — los contadores reales de updateEnemies.
+
     var nH = 5;
     var nextHyphaIdx = (e.childCount || 0) % nH;
     var spawnReady = 0;
-    if (e.def.spore && e.childTimer != null && (e.childCount || 0) < (e.def.spore.maxChildren || 5)) {
+    if (def.spore && e.childTimer != null && (e.childCount || 0) < (def.spore.maxChildren || 5)) {
       var warnWindow = 0.5;
       if (e.childTimer < warnWindow) spawnReady = 1 - Math.max(0, e.childTimer) / warnWindow;
     }
-    // Hifas con esporas saliendo de la parte superior (tipo moho) — cada
-    // una con su propio ciclo de elongación-retracción real (crece y se
-    // reabsorbe), en vez de tener un largo fijo por índice.
-    var hyphaCfg = [
-      { minF: 0.35, maxF: 0.95, speed: 0.28, phase: 0.0 },
-      { minF: 0.40, maxF: 0.85, speed: 0.24, phase: 1.3 },
-      { minF: 0.30, maxF: 1.00, speed: 0.32, phase: 2.6 },
-      { minF: 0.45, maxF: 0.80, speed: 0.26, phase: 3.9 },
-      { minF: 0.35, maxF: 0.90, speed: 0.30, phase: 5.2 }
-    ];
-    var growCyclePeriod = 7.0;
-    for (var h = 0; h < nH; h++) {
-      var cfg = hyphaCfg[h];
-      var hx0 = ((h / (nH - 1)) - 0.5) * bw * 1.3;
-      var ha = -Math.PI / 2 + (h - (nH - 1) / 2) * 0.30 + Math.sin(t * 2 + h) * 0.16;
-      var gPos = ((t * cfg.speed + cfg.phase) % growCyclePeriod) / growCyclePeriod;
-      var gFrac = gPos < 0.5 ? gPos * 2 : (1 - gPos) * 2;
-      var len = bh * (cfg.minF + gFrac * (cfg.maxF - cfg.minF));
-      var tx = hx0 + Math.cos(ha) * len, ty = -bh * 0.65 + Math.sin(ha) * len;
-      var mx = hx0 + Math.cos(ha) * len * 0.5, my = -bh * 0.65 + Math.sin(ha) * len * 0.5 - 3 * U;
-      ctx.strokeStyle = cold; ctx.lineWidth = Math.max(1.4, 2.1 * U); ctx.lineCap = "round";
-      ctx.beginPath(); ctx.moveTo(hx0, -bh * 0.65); ctx.quadraticCurveTo(mx, my, tx, ty); ctx.stroke();
-      var isNext = (h === nextHyphaIdx) && spawnReady > 0.02;
-      var tipR = 2.8 * U * (1 + (isNext ? spawnReady * 1.4 : 0));
-      if (isNext) {
-        ctx.fillStyle = "rgba(230, 255, 130, " + (spawnReady * 0.90) + ")";
-        ctx.beginPath(); ctx.arc(tx, ty, tipR * 2.4, 0, Math.PI * 2); ctx.fill();
-      }
-      ctx.fillStyle = col;
-      ctx.beginPath(); ctx.arc(tx, ty, tipR, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = cold; ctx.lineWidth = Math.max(0.8, 1.1 * U); ctx.stroke();
-    }
-    // Cuerpo (óvalo alto).
-    var grad = ctx.createRadialGradient(-bw * 0.3, -bh * 0.3, bh * 0.2, 0, 0, bh);
-    grad.addColorStop(0, "#dde6a6");
-    grad.addColorStop(0.6, col);
-    grad.addColorStop(1, cold);
-    ctx.fillStyle = hit ? "#ffffff" : grad;
-    ctx.beginPath(); ctx.ellipse(0, 0, bw, bh, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = cold; ctx.lineWidth = Math.max(1, 1.3 * U); ctx.stroke();
-    // Septos (tabiques del hongo): pulso de luz que viaja de la base hacia
-    // la punta SOLO mientras camina de verdad (ligado a dMag — se congela
-    // si está stunned/bloqueado), como el transporte citoplasmático real.
+
+    ctx.save();
+    ctx.translate(e.x, e.y);
+    var breathe = 1 + Math.sin(t * 1.5 + (e.wobble || 0)) * 0.03;
+    var R = rad * breathe;
+    var rx = R * 1.18, ry = R * 0.72; // óvalo, no disco
+    var jag = 0.07;
+
     e._septoCascade = (e._septoCascade || 0) + dMag * 0.05;
     var cascadePhase = e._septoCascade % 3;
-    var septaOrder = [1, 0, -1]; // de la base hacia la punta
-    for (var sIdx = 0; sIdx < septaOrder.length; sIdx++) {
-      var sct = septaOrder[sIdx];
-      var rawD = ((cascadePhase - sIdx) % 3 + 3) % 3;
-      var dist = Math.min(rawD, 3 - rawD);
-      var glow = moving ? Math.max(0, 1 - dist) : 0;
-      ctx.strokeStyle = "rgba(" + Math.round(94 + glow * 150) + ", " + Math.round(106 + glow * 160) + ", " + Math.round(44 + glow * 60) + ", " + (0.45 + glow * 0.55) + ")";
-      ctx.lineWidth = Math.max(1.2, 1.5 * U) + glow * 3.2;
-      ctx.beginPath();
-      ctx.moveTo(-bw * 0.7, sct * bh * 0.34); ctx.lineTo(bw * 0.7, sct * bh * 0.34); ctx.stroke();
+
+    function ringPts(scale, n) {
+      var pts = [];
+      for (var i = 0; i < n; i++) {
+        var a = (i / n) * Math.PI * 2 - 0.15;
+        var j = 1 + Math.sin(a * 3.2 + t * 1.1 + (e.wobble || 0)) * jag;
+        pts.push({
+          x: Math.cos(a) * rx * scale * j,
+          y: Math.sin(a) * ry * scale * j,
+          a: a
+        });
+      }
+      return pts;
     }
-    // Cara malvada.
-    var eyeR = bw * 0.34, faceY = -bh * 0.04, gap = bw * 0.33;
+    function traceLoop(pts) {
+      ctx.beginPath();
+      ctx.moveTo(pts[0].x, pts[0].y);
+      for (var i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+      ctx.closePath();
+    }
+
+    ctx.save();
+    ctx.rotate(e._heading || 0);
+
+    var outer = ringPts(1.0, 22);
+    var inner = ringPts(0.46, 16);
+
+    // Pelo de queratina atravesando la lesión (dermatofito come pelo).
+    ctx.lineCap = "round";
+    ctx.strokeStyle = hit ? "#ffffff" : "#4a3014";
+    ctx.lineWidth = Math.max(2.6, 3.4 * U);
+    ctx.beginPath();
+    ctx.moveTo(-rx * 1.25, -ry * 0.55);
+    ctx.quadraticCurveTo(0, ry * 0.08, rx * 1.22, ry * 0.58);
+    ctx.stroke();
+    ctx.strokeStyle = hit ? "#ffffff" : "#8a6230";
+    ctx.lineWidth = Math.max(1.4, 1.8 * U);
+    ctx.stroke();
+
+    // Anillo (evenodd: hueco central).
+    ctx.beginPath();
+    ctx.moveTo(outer[0].x, outer[0].y);
+    for (var oi = 1; oi < outer.length; oi++) ctx.lineTo(outer[oi].x, outer[oi].y);
+    ctx.closePath();
+    ctx.moveTo(inner[0].x, inner[0].y);
+    for (var ii = inner.length - 1; ii >= 0; ii--) ctx.lineTo(inner[ii].x, inner[ii].y);
+    ctx.closePath();
+
+    var ringG = ctx.createLinearGradient(-rx, -ry, rx, ry);
+    ringG.addColorStop(0, hit ? "#ffffff" : "#dde6a6");
+    ringG.addColorStop(0.45, hit ? "#ffffff" : col);
+    ringG.addColorStop(1, hit ? "#ffffff" : cold);
+    ctx.fillStyle = ringG;
+    ctx.fill("evenodd");
+    if (shieldRatio > 0.05) {
+      ctx.fillStyle = "rgba(200, 210, 120, " + (0.18 + shieldRatio * 0.32) + ")";
+      ctx.fill("evenodd");
+    }
+    ctx.strokeStyle = cold;
+    ctx.lineWidth = Math.max(2.0, (2.2 + shieldRatio * 1.4) * U);
+    traceLoop(outer);
+    ctx.stroke();
+    ctx.strokeStyle = "rgba(220, 230, 160, 0.45)";
+    ctx.lineWidth = Math.max(1.0, 1.3 * U);
+    traceLoop(inner);
+    ctx.stroke();
+
+    // Escamas del borde avanzante.
+    for (var sc = 0; sc < outer.length; sc += 2) {
+      var p = outer[sc];
+      var nx = p.x / rx, ny = p.y / ry;
+      var sl = R * 0.16;
+      ctx.fillStyle = hit ? "#ffffff" : (sc % 4 === 0 ? "#c5d080" : "#8a9448");
+      ctx.beginPath();
+      ctx.moveTo(p.x + nx * sl * 0.2, p.y + ny * sl * 0.2);
+      ctx.lineTo(p.x + nx * sl + ny * sl * 0.35, p.y + ny * sl - nx * sl * 0.35);
+      ctx.lineTo(p.x + nx * sl - ny * sl * 0.35, p.y + ny * sl + nx * sl * 0.35);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    // Hifas cortas en el perímetro + macroconidio-canoa (espora que caza).
+    ctx.lineCap = "round";
+    for (var h = 0; h < nH; h++) {
+      var hp = outer[Math.floor((h / nH) * outer.length)];
+      var hnx = hp.x / rx, hny = hp.y / ry;
+      var hlen = R * (0.22 + 0.08 * Math.sin(t * 2 + h));
+      var hx1 = hp.x + hnx * hlen, hy1 = hp.y + hny * hlen;
+      ctx.strokeStyle = cold;
+      ctx.lineWidth = Math.max(1.6, 2.1 * U);
+      ctx.beginPath();
+      ctx.moveTo(hp.x, hp.y);
+      ctx.lineTo(hx1, hy1);
+      ctx.stroke();
+      var isNext = (h === nextHyphaIdx) && spawnReady > 0.02;
+      if (isNext) {
+        ctx.fillStyle = "rgba(230, 255, 130, " + (spawnReady * 0.85) + ")";
+        ctx.beginPath();
+        ctx.ellipse(hx1, hy1, R * 0.22, R * 0.10, hp.a, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      // Macroconidio fusiforme (canoa septada), no bolita.
+      ctx.save();
+      ctx.translate(hx1, hy1);
+      ctx.rotate(hp.a);
+      var canoeG = ctx.createLinearGradient(-R * 0.16, 0, R * 0.16, 0);
+      canoeG.addColorStop(0, hit ? "#ffffff" : "#cdd8a0");
+      canoeG.addColorStop(1, hit ? "#ffffff" : cold);
+      ctx.fillStyle = canoeG;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, R * 0.18 * (1 + (isNext ? spawnReady * 0.4 : 0)), R * 0.07, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = cold;
+      ctx.lineWidth = Math.max(0.9, 1.2 * U);
+      ctx.stroke();
+      ctx.strokeStyle = "rgba(60, 70, 20, 0.55)";
+      ctx.beginPath();
+      ctx.moveTo(-R * 0.06, -R * 0.05);
+      ctx.lineTo(-R * 0.06, R * 0.05);
+      ctx.moveTo(R * 0.05, -R * 0.05);
+      ctx.lineTo(R * 0.05, R * 0.05);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // Pulso de septos recorriendo el anillo al caminar.
+    if (moving) {
+      var glowI = Math.floor(((cascadePhase / 3) * outer.length)) % outer.length;
+      var gp = outer[glowI];
+      ctx.fillStyle = "rgba(230, 255, 160, 0.45)";
+      ctx.beginPath();
+      ctx.arc(gp.x, gp.y, R * 0.12, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    ctx.restore(); // end body rotated
+
+    var eyeR = R * 0.22, faceY = -R * 0.04, gap = R * 0.24;
     if (expression === "dying" || expression === "hurt") drawHurtEyes(0, faceY, eyeR, gap);
     else if (blink) drawClosedEyes(0, faceY, eyeR, gap);
-    else drawAnimeEyes(0, faceY, eyeR, gap, 0, 0, bh * 0.10, bh * 0.05, "evil");
-    if (expression === "dying" || expression === "hurt") drawAnimeMouth(0, bh * 0.40, bw * 0.5, bh * 0.4, "open");
-    else drawAnimeMouth(0, bh * 0.42, bw * 0.5, bh * 0.28, "fanged");
+    else drawAnimeEyes(0, faceY, eyeR, gap, 0, 0, R * 0.08, R * 0.04, "evil");
+    if (expression === "dying" || expression === "hurt") drawAnimeMouth(0, R * 0.24, R * 0.32, R * 0.26, "open");
+    else drawAnimeMouth(0, R * 0.24, R * 0.32, R * 0.16, "fanged");
+
     ctx.restore();
   }
 
@@ -27856,7 +27954,7 @@
     else if (kind === "virus") drawVirus(fakeEnemy, R, "idle", false);
     else if (kind === "hongo") drawHongo(fakeEnemy, R, "idle", false);
     else drawBoss(fakeEnemy, R, "idle", false);
-    if (def.shield && def.id !== "saureus") drawShield(fakeEnemy, R);
+    if (def.shield && def.id !== "saureus" && def.id !== "dermatofito") drawShield(fakeEnemy, R);
     ctx.restore();
   }
 

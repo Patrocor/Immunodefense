@@ -24757,149 +24757,211 @@
 
     var R = rad;
     var pose = (e._heading || 0) + lumber;
-    var hx = R * 0.70, hy = -R * 0.06;
+    var hx = R * 0.78, hy = -R * 0.08;
     var ink = hit ? "#ffffff" : "#14110c";
     var rodA = hit ? "#ffffff" : "#6d7f6a";
     var rodB = hit ? "#ffffff" : (def.color || "#546E7A");
     var rodC = hit ? "#ffffff" : "#243028";
-    var sporeA = hit ? "#ffffff" : "#e4ecd0";
-    var sporeB = hit ? "#ffffff" : "#8a9a60";
+    var sporeA = hit ? "#ffffff" : "#f0f4d8";
+    var sporeB = hit ? "#ffffff" : "#b8c878";
     ctx.save();
     ctx.rotate(pose);
 
-    var und = gait * R * 0.04;
+    var und = gait * R * 0.05;
 
     function rodSeg(cx, cy, sx, sy) {
       return [
-        { x: cx + sx, y: cy },
-        { x: cx + sx * 0.45, y: cy - sy },
-        { x: cx - sx * 0.15, y: cy - sy * 0.85 },
-        { x: cx - sx, y: cy - sy * 0.15 },
-        { x: cx - sx * 0.40, y: cy + sy * 0.90 },
-        { x: cx + sx * 0.35, y: cy + sy }
+        { x: cx + sx, y: cy - sy * 0.10 },
+        { x: cx + sx * 0.40, y: cy - sy },
+        { x: cx - sx * 0.20, y: cy - sy * 0.80 },
+        { x: cx - sx, y: cy - sy * 0.12 },
+        { x: cx - sx * 0.35, y: cy + sy * 0.95 },
+        { x: cx + sx * 0.30, y: cy + sy * 0.85 }
       ];
     }
 
-    // Cola (bacilo más chico).
-    var tailG = ctx.createLinearGradient(-R, 0, -R * 0.5, 0);
+    // Cola (bacilo chico) — el cuerpo se AFINA atrás, como un clostridio.
+    var tailG = ctx.createLinearGradient(-R * 1.15, 0, -R * 0.55, 0);
     tailG.addColorStop(0, rodC);
     tailG.addColorStop(1, rodB);
-    fillStrokeBlob(rodSeg(-R * 0.92, und * 0.4, R * 0.34, R * 0.28), tailG, ink, Math.max(1.6, 2.0 * U));
+    fillStrokeBlob(rodSeg(-R * 0.95, und * 0.5, R * 0.30, R * 0.24), tailG, ink, Math.max(1.5, 1.9 * U));
 
     // Segmento medio.
-    var midG = ctx.createLinearGradient(-R * 0.6, -R * 0.3, 0, R * 0.3);
+    var midG = ctx.createLinearGradient(-R * 0.65, -R * 0.3, -R * 0.05, R * 0.3);
     midG.addColorStop(0, rodA);
     midG.addColorStop(1, rodC);
-    fillStrokeBlob(rodSeg(-R * 0.32, -und * 0.3, R * 0.42, R * 0.36), midG, ink, Math.max(1.8, 2.2 * U));
+    fillStrokeBlob(rodSeg(-R * 0.38, -und * 0.35, R * 0.40, R * 0.34), midG, ink, Math.max(1.7, 2.1 * U));
+    if (!hit) {
+      ctx.strokeStyle = "rgba(20, 24, 18, 0.50)";
+      ctx.lineWidth = Math.max(1.0, 1.2 * U);
+      ctx.beginPath();
+      ctx.moveTo(-R * 0.38, -R * 0.22);
+      ctx.quadraticCurveTo(-R * 0.32, 0, -R * 0.38, R * 0.22);
+      ctx.stroke();
+      ctx.fillStyle = "rgba(20, 24, 14, 0.28)";
+      smoothBlob([
+        { x: -R * 0.22, y: -R * 0.08 },
+        { x: -R * 0.38, y: -R * 0.18 },
+        { x: -R * 0.50, y: 0 },
+        { x: -R * 0.32, y: R * 0.10 }
+      ]);
+      ctx.fill();
+    }
+
+    // Pecho (bacilo gordo, cuello de la espora).
+    var chestG = ctx.createLinearGradient(0, -R * 0.32, R * 0.28, R * 0.28);
+    chestG.addColorStop(0, rodA);
+    chestG.addColorStop(1, rodC);
+    fillStrokeBlob(rodSeg(R * 0.14, und * 0.25, R * 0.38, R * 0.36), chestG, ink, Math.max(1.8, 2.2 * U));
     if (!hit) {
       ctx.strokeStyle = "rgba(20, 24, 18, 0.45)";
-      ctx.lineWidth = Math.max(0.9, 1.1 * U);
+      ctx.lineWidth = Math.max(1.0, 1.2 * U);
       ctx.beginPath();
-      ctx.moveTo(-R * 0.32, -R * 0.22);
-      ctx.quadraticCurveTo(-R * 0.28, 0, -R * 0.32, R * 0.24);
+      ctx.moveTo(R * 0.14, -R * 0.24);
+      ctx.quadraticCurveTo(R * 0.18, 0, R * 0.14, R * 0.24);
       ctx.stroke();
     }
 
-    // Segmento pecho (bacilo más gordo, junto a la espora).
-    var chestG = ctx.createLinearGradient(0, -R * 0.35, R * 0.3, R * 0.3);
-    chestG.addColorStop(0, rodA);
-    chestG.addColorStop(1, rodC);
-    fillStrokeBlob(rodSeg(R * 0.18, und * 0.2, R * 0.40, R * 0.38), chestG, ink, Math.max(1.8, 2.2 * U));
-
-    // Gas entre segmentos (entrañas / crepitus), no placas dorsales.
+    // Gas GORDO entre anillos (crepitus) — lo que le faltaba al bicho.
     if (!hit) {
-      var gPulse = 1 + 0.12 * Math.sin(t * 2.3) + devourK * 0.16;
+      var gPulse = 1 + 0.16 * Math.sin(t * 2.4) + devourK * 0.22;
       var sacs = [
-        { x: -R * 0.62, y: -R * 0.28 + und, s: 0.14 },
-        { x: -R * 0.08, y:  R * 0.32 - und, s: 0.13 },
-        { x: -R * 0.58, y:  R * 0.22, s: 0.10 }
+        { x: -R * 0.66, y: -R * 0.38 + und, s: 0.20 },
+        { x: -R * 0.12, y: -R * 0.42 - und * 0.4, s: 0.18 },
+        { x: -R * 0.68, y:  R * 0.30, s: 0.16 },
+        { x: -R * 0.10, y:  R * 0.38 - und, s: 0.17 }
       ];
       for (var v = 0; v < sacs.length; v++) {
         var vt = sacs[v];
         var vs = R * vt.s * gPulse;
         fillStrokeBlob([
-          { x: vt.x + vs * 1.05, y: vt.y },
-          { x: vt.x + vs * 0.15, y: vt.y - vs * 1.05 },
-          { x: vt.x - vs * 0.95, y: vt.y - vs * 0.10 },
-          { x: vt.x - vs * 0.20, y: vt.y + vs * 0.80 },
-          { x: vt.x + vs * 0.45, y: vt.y + vs * 0.40 }
-        ], "rgba(198, 214, 110, 0.68)", "rgba(50, 58, 24, 0.50)", Math.max(0.8, 1.0 * U));
+          { x: vt.x + vs * 1.15, y: vt.y - vs * 0.10 },
+          { x: vt.x + vs * 0.20, y: vt.y - vs * 1.15 },
+          { x: vt.x - vs * 1.05, y: vt.y - vs * 0.15 },
+          { x: vt.x - vs * 0.25, y: vt.y + vs * 0.90 },
+          { x: vt.x + vs * 0.50, y: vt.y + vs * 0.45 }
+        ], "rgba(210, 230, 90, 0.78)", "rgba(50, 62, 20, 0.55)", Math.max(0.9, 1.1 * U));
       }
     }
 
-    // Escudo = fascia / pared en el dorso del medio, jirón, no concha.
+    // Escudo = fascia húmeda, jirón visible sobre el dorso.
     if (shieldFrac > 0.04) {
-      var sa = 0.32 + 0.50 * shieldFrac;
-      ctx.fillStyle = hit ? "rgba(255,255,255,0.35)" : "rgba(228, 214, 168, " + sa + ")";
+      var sa = 0.40 + 0.50 * shieldFrac;
+      ctx.fillStyle = hit ? "rgba(255,255,255,0.38)" : "rgba(236, 222, 170, " + sa + ")";
       smoothBlob([
-        { x: -R * 0.02, y: -R * 0.12 },
-        { x: -R * 0.22, y: -R * 0.42 },
-        { x: -R * 0.55, y: -R * 0.36 },
-        { x: -R * 0.62, y: -R * 0.04 },
-        { x: -R * 0.28, y:  R * 0.04 }
+        { x:  R * 0.08, y: -R * 0.08 },
+        { x: -R * 0.10, y: -R * 0.48 },
+        { x: -R * 0.52, y: -R * 0.44 },
+        { x: -R * 0.72, y: -R * 0.08 },
+        { x: -R * 0.38, y:  R * 0.06 },
+        { x: -R * 0.08, y:  R * 0.02 }
       ]);
       ctx.fill();
+      ctx.strokeStyle = hit ? "#ffffff" : "rgba(90, 72, 36, 0.55)";
+      ctx.lineWidth = Math.max(1.1, 1.4 * U);
+      ctx.beginPath();
+      ctx.moveTo(-R * 0.08, -R * 0.28);
+      ctx.lineTo(-R * 0.38, -R * 0.04);
+      ctx.lineTo(-R * 0.58, -R * 0.22);
+      ctx.stroke();
     }
 
-    // Palpos de músculo (tejido que está devorando), no patas de lagarto.
-    var palpLift = gait * R * 0.05;
-    var muscleA = hit ? "#ffffff" : "#8a6a48";
-    var muscleC = hit ? "#ffffff" : "#2a1810";
+    // Palpos de músculo LARGOS — zarpa que tira carne hacia la boca.
+    var palpLift = gait * R * 0.07;
+    var muscleA = hit ? "#ffffff" : "#c07050";
+    var muscleC = hit ? "#ffffff" : "#3a1810";
     var palps = [
       [
-        { x: R * 0.48, y: R * 0.08 },
-        { x: R * 0.72, y: R * 0.32 + palpLift },
-        { x: R * 0.58, y: R * 0.48 + palpLift },
-        { x: R * 0.38, y: R * 0.22 }
+        { x: R * 0.55, y:  R * 0.12 },
+        { x: R * 0.92, y:  R * 0.38 + palpLift },
+        { x: R * 1.12, y:  R * 0.58 + palpLift },
+        { x: R * 0.88, y:  R * 0.62 + palpLift },
+        { x: R * 0.48, y:  R * 0.28 }
       ],
       [
-        { x: R * 0.42, y: -R * 0.18 },
-        { x: R * 0.68, y: -R * 0.42 - palpLift },
-        { x: R * 0.52, y: -R * 0.52 - palpLift },
-        { x: R * 0.32, y: -R * 0.22 }
+        { x: R * 0.52, y: -R * 0.16 },
+        { x: R * 0.88, y: -R * 0.42 - palpLift },
+        { x: R * 1.05, y: -R * 0.58 - palpLift },
+        { x: R * 0.78, y: -R * 0.52 - palpLift },
+        { x: R * 0.42, y: -R * 0.22 }
       ]
     ];
     for (var p = 0; p < palps.length; p++) {
-      var pg = ctx.createLinearGradient(R * 0.4, 0, R * 0.7, palps[p][1].y);
+      var pg = ctx.createLinearGradient(R * 0.5, 0, palps[p][2].x, palps[p][2].y);
       pg.addColorStop(0, muscleA);
       pg.addColorStop(1, muscleC);
-      fillStrokeBlob(palps[p], pg, ink, Math.max(1.4, 1.8 * U));
+      fillStrokeBlob(palps[p], pg, ink, Math.max(1.5, 1.9 * U));
+      if (!hit) {
+        ctx.strokeStyle = "rgba(40, 12, 8, 0.45)";
+        ctx.lineWidth = Math.max(0.8, 1.0 * U);
+        ctx.beginPath();
+        ctx.moveTo(palps[p][0].x, palps[p][0].y);
+        ctx.lineTo(palps[p][2].x, palps[p][2].y);
+        ctx.stroke();
+      }
     }
 
-    // Cabeza-espora lumpy (no círculo): el extremo terminal del clostridio.
-    var jawDrop = R * (0.04 + devourK * 0.14);
+    // Cabeza-espora GRANDE (maza terminal): más gorda que el bacilo, no otro anillo.
+    var jawDrop = R * (0.08 + devourK * 0.22);
     var head = [
-      { x: R * 0.48, y: -R * 0.32 },
-      { x: R * 0.72, y: -R * 0.52 },
-      { x: R * 1.02, y: -R * 0.22 },
-      { x: R * 1.12, y:  R * 0.06 },
-      { x: R * 0.92, y:  R * 0.38 + jawDrop },
-      { x: R * 0.58, y:  R * 0.32 + jawDrop * 0.5 },
-      { x: R * 0.38, y:  R * 0.02 }
+      { x: R * 0.42, y: -R * 0.28 },
+      { x: R * 0.62, y: -R * 0.62 },
+      { x: R * 0.98, y: -R * 0.52 },
+      { x: R * 1.22, y: -R * 0.12 },
+      { x: R * 1.18, y:  R * 0.22 + jawDrop * 0.4 },
+      { x: R * 0.88, y:  R * 0.48 + jawDrop },
+      { x: R * 0.50, y:  R * 0.32 + jawDrop * 0.4 },
+      { x: R * 0.32, y:  R * 0.04 }
     ];
-    var hd = ctx.createLinearGradient(R * 0.6, -R * 0.5, R * 1.0, R * 0.3);
+    var hd = ctx.createLinearGradient(R * 0.7, -R * 0.65, R * 1.05, R * 0.4);
     hd.addColorStop(0, sporeA);
-    hd.addColorStop(0.5, sporeB);
+    hd.addColorStop(0.45, sporeB);
     hd.addColorStop(1, rodC);
-    fillStrokeBlob(head, hd, ink, Math.max(2.0, 2.4 * U));
+    fillStrokeBlob(head, hd, ink, Math.max(2.1, 2.6 * U));
+
+    // Fauces: oquedad oscura en el hocico (devora torres), no una boquita.
+    var maw = [
+      { x: R * 0.92, y: -R * 0.04 },
+      { x: R * 1.12, y:  R * 0.06 },
+      { x: R * 1.02, y:  R * 0.28 + jawDrop },
+      { x: R * 0.72, y:  R * 0.22 + jawDrop * 0.5 },
+      { x: R * 0.70, y:  R * 0.04 }
+    ];
+    ctx.fillStyle = hit ? "rgba(40,20,20,0.4)" : "#1a0808";
+    smoothBlob(maw);
+    ctx.fill();
     if (!hit) {
-      ctx.fillStyle = "rgba(255,255,255,0.24)";
+      ctx.fillStyle = "rgba(255,255,255,0.26)";
       smoothBlob([
-        { x: R * 0.68, y: -R * 0.22 },
-        { x: R * 0.82, y: -R * 0.32 },
-        { x: R * 0.88, y: -R * 0.10 },
-        { x: R * 0.72, y: -R * 0.06 }
+        { x: R * 0.70, y: -R * 0.28 },
+        { x: R * 0.88, y: -R * 0.38 },
+        { x: R * 0.92, y: -R * 0.14 },
+        { x: R * 0.74, y: -R * 0.10 }
       ]);
+      ctx.fill();
+      // Dientes en el borde de la fauces (α-toxina).
+      ctx.fillStyle = "#f4f0d8";
+      ctx.beginPath();
+      ctx.moveTo(R * 0.86, R * 0.02);
+      ctx.lineTo(R * 0.90, R * 0.16);
+      ctx.lineTo(R * 0.96, R * 0.02);
+      ctx.closePath();
+      ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(R * 1.00, R * 0.06);
+      ctx.lineTo(R * 1.04, R * 0.20);
+      ctx.lineTo(R * 1.10, R * 0.08);
+      ctx.closePath();
       ctx.fill();
     }
     if (enragedFlag && !hit) {
       var crackPulse = 0.55 + 0.45 * Math.sin(t * 4.5);
       ctx.strokeStyle = "rgba(140, 230, 120, " + (0.5 + crackPulse * 0.45) + ")";
-      ctx.lineWidth = Math.max(1.4, 1.8 * U);
+      ctx.lineWidth = Math.max(1.5, 1.9 * U);
       ctx.beginPath();
-      ctx.moveTo(R * 0.62, -R * 0.28);
-      ctx.lineTo(R * 0.86, 0);
-      ctx.lineTo(R * 0.70, R * 0.22);
+      ctx.moveTo(R * 0.62, -R * 0.32);
+      ctx.lineTo(R * 0.88, -R * 0.02);
+      ctx.lineTo(R * 0.72, R * 0.22);
       ctx.stroke();
     }
 
@@ -24907,14 +24969,13 @@
 
     var faceX = hx * Math.cos(pose) - hy * Math.sin(pose);
     var faceY = hx * Math.sin(pose) + hy * Math.cos(pose);
-    var eyeR = R * 0.13, gap = R * 0.18;
-    if (expression === "dying" || expression === "hurt") drawHurtEyes(faceX, faceY, eyeR, gap, "#1f2e22");
-    else if (blink) drawClosedEyes(faceX, faceY, eyeR, gap);
-    else drawAnimeEyes(faceX, faceY, eyeR, gap, 0, 0, R * 0.045, R * 0.022, "evil");
-    if (expression === "dying" || expression === "hurt" || devourK > 0.35) {
-      drawAnimeMouth(faceX + R * 0.04, faceY + R * 0.24, R * 0.28, R * 0.18, "open");
-    } else {
-      drawAnimeMouth(faceX + R * 0.04, faceY + R * 0.22, R * 0.24, R * 0.13, "fanged");
+    var eyeR = R * 0.12, gap = R * 0.20;
+    if (expression === "dying" || expression === "hurt") drawHurtEyes(faceX, faceY - R * 0.06, eyeR, gap, "#1f2e22");
+    else if (blink) drawClosedEyes(faceX, faceY - R * 0.06, eyeR, gap);
+    else drawAnimeEyes(faceX, faceY - R * 0.06, eyeR, gap, 0, 0, R * 0.042, R * 0.020, "evil");
+    // La boca grande ya está dibujada en la espora; acá solo un acento si duele.
+    if (expression === "dying" || expression === "hurt") {
+      drawAnimeMouth(faceX + R * 0.08, faceY + R * 0.18, R * 0.22, R * 0.14, "open");
     }
 
     ctx.restore();

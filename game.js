@@ -24050,7 +24050,8 @@
     var hR = rad * 0.82;
     ctx.save();
     ctx.translate(head.x, head.y);
-    ctx.rotate(head.a - 1.22);
+    // Cuerno siempre hacia ARRIBA de pantalla (Onix), no tangente al arco.
+    ctx.rotate(-0.10);
     var wedge = [
       { x: 0, y: -hR * 1.12 },
       { x: hR * 0.86, y: -hR * 0.38 },

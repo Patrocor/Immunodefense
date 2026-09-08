@@ -24757,9 +24757,9 @@
       { x:  R * 0.18, y: -R * 0.12 },
       { x: -R * 0.50, y: -R * 0.15 },
       { x: -R * 1.12, y: -R * 0.13 },
-      { x: -R * 1.36, y: -R * 0.03 },
-      { x: -R * 1.34, y:  R * 0.10 },
-      { x: -R * 1.05, y:  R * 0.17 },
+      { x: -R * 1.38, y: -R * 0.10 },
+      { x: -R * 1.42, y:  0.00 },
+      { x: -R * 1.28, y:  R * 0.14 },
       { x: -R * 0.45, y:  R * 0.16 },
       { x:  R * 0.20, y:  R * 0.13 }
     ];
@@ -24827,18 +24827,19 @@
       ctx.fill();
     }
 
-    // Cabeza-espora VERTICAL lumpy (maza / yunque vivo), NO un círculo.
-    // Más alta que ancha: el conjunto palo+cabeza lee T, no chupetín.
+    // Cabeza-espora VERTICAL de dos lóbulos (cacahuete / reloj de arena), NO un óvalo.
+    // Cintura hundida: el conjunto palo+cabeza lee T irregular, no chupetín ni pastilla.
     var head = [
-      { x: hx + R * 0.38, y: hy - R * 0.22 },
-      { x: hx + R * 0.22, y: hy - R * 0.78 },
-      { x: hx - R * 0.08, y: hy - R * 0.92 },
-      { x: hx - R * 0.38, y: hy - R * 0.55 },
-      { x: hx - R * 0.32, y: hy - R * 0.05 },
-      { x: hx - R * 0.42, y: hy + R * 0.38 },
-      { x: hx - R * 0.12, y: hy + R * 0.82 },
-      { x: hx + R * 0.28, y: hy + R * 0.70 },
-      { x: hx + R * 0.48, y: hy + R * 0.22 }
+      { x: hx + R * 0.34, y: hy - R * 0.32 },
+      { x: hx + R * 0.10, y: hy - R * 0.90 },
+      { x: hx - R * 0.28, y: hy - R * 0.82 },
+      { x: hx - R * 0.42, y: hy - R * 0.38 },
+      { x: hx - R * 0.10, y: hy - R * 0.04 },
+      { x: hx + R * 0.06, y: hy + R * 0.06 },
+      { x: hx - R * 0.40, y: hy + R * 0.40 },
+      { x: hx - R * 0.18, y: hy + R * 0.90 },
+      { x: hx + R * 0.32, y: hy + R * 0.78 },
+      { x: hx + R * 0.46, y: hy + R * 0.28 }
     ];
     var hg = ctx.createLinearGradient(hx, hy - R * 1.0, hx, hy + R * 0.9);
     hg.addColorStop(0, hit ? "#ffffff" : "#e8eed4");

@@ -24201,17 +24201,17 @@
     ctx.save();
     ctx.rotate(pose);
 
-    // Borde inflamado (eritema), irregular — no un anillo.
+    // Labio inflamado (eritema) en CRECIENTE, no un anillo alrededor.
     var rim = [
-      { x:  R * 1.18, y: -R * 0.12 },
-      { x:  R * 0.82, y: -R * 0.78 },
-      { x:  R * 0.10, y: -R * 1.02 },
-      { x: -R * 0.72, y: -R * 0.70 },
-      { x: -R * 1.12, y: -R * 0.08 },
-      { x: -R * 0.88, y:  R * 0.62 },
-      { x: -R * 0.05, y:  R * 0.98 },
-      { x:  R * 0.70, y:  R * 0.72 },
-      { x:  R * 1.08, y:  R * 0.22 }
+      { x: -R * 0.15, y: -R * 0.95 },
+      { x: -R * 0.78, y: -R * 0.72 },
+      { x: -R * 1.18, y: -R * 0.10 },
+      { x: -R * 0.98, y:  R * 0.58 },
+      { x: -R * 0.22, y:  R * 1.05 },
+      { x:  R * 0.55, y:  R * 0.82 },
+      { x:  R * 0.48, y:  R * 0.42 },
+      { x: -R * 0.08, y:  R * 0.22 },
+      { x: -R * 0.35, y: -R * 0.28 }
     ];
     var rg = ctx.createRadialGradient(-R * 0.1, 0, R * 0.2, 0, 0, R * 1.15);
     rg.addColorStop(0, hit ? "#ffffff" : "#c45a6a");
@@ -24224,17 +24224,16 @@
     ctx.lineWidth = Math.max(1.6, 2.0 * U);
     ctx.stroke();
 
-    // Costra necrótica negra, en riñón, con muesca al frente.
+    // Costra necrótica — placa en RIÑÓN, llena, no un hueco.
     var eschar = [
-      { x:  R * 0.42, y: -R * 0.18 },
-      { x:  R * 0.22, y: -R * 0.62 },
-      { x: -R * 0.18, y: -R * 0.78 },
-      { x: -R * 0.78, y: -R * 0.42 },
-      { x: -R * 0.92, y:  R * 0.08 },
-      { x: -R * 0.62, y:  R * 0.52 },
-      { x:  R * 0.02, y:  R * 0.68 },
-      { x:  R * 0.48, y:  R * 0.38 },
-      { x:  R * 0.38, y:  R * 0.02 }
+      { x:  R * 0.22, y: -R * 0.55 },
+      { x: -R * 0.28, y: -R * 0.72 },
+      { x: -R * 0.82, y: -R * 0.32 },
+      { x: -R * 0.88, y:  R * 0.22 },
+      { x: -R * 0.42, y:  R * 0.62 },
+      { x:  R * 0.18, y:  R * 0.55 },
+      { x:  R * 0.52, y:  R * 0.12 },
+      { x:  R * 0.38, y: -R * 0.22 }
     ];
     var eg = ctx.createLinearGradient(-R * 0.6, -R * 0.4, R * 0.3, R * 0.5);
     eg.addColorStop(0, hit ? "#ffffff" : "#3a3a3a");

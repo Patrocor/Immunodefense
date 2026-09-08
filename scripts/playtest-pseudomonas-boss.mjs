@@ -124,7 +124,7 @@ if (!withCap.ok || !bare.ok) {
   console.error("Showcase failed", { spawned, withCap, bare });
   process.exit(1);
 }
-copyFileSync(join(TMP, "pseudo_cap.png"), join(ART, "pseudo_v2_ectima_cap.png"));
-copyFileSync(join(TMP, "pseudo_bare.png"), join(ART, "pseudo_v2_ectima_bare.png"));
-copyFileSync(join(TMP, "pseudo_field.png"), join(ART, "pseudo_v2_ectima_field.png"));
+copyFileSync(join(TMP, "pseudo_cap.png"), join(ART, "pseudo_v2b_plaque_cap.png"));
+copyFileSync(join(TMP, "pseudo_bare.png"), join(ART, "pseudo_v2b_plaque_bare.png"));
+copyFileSync(join(TMP, "pseudo_field.png"), join(ART, "pseudo_v2b_plaque_field.png"));
 console.log("OK: pseudomonas boss screenshots in", ART);

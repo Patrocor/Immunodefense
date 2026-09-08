@@ -48,7 +48,8 @@
     malassezia:   { silhouette: "fan",        accent: "#d8c060", label: "Abanico" },
     dermatofito:  { silhouette: "ringworm",   accent: "#9CA85A", label: "Tiña" },
     neisseria:    { silhouette: "coffeebean", accent: "#d47c3a", label: "Pili" },
-    hpv:          { silhouette: "wart",       accent: "#8a9a5e", label: "Verruga" }
+    hpv:          { silhouette: "wart",       accent: "#8a9a5e", label: "Verruga" },
+    sarna:        { silhouette: "tortoise",   accent: "#8a5a2b", label: "Galería" }
   };
 
   // Pistas de counter por germen Fase 1 (pip inferior).

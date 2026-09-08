@@ -20856,7 +20856,7 @@
       ctx.translate(-e.x, -e.y);
     }
     drawShadow(e.x, e.y + rad * 0.85, rad * 0.85 * scale, rad * 0.22 * scale);
-    if (def.id !== "saureus" && def.id !== "malassezia" && def.id !== "dermatofito" && def.id !== "neisseria" && def.id !== "hpv") drawGermKindFrame(e, rad * scale);
+    if (def.id !== "saureus" && def.id !== "malassezia" && def.id !== "dermatofito" && def.id !== "neisseria" && def.id !== "hpv" && def.id !== "sarna") drawGermKindFrame(e, rad * scale);
     // Halo de daño genérico: pulso radial DRAMÁTICO amarillo→rojo
     // alrededor del germen cuando recibe golpe. Combina varias capas
     // (glow externo + flash blanco central + anillo dorado + chispas
@@ -21244,145 +21244,227 @@
 
   // SARNA — ácaro ovalado segmentado con 8 patitas; se entierra (madriguera).
   function drawSarna(e, rad, expression, blink) {
-    // Sarcoptes scabiei — ácaro arácnido. Signatures biológicas:
-    //  · 8 PATAS (4 a cada lado) articuladas con knee bend
-    //  · QUELÍCEROS (mandíbulas) puntiagudos al frente
-    //  · CUERPO OVOIDE marrón
-    //  · TRAIL DE HUEVOS si está poniendo (spore mechanic)
-    //  · TÚNEL/BURROW visible bajo la piel cuando burrowed
-    var R = rad, t = state.time;
-    ctx.save(); ctx.translate(e.x, e.y);
-    // Movimiento real: alimenta la marcha de las patas y el masticar de los
-    // quelíceros — se congelan si está quieto/stunned, en vez de animar
-    // siempre con el reloj.
-    if (e._lastPosX == null) { e._lastPosX = e.x; e._lastPosY = e.y; }
-    var dMag = Math.hypot(e.x - e._lastPosX, e.y - e._lastPosY);
+    // Sarcoptes scabiei — ÁCARO-TORTUGA que excava galerías, no óvalo genérico.
+    // Distinto de Demodex (cenital en poro hex): vista 3/4, caparazón con
+    // ESPINAS DORSALES y túnel en S del estrato córneo.
+    var R = rad * 0.95, t = state.time, w = e.wobble || 0, hit = e.hitFlash > 0;
+    var def = e.def;
+    ctx.save();
+    ctx.translate(e.x, e.y);
+
+    if (e._lastPosX == null) { e._lastPosX = e.x; e._lastPosY = e.y; e._heading = 0; }
+    var dxM = e.x - e._lastPosX, dyM = e.y - e._lastPosY;
+    var dMag = Math.hypot(dxM, dyM);
+    if (dMag > 0.5) {
+      var targetAng = Math.atan2(dyM, dxM);
+      var diffAng = targetAng - e._heading;
+      while (diffAng >  Math.PI) diffAng -= Math.PI * 2;
+      while (diffAng < -Math.PI) diffAng += Math.PI * 2;
+      e._heading += diffAng * 0.14;
+    }
     e._lastPosX = e.x; e._lastPosY = e.y;
-    e._gaitPhase = (e._gaitPhase || 0) + dMag * 0.10;
-    var gaitPhase = e._gaitPhase;
-    // Telegraph de mordisco al emerger: últimos 0.3s del ciclo enterrado.
+    e._gaitPhase = (e._gaitPhase || 0) + Math.max(0.03, dMag * 0.12);
+    var gait = e._gaitPhase + w * 0.2;
+    var heading = e._heading || 0;
+
     var emergeBite = 0;
-    if (e.burrowed && e.def.burrow) {
+    if (e.burrowed && def.burrow) {
       var biteWindow = 0.3;
       if (e.surfaceTimer < biteWindow) emergeBite = 1 - Math.max(0, e.surfaceTimer) / biteWindow;
     }
-    // Túnel/burrow: transición real de entierro/emergencia (no aparece ni
-    // desaparece de golpe), ligada a e.surfaceTimer — el contador real.
+    var eggReady = 0;
+    if (def.spore && e.childTimer != null && (e.childCount || 0) < (def.spore.maxChildren || 3)) {
+      var warnWindow = 0.55;
+      if (e.childTimer < warnWindow) eggReady = 1 - Math.max(0, e.childTimer) / warnWindow;
+    }
+
+    var sink = 0;
     if (e.burrowed) {
-      var dur = (e.def.burrow && e.def.burrow.duration) || 1.5;
+      var dur = (def.burrow && def.burrow.duration) || 1.5;
       var fadeWindow = Math.min(0.3, dur * 0.3);
       var sinceEnter = dur - e.surfaceTimer;
       var inFrac = Math.min(1, Math.max(0, sinceEnter) / fadeWindow);
       var outFrac = Math.min(1, Math.max(0, e.surfaceTimer) / fadeWindow);
-      var depthFrac = Math.min(inFrac, outFrac);
-      var tunnelScale = 0.55 + depthFrac * 0.45;
-      ctx.fillStyle = "rgba(90,60,30," + (0.70 * depthFrac) + ")";
-      ctx.beginPath();
-      ctx.ellipse(0, R * 0.55, R * 1.15 * tunnelScale, R * 0.5 * tunnelScale, 0, 0, Math.PI * 2);
-      ctx.fill();
-      // Línea del túnel serpenteante (visible bajo la piel)
-      ctx.strokeStyle = "rgba(60, 40, 20, " + (0.60 * depthFrac) + ")";
-      ctx.lineWidth = Math.max(1.6, 2.3 * U);
-      ctx.setLineDash([3, 3]);
-      ctx.beginPath();
-      for (var tu = 0; tu < 12; tu++) {
-        var tuX = (tu - 6) * R * 0.18;
-        var tuY = R * 0.55 + Math.sin(tu * 0.6 + t * 0.5) * R * 0.10;
-        if (tu === 0) ctx.moveTo(tuX, tuY); else ctx.lineTo(tuX, tuY);
-      }
-      ctx.stroke();
-      ctx.setLineDash([]);
-      var hiddenAlpha = e.revealed ? 0.6 : 0.22;
-      ctx.globalAlpha = 1 - depthFrac * (1 - hiddenAlpha);
+      sink = Math.min(inFrac, outFrac);
     }
-    // 8 PATAS articuladas con knee bend (signature arácnido) — marcha
-    // alternada real (2 grupos en contrafase), no una onda sincronizada
-    // con el reloj: se congela si no se está desplazando de verdad.
-    ctx.strokeStyle = e.def.colorDark;
-    ctx.lineWidth = Math.max(1.8, 2.5 * U);
+
+    ctx.save();
+    ctx.rotate(heading);
+
+    function galleryPath() {
+      ctx.beginPath();
+      ctx.moveTo(-R * 0.55, R * 0.08);
+      ctx.quadraticCurveTo(-R * 1.45, -R * 0.52, -R * 2.25, R * 0.18);
+      ctx.quadraticCurveTo(-R * 2.95, R * 0.72, -R * 3.55, R * 0.02);
+    }
+    var galA = e.burrowed ? (0.35 + sink * 0.50) : 0.28;
+    ctx.strokeStyle = "rgba(210, 170, 120, " + (galA * 0.55) + ")";
+    ctx.lineWidth = Math.max(7.5, 9.0 * U);
     ctx.lineCap = "round";
-    for (var i = 0; i < 8; i++) {
-      var side = (i < 4 ? -1 : 1), idx = i % 4;
-      var ly = (-0.45 + idx * 0.32) * R;
-      var group = (idx + (side === 1 ? 1 : 0)) % 2;
-      var legPhase = gaitPhase + (group === 0 ? 0 : Math.PI) + idx * 0.5;
-      var bend = Math.sin(legPhase) * 0.34;
-      // Pata articulada en 2 segmentos (femur + tibia)
-      var kneeX = side * R * 1.15;
-      var kneeY = ly + R * 0.12 + bend * R * 0.7;
-      var tipX = side * R * 1.50;
-      var tipY = ly + R * 0.50 + bend * R;
-      ctx.beginPath();
-      ctx.moveTo(side * R * 0.70, ly);
-      ctx.lineTo(kneeX, kneeY);
-      ctx.lineTo(tipX, tipY);
-      ctx.stroke();
-      // Pelitos en la punta de cada pata (signature arácnido)
-      ctx.lineWidth = 0.9 * U;
-      ctx.beginPath();
-      ctx.moveTo(tipX, tipY);
-      ctx.lineTo(tipX + side * 2 * U, tipY - 2 * U);
-      ctx.moveTo(tipX, tipY);
-      ctx.lineTo(tipX + side * 2.5 * U, tipY);
-      ctx.moveTo(tipX, tipY);
-      ctx.lineTo(tipX + side * 2 * U, tipY + 2 * U);
-      ctx.stroke();
-      ctx.lineWidth = Math.max(1.8, 2.5 * U);
+    galleryPath(); ctx.stroke();
+    ctx.strokeStyle = "rgba(70, 42, 18, " + galA + ")";
+    ctx.lineWidth = Math.max(4.2, 5.2 * U);
+    galleryPath(); ctx.stroke();
+    ctx.strokeStyle = "rgba(40, 24, 10, " + (galA * 0.85) + ")";
+    ctx.lineWidth = Math.max(1.6, 2.0 * U);
+    ctx.setLineDash([4 * U, 5 * U]);
+    galleryPath(); ctx.stroke();
+    ctx.setLineDash([]);
+
+    if (e.burrowed && e.revealed) {
+      ctx.strokeStyle = "rgba(63, 193, 201, 0.85)";
+      ctx.lineWidth = Math.max(2.2, 2.8 * U);
+      galleryPath(); ctx.stroke();
     }
-    // CUERPO ovoide
-    var grad = ctx.createRadialGradient(-R * 0.3, -R * 0.3, R * 0.2, 0, 0, R * 1.1);
-    grad.addColorStop(0, e.def.colorLight || "#c79a5e");
-    grad.addColorStop(0.6, e.def.color);
-    grad.addColorStop(1, e.def.colorDark);
-    ctx.fillStyle = (e.hitFlash > 0) ? "#fff" : grad;
-    ctx.beginPath();
-    ctx.ellipse(0, 0, R * 0.95, R * 1.05, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = e.def.colorDark;
-    ctx.lineWidth = Math.max(1, 1.3 * U);
+
+    // Huevos en la galería (esporas hijas).
+    var eggs = [
+      { k: 0.35, s: 0.11 },
+      { k: 0.62, s: 0.09 },
+      { k: 0.84, s: 0.08 }
+    ];
+    for (var ei = 0; ei < eggs.length; ei++) {
+      var ek = eggs[ei].k;
+      var ex = -R * (0.7 + ek * 2.6);
+      var ey = Math.sin(ek * 4.2) * R * 0.38;
+      var er = R * eggs[ei].s * (1 + (ei === 0 ? eggReady * 0.45 : 0));
+      if (ei === 0 && eggReady > 0.04) {
+        ctx.fillStyle = "rgba(255, 230, 160, " + (eggReady * 0.7) + ")";
+        ctx.beginPath(); ctx.ellipse(ex, ey, er * 1.7, er * 1.3, 0.4, 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.fillStyle = hit ? "#fff" : "#f0dcb0";
+      ctx.beginPath(); ctx.ellipse(ex, ey, er, er * 0.72, 0.35, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = def.colorDark;
+      ctx.lineWidth = Math.max(0.8, 1.0 * U);
+      ctx.stroke();
+    }
+
+    ctx.save();
+    if (sink > 0.02) {
+      ctx.translate(0, R * 0.22 * sink);
+      ctx.scale(1, 1 - sink * 0.55);
+      ctx.globalAlpha = e.revealed ? (0.55 + (1 - sink) * 0.45) : (0.22 + (1 - sink) * 0.78);
+    }
+
+    // Patas: 2 pares largos al frente (escavan) + 2 pares cortos detrás.
+    ctx.strokeStyle = def.colorDark;
+    ctx.lineCap = "round";
+    var legs = [
+      { x:  0.42, y: -0.42, len: 0.72, ang: -0.85 },
+      { x:  0.28, y: -0.50, len: 0.62, ang: -1.15 },
+      { x: -0.08, y: -0.38, len: 0.38, ang: -1.45 },
+      { x: -0.38, y: -0.22, len: 0.32, ang: -1.85 },
+      { x:  0.42, y:  0.42, len: 0.72, ang:  0.85 },
+      { x:  0.28, y:  0.50, len: 0.62, ang:  1.15 },
+      { x: -0.08, y:  0.38, len: 0.38, ang:  1.45 },
+      { x: -0.38, y:  0.22, len: 0.32, ang:  1.85 }
+    ];
+    for (var li = 0; li < legs.length; li++) {
+      var lg = legs[li];
+      var swing = Math.sin(gait * 3.4 + li * 0.9) * 0.22;
+      var a0 = lg.ang + swing;
+      var bx = lg.x * R, by = lg.y * R;
+      var kx = bx + Math.cos(a0) * R * lg.len * 0.52;
+      var ky = by + Math.sin(a0) * R * lg.len * 0.52;
+      var tx = bx + Math.cos(a0 + swing * 0.4) * R * lg.len;
+      var ty = by + Math.sin(a0 + swing * 0.4) * R * lg.len;
+      ctx.lineWidth = Math.max(1.8, 2.3 * U);
+      ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(kx, ky); ctx.lineTo(tx, ty); ctx.stroke();
+      // Ventosas en las patas delanteras.
+      if (li < 2 || (li >= 4 && li < 6)) {
+        ctx.fillStyle = hit ? "#fff" : "#d8b070";
+        ctx.beginPath(); ctx.ellipse(tx, ty, R * 0.08, R * 0.055, a0, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = def.colorDark; ctx.lineWidth = Math.max(0.8, 1.0 * U); ctx.stroke();
+        ctx.strokeStyle = def.colorDark;
+      }
+    }
+
+    function carapace() {
+      ctx.beginPath();
+      ctx.moveTo(R * 0.88, 0);
+      ctx.quadraticCurveTo(R * 0.52, -R * 0.70, -R * 0.05, -R * 0.78);
+      ctx.quadraticCurveTo(-R * 0.62, -R * 0.48, -R * 0.98, -R * 0.10);
+      ctx.quadraticCurveTo(-R * 1.08, 0, -R * 0.98, R * 0.10);
+      ctx.quadraticCurveTo(-R * 0.62, R * 0.48, -R * 0.05, R * 0.78);
+      ctx.quadraticCurveTo(R * 0.52, R * 0.70, R * 0.88, 0);
+      ctx.closePath();
+    }
+    var cg = ctx.createRadialGradient(R * 0.15, -R * 0.18, R * 0.12, 0, 0, R * 1.05);
+    cg.addColorStop(0, hit ? "#ffffff" : (def.colorLight || "#c79a5e"));
+    cg.addColorStop(0.5, hit ? "#ffffff" : def.color);
+    cg.addColorStop(1, hit ? "#ffffff" : def.colorDark);
+    ctx.fillStyle = cg;
+    carapace(); ctx.fill();
+    ctx.strokeStyle = def.colorDark;
+    ctx.lineWidth = Math.max(1.7, 2.2 * U);
     ctx.stroke();
-    // Bandas dorsales
-    ctx.strokeStyle = "rgba(0,0,0,0.18)";
-    ctx.lineWidth = 1;
-    for (var s = 1; s <= 2; s++) {
+
+    // Espinas dorsales (firma de Sarcoptes), filas hacia atrás.
+    ctx.fillStyle = hit ? "#ffffff" : "#3a220c";
+    var spines = [
+      { x: 0.22, y: -0.32, a: -2.5, l: 0.22 },
+      { x: 0.08, y: -0.48, a: -2.3, l: 0.20 },
+      { x: -0.12, y: -0.38, a: -2.6, l: 0.24 },
+      { x: -0.32, y: -0.22, a: -2.8, l: 0.20 },
+      { x: 0.22, y:  0.32, a:  2.5, l: 0.22 },
+      { x: 0.08, y:  0.48, a:  2.3, l: 0.20 },
+      { x: -0.12, y:  0.38, a:  2.6, l: 0.24 },
+      { x: -0.32, y:  0.22, a:  2.8, l: 0.20 },
+      { x: -0.48, y:  0.00, a:  Math.PI, l: 0.26 },
+      { x: 0.00, y: -0.18, a: -2.9, l: 0.16 },
+      { x: 0.00, y:  0.18, a:  2.9, l: 0.16 }
+    ];
+    for (var sp = 0; sp < spines.length; sp++) {
+      var sn = spines[sp];
+      var sx = sn.x * R, sy = sn.y * R;
+      var sl = sn.l * R * (1 + Math.sin(t * 2 + sp) * 0.06);
       ctx.beginPath();
-      ctx.ellipse(0, R * 0.20 * s, R * 0.8, R * 0.26, 0, 0, Math.PI);
-      ctx.stroke();
+      ctx.moveTo(sx + Math.cos(sn.a + 1.2) * R * 0.06, sy + Math.sin(sn.a + 1.2) * R * 0.06);
+      ctx.lineTo(sx + Math.cos(sn.a) * sl, sy + Math.sin(sn.a) * sl);
+      ctx.lineTo(sx + Math.cos(sn.a - 1.2) * R * 0.06, sy + Math.sin(sn.a - 1.2) * R * 0.06);
+      ctx.closePath();
+      ctx.fill();
     }
-    // QUELÍCEROS (mandíbulas) — mastican al ritmo real de la marcha y se
-    // abren + brillan justo antes de emerger del túnel (mordisco sorpresa).
-    var chew = 0.5 + 0.5 * Math.sin(gaitPhase * 2);
-    var biteSpread = chew * 0.18 + emergeBite * 0.34;
+
+    // Quelíceros (excavan); se abren al emerger.
+    var chew = 0.5 + 0.5 * Math.sin(gait * 2.4);
+    var biteSpread = chew * 0.14 + emergeBite * 0.38;
     if (emergeBite > 0.05) {
       ctx.fillStyle = "rgba(255, 248, 210, " + (emergeBite * 0.80) + ")";
-      ctx.beginPath();
-      ctx.arc(0, -R * 0.95, R * (0.40 + emergeBite * 0.40), 0, Math.PI * 2);
-      ctx.fill();
+      ctx.beginPath(); ctx.arc(R * 0.82, 0, R * (0.28 + emergeBite * 0.32), 0, Math.PI * 2); ctx.fill();
     }
-    ctx.fillStyle = e.def.colorDark;
+    ctx.fillStyle = def.colorDark;
     for (var ch = -1; ch <= 1; ch += 2) {
       ctx.beginPath();
-      ctx.moveTo(ch * R * 0.18, -R * 0.85);
-      ctx.lineTo(ch * R * (0.30 + biteSpread), -R * (1.12 + emergeBite * 0.12));
-      ctx.lineTo(ch * R * 0.42, -R * 0.85);
+      ctx.moveTo(R * 0.72, ch * R * 0.10);
+      ctx.lineTo(R * (1.08 + emergeBite * 0.10), ch * R * (0.08 + biteSpread));
+      ctx.lineTo(R * 0.78, ch * R * 0.22);
       ctx.closePath();
       ctx.fill();
       ctx.strokeStyle = "#2a1a08";
-      ctx.lineWidth = 1 * U;
+      ctx.lineWidth = Math.max(0.8, 1.0 * U);
       ctx.stroke();
     }
-    germFace(R, expression, blink, R * 0.30);
-    if (e.burrowed && e.revealed) {
-      ctx.strokeStyle = "rgba(63,193,201,0.9)";
-      ctx.lineWidth = 2 * U;
-      ctx.beginPath();
-      ctx.arc(0, 0, R * 1.2, 0, Math.PI * 2);
-      ctx.stroke();
+
+    ctx.restore(); // sink
+    ctx.restore(); // heading
+
+    var faceY = -R * 0.04, eyeR = R * 0.22, gap = R * 0.26;
+    if (!(sink > 0.65 && !e.revealed)) {
+      ctx.save();
+      ctx.globalAlpha = 1 - sink * (e.revealed ? 0.25 : 0.55);
+      if (expression === "dying" || expression === "hurt") drawHurtEyes(0, faceY, eyeR, gap);
+      else if (blink) drawClosedEyes(0, faceY, eyeR, gap);
+      else drawAnimeEyes(0, faceY, eyeR, gap, 0, 0, R * 0.10, R * 0.04, "evil");
+      if (expression === "dying" || expression === "hurt") drawAnimeMouth(0, R * 0.28, R * 0.36, R * 0.28, "open");
+      else drawAnimeMouth(0, R * 0.28, R * 0.34, R * 0.16, "wicked");
+      ctx.restore();
     }
+
     ctx.restore();
   }
 
-  // HPV — cápside facetada (icosaedro) con bultos de queratina.
+  // HPV — verruga papilomatosa (coliflor) con coraza de queratina.
   function drawHPV(e, rad, expression, blink) {
     // HPV — VERRUGA papilomatosa (coliflor), no icosaedro genérico.
     //  · Montículo + papilas queratínicas de distinta altura

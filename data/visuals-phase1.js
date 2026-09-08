@@ -49,7 +49,8 @@
     dermatofito:  { silhouette: "ringworm",   accent: "#9CA85A", label: "Tiña" },
     neisseria:    { silhouette: "coffeebean", accent: "#d47c3a", label: "Pili" },
     hpv:          { silhouette: "wart",       accent: "#8a9a5e", label: "Verruga" },
-    sarna:        { silhouette: "tortoise",   accent: "#8a5a2b", label: "Galería" }
+    sarna:        { silhouette: "tortoise",   accent: "#8a5a2b", label: "Galería" },
+    leishmania:   { silhouette: "spindle",    accent: "#7aaa44", label: "Flagelo" }
   };
 
   // Pistas de counter por germen Fase 1 (pip inferior).

@@ -20856,7 +20856,7 @@
       ctx.translate(-e.x, -e.y);
     }
     drawShadow(e.x, e.y + rad * 0.85, rad * 0.85 * scale, rad * 0.22 * scale);
-    if (def.id !== "saureus" && def.id !== "malassezia" && def.id !== "dermatofito" && def.id !== "neisseria" && def.id !== "hpv" && def.id !== "sarna") drawGermKindFrame(e, rad * scale);
+    if (def.id !== "saureus" && def.id !== "malassezia" && def.id !== "dermatofito" && def.id !== "neisseria" && def.id !== "hpv" && def.id !== "sarna" && def.id !== "leishmania") drawGermKindFrame(e, rad * scale);
     // Halo de daño genérico: pulso radial DRAMÁTICO amarillo→rojo
     // alrededor del germen cuando recibe golpe. Combina varias capas
     // (glow externo + flash blanco central + anillo dorado + chispas
@@ -25780,64 +25780,188 @@
   }
 
   function drawLeishmania(e, rad, expression, blink) {
-    var R = rad, t = state.time;
-    var amastigote = !!e.leishAmastigote;
+    // Leishmania major — dos formas, ninguna es un óvalo genérico.
+    //  · Promastigote: HUSO + flagelo anterior (nado) + cinetoplasto en barra
+    //  · Amastigote: parásito DENTRO de un macrófago irregular (no bola marrón)
+    var R = rad * 0.95, t = state.time, w = e.wobble || 0, hit = e.hitFlash > 0;
+    var def = e.def;
+    var ama = !!e.leishAmastigote;
+    var morph = 0;
+    if (def.leishForm && e.leishFormTimer != null) {
+      var warn = 0.85;
+      if (e.leishFormTimer < warn) morph = 1 - Math.max(0, e.leishFormTimer) / warn;
+    }
+
+    if (e._lastPosX == null) { e._lastPosX = e.x; e._lastPosY = e.y; e._heading = 0; }
+    var dxM = e.x - e._lastPosX, dyM = e.y - e._lastPosY;
+    var dMag = Math.hypot(dxM, dyM);
+    if (dMag > 0.5) {
+      var targetAng = Math.atan2(dyM, dxM);
+      var diffAng = targetAng - e._heading;
+      while (diffAng >  Math.PI) diffAng -= Math.PI * 2;
+      while (diffAng < -Math.PI) diffAng += Math.PI * 2;
+      e._heading += diffAng * 0.16;
+    }
+    e._lastPosX = e.x; e._lastPosY = e.y;
+    e._leishFlagPhase = (e._leishFlagPhase || 0) + Math.max(0.04, dMag * 0.10);
+    var flagPhase = e._leishFlagPhase + t * 0.55;
+
     ctx.save();
     ctx.translate(e.x, e.y);
-    if (amastigote) {
-      ctx.globalAlpha = 0.88;
-      var agGrd = ctx.createRadialGradient(-R * 0.28, -R * 0.28, R * 0.08, 0, R * 0.05, R * 0.82);
-      agGrd.addColorStop(0, "#d0905e");
-      agGrd.addColorStop(0.55, "#8B4513");
-      agGrd.addColorStop(1, "#3d1a08");
-      ctx.fillStyle = agGrd;
+
+    if (ama) {
+      // Macrófago irregular (ameboide), vacuola con el amastigote.
+      var pulse = 1 + Math.sin(t * 1.8 + w) * 0.03;
+      ctx.save();
+      ctx.rotate(0.15 + Math.sin(t * 0.6 + w) * 0.06);
       ctx.beginPath();
-      ctx.ellipse(0, R * 0.08, R * 0.82, R * 0.78, 0, 0, Math.PI * 2);
+      var lobes = [
+        [0.95, -0.15], [0.62, -0.78], [0.05, -0.92], [-0.55, -0.70],
+        [-0.98, -0.08], [-0.72, 0.62], [-0.10, 0.95], [0.58, 0.72], [0.92, 0.22]
+      ];
+      for (var li = 0; li < lobes.length; li++) {
+        var lr = (1 + 0.08 * Math.sin(t * 1.4 + li + w)) * pulse;
+        var lx = lobes[li][0] * R * 1.12 * lr;
+        var ly = lobes[li][1] * R * 1.05 * lr;
+        if (li === 0) ctx.moveTo(lx, ly); else ctx.lineTo(lx, ly);
+      }
+      ctx.closePath();
+      var macG = ctx.createRadialGradient(-R * 0.2, -R * 0.25, R * 0.15, 0, 0, R * 1.15);
+      macG.addColorStop(0, hit ? "#ffffff" : "#e8d4c4");
+      macG.addColorStop(0.55, hit ? "#ffffff" : "#c4a090");
+      macG.addColorStop(1, hit ? "#ffffff" : "#7a5848");
+      ctx.fillStyle = macG;
       ctx.fill();
-      ctx.strokeStyle = "#2a1008"; ctx.lineWidth = Math.max(1, 1.2 * U); ctx.stroke();
-      ctx.fillStyle = "#1a0808";
-      ctx.beginPath(); ctx.arc(R * 0.26, R * 0.08, R * 0.16, 0, Math.PI * 2); ctx.fill();
-      var hPulse = 0.5 + 0.5 * Math.sin(t * 2.5);
-      ctx.globalAlpha = 0.18 + hPulse * 0.10;
-      ctx.fillStyle = "#8B4513";
-      ctx.beginPath(); ctx.arc(0, 0, R * 1.3, 0, Math.PI * 2); ctx.fill();
-      ctx.globalAlpha = 1;
-      germFace(R * 0.6, expression, blink, R * 0.26);
-    } else {
-      if (e._lastPosX == null) { e._lastPosX = e.x; e._lastPosY = e.y; }
-      var dMag2 = Math.hypot(e.x - e._lastPosX, e.y - e._lastPosY);
-      e._lastPosX = e.x; e._lastPosY = e.y;
-      e._leishFlagPhase = (e._leishFlagPhase || 0) + Math.max(0.005, dMag2 * 0.08);
-      var pgGrd = ctx.createRadialGradient(-R * 0.18, -R * 0.38, R * 0.12, 0, 0, R * 0.96);
-      pgGrd.addColorStop(0, "#c8e888");
-      pgGrd.addColorStop(0.55, e.def.color);
-      pgGrd.addColorStop(1, e.def.colorDark);
-      ctx.fillStyle = pgGrd;
+      ctx.strokeStyle = "#5a3a30";
+      ctx.lineWidth = Math.max(1.6, 2.0 * U);
+      ctx.stroke();
+
+      // Núcleo en riñón del macrófago (no círculo).
+      ctx.fillStyle = "rgba(90, 50, 70, 0.55)";
       ctx.beginPath();
-      ctx.ellipse(0, 0, R * 0.46, R * 0.94, 0, 0, Math.PI * 2);
+      ctx.ellipse(-R * 0.38, -R * 0.12, R * 0.38, R * 0.52, -0.4, 0.35, Math.PI * 2 - 0.35);
       ctx.fill();
-      ctx.strokeStyle = e.def.colorDark; ctx.lineWidth = Math.max(0.9, 1.1 * U); ctx.stroke();
+
+      // Vacuola parasitófora (hueco irregular).
+      ctx.fillStyle = "rgba(40, 70, 20, 0.35)";
+      ctx.beginPath();
+      ctx.ellipse(R * 0.28, R * 0.08, R * 0.42, R * 0.34, 0.2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "rgba(60, 90, 30, 0.55)";
+      ctx.lineWidth = Math.max(1.1, 1.4 * U);
+      ctx.stroke();
+      ctx.restore();
+
+      // Amastigote (huso corto + cinetoplasto en barra) dentro de la vacuola.
+      ctx.save();
+      ctx.translate(R * 0.28, R * 0.08);
+      ctx.rotate(0.4);
+      var aG = ctx.createLinearGradient(-R * 0.28, 0, R * 0.28, 0);
+      aG.addColorStop(0, hit ? "#ffffff" : def.colorLight || "#b8d880");
+      aG.addColorStop(0.5, hit ? "#ffffff" : def.color);
+      aG.addColorStop(1, hit ? "#ffffff" : def.colorDark);
+      ctx.fillStyle = aG;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, R * 0.32, R * 0.16, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = def.colorDark;
+      ctx.lineWidth = Math.max(1.1, 1.4 * U);
+      ctx.stroke();
       ctx.fillStyle = "#1a3008";
-      ctx.beginPath(); ctx.arc(0, R * 0.62, R * 0.16, 0, Math.PI * 2); ctx.fill();
-      // Flagelo anterior largo que latiguea (idle + al moverse), doble armónico.
-      var flagPhase = (e._leishFlagPhase || 0) + t * 0.6;
-      ctx.strokeStyle = e.def.colorLight;
-      ctx.lineWidth = Math.max(1.1, 1.5 * U);
-      ctx.lineCap = "round";
       ctx.beginPath();
-      ctx.moveTo(0, R * 0.82);
-      for (var fp = 1; fp <= 14; fp++) {
-        var ft = fp / 14;
-        var fx = (Math.sin(flagPhase + ft * Math.PI * 3.0) * 0.42 + Math.sin(flagPhase * 1.7 + ft * Math.PI * 5) * 0.12) * R * ft;
-        var fy = R * 0.82 + ft * R * 2.1;
+      ctx.ellipse(R * 0.14, 0, R * 0.07, R * 0.12, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      if (morph > 0.08) {
+        ctx.strokeStyle = "rgba(180, 220, 90, " + (morph * 0.7) + ")";
+        ctx.lineWidth = Math.max(1.6, 2.0 * U);
+        ctx.beginPath();
+        ctx.moveTo(R * 0.55, R * 0.08);
+        ctx.quadraticCurveTo(R * 0.95, -R * 0.2, R * 1.35, R * 0.05);
+        ctx.stroke();
+      }
+    } else {
+      ctx.save();
+      ctx.rotate(e._heading || 0);
+
+      // Flagelo anterior (tira, no círculo) + membrana ondulante.
+      ctx.lineCap = "round";
+      ctx.strokeStyle = hit ? "#ffffff" : (def.colorLight || "#b8d880");
+      ctx.lineWidth = Math.max(1.6, 2.1 * U);
+      ctx.beginPath();
+      ctx.moveTo(R * 0.72, 0);
+      for (var fp = 1; fp <= 16; fp++) {
+        var ft = fp / 16;
+        var fx = R * 0.72 + ft * R * 1.85;
+        var fy = (Math.sin(flagPhase + ft * Math.PI * 3.2) * 0.38 + Math.sin(flagPhase * 1.8 + ft * 5) * 0.10) * R * ft;
         ctx.lineTo(fx, fy);
       }
       ctx.stroke();
-      // Núcleo (mancha clara) + cara villana en el cuerpo.
-      ctx.fillStyle = "rgba(255,255,255,0.32)";
-      ctx.beginPath(); ctx.ellipse(0, -R * 0.16, R * 0.2, R * 0.28, 0, 0, Math.PI * 2); ctx.fill();
-      germFace(R * 0.52, expression, blink, R * 0.22);
+      ctx.strokeStyle = "rgba(180, 220, 120, 0.45)";
+      ctx.lineWidth = Math.max(3.2, 4.0 * U);
+      ctx.beginPath();
+      ctx.moveTo(R * 0.55, 0);
+      for (var um = 1; um <= 8; um++) {
+        var ut = um / 8;
+        ctx.lineTo(R * 0.55 + ut * R * 0.72, Math.sin(flagPhase + ut * Math.PI * 2.4) * R * 0.22 * ut);
+      }
+      ctx.stroke();
+
+      // Huso fusiforme (punta posterior, vientre anterior).
+      function spindle() {
+        ctx.beginPath();
+        ctx.moveTo(-R * 1.05, 0);
+        ctx.quadraticCurveTo(-R * 0.35, -R * 0.42, R * 0.25, -R * 0.38);
+        ctx.quadraticCurveTo(R * 0.72, -R * 0.18, R * 0.88, 0);
+        ctx.quadraticCurveTo(R * 0.72, R * 0.18, R * 0.25, R * 0.38);
+        ctx.quadraticCurveTo(-R * 0.35, R * 0.42, -R * 1.05, 0);
+        ctx.closePath();
+      }
+      var sg = ctx.createLinearGradient(-R * 0.8, 0, R * 0.7, 0);
+      sg.addColorStop(0, hit ? "#ffffff" : def.colorDark);
+      sg.addColorStop(0.45, hit ? "#ffffff" : def.color);
+      sg.addColorStop(1, hit ? "#ffffff" : (def.colorLight || "#b8d880"));
+      ctx.fillStyle = sg;
+      spindle(); ctx.fill();
+      ctx.strokeStyle = def.colorDark;
+      ctx.lineWidth = Math.max(1.5, 1.9 * U);
+      ctx.stroke();
+
+      // Cinetoplasto: barra junto al bolsillo flagelar (no bolita).
+      ctx.fillStyle = hit ? "#ffffff" : "#1a3008";
+      ctx.beginPath();
+      ctx.ellipse(R * 0.48, 0, R * 0.08, R * 0.18, 0.15, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "rgba(255,255,255,0.28)";
+      ctx.beginPath();
+      ctx.ellipse(-R * 0.15, -R * 0.08, R * 0.22, R * 0.12, -0.3, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.restore();
+
+      if (morph > 0.08) {
+        ctx.globalAlpha = morph * 0.45;
+        ctx.fillStyle = "#c4a090";
+        ctx.beginPath();
+        ctx.moveTo(-R * 0.9, -R * 0.3);
+        ctx.quadraticCurveTo(-R * 0.2, -R * 1.05, R * 0.6, -R * 0.4);
+        ctx.quadraticCurveTo(R * 1.1, R * 0.2, R * 0.3, R * 0.85);
+        ctx.quadraticCurveTo(-R * 0.6, R * 0.7, -R * 0.9, -R * 0.3);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+      }
     }
+
+    var faceY = ama ? R * 0.06 : -R * 0.08;
+    var eyeR = ama ? R * 0.18 : R * 0.20;
+    var gap = ama ? R * 0.22 : R * 0.24;
+    if (expression === "dying" || expression === "hurt") drawHurtEyes(0, faceY, eyeR, gap);
+    else if (blink) drawClosedEyes(0, faceY, eyeR, gap);
+    else drawAnimeEyes(0, faceY, eyeR, gap, 0, 0, R * 0.08, R * 0.04, ama ? "smug" : "evil");
+    if (expression === "dying" || expression === "hurt") drawAnimeMouth(0, faceY + R * 0.28, R * 0.32, R * 0.26, "open");
+    else drawAnimeMouth(0, faceY + R * 0.26, R * 0.30, R * 0.16, ama ? "smirk" : "wicked");
+
     ctx.restore();
   }
 

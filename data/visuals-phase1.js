@@ -53,7 +53,7 @@
     leishmania:   { silhouette: "eel",         accent: "#7aaa44", label: "Vacuola" },
     candida:      { silhouette: "germtube",    accent: "#EC407A", label: "Tubo" },
     bossPyogenes: { silhouette: "coccihook",    accent: "#C62828", label: "Cuerno" },
-    bossPseudomonas: { silhouette: "injectisome", accent: "#00ACC1", label: "Aguja" }
+    bossPseudomonas: { silhouette: "ecthyma", accent: "#00ACC1", label: "Ectima" }
   };
 
   // Pistas de counter por germen Fase 1 (pip inferior).

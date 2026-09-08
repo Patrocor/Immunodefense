@@ -1,4 +1,4 @@
-/** Showcase boss Pseudomonas T3SS dart — DISPLAY=:1 node scripts/playtest-pseudomonas-boss.mjs */
+/** Showcase boss Pseudomonas ecthyma — DISPLAY=:1 node scripts/playtest-pseudomonas-boss.mjs */
 import { chromium } from "playwright";
 import { mkdirSync, copyFileSync } from "node:fs";
 import { join } from "node:path";
@@ -124,7 +124,7 @@ if (!withCap.ok || !bare.ok) {
   console.error("Showcase failed", { spawned, withCap, bare });
   process.exit(1);
 }
-copyFileSync(join(TMP, "pseudo_cap.png"), join(ART, "pseudo_v1_needle_cap.png"));
-copyFileSync(join(TMP, "pseudo_bare.png"), join(ART, "pseudo_v1_needle_bare.png"));
-copyFileSync(join(TMP, "pseudo_field.png"), join(ART, "pseudo_v1_needle_field.png"));
+copyFileSync(join(TMP, "pseudo_cap.png"), join(ART, "pseudo_v2_ectima_cap.png"));
+copyFileSync(join(TMP, "pseudo_bare.png"), join(ART, "pseudo_v2_ectima_bare.png"));
+copyFileSync(join(TMP, "pseudo_field.png"), join(ART, "pseudo_v2_ectima_field.png"));
 console.log("OK: pseudomonas boss screenshots in", ART);

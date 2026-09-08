@@ -24151,12 +24151,13 @@
   }
 
   function drawBossPseudomonas(e, rad, expression, blink) {
-    // Pseudomonas boss v1 — no el bacilo-cápsula de la oleada.
-    //  · Cuerpo: bacilo vivo panzón (blob), no rect redondeado
-    //  · Frente: AGUJA T3SS (inyectisoma)
-    //  · Atrás: flagelo polar en sacacorchos
-    //  · Piocianina: manchas/goteos teal, no halo circular
-    //  · Escudo wall = baba de alginato en el lomo, no anillo
+    // Pseudomonas boss v2 — ECTIMA GANGRENOSO, no dardo ni cápsula.
+    //  · Placa necrótica negra irregular (costra), no círculo ni hexágono
+    //  · Borde inflamado rojo-violeta, vivo
+    //  · Bacilo teal asomando por la grieta, con cara
+    //  · Flagelo polar saliendo por detrás de la costra
+    //  · Piocianina: pus teal que chorrea de la grieta
+    //  · Escudo wall = alginato húmedo sobre la costra, no anillo
     var hit = e.hitFlash > 0;
     var t = state.time;
     var def = e.def;
@@ -24180,9 +24181,11 @@
     }
     e._lastPosX = e.x; e._lastPosY = e.y;
 
-    var bL = rad * 1.12;
-    var bW = rad * 0.46;
+    var R = rad * 0.92;
     var col = def.color, cold = def.colorDark, colL = def.colorLight || "#4DD0E1";
+    var breathe = 1 + Math.sin(t * 1.4 + e.wobble) * 0.03;
+    var pose = e._heading || 0;
+    var hx = R * 0.62 * breathe, hy = -R * 0.06;
 
     function smoothBlob(pts) {
       ctx.beginPath();
@@ -24196,137 +24199,151 @@
     }
 
     ctx.save();
-    ctx.rotate(e._heading || 0);
+    ctx.rotate(pose);
 
-    // Piocianina: manchas, no halo.
+    // Borde inflamado (eritema), irregular — no un anillo.
+    var rim = [
+      { x:  R * 1.18, y: -R * 0.12 },
+      { x:  R * 0.82, y: -R * 0.78 },
+      { x:  R * 0.10, y: -R * 1.02 },
+      { x: -R * 0.72, y: -R * 0.70 },
+      { x: -R * 1.12, y: -R * 0.08 },
+      { x: -R * 0.88, y:  R * 0.62 },
+      { x: -R * 0.05, y:  R * 0.98 },
+      { x:  R * 0.70, y:  R * 0.72 },
+      { x:  R * 1.08, y:  R * 0.22 }
+    ];
+    var rg = ctx.createRadialGradient(-R * 0.1, 0, R * 0.2, 0, 0, R * 1.15);
+    rg.addColorStop(0, hit ? "#ffffff" : "#c45a6a");
+    rg.addColorStop(0.55, hit ? "#ffffff" : "#8a2438");
+    rg.addColorStop(1, hit ? "#ffffff" : "#4a1018");
+    ctx.fillStyle = rg;
+    smoothBlob(rim);
+    ctx.fill();
+    ctx.strokeStyle = hit ? "#ffffff" : "#2a080c";
+    ctx.lineWidth = Math.max(1.6, 2.0 * U);
+    ctx.stroke();
+
+    // Costra necrótica negra, en riñón, con muesca al frente.
+    var eschar = [
+      { x:  R * 0.42, y: -R * 0.18 },
+      { x:  R * 0.22, y: -R * 0.62 },
+      { x: -R * 0.18, y: -R * 0.78 },
+      { x: -R * 0.78, y: -R * 0.42 },
+      { x: -R * 0.92, y:  R * 0.08 },
+      { x: -R * 0.62, y:  R * 0.52 },
+      { x:  R * 0.02, y:  R * 0.68 },
+      { x:  R * 0.48, y:  R * 0.38 },
+      { x:  R * 0.38, y:  R * 0.02 }
+    ];
+    var eg = ctx.createLinearGradient(-R * 0.6, -R * 0.4, R * 0.3, R * 0.5);
+    eg.addColorStop(0, hit ? "#ffffff" : "#3a3a3a");
+    eg.addColorStop(0.4, hit ? "#ffffff" : "#141414");
+    eg.addColorStop(1, hit ? "#ffffff" : "#050505");
+    ctx.fillStyle = eg;
+    smoothBlob(eschar);
+    ctx.fill();
+    ctx.strokeStyle = "#000000";
+    ctx.lineWidth = Math.max(1.8, 2.2 * U);
+    ctx.stroke();
     if (!hit) {
-      var stains = [
-        { x: -bL * 0.15, y: -bW * 1.42, rx: bW * 0.58, ry: bW * 0.32, a: -0.45 },
-        { x:  bL * 0.40, y:  bW * 1.32, rx: bW * 0.44, ry: bW * 0.26, a:  0.55 },
-        { x: -bL * 0.62, y:  bW * 1.05, rx: bW * 0.30, ry: bW * 0.20, a:  0.25 }
-      ];
-      for (var si = 0; si < stains.length; si++) {
-        var stn = stains[si];
-        ctx.fillStyle = "rgba(20, 170, 155, 0.38)";
-        ctx.beginPath();
-        ctx.ellipse(stn.x, stn.y, stn.rx, stn.ry, stn.a, 0, Math.PI * 2);
-        ctx.fill();
-      }
+      ctx.strokeStyle = "rgba(80, 70, 70, 0.55)";
+      ctx.lineWidth = Math.max(1.1, 1.4 * U);
+      ctx.beginPath();
+      ctx.moveTo(-R * 0.55, -R * 0.18);
+      ctx.quadraticCurveTo(-R * 0.10, R * 0.08, R * 0.18, R * 0.22);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(-R * 0.35, -R * 0.42);
+      ctx.quadraticCurveTo(-R * 0.05, -R * 0.08, R * 0.12, -R * 0.02);
+      ctx.stroke();
     }
 
-    // Flagelo polar en sacacorchos.
+    // Flagelo por detrás de la costra.
     ctx.strokeStyle = hit ? "#ffffff" : "#0a4a46";
-    ctx.lineWidth = Math.max(2.4, 3.0 * U);
+    ctx.lineWidth = Math.max(2.2, 2.8 * U);
     ctx.beginPath();
-    var flagSegs = 16;
+    var flagSegs = 14;
     for (var fs = 0; fs <= flagSegs; fs++) {
       var fsF = fs / flagSegs;
-      var fx = -bL * 1.02 - fsF * bL * 1.05;
-      var fy = Math.sin(fsF * Math.PI * 4.2 + t * 5.2 + e.wobble) * bW * 0.70 * (0.35 + 0.65 * fsF);
+      var fx = -R * 0.88 - fsF * R * 0.85;
+      var fy = Math.sin(fsF * Math.PI * 3.6 + t * 5 + e.wobble) * R * 0.22 * (0.4 + 0.6 * fsF);
       if (fs === 0) ctx.moveTo(fx, fy); else ctx.lineTo(fx, fy);
     }
     ctx.stroke();
     ctx.strokeStyle = hit ? "#ffffff" : "#26A69A";
-    ctx.lineWidth = Math.max(1.2, 1.5 * U);
+    ctx.lineWidth = Math.max(1.1, 1.4 * U);
     ctx.stroke();
 
-    // Baba de alginato (escudo wall) en el lomo.
+    // Alginato húmedo sobre la costra (escudo).
     if (shieldFrac > 0.04) {
+      var sa = 0.30 + 0.42 * shieldFrac;
       var slime = [
-        { x: -bL * 0.15, y: -bW * 1.05, rx: bW * 0.85, ry: bW * 0.48, a: -0.2 },
-        { x:  bL * 0.35, y: -bW * 0.92, rx: bW * 0.62, ry: bW * 0.38, a:  0.15 },
-        { x: -bL * 0.55, y:  bW * 0.82, rx: bW * 0.55, ry: bW * 0.32, a:  0.25 }
+        { x: -R * 0.22, y: -R * 0.48, rx: R * 0.38, ry: R * 0.18, a: -0.35 },
+        { x: -R * 0.48, y:  R * 0.22, rx: R * 0.32, ry: R * 0.16, a:  0.40 },
+        { x:  R * 0.08, y:  R * 0.42, rx: R * 0.28, ry: R * 0.14, a:  0.15 }
       ];
-      var sa = 0.28 + 0.40 * shieldFrac;
       for (var sl = 0; sl < slime.length; sl++) {
         var sm = slime[sl];
-        ctx.fillStyle = hit ? "rgba(255,255,255,0.35)" : "rgba(200, 245, 235, " + sa + ")";
+        ctx.fillStyle = hit ? "rgba(255,255,255,0.35)" : "rgba(190, 240, 230, " + sa + ")";
         ctx.beginPath();
         ctx.ellipse(sm.x, sm.y, sm.rx, sm.ry, sm.a, 0, Math.PI * 2);
         ctx.fill();
-        ctx.strokeStyle = "rgba(40, 120, 115, " + (0.35 + 0.25 * shieldFrac) + ")";
-        ctx.lineWidth = Math.max(1.0, 1.3 * U);
-        ctx.stroke();
       }
     }
 
-    // Bacilo vivo (blob), no cápsula geométrica.
-    var breathe = 1 + Math.sin(t * 1.6 + e.wobble) * 0.03;
-    var bodyPts = [
-      { x:  bL * 0.98 * breathe, y:  0 },
-      { x:  bL * 0.72, y: -bW * 0.70 },
-      { x:  bL * 0.12, y: -bW * 1.10 },
-      { x: -bL * 0.48, y: -bW * 0.92 },
-      { x: -bL * 1.08, y: -bW * 0.32 },
-      { x: -bL * 1.14, y:  bW * 0.28 },
-      { x: -bL * 0.42, y:  bW * 0.98 },
-      { x:  bL * 0.28, y:  bW * 0.90 },
-      { x:  bL * 0.80, y:  bW * 0.40 }
-    ];
-    var bg = ctx.createLinearGradient(0, -bW, 0, bW);
-    bg.addColorStop(0, hit ? "#ffffff" : colL);
-    bg.addColorStop(0.45, hit ? "#ffffff" : col);
-    bg.addColorStop(1, hit ? "#ffffff" : cold);
-    ctx.fillStyle = bg;
-    smoothBlob(bodyPts);
-    ctx.fill();
-    ctx.strokeStyle = hit ? "#ffffff" : "#00363d";
-    ctx.lineWidth = Math.max(1.8, 2.3 * U);
-    ctx.stroke();
+    // Pus de piocianina chorreando de la grieta.
     if (!hit) {
-      ctx.fillStyle = "rgba(255, 255, 255, 0.32)";
+      ctx.fillStyle = "rgba(0, 172, 193, 0.55)";
       ctx.beginPath();
-      ctx.ellipse(-bL * 0.08, -bW * 0.42, bL * 0.42, bW * 0.18, -0.12, 0, Math.PI * 2);
+      ctx.ellipse(R * 0.22, R * 0.18, R * 0.16, R * 0.28, 0.35, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.ellipse(R * 0.08, R * 0.42, R * 0.10, R * 0.16, 0.2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "rgba(20, 90, 80, 0.45)";
+      ctx.beginPath();
+      ctx.ellipse(R * 0.34, -R * 0.28, R * 0.14, R * 0.09, -0.4, 0, Math.PI * 2);
       ctx.fill();
     }
 
-    // Collar del inyectisoma (base de la aguja).
-    ctx.fillStyle = hit ? "#ffffff" : cold;
-    smoothBlob([
-      { x: bL * 0.78, y: -bW * 0.42 },
-      { x: bL * 1.02, y: -bW * 0.22 },
-      { x: bL * 1.08, y:  0 },
-      { x: bL * 1.02, y:  bW * 0.22 },
-      { x: bL * 0.78, y:  bW * 0.42 },
-      { x: bL * 0.70, y:  0 }
-    ]);
+    // Bacilo teal asomando por la grieta (la cara va acá).
+    var rod = [
+      { x: hx + R * 0.48, y: hy },
+      { x: hx + R * 0.32, y: hy - R * 0.28 },
+      { x: hx - R * 0.02, y: hy - R * 0.34 },
+      { x: hx - R * 0.22, y: hy - R * 0.12 },
+      { x: hx - R * 0.18, y: hy + R * 0.16 },
+      { x: hx + R * 0.12, y: hy + R * 0.32 },
+      { x: hx + R * 0.38, y: hy + R * 0.16 }
+    ];
+    var bg = ctx.createLinearGradient(hx, hy - R * 0.3, hx, hy + R * 0.3);
+    bg.addColorStop(0, hit ? "#ffffff" : colL);
+    bg.addColorStop(0.5, hit ? "#ffffff" : col);
+    bg.addColorStop(1, hit ? "#ffffff" : cold);
+    ctx.fillStyle = bg;
+    smoothBlob(rod);
     ctx.fill();
-    ctx.strokeStyle = "#00363d";
-    ctx.lineWidth = Math.max(1.3, 1.6 * U);
-    ctx.stroke();
-
-    // Aguja T3SS — tapón vivo, no triángulo cortado.
-    ctx.beginPath();
-    ctx.moveTo(bL * 0.92, -bW * 0.22);
-    ctx.quadraticCurveTo(bL * 1.38, -bW * 0.10, bL * 1.92, 0);
-    ctx.quadraticCurveTo(bL * 1.38,  bW * 0.10, bL * 0.92, bW * 0.22);
-    ctx.closePath();
-    var ng = ctx.createLinearGradient(bL * 0.9, 0, bL * 1.92, 0);
-    ng.addColorStop(0, hit ? "#ffffff" : colL);
-    ng.addColorStop(0.55, hit ? "#ffffff" : col);
-    ng.addColorStop(1, hit ? "#ffffff" : "#002428");
-    ctx.fillStyle = ng;
-    ctx.fill();
-    ctx.strokeStyle = "#00363d";
-    ctx.lineWidth = Math.max(1.5, 1.9 * U);
+    ctx.strokeStyle = hit ? "#ffffff" : "#00363d";
+    ctx.lineWidth = Math.max(1.7, 2.1 * U);
     ctx.stroke();
     if (!hit) {
-      ctx.strokeStyle = "rgba(180, 255, 245, 0.50)";
-      ctx.lineWidth = Math.max(1.0, 1.3 * U);
+      ctx.fillStyle = "rgba(255,255,255,0.35)";
       ctx.beginPath();
-      ctx.moveTo(bL * 1.00, -bW * 0.06);
-      ctx.quadraticCurveTo(bL * 1.40, -bW * 0.04, bL * 1.78, 0);
-      ctx.stroke();
+      ctx.ellipse(hx + R * 0.08, hy - R * 0.12, R * 0.16, R * 0.08, -0.2, 0, Math.PI * 2);
+      ctx.fill();
     }
 
     ctx.restore();
 
-    var eyeR = bW * 0.38, gap = bW * 0.52;
-    if (expression === "dying" || expression === "hurt") drawHurtEyes(0, 0, eyeR, gap);
-    else if (blink) drawClosedEyes(0, 0, eyeR, gap);
-    else drawAnimeEyes(0, 0, eyeR, gap, 0, 0, bW * 0.14, bW * 0.06, "evil");
-    if (expression === "dying" || expression === "hurt") drawAnimeMouth(0, bW * 0.52, bW * 0.55, bW * 0.38, "open");
-    else drawAnimeMouth(0, bW * 0.52, bW * 0.52, bW * 0.20, "fanged");
+    var faceX = hx * Math.cos(pose) - hy * Math.sin(pose);
+    var faceY = hx * Math.sin(pose) + hy * Math.cos(pose);
+    var eyeR = R * 0.16, gap = R * 0.22;
+    if (expression === "dying" || expression === "hurt") drawHurtEyes(faceX, faceY, eyeR, gap);
+    else if (blink) drawClosedEyes(faceX, faceY, eyeR, gap);
+    else drawAnimeEyes(faceX, faceY, eyeR, gap, 0, 0, R * 0.06, R * 0.03, "evil");
+    if (expression === "dying" || expression === "hurt") drawAnimeMouth(faceX, faceY + R * 0.22, R * 0.24, R * 0.18, "open");
+    else drawAnimeMouth(faceX, faceY + R * 0.22, R * 0.22, R * 0.12, "fanged");
 
     ctx.restore();
   }

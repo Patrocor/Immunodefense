@@ -54,7 +54,8 @@
     candida:      { silhouette: "germtube",    accent: "#EC407A", label: "Tubo" },
     bossPyogenes: { silhouette: "coccihook",    accent: "#C62828", label: "Cuerno" },
     bossPseudomonas: { silhouette: "ecthyma", accent: "#00ACC1", label: "Ectima" },
-    bossClostridium: { silhouette: "flytrap", accent: "#6a7a48", label: "Fauces" }
+    bossClostridium: { silhouette: "flytrap", accent: "#6a7a48", label: "Fauces" },
+    bossMRSA: { silhouette: "carbuncle", accent: "#E0A820", label: "Carbunco" }
   };
 
   // Pistas de counter por germen Fase 1 (pip inferior).
@@ -74,6 +75,7 @@
     candida:      { glyph: "star",    color: "#B79CE0", tip: "PMN" },
     bossPyogenes: { glyph: "net",     color: "#FFD24A", tip: "MAC" },
     bossPseudomonas: { glyph: "net",  color: "#FFD24A", tip: "MAC" },
-    bossClostridium: { glyph: "star", color: "#B79CE0", tip: "PMN" }
+    bossClostridium: { glyph: "star", color: "#B79CE0", tip: "PMN" },
+    bossMRSA:        { glyph: "net",  color: "#FFD24A", tip: "MAC" }
   };
 })(window.ImmunoDefenseData);

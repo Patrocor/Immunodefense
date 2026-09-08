@@ -20856,7 +20856,7 @@
       ctx.translate(-e.x, -e.y);
     }
     drawShadow(e.x, e.y + rad * 0.85, rad * 0.85 * scale, rad * 0.22 * scale);
-    if (def.id !== "saureus" && def.id !== "malassezia" && def.id !== "dermatofito" && def.id !== "neisseria" && def.id !== "hpv" && def.id !== "sarna" && def.id !== "leishmania" && def.id !== "candida" && def.id !== "bossPyogenes" && def.id !== "bossPseudomonas" && def.id !== "bossClostridium") drawGermKindFrame(e, rad * scale);
+    if (def.id !== "saureus" && def.id !== "malassezia" && def.id !== "dermatofito" && def.id !== "neisseria" && def.id !== "hpv" && def.id !== "sarna" && def.id !== "leishmania" && def.id !== "candida" && def.id !== "bossPyogenes" && def.id !== "bossPseudomonas" && def.id !== "bossClostridium" && def.id !== "bossMRSA") drawGermKindFrame(e, rad * scale);
     // Halo de daño genérico: pulso radial DRAMÁTICO amarillo→rojo
     // alrededor del germen cuando recibe golpe. Combina varias capas
     // (glow externo + flash blanco central + anillo dorado + chispas
@@ -20999,7 +20999,7 @@
     // Shield overlay (drawn on top of body but under HP bar).
     // S. aureus dibuja su cápsula como casco irregular del racimo;
     // el anillo circular genérico lo volvería otra vez un círculo dorado.
-    if (def.shield && def.id !== "saureus" && def.id !== "dermatofito" && def.id !== "hpv" && def.id !== "candida" && def.id !== "bossPyogenes" && def.id !== "bossPseudomonas" && def.id !== "bossClostridium" &&
+    if (def.shield && def.id !== "saureus" && def.id !== "dermatofito" && def.id !== "hpv" && def.id !== "candida" && def.id !== "bossPyogenes" && def.id !== "bossPseudomonas" && def.id !== "bossClostridium" && def.id !== "bossMRSA" &&
         (e.shieldHP > 0 || e.shieldShatterTimer > 0)) {
       drawShield(e, rad * scale);
     }
@@ -24515,191 +24515,217 @@
   }
 
   function drawBossMRSA(e, rad, expression, blink) {
-    // MRSA: S. aureus multirresistente — racimo dorado denso + cápsula de fibrina
-    // (coagulasa) + biofilm dome + aura roja palpitante.
+    // MRSA v1 — CARBUNCO, no racimo-círculo ni cúpula de biofilm.
+    //  · Tres lóbulos de absceso fusionados (no un anillo, no uvas sueltas)
+    //  · Cráteres que drenan pus dorado
+    //  · Racimo de cocos asomando por el cráter principal (cara)
+    //  · Escudo = costra de fibrina/coagulasa sobre los lóbulos, no anillo
+    //  · PVL chorrea verde del cráter cuando carga el spray
     var hit = e.hitFlash > 0;
     var t = state.time;
+    var def = e.def;
+    var sd = def.shield;
+    var shieldFrac = (sd && sd.maxHP) ? Math.max(0, (e.shieldHP || 0) / sd.maxHP) : 1;
     ctx.save();
     ctx.translate(e.x, e.y);
-    var breathe = 1 + Math.sin(t * 1.6 + e.wobble) * 0.05;
-    var bigR = rad * 0.58 * breathe;
-    var sd = e.def.shield;
-    var shieldFrac = (sd && sd.maxHP) ? Math.max(0, e.shieldHP) / sd.maxHP : 1;
+    ctx.scale(0.78, 0.78);
+    ctx.lineJoin = "round";
+    ctx.lineCap = "round";
 
-    // Movimiento real: alimenta el temblor de masa del racimo más abajo —
-    // choque pesado de cocos al avanzar, casi sólido si está quieto/stunned.
-    if (e._lastPosX == null) { e._lastPosX = e.x; e._lastPosY = e.y; }
-    var dMag = Math.hypot(e.x - e._lastPosX, e.y - e._lastPosY);
-    e._lastPosX = e.x; e._lastPosY = e.y;
-    e._jigglePhase = (e._jigglePhase || 0) + dMag * 0.22;
-    var jiggleAmp = Math.min(1, dMag * 0.35);
-    function wrig(idx, axisOff) {
-      return Math.sin(e._jigglePhase * 1.8 + idx * 1.3 + axisOff) * jiggleAmp * bigR * 0.16;
+    if (e._lastPosX == null) { e._lastPosX = e.x; e._lastPosY = e.y; e._heading = 0; }
+    var dxM = e.x - e._lastPosX, dyM = e.y - e._lastPosY;
+    var dMag = Math.hypot(dxM, dyM);
+    if (dMag > 0.5) {
+      var targetAng = Math.atan2(dyM, dxM);
+      var diffAng = targetAng - (e._heading || 0);
+      while (diffAng >  Math.PI) diffAng -= Math.PI * 2;
+      while (diffAng < -Math.PI) diffAng += Math.PI * 2;
+      e._heading += diffAng * 0.10;
     }
-    // Carga real del spray tóxico (PVL) — agrieta el domo de biofilm más
-    // abajo (e.powerCharge cuenta 0.55→0 hasta disparar).
+    e._lastPosX = e.x; e._lastPosY = e.y;
+    e._jigglePhase = (e._jigglePhase || 0) + dMag * 0.20;
+    var jiggleAmp = Math.min(1, dMag * 0.32);
+    function wrig(idx, axisOff) {
+      return Math.sin(e._jigglePhase * 1.8 + idx * 1.3 + axisOff) * jiggleAmp * rad * 0.06;
+    }
     var chargeFrac = 0;
     if ((e.powerCharge || 0) > 0 && e.powerTarget) chargeFrac = Math.max(0, Math.min(1, 1 - e.powerCharge / 0.55));
-    // Escudo real rompiéndose — la fibrina estalla hacia afuera más abajo.
     var shatterFrac = e.shieldShatterTimer > 0 ? Math.min(1, e.shieldShatterTimer / 0.45) : 0;
 
-    // 1. Halo rojo palpitante (eritema/infección).
-    var redPulse = 0.5 + 0.5 * Math.sin(t * 5.5);
-    var redAlpha = (0.24 + redPulse * 0.20) * (0.4 + shieldFrac * 0.6);
-    var haloR = rad * (1.70 + redPulse * 0.10);
-    var haloGrad = ctx.createRadialGradient(0, 0, rad * 0.9, 0, 0, haloR);
-    haloGrad.addColorStop(0, "rgba(220, 50, 50, " + redAlpha + ")");
-    haloGrad.addColorStop(1, "rgba(220, 50, 50, 0)");
-    ctx.fillStyle = haloGrad;
-    ctx.beginPath();
-    ctx.arc(0, 0, haloR, 0, Math.PI * 2);
-    ctx.fill();
-
-    // 2. CÁPSULA DE FIBRINA (coagulasa) — hilos enmarañados rodeando el
-    // racimo. Cuando el escudo real se rompe (e.shieldShatterTimer), los
-    // hilos se disparan hacia afuera como látigos y dejan fragmentos dorados.
-    if (!hit && (shieldFrac > 0.05 || shatterFrac > 0.02)) {
-      var snapOut = shatterFrac * 0.9;
-      ctx.strokeStyle = "rgba(255, 245, 210, " + Math.max(0.55 * shieldFrac, shatterFrac * 0.9) + ")";
-      ctx.lineWidth = Math.max(0.9, 1.1 * U) * (1 + shatterFrac * 1.2);
-      var fibrinStrands = 22;
-      for (var fs = 0; fs < fibrinStrands; fs++) {
-        var a0 = (fs / fibrinStrands) * Math.PI * 2 + t * 0.1;
-        var a1 = a0 + 0.7 + 0.3 * Math.sin(t * 0.4 + fs);
-        var r0 = rad * 1.10;
-        var r1 = rad * (1.42 + snapOut * 1.3);
-        ctx.beginPath();
-        ctx.moveTo(Math.cos(a0) * r0, Math.sin(a0) * r0);
-        ctx.quadraticCurveTo(
-          Math.cos((a0 + a1) / 2) * rad * (1.55 + snapOut * 1.1),
-          Math.sin((a0 + a1) / 2) * rad * (1.55 + snapOut * 1.1),
-          Math.cos(a1) * r1,
-          Math.sin(a1) * r1
-        );
-        ctx.stroke();
-        if (shatterFrac > 0.1) {
-          ctx.fillStyle = "rgba(255, 230, 140, " + (shatterFrac * 0.8) + ")";
-          ctx.beginPath();
-          ctx.arc(Math.cos(a1) * r1, Math.sin(a1) * r1, (1.2 + shatterFrac * 1.8) * U, 0, Math.PI * 2);
-          ctx.fill();
-        }
+    function smoothBlob(pts) {
+      ctx.beginPath();
+      var n = pts.length;
+      ctx.moveTo((pts[n - 1].x + pts[0].x) / 2, (pts[n - 1].y + pts[0].y) / 2);
+      for (var i = 0; i < n; i++) {
+        var p = pts[i], q = pts[(i + 1) % n];
+        ctx.quadraticCurveTo(p.x, p.y, (p.x + q.x) / 2, (p.y + q.y) / 2);
       }
+      ctx.closePath();
     }
 
-    // 3. Borde de cápsula (anillo dorado-rojizo).
-    ctx.strokeStyle = "rgba(220, 80, 60, " + (redAlpha * 1.4) + ")";
-    ctx.lineWidth = Math.max(1.6, 2.2 * U);
-    ctx.beginPath();
-    ctx.arc(0, 0, rad * 1.42, 0, Math.PI * 2);
+    var R = rad;
+    var pose = e._heading || 0;
+    ctx.save();
+    ctx.rotate(pose);
+
+    // Labio inflamado en creciente (eritema), no un donut alrededor.
+    var rim = [
+      { x: -R * 0.15, y: -R * 0.92 },
+      { x: -R * 0.72, y: -R * 0.68 },
+      { x: -R * 1.08, y: -R * 0.08 },
+      { x: -R * 0.82, y:  R * 0.62 },
+      { x: -R * 0.12, y:  R * 0.98 },
+      { x:  R * 0.48, y:  R * 0.72 },
+      { x:  R * 0.38, y:  R * 0.32 },
+      { x: -R * 0.12, y:  R * 0.12 },
+      { x: -R * 0.32, y: -R * 0.28 }
+    ];
+    var rg = ctx.createRadialGradient(-R * 0.1, 0, R * 0.2, 0, 0, R * 1.1);
+    rg.addColorStop(0, hit ? "#ffffff" : "#e07060");
+    rg.addColorStop(0.55, hit ? "#ffffff" : "#a02830");
+    rg.addColorStop(1, hit ? "#ffffff" : "#4a1014");
+    ctx.fillStyle = rg;
+    smoothBlob(rim);
+    ctx.fill();
+    ctx.strokeStyle = hit ? "#ffffff" : "#2a080c";
+    ctx.lineWidth = Math.max(1.6, 2.0 * U);
     ctx.stroke();
 
-    // 4. BIOFILM DOME — gradiente translúcido dorado abovedando el racimo.
-    if (!hit) {
-      var domeGrad = ctx.createRadialGradient(-rad * 0.3, -rad * 0.4, rad * 0.2, 0, 0, rad * 1.30);
-      domeGrad.addColorStop(0, "rgba(255, 224, 130, " + (0.35 * shieldFrac) + ")");
-      domeGrad.addColorStop(0.55, "rgba(218, 165, 32, " + (0.18 * shieldFrac) + ")");
-      domeGrad.addColorStop(1, "rgba(218, 165, 32, 0)");
-      ctx.fillStyle = domeGrad;
-      ctx.beginPath();
-      ctx.arc(0, 0, rad * 1.30, 0, Math.PI * 2);
+    // Cuerpo del carbunco: tres lóbulos de absceso, no un círculo.
+    var body = [
+      { x:  R * 0.72, y: -R * 0.08 },
+      { x:  R * 0.48, y: -R * 0.62 },
+      { x: -R * 0.08, y: -R * 0.78 },
+      { x: -R * 0.68, y: -R * 0.42 },
+      { x: -R * 0.82, y:  R * 0.12 },
+      { x: -R * 0.48, y:  R * 0.58 },
+      { x:  R * 0.12, y:  R * 0.72 },
+      { x:  R * 0.62, y:  R * 0.38 }
+    ];
+    var bg = ctx.createLinearGradient(-R * 0.4, -R * 0.6, R * 0.5, R * 0.5);
+    bg.addColorStop(0, hit ? "#ffffff" : "#c45a48");
+    bg.addColorStop(0.45, hit ? "#ffffff" : "#8a3028");
+    bg.addColorStop(1, hit ? "#ffffff" : "#3a1210");
+    ctx.fillStyle = bg;
+    smoothBlob(body);
+    ctx.fill();
+    ctx.strokeStyle = hit ? "#ffffff" : "#1a0808";
+    ctx.lineWidth = Math.max(2.0, 2.4 * U);
+    ctx.stroke();
+
+    // Costra de fibrina (escudo) sobre los lóbulos — no anillo.
+    if (!hit && (shieldFrac > 0.04 || shatterFrac > 0.02)) {
+      var sa = 0.28 + 0.50 * shieldFrac;
+      ctx.fillStyle = "rgba(255, 236, 180, " + sa + ")";
+      smoothBlob([
+        { x:  R * 0.22, y: -R * 0.18 },
+        { x: -R * 0.08, y: -R * 0.68 },
+        { x: -R * 0.58, y: -R * 0.42 },
+        { x: -R * 0.42, y: -R * 0.04 },
+        { x:  R * 0.08, y: -R * 0.02 }
+      ]);
       ctx.fill();
-      // Puntos de biofilm dispersos.
-      ctx.fillStyle = "rgba(240, 200, 80, " + (0.55 * shieldFrac) + ")";
-      var biofilmDots = 16;
-      for (var bd = 0; bd < biofilmDots; bd++) {
-        var ba = (bd / biofilmDots) * Math.PI * 2 + t * 0.18;
-        var br = rad * (1.10 + 0.10 * Math.sin(t * 1.3 + bd));
-        ctx.beginPath();
-        ctx.arc(Math.cos(ba) * br, Math.sin(ba) * br, 2.0 * U, 0, Math.PI * 2);
-        ctx.fill();
-      }
-      // Grietas con brillo tóxico (PVL) — el domo se agrieta de verdad a
-      // medida que el spray real está por dispararse, dejando escapar el
-      // brillo verdoso de la toxina por las grietas.
+      ctx.strokeStyle = "rgba(180, 140, 60, " + (0.55 * shieldFrac + shatterFrac) + ")";
+      ctx.lineWidth = Math.max(1.2, 1.5 * U) * (1 + shatterFrac);
+      var snap = shatterFrac * R * 0.55;
+      ctx.beginPath();
+      ctx.moveTo(-R * 0.35, -R * 0.50 - snap);
+      ctx.quadraticCurveTo(-R * 0.10, -R * 0.72 - snap, R * 0.18, -R * 0.38 - snap * 0.4);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(-R * 0.55, -R * 0.18);
+      ctx.quadraticCurveTo(-R * 0.72 - snap, R * 0.08, -R * 0.32, R * 0.22);
+      ctx.stroke();
+    }
+
+    function crater(cx, cy, s) {
+      ctx.fillStyle = hit ? "rgba(40,20,10,0.35)" : "#2a1408";
+      smoothBlob([
+        { x: cx + s * 1.05, y: cy },
+        { x: cx + s * 0.25, y: cy - s * 0.85 },
+        { x: cx - s * 0.90, y: cy - s * 0.25 },
+        { x: cx - s * 0.35, y: cy + s * 0.90 },
+        { x: cx + s * 0.45, y: cy + s * 0.55 }
+      ]);
+      ctx.fill();
+    }
+    crater(R * 0.28, -R * 0.06, R * 0.38);
+    crater(-R * 0.38, -R * 0.22, R * 0.20);
+    crater(-R * 0.12,  R * 0.38, R * 0.18);
+
+    // Pus dorado chorreando de los cráteres.
+    if (!hit) {
+      var drip = 0.55 + 0.45 * Math.sin(t * 2.2);
+      ctx.fillStyle = "rgba(232, 180, 40, " + (0.75 + drip * 0.2) + ")";
+      smoothBlob([
+        { x: R * 0.34, y: R * 0.22 },
+        { x: R * 0.42, y: R * 0.48 + drip * R * 0.08 },
+        { x: R * 0.22, y: R * 0.42 },
+        { x: R * 0.20, y: R * 0.18 }
+      ]);
+      ctx.fill();
       if (chargeFrac > 0.08) {
-        var crackSeeds = [0.3, 1.6, 2.7, 4.1, 5.2];
-        ctx.strokeStyle = "rgba(40, 20, 10, " + (chargeFrac * 0.6) + ")";
-        ctx.lineWidth = Math.max(1.0, 1.4 * U);
-        for (var cr = 0; cr < crackSeeds.length; cr++) {
-          var crAng = crackSeeds[cr];
-          var crLen = rad * (0.5 + chargeFrac * 0.75);
-          var crMidA = crAng + 0.15;
-          ctx.beginPath();
-          ctx.moveTo(Math.cos(crAng) * rad * 0.25, Math.sin(crAng) * rad * 0.25);
-          ctx.lineTo(Math.cos(crMidA) * rad * 0.55, Math.sin(crMidA) * rad * 0.55);
-          ctx.lineTo(Math.cos(crAng) * crLen, Math.sin(crAng) * crLen);
-          ctx.stroke();
-          ctx.fillStyle = "rgba(140, 230, 90, " + (chargeFrac * 0.75) + ")";
-          ctx.beginPath();
-          ctx.arc(Math.cos(crAng) * crLen, Math.sin(crAng) * crLen, (1.5 + chargeFrac * 2.5) * U, 0, Math.PI * 2);
-          ctx.fill();
-        }
-        var pvlGlow = ctx.createRadialGradient(0, 0, rad * 0.3, 0, 0, rad * 1.1);
-        pvlGlow.addColorStop(0, "rgba(140, 230, 90, " + (chargeFrac * 0.30) + ")");
-        pvlGlow.addColorStop(1, "rgba(140, 230, 90, 0)");
-        ctx.fillStyle = pvlGlow;
-        ctx.beginPath();
-        ctx.arc(0, 0, rad * 1.1, 0, Math.PI * 2);
+        ctx.fillStyle = "rgba(140, 230, 90, " + (0.55 * chargeFrac) + ")";
+        smoothBlob([
+          { x: R * 0.30, y: R * 0.10 },
+          { x: R * 0.48, y: R * 0.55 + chargeFrac * R * 0.12 },
+          { x: R * 0.18, y: R * 0.38 }
+        ]);
         ctx.fill();
       }
     }
 
-    // 5. RACIMO denso (9 cocos: 1 central grande + 8 periféricos solapados).
-    var cluster = [
-      { x: -bigR * 1.10, y: -bigR * 0.60, r: bigR * 0.62 },
-      { x:  bigR * 1.15, y: -bigR * 0.35, r: bigR * 0.58 },
-      { x: -bigR * 0.70, y:  bigR * 1.05, r: bigR * 0.66 },
-      { x:  bigR * 0.80, y:  bigR * 1.00, r: bigR * 0.60 },
-      { x: -bigR * 1.25, y:  bigR * 0.50, r: bigR * 0.52 },
-      { x:  bigR * 0.40, y: -bigR * 1.20, r: bigR * 0.56 },
-      { x: -bigR * 0.30, y: -bigR * 1.15, r: bigR * 0.50 },
-      { x:  bigR * 1.05, y:  bigR * 0.65, r: bigR * 0.48 }
+    // Racimo de cocos DENTRO del cráter principal (sí círculos: son cocos).
+    var cocos = [
+      { x: R * 0.18, y: -R * 0.12, r: R * 0.16 },
+      { x: R * 0.42, y: -R * 0.02, r: R * 0.14 },
+      { x: R * 0.22, y:  R * 0.12, r: R * 0.13 },
+      { x: R * 0.38, y:  R * 0.14, r: R * 0.11 }
     ];
     function drawCoco(cx, cy, r) {
-      var grad = ctx.createRadialGradient(cx - r * 0.4, cy - r * 0.4, r * 0.2, cx, cy, r);
+      var grad = ctx.createRadialGradient(cx - r * 0.35, cy - r * 0.35, r * 0.15, cx, cy, r);
       grad.addColorStop(0, "#FFE085");
-      grad.addColorStop(0.50, "#E0A820");
+      grad.addColorStop(0.5, "#E0A820");
       grad.addColorStop(1, "#5A3F08");
       ctx.fillStyle = hit ? "#ffffff" : grad;
       ctx.beginPath();
       ctx.arc(cx, cy, r, 0, Math.PI * 2);
       ctx.fill();
       ctx.strokeStyle = "#3D2A05";
-      ctx.lineWidth = Math.max(1.2, 1.5 * U);
+      ctx.lineWidth = Math.max(1.1, 1.4 * U);
       ctx.stroke();
-      ctx.fillStyle = "rgba(255,250,210,0.55)";
+      ctx.fillStyle = "rgba(255,250,210,0.50)";
       ctx.beginPath();
-      ctx.arc(cx - r * 0.36, cy - r * 0.36, r * 0.30, 0, Math.PI * 2);
+      ctx.arc(cx - r * 0.32, cy - r * 0.32, r * 0.28, 0, Math.PI * 2);
       ctx.fill();
     }
-    // Temblor de masa pesada: cada coco tiembla con fase propia, ligado al
-    // desplazamiento real — choque violento de la masa al avanzar, casi
-    // sólida si está quieta/stunned.
-    for (var i = 0; i < cluster.length; i++) {
-      var jx = cluster[i].x + wrig(i, 0);
-      var jy = cluster[i].y + wrig(i, 1.7);
-      drawCoco(jx, jy, cluster[i].r);
+    for (var ci = 0; ci < cocos.length; ci++) {
+      drawCoco(cocos[ci].x + wrig(ci, 0), cocos[ci].y + wrig(ci, 1.4), cocos[ci].r);
     }
-    drawCoco(0, 0, bigR);
+    var hx = R * 0.28, hy = -R * 0.02;
+    drawCoco(hx, hy, R * 0.20);
 
-    // 6. Cara hostil en el coco central.
-    var eyeR = bigR * 0.34;
-    var faceY = -bigR * 0.06;
-    var gap = bigR * 0.36;
-    if (expression === "dying") drawHurtEyes(0, faceY, eyeR, gap, "#7d1818");
-    else if (expression === "hurt") drawHurtEyes(0, faceY, eyeR, gap);
-    else if (blink) drawClosedEyes(0, faceY, eyeR, gap);
-    else drawAnimeEyes(0, faceY, eyeR, gap, 0, 0, bigR * 0.17, bigR * 0.09, "evil");
-    if (expression === "dying") drawAnimeMouth(0, bigR * 0.36, bigR * 0.65, bigR * 0.55, "open");
-    else if (expression === "hurt") drawAnimeMouth(0, bigR * 0.36, bigR * 0.55, bigR * 0.45, "open");
-    else drawAnimeMouth(0, bigR * 0.36, bigR * 0.62, bigR * 0.36, "fanged");
+    ctx.restore();
+
+    var faceX = hx * Math.cos(pose) - hy * Math.sin(pose);
+    var faceY = hx * Math.sin(pose) + hy * Math.cos(pose);
+    var eyeR = R * 0.09, gap = R * 0.14;
+    if (expression === "dying" || expression === "hurt") drawHurtEyes(faceX, faceY, eyeR, gap, "#7d1818");
+    else if (blink) drawClosedEyes(faceX, faceY, eyeR, gap);
+    else drawAnimeEyes(faceX, faceY, eyeR, gap, 0, 0, R * 0.035, R * 0.018, "evil");
+    if (expression === "dying" || expression === "hurt") {
+      drawAnimeMouth(faceX, faceY + R * 0.16, R * 0.20, R * 0.14, "open");
+    } else {
+      drawAnimeMouth(faceX, faceY + R * 0.14, R * 0.18, R * 0.10, "fanged");
+    }
+
     ctx.restore();
   }
 
   // Clostridium perfringens: ORUGA DE GANGRENA.
   // Un solo bicho: espora = cabeza, bacilos = segmentos, gas = entrañas.
   function drawBossClostridium(e, rad, expression, blink) {
-    // Clostridium v4 — oruga, ahora con ESTRUCTURA de miedo:
+    // LOCKED v4 — oruga de fauces (user OK).
     //  · Espora ABIERTA en dos valvas (trampa / fauces), no huevo con carita
     //  · Mandíbulas-gancho de músculo
     //  · Dorso rasgado: el gas SALE del desgarro (crepitus)
@@ -24947,13 +24973,13 @@
     ug.addColorStop(1, rodC);
     fillStrokeBlob(upper, ug, ink, Math.max(2.1, 2.6 * U));
 
-    // El tajo: triángulo negro que COME la silueta de frente.
+    // El tajo: la silueta de frente es una BOCA, no un huevo.
     ctx.fillStyle = hit ? "rgba(40,20,20,0.45)" : "#0a0202";
     ctx.beginPath();
     ctx.moveTo(R * 0.58, -R * 0.02);
-    ctx.lineTo(R * 1.28, -R * 0.18);
-    ctx.lineTo(R * 1.32,  R * 0.22 + jawDrop * 0.35);
-    ctx.lineTo(R * 0.58,  R * 0.08);
+    ctx.quadraticCurveTo(R * 1.05, -R * 0.22, R * 1.30, -R * 0.16);
+    ctx.quadraticCurveTo(R * 1.24, R * 0.08 + jawDrop * 0.2, R * 1.30, R * 0.24 + jawDrop * 0.35);
+    ctx.quadraticCurveTo(R * 1.02, R * 0.18, R * 0.58, R * 0.08);
     ctx.closePath();
     ctx.fill();
     ctx.strokeStyle = ink;
@@ -28846,7 +28872,7 @@
     else if (kind === "virus") drawVirus(fakeEnemy, R, "idle", false);
     else if (kind === "hongo") drawHongo(fakeEnemy, R, "idle", false);
     else drawBoss(fakeEnemy, R, "idle", false);
-    if (def.shield && def.id !== "saureus" && def.id !== "dermatofito" && def.id !== "hpv" && def.id !== "candida" && def.id !== "bossPyogenes" && def.id !== "bossPseudomonas" && def.id !== "bossClostridium") drawShield(fakeEnemy, R);
+    if (def.shield && def.id !== "saureus" && def.id !== "dermatofito" && def.id !== "hpv" && def.id !== "candida" && def.id !== "bossPyogenes" && def.id !== "bossPseudomonas" && def.id !== "bossClostridium" && def.id !== "bossMRSA") drawShield(fakeEnemy, R);
     ctx.restore();
   }
 

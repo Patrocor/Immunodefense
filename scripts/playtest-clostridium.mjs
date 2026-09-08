@@ -1,4 +1,4 @@
-/** Showcase boss Clostridium boxcar — DISPLAY=:1 node scripts/playtest-clostridium.mjs */
+/** Showcase boss Clostridium gas gangrene — DISPLAY=:1 node scripts/playtest-clostridium.mjs */
 import { chromium } from "playwright";
 import { mkdirSync, copyFileSync } from "node:fs";
 import { join } from "node:path";
@@ -124,7 +124,7 @@ if (!withWall.ok || !bare.ok) {
   console.error("Showcase failed", { spawned, withWall, bare });
   process.exit(1);
 }
-copyFileSync(join(TMP, "clo_wall.png"), join(ART, "clostridium_v1_boxcar_wall.png"));
-copyFileSync(join(TMP, "clo_bare.png"), join(ART, "clostridium_v1_boxcar_bare.png"));
-copyFileSync(join(TMP, "clo_field.png"), join(ART, "clostridium_v1_boxcar_field.png"));
+copyFileSync(join(TMP, "clo_wall.png"), join(ART, "clostridium_v2_gangrene_wall.png"));
+copyFileSync(join(TMP, "clo_bare.png"), join(ART, "clostridium_v2_gangrene_bare.png"));
+copyFileSync(join(TMP, "clo_field.png"), join(ART, "clostridium_v2_gangrene_field.png"));
 console.log("OK: clostridium screenshots in", ART);

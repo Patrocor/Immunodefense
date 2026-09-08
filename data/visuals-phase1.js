@@ -47,7 +47,8 @@
     saureus:      { silhouette: "grape",      accent: "#F9A825", label: "Racimo" },
     malassezia:   { silhouette: "fan",        accent: "#d8c060", label: "Abanico" },
     dermatofito:  { silhouette: "ringworm",   accent: "#9CA85A", label: "Tiña" },
-    neisseria:    { silhouette: "coffeebean", accent: "#d47c3a", label: "Pili" }
+    neisseria:    { silhouette: "coffeebean", accent: "#d47c3a", label: "Pili" },
+    hpv:          { silhouette: "wart",       accent: "#8a9a5e", label: "Verruga" }
   };
 
   // Pistas de counter por germen Fase 1 (pip inferior).

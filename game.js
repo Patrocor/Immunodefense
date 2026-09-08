@@ -20856,7 +20856,7 @@
       ctx.translate(-e.x, -e.y);
     }
     drawShadow(e.x, e.y + rad * 0.85, rad * 0.85 * scale, rad * 0.22 * scale);
-    if (def.id !== "saureus" && def.id !== "malassezia" && def.id !== "dermatofito" && def.id !== "neisseria") drawGermKindFrame(e, rad * scale);
+    if (def.id !== "saureus" && def.id !== "malassezia" && def.id !== "dermatofito" && def.id !== "neisseria" && def.id !== "hpv") drawGermKindFrame(e, rad * scale);
     // Halo de daño genérico: pulso radial DRAMÁTICO amarillo→rojo
     // alrededor del germen cuando recibe golpe. Combina varias capas
     // (glow externo + flash blanco central + anillo dorado + chispas
@@ -20999,7 +20999,7 @@
     // Shield overlay (drawn on top of body but under HP bar).
     // S. aureus dibuja su cápsula como casco irregular del racimo;
     // el anillo circular genérico lo volvería otra vez un círculo dorado.
-    if (def.shield && def.id !== "saureus" && def.id !== "dermatofito" &&
+    if (def.shield && def.id !== "saureus" && def.id !== "dermatofito" && def.id !== "hpv" &&
         (e.shieldHP > 0 || e.shieldShatterTimer > 0)) {
       drawShield(e, rad * scale);
     }
@@ -21384,93 +21384,174 @@
 
   // HPV — cápside facetada (icosaedro) con bultos de queratina.
   function drawHPV(e, rad, expression, blink) {
-    var R = rad, faces = 10;
-    var t = state.time;
-    ctx.save(); ctx.translate(e.x, e.y);
-    var grad = ctx.createRadialGradient(-R * 0.3, -R * 0.3, R * 0.2, 0, 0, R);
-    grad.addColorStop(0, e.def.colorLight || "#c2cf90"); grad.addColorStop(0.6, e.def.color); grad.addColorStop(1, e.def.colorDark);
-    ctx.fillStyle = (e.hitFlash > 0) ? "#fff" : grad;
-    // Cápside icosaédrica: cada faceta late con su propia fase (no es un
-    // bump fijo alternado) — un latido capsídico sutil en vez de geometría rígida.
-    ctx.beginPath();
-    for (var i = 0; i < faces; i++) {
-      var a = i / faces * Math.PI * 2 - Math.PI / 2;
-      var baseR = 0.92 + 0.1 * ((i % 2) ? 1 : 0);
-      var facePulse = Math.sin(t * 1.6 + i * 1.05 + e.wobble * 0.3) * 0.08;
-      var rr = R * (baseR + facePulse);
-      var px = Math.cos(a) * rr, py = Math.sin(a) * rr;
-      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    // HPV — VERRUGA papilomatosa (coliflor), no icosaedro genérico.
+    //  · Montículo + papilas queratínicas de distinta altura
+    //  · Escudo wall = costras de queratina en las papilas, no anillo circular
+    //  · Al romperse: FURIA (papilas erizadas, carne más cruda)
+    var t = state.time, w = e.wobble || 0, hit = e.hitFlash > 0;
+    var def = e.def;
+    var R = rad * 0.95;
+    var sd = def.shield;
+    var shieldRatio = (sd && sd.maxHP > 0) ? Math.max(0, (e.shieldHP || 0) / sd.maxHP) : 0;
+    var enraged = !!e.enraged;
+    var shatter = Math.max(0, e.shieldShatterTimer || 0);
+
+    if (e._lastPosX == null) { e._lastPosX = e.x; e._lastPosY = e.y; e._heading = 0; }
+    var dxM = e.x - e._lastPosX, dyM = e.y - e._lastPosY;
+    if (Math.hypot(dxM, dyM) > 0.5) {
+      var targetAng = Math.atan2(dyM, dxM);
+      var diffAng = targetAng - e._heading;
+      while (diffAng >  Math.PI) diffAng -= Math.PI * 2;
+      while (diffAng < -Math.PI) diffAng += Math.PI * 2;
+      e._heading += diffAng * 0.08;
     }
-    ctx.closePath(); ctx.fill();
-    ctx.strokeStyle = e.def.colorDark; ctx.lineWidth = Math.max(1.2, 1.6 * U); ctx.stroke();
-    ctx.strokeStyle = "rgba(0,0,0,0.15)"; ctx.lineWidth = 1;
-    for (var j = 0; j < faces; j++) { var a2 = j / faces * Math.PI * 2 - Math.PI / 2; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(Math.cos(a2) * R * 0.9, Math.sin(a2) * R * 0.9); ctx.stroke(); }
-    // Grietas de queratina: aparecen con el escudo real dañado y sanan a
-    // medida que regenera (e.shieldHP / def.shield.maxHP) — no decorativo,
-    // complementa el anillo genérico de escudo sin duplicarlo.
-    if (e.def.shield && e.shieldHP != null) {
-      var shieldRatio = e.def.shield.maxHP > 0 ? Math.max(0, e.shieldHP) / e.def.shield.maxHP : 1;
-      var damage = 1 - shieldRatio;
-      if (damage > 0.05) {
-        var crackSeeds = [{ a: 0.6, len: 0.55 }, { a: 2.1, len: 0.45 }, { a: 4.0, len: 0.50 }];
-        var crackCount = Math.min(crackSeeds.length, 1 + Math.floor(damage * 3));
-        ctx.lineCap = "round";
-        for (var c = 0; c < crackCount; c++) {
-          var cs = crackSeeds[c];
-          var cLen = R * cs.len * Math.min(1, damage * 1.9);
-          var cx0 = Math.cos(cs.a) * R * 0.15, cy0 = Math.sin(cs.a) * R * 0.15;
-          var cx1 = Math.cos(cs.a) * (R * 0.15 + cLen), cy1 = Math.sin(cs.a) * (R * 0.15 + cLen);
-          var jagX = (cx0 + cx1) / 2 + Math.cos(cs.a + Math.PI / 2) * R * 0.10;
-          var jagY = (cy0 + cy1) / 2 + Math.sin(cs.a + Math.PI / 2) * R * 0.10;
-          // Halo claro bajo la grieta — se nota mucho más sobre el verde.
-          ctx.strokeStyle = "rgba(255, 235, 180, " + (damage * 0.55) + ")";
-          ctx.lineWidth = Math.max(1.6, 2.2 * U);
-          ctx.beginPath();
-          ctx.moveTo(cx0, cy0);
-          ctx.lineTo(jagX, jagY);
-          ctx.lineTo(cx1, cy1);
-          ctx.stroke();
-          ctx.strokeStyle = "rgba(35, 30, 12, " + (0.45 + damage * 0.50) + ")";
-          ctx.lineWidth = Math.max(1.1, 1.4 * U);
-          ctx.beginPath();
-          ctx.moveTo(cx0, cy0);
-          ctx.lineTo(jagX, jagY);
-          ctx.lineTo(cx1, cy1);
-          ctx.stroke();
-        }
-      }
-    }
-    // Capsómeros: brotan progresivamente con el tiempo en pantalla (no
-    // están los 8 desde el spawn) — arrancan en 2 y germinan uno nuevo
-    // cada ~4s hasta el máximo.
-    if (e._hpvSpawnT == null) e._hpvSpawnT = t;
-    var age = t - e._hpvSpawnT;
-    var growInterval = 4.0;
-    var minCaps = 2, maxCaps = 8;
-    var visibleCaps = Math.min(maxCaps, minCaps + Math.floor(age / growInterval));
-    var growProgress = (age / growInterval) % 1;
-    for (var k = 0; k < visibleCaps; k++) {
-      var ka = k * 1.3 + 0.4;
-      var growing = (k === visibleCaps - 1) && visibleCaps < maxCaps;
-      var capScale = growing ? Math.min(1, growProgress + 0.15) : 1;
-      var capPulse = 1 + Math.sin(t * 1.8 + k * 1.9) * 0.12;
-      var capX = Math.cos(ka) * R * 0.72, capY = Math.sin(ka) * R * 0.72;
-      var capR2 = R * 0.18 * capScale * capPulse;
-      ctx.fillStyle = "rgba(235, 225, 175, 0.95)";
+    e._lastPosX = e.x; e._lastPosY = e.y;
+
+    var col = enraged ? "#c45a40" : def.color;
+    var cold = enraged ? "#6a2418" : def.colorDark;
+    var coll = enraged ? "#e8a090" : (def.colorLight || "#c2cf90");
+    var ker = shieldRatio > 0.08 ? "#e4d9a8" : coll;
+
+    ctx.save();
+    ctx.translate(e.x, e.y);
+    if (enraged) {
+      var furyA = 0.18 + 0.12 * Math.sin(t * 6 + w);
+      var fg = ctx.createRadialGradient(0, 0, R * 0.4, 0, 0, R * 1.7);
+      fg.addColorStop(0, "rgba(220, 60, 40, " + furyA + ")");
+      fg.addColorStop(1, "rgba(220, 60, 40, 0)");
+      ctx.fillStyle = fg;
       ctx.beginPath();
-      ctx.arc(capX, capY, capR2, 0, Math.PI * 2);
+      ctx.arc(0, 0, R * 1.7, 0, Math.PI * 2);
       ctx.fill();
-      ctx.strokeStyle = "rgba(150, 130, 70, 0.75)";
-      ctx.lineWidth = Math.max(0.8, 1.0 * U);
+    }
+
+    ctx.save();
+    ctx.rotate((e._heading || 0) * 0.35);
+
+    var breathe = 1 + Math.sin(t * 1.4 + w) * 0.03;
+    var spike = enraged ? 1.16 : 1;
+
+    function papillaPath(px, py, ww, hh) {
+      var tip = py - hh * spike * breathe;
+      var base = py + hh * 0.18;
+      ctx.beginPath();
+      ctx.moveTo(px - ww, base);
+      ctx.quadraticCurveTo(px - ww * 1.12, (tip + base) * 0.55, px - ww * 0.62, tip + hh * 0.18);
+      ctx.quadraticCurveTo(px, tip - ww * 0.38, px + ww * 0.62, tip + hh * 0.18);
+      ctx.quadraticCurveTo(px + ww * 1.12, (tip + base) * 0.55, px + ww, base);
+      ctx.closePath();
+      return tip;
+    }
+
+    // Montículo-base (no círculo): verruga sentada en la piel.
+    var moundG = ctx.createRadialGradient(-R * 0.2, R * 0.05, R * 0.1, 0, R * 0.2, R * 1.15);
+    moundG.addColorStop(0, hit ? "#ffffff" : coll);
+    moundG.addColorStop(0.55, hit ? "#ffffff" : col);
+    moundG.addColorStop(1, hit ? "#ffffff" : cold);
+    ctx.fillStyle = moundG;
+    ctx.beginPath();
+    ctx.moveTo(-R * 1.15, R * 0.42);
+    ctx.quadraticCurveTo(-R * 1.05, -R * 0.08, -R * 0.45, -R * 0.18);
+    ctx.quadraticCurveTo(0, -R * 0.32, R * 0.48, -R * 0.16);
+    ctx.quadraticCurveTo(R * 1.08, -R * 0.04, R * 1.18, R * 0.42);
+    ctx.quadraticCurveTo(R * 0.55, R * 0.78, 0, R * 0.72);
+    ctx.quadraticCurveTo(-R * 0.55, R * 0.78, -R * 1.15, R * 0.42);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = cold;
+    ctx.lineWidth = Math.max(1.6, 2.0 * U);
+    ctx.stroke();
+
+    var florets = [
+      { x: 0.00, y: -0.12, w: 0.30, h: 0.78, s: 0 },
+      { x: -0.38, y: -0.02, w: 0.26, h: 0.62, s: 1 },
+      { x:  0.40, y: -0.04, w: 0.27, h: 0.66, s: 2 },
+      { x: -0.68, y:  0.12, w: 0.22, h: 0.48, s: 3 },
+      { x:  0.70, y:  0.10, w: 0.23, h: 0.50, s: 4 },
+      { x: -0.18, y:  0.10, w: 0.20, h: 0.40, s: 5 },
+      { x:  0.22, y:  0.14, w: 0.20, h: 0.38, s: 6 }
+    ];
+
+    for (var f = 0; f < florets.length; f++) {
+      var fl = florets[f];
+      var px = fl.x * R, py = fl.y * R;
+      var ww = fl.w * R, hh = fl.h * R;
+      var bob = Math.sin(t * 2.2 + fl.s * 1.1 + w) * R * 0.03;
+      var pg = ctx.createLinearGradient(px, py - hh, px, py + hh * 0.2);
+      pg.addColorStop(0, hit ? "#ffffff" : (enraged ? "#f0b8a0" : ker));
+      pg.addColorStop(0.45, hit ? "#ffffff" : col);
+      pg.addColorStop(1, hit ? "#ffffff" : cold);
+      ctx.fillStyle = pg;
+      papillaPath(px, py + bob, ww, hh);
+      ctx.fill();
+      ctx.strokeStyle = cold;
+      ctx.lineWidth = Math.max(1.3, 1.6 * U);
       ctx.stroke();
-      if (growing) {
-        ctx.fillStyle = "rgba(255, 250, 210, " + (0.5 * (1 - growProgress)) + ")";
+
+      // Escamas de queratina (coraza). Más densas con escudo alto.
+      var nScale = enraged ? 2 : (3 + Math.round(shieldRatio * 2));
+      ctx.strokeStyle = hit ? "rgba(255,255,255,0.5)" : (enraged ? "rgba(90,20,10,0.45)" : "rgba(90, 80, 30, 0.45)");
+      ctx.lineWidth = Math.max(0.9, 1.15 * U);
+      for (var sc = 1; sc <= nScale; sc++) {
+        var sy = py + bob + hh * 0.12 - (hh * spike * 0.72) * (sc / (nScale + 1));
+        var sw = ww * (0.55 + 0.35 * (sc / nScale));
         ctx.beginPath();
-        ctx.arc(capX, capY, capR2 * 1.6, 0, Math.PI * 2);
-        ctx.fill();
+        ctx.moveTo(px - sw, sy);
+        ctx.quadraticCurveTo(px, sy - hh * 0.06, px + sw, sy);
+        ctx.stroke();
+      }
+
+      if (shieldRatio > 0.12 && !enraged) {
+        ctx.strokeStyle = "rgba(245, 235, 190, " + (0.35 + shieldRatio * 0.45) + ")";
+        ctx.lineWidth = Math.max(1.6, (1.8 + shieldRatio * 1.4) * U);
+        papillaPath(px, py + bob, ww * 1.04, hh);
+        ctx.stroke();
       }
     }
-    germFace(R, expression, blink, R * 0.30);
+
+    // Grietas de queratina según daño del escudo.
+    var damage = enraged ? 1 : (1 - shieldRatio);
+    if (damage > 0.12) {
+      var cracks = [
+        { x0: -R * 0.35, y0: -R * 0.15, x1: -R * 0.08, y1: R * 0.38 },
+        { x0:  R * 0.28, y0: -R * 0.22, x1:  R * 0.12, y1: R * 0.42 },
+        { x0:  0,        y0: -R * 0.55, x1:  R * 0.06, y1: R * 0.20 }
+      ];
+      var nC = Math.min(cracks.length, 1 + Math.floor(damage * 3));
+      ctx.lineCap = "round";
+      for (var c = 0; c < nC; c++) {
+        var cr = cracks[c];
+        ctx.strokeStyle = "rgba(255, 230, 170, " + (damage * 0.45) + ")";
+        ctx.lineWidth = Math.max(1.8, 2.2 * U);
+        ctx.beginPath();
+        ctx.moveTo(cr.x0, cr.y0);
+        ctx.lineTo((cr.x0 + cr.x1) * 0.5 + R * 0.08, (cr.y0 + cr.y1) * 0.5);
+        ctx.lineTo(cr.x1, cr.y1);
+        ctx.stroke();
+        ctx.strokeStyle = "rgba(40, 28, 8, " + (0.4 + damage * 0.45) + ")";
+        ctx.lineWidth = Math.max(1.1, 1.4 * U);
+        ctx.stroke();
+      }
+    }
+    if (shatter > 0) {
+      ctx.strokeStyle = "rgba(255,255,255," + (shatter / 0.45) + ")";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.ellipse(0, R * 0.1, R * (1.1 + (1 - shatter / 0.45) * 0.35), R * 0.7, 0, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    ctx.restore(); // end lean
+
+    var faceY = R * 0.18, eyeR = R * 0.22, gap = R * 0.28;
+    var mood = enraged ? "angry" : "evil";
+    if (expression === "dying" || expression === "hurt") drawHurtEyes(0, faceY, eyeR, gap);
+    else if (blink) drawClosedEyes(0, faceY, eyeR, gap);
+    else drawAnimeEyes(0, faceY, eyeR, gap, 0, 0, R * 0.10, R * 0.04, mood);
+    if (expression === "dying" || expression === "hurt") drawAnimeMouth(0, faceY + R * 0.32, R * 0.42, R * 0.34, "open");
+    else if (enraged) drawAnimeMouth(0, faceY + R * 0.32, R * 0.48, R * 0.28, "fanged");
+    else drawAnimeMouth(0, faceY + R * 0.32, R * 0.40, R * 0.20, "smirk");
+
     ctx.restore();
   }
 
@@ -28067,7 +28148,7 @@
     else if (kind === "virus") drawVirus(fakeEnemy, R, "idle", false);
     else if (kind === "hongo") drawHongo(fakeEnemy, R, "idle", false);
     else drawBoss(fakeEnemy, R, "idle", false);
-    if (def.shield && def.id !== "saureus" && def.id !== "dermatofito") drawShield(fakeEnemy, R);
+    if (def.shield && def.id !== "saureus" && def.id !== "dermatofito" && def.id !== "hpv") drawShield(fakeEnemy, R);
     ctx.restore();
   }
 

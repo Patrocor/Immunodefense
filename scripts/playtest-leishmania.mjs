@@ -1,4 +1,4 @@
-/** Showcase Leishmania spindle + macrophage — DISPLAY=:1 node scripts/playtest-leishmania.mjs */
+/** Showcase Leishmania tadpole + nest — DISPLAY=:1 node scripts/playtest-leishmania.mjs */
 import { chromium } from "playwright";
 import { mkdirSync, copyFileSync } from "node:fs";
 import { join } from "node:path";
@@ -124,7 +124,7 @@ if (!pro.ok || !ama.ok) {
   console.error("Showcase failed", { spawned, pro, ama });
   process.exit(1);
 }
-copyFileSync(join(TMP, "leish_pro.png"), join(ART, "leish_v2b_comma.png"));
-copyFileSync(join(TMP, "leish_field.png"), join(ART, "leish_v2b_field.png"));
-copyFileSync(join(TMP, "leish_ama.png"), join(ART, "leish_v2b_peek.png"));
+copyFileSync(join(TMP, "leish_pro.png"), join(ART, "leish_v3_pro.png"));
+copyFileSync(join(TMP, "leish_field.png"), join(ART, "leish_v3_field.png"));
+copyFileSync(join(TMP, "leish_ama.png"), join(ART, "leish_v3_ama.png"));
 console.log("OK: leishmania screenshots in", ART);

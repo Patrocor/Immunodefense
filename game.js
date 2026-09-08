@@ -23895,13 +23895,12 @@
   // ---- Sprint 8C-2: morfologías microbiológicas reales para los 4 bosses ---
 
   function drawBossPyogenes(e, rad, expression, blink) {
-    // Pyogenes v2 — SERPIENTE de diplococos, no collar de cuentas.
-    //  · Cara en la CABEZA (adelante), cola que se afila
-    //  · Cada cuenta es un cacahuete (par de cocos), no una esfera suelta
-    //  · Baba pegada a la S; crin de proteína M en el dorso
+    // Pyogenes v3 — silueta tipo "roca-serpiente": cabeza enorme, cuerno,
+    // segmentos que se AFILAN hasta un guijarro, pose en C. Sigue siendo
+    // estreptococo rojo (no piedra gris): cada bloque es un coco irregular.
     var hit = e.hitFlash > 0;
     var t = state.time;
-    var w = e.wobble || 0;
+    var wv = e.wobble || 0;
     var def = e.def;
     var sd = def.shield;
     var shieldFrac = (sd && sd.maxHP) ? Math.max(0, (e.shieldHP || 0) / sd.maxHP) : 1;
@@ -23918,13 +23917,11 @@
       var diffAng = targetAng - e._heading;
       while (diffAng >  Math.PI) diffAng -= Math.PI * 2;
       while (diffAng < -Math.PI) diffAng += Math.PI * 2;
-      e._heading += diffAng * 0.10;
+      e._heading += diffAng * 0.08;
     }
     e._lastPosX = e.x; e._lastPosY = e.y;
-    var moving = dMag > 1;
-    e._slitherPhase = (e._slitherPhase || 0) + Math.max(0.035, dMag * 0.16);
+    e._slitherPhase = (e._slitherPhase || 0) + Math.max(0.02, dMag * 0.10);
     var phase = e._slitherPhase;
-    var waveAmp = rad * (moving ? 0.50 : 0.34);
     var chargeFrac = 0;
     if ((e.powerCharge || 0) > 0 && e.powerTarget) chargeFrac = Math.max(0, Math.min(1, 1 - e.powerCharge / 0.55));
 
@@ -23938,144 +23935,134 @@
       }
       ctx.closePath();
     }
+    // Arco en C: cabeza arriba-derecha, cola abajo-izquierda.
+    var aTail = 2.35, aHead = -0.55;
+    var rArc = rad * (1.12 + 0.04 * Math.sin(phase));
     function spineAt(u) {
-      var x = (u - 0.38) * rad * 2.35;
-      var y = Math.sin(u * Math.PI * 1.55 + phase) * waveAmp
-            + Math.sin(u * Math.PI * 3.1 + phase * 0.6 + w) * rad * 0.08;
-      return { x: x, y: y };
+      var a = aTail + (aHead - aTail) * u;
+      return { x: Math.cos(a) * rArc, y: Math.sin(a) * rArc, a: a };
     }
     function radAt(u) {
-      return rad * (0.16 + 0.20 * Math.pow(u, 0.85)) * (1 + 0.04 * Math.sin(t * 1.6 + u * 6));
+      return rad * (0.07 + 0.46 * Math.pow(u, 1.55));
     }
-    function perpAt(u) {
-      var p = spineAt(u), q = spineAt(Math.min(1, u + 0.04));
-      var dx = q.x - p.x, dy = q.y - p.y, len = Math.hypot(dx, dy) || 1;
-      return { x: -dy / len, y: dx / len, tx: dx / len, ty: dy / len, p: p };
+    function boulderPts(cx, cy, r, seed, nPts) {
+      var pts = [];
+      var nB = nPts || 8;
+      for (var i = 0; i < nB; i++) {
+        var a = (i / nB) * Math.PI * 2 + seed * 0.15;
+        var lump = 0.72 + 0.32 * Math.abs(Math.sin(a * 2.1 + seed * 2.7 + wv * 0.3));
+        lump += 0.06 * Math.sin(a * 4 + t * 0.8 + seed);
+        pts.push({ x: cx + Math.cos(a) * r * lump, y: cy + Math.sin(a) * r * lump });
+      }
+      return pts;
+    }
+    function fillBoulder(cx, cy, r, seed, nPts) {
+      var pts = boulderPts(cx, cy, r, seed, nPts);
+      var g = ctx.createRadialGradient(cx - r * 0.28, cy - r * 0.32, r * 0.12, cx, cy, r * 1.05);
+      g.addColorStop(0, hit ? "#ffffff" : "#ff7a9a");
+      g.addColorStop(0.45, hit ? "#ffffff" : def.color);
+      g.addColorStop(1, hit ? "#ffffff" : def.colorDark);
+      ctx.fillStyle = g;
+      smoothBlob(pts);
+      ctx.fill();
+      ctx.strokeStyle = "#2a000c";
+      ctx.lineWidth = Math.max(1.4, 1.8 * U);
+      ctx.stroke();
+      if (!hit) {
+        ctx.strokeStyle = "rgba(40, 0, 12, 0.35)";
+        ctx.lineWidth = Math.max(0.8, 1.0 * U);
+        ctx.beginPath();
+        ctx.moveTo(cx - r * 0.18, cy - r * 0.12);
+        ctx.quadraticCurveTo(cx, cy + r * 0.08, cx + r * 0.22, cy - r * 0.04);
+        ctx.stroke();
+      }
     }
 
     ctx.save();
-    ctx.rotate(e._heading || 0);
+    ctx.rotate((e._heading || 0) * 0.35 - 0.15);
 
-    // Halo necrótico que SIGUE la S, no un óvalo suelto.
+    // Halo necrótico siguiendo el gancho.
     if (!hit) {
-      var necroPulse = 0.5 + 0.45 * Math.sin(t * 1.8);
-      ctx.fillStyle = "rgba(120, 10, 22, " + (0.20 * necroPulse) + ")";
+      var necroPulse = 0.5 + 0.4 * Math.sin(t * 1.7);
+      ctx.fillStyle = "rgba(110, 8, 20, " + (0.22 * necroPulse) + ")";
       var aura = [];
-      var nA = 14;
-      for (var ai = 0; ai <= nA; ai++) {
-        var au = ai / nA;
-        var ap = perpAt(au);
-        aura.push({ x: ap.p.x + ap.x * radAt(au) * 2.1, y: ap.p.y + ap.y * radAt(au) * 2.1 });
+      for (var ai = 0; ai <= 12; ai++) {
+        var au = ai / 12, sp = spineAt(au), rr = radAt(au) * 1.85;
+        aura.push({ x: sp.x + Math.cos(sp.a) * rr * 0.15 - Math.sin(sp.a) * rr, y: sp.y + Math.sin(sp.a) * rr * 0.15 + Math.cos(sp.a) * rr });
       }
-      for (var aj = nA; aj >= 0; aj--) {
-        var av = aj / nA;
-        var bp = perpAt(av);
-        aura.push({ x: bp.p.x - bp.x * radAt(av) * 2.1, y: bp.p.y - bp.y * radAt(av) * 2.1 });
+      for (var aj = 12; aj >= 0; aj--) {
+        var av = aj / 12, sq = spineAt(av), rs = radAt(av) * 1.85;
+        aura.push({ x: sq.x - Math.cos(sq.a) * rs * 0.15 + Math.sin(sq.a) * rs, y: sq.y - Math.sin(sq.a) * rs * 0.15 - Math.cos(sq.a) * rs });
       }
       smoothBlob(aura);
       ctx.fill();
     }
 
-    // Rastro de carne disuelta detrás de la cola.
-    if (!hit) {
-      var tail = spineAt(0.02);
-      ctx.fillStyle = "rgba(70, 8, 16, 0.40)";
-      for (var d = 0; d < 3; d++) {
-        var dp = ((t * 0.4 + d * 0.28) % 1);
-        ctx.beginPath();
-        ctx.ellipse(tail.x - rad * (0.15 + dp * 0.55), tail.y + rad * 0.12 * d, rad * 0.10 * (1 - dp), rad * 0.07 * (1 - dp), 0.4, 0, Math.PI * 2);
-        ctx.fill();
+    // Baba de hialuronato: junta los bloques cuando hay cápsula.
+    if (shieldFrac > 0.04) {
+      ctx.strokeStyle = "rgba(255, 214, 224, " + (0.35 + 0.45 * shieldFrac) + ")";
+      ctx.lineWidth = Math.max(6, (7 + 6 * shieldFrac) * U);
+      ctx.beginPath();
+      for (var hu = 0; hu <= 16; hu++) {
+        var hp = spineAt(hu / 16);
+        if (hu === 0) ctx.moveTo(hp.x, hp.y); else ctx.lineTo(hp.x, hp.y);
       }
+      ctx.stroke();
     }
 
-    // Baba de hialuronato PEGADA a la S (no un rectángulo redondeado).
-    var hull = [];
-    var nH = 18;
-    var padMul = 1.12 + 0.38 * shieldFrac;
-    for (var hi = 0; hi <= nH; hi++) {
-      var u = hi / nH;
-      var pr = perpAt(u);
-      var pad = radAt(u) * padMul * (1 + 0.07 * Math.sin(u * 9 + t));
-      hull.push({ x: pr.p.x + pr.x * pad, y: pr.p.y + pr.y * pad });
+    // Segmentos cola → cabeza (el grande tapa a los demás).
+    var nSeg = 12;
+    for (var s = 0; s < nSeg; s++) {
+      var u = s / (nSeg - 1);
+      var p = spineAt(u);
+      var r = radAt(u);
+      fillBoulder(p.x, p.y, r, 1.7 + s * 0.73, s === nSeg - 1 ? 7 : 8);
     }
-    for (var hj = nH; hj >= 0; hj--) {
-      var v = hj / nH;
-      var ps = perpAt(v);
-      var pad2 = radAt(v) * padMul * (1 + 0.07 * Math.sin(v * 9 + t + 1.2));
-      hull.push({ x: ps.p.x - ps.x * pad2, y: ps.p.y - ps.y * pad2 });
-    }
-    ctx.fillStyle = hit ? "rgba(255,255,255,0.40)" : "rgba(255, 210, 220, " + (0.18 + 0.42 * shieldFrac) + ")";
-    smoothBlob(hull);
+
+    // Cuerno (proteína M) en lo alto de la cabeza — la silueta Onix.
+    var head = spineAt(1);
+    var hR = radAt(1);
+    var hornA = head.a - 1.25;
+    var hx0 = head.x + Math.cos(hornA) * hR * 0.55;
+    var hy0 = head.y + Math.sin(hornA) * hR * 0.55;
+    var hx1 = head.x + Math.cos(hornA) * (hR + rad * (0.62 + chargeFrac * 0.25));
+    var hy1 = head.y + Math.sin(hornA) * (hR + rad * (0.62 + chargeFrac * 0.25));
+    var hxL = head.x + Math.cos(hornA + 0.38) * hR * 0.22;
+    var hyL = head.y + Math.sin(hornA + 0.38) * hR * 0.22;
+    var hxR = head.x + Math.cos(hornA - 0.38) * hR * 0.22;
+    var hyR = head.y + Math.sin(hornA - 0.38) * hR * 0.22;
+    var hornG = ctx.createLinearGradient(hx0, hy0, hx1, hy1);
+    hornG.addColorStop(0, hit ? "#ffffff" : def.color);
+    hornG.addColorStop(1, hit ? "#ffffff" : "#3a0010");
+    ctx.fillStyle = hornG;
+    ctx.beginPath();
+    ctx.moveTo(hxL, hyL);
+    ctx.quadraticCurveTo(hx0, hy0, hx1, hy1);
+    ctx.quadraticCurveTo(hx0, hy0, hxR, hyR);
+    ctx.closePath();
     ctx.fill();
-    ctx.strokeStyle = "rgba(160, 30, 55, " + (0.30 + 0.40 * shieldFrac) + ")";
-    ctx.lineWidth = Math.max(1.5, (1.6 + 1.4 * shieldFrac) * U);
+    ctx.strokeStyle = "#2a000c";
+    ctx.lineWidth = Math.max(1.3, 1.6 * U);
     ctx.stroke();
 
-    // Crin dorsal de proteína M (una cresta, no palitos alrededor).
-    if (!hit) {
-      ctx.strokeStyle = "rgba(255, " + Math.round(170 + chargeFrac * 70) + ", 80, " + (0.55 + chargeFrac * 0.35) + ")";
-      ctx.lineWidth = Math.max(1.3, 1.7 * U);
-      var nM = 11;
-      for (var m = 0; m < nM; m++) {
-        var mu = 0.18 + (m / (nM - 1)) * 0.80;
-        var mp = perpAt(mu);
-        var mlen = radAt(mu) * (1.15 + 0.85 * chargeFrac) * (0.7 + 0.3 * mu);
-        var wave = Math.sin(t * 3.2 + m * 0.9 + chargeFrac * 4) * rad * 0.08;
-        ctx.beginPath();
-        ctx.moveTo(mp.p.x + mp.x * radAt(mu) * 0.7, mp.p.y + mp.y * radAt(mu) * 0.7);
-        ctx.quadraticCurveTo(
-          mp.p.x + mp.x * (mlen * 0.55) + mp.tx * wave,
-          mp.p.y + mp.y * (mlen * 0.55) + mp.ty * wave,
-          mp.p.x + mp.x * mlen + mp.tx * wave * 1.4,
-          mp.p.y + mp.y * mlen + mp.ty * wave * 1.4
-        );
-        ctx.stroke();
-      }
-    }
-
-    function drawPeanut(u, rScale) {
-      var pr = perpAt(u);
-      var r = radAt(u) * rScale;
-      var ox = pr.tx * r * 0.42, oy = pr.ty * r * 0.42;
-      for (var lobe = -1; lobe <= 1; lobe += 2) {
-        var cx = pr.p.x + ox * lobe, cy = pr.p.y + oy * lobe;
-        var g = ctx.createRadialGradient(cx - r * 0.28, cy - r * 0.30, r * 0.1, cx, cy, r);
-        g.addColorStop(0, hit ? "#ffffff" : "#ff8aaa");
-        g.addColorStop(0.5, hit ? "#ffffff" : def.color);
-        g.addColorStop(1, hit ? "#ffffff" : def.colorDark);
-        ctx.fillStyle = g;
-        ctx.beginPath();
-        ctx.arc(cx, cy, r * 0.78, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.strokeStyle = "#3A0014";
-        ctx.lineWidth = Math.max(1.1, 1.4 * U);
-        ctx.stroke();
-      }
-    }
-    var segs = [0.08, 0.22, 0.38, 0.54, 0.70, 0.86, 1.0];
-    for (var s = 0; s < segs.length; s++) drawPeanut(segs[s], s === segs.length - 1 ? 1.08 : 1.0);
-
-    if (!hit && chargeFrac > 0.12) {
-      var hd = spineAt(1);
-      ctx.fillStyle = "rgba(255, 210, 80, " + (chargeFrac * 0.45) + ")";
+    if (!hit && chargeFrac > 0.1) {
+      ctx.fillStyle = "rgba(255, 210, 80, " + (chargeFrac * 0.5) + ")";
       ctx.beginPath();
-      ctx.arc(hd.x, hd.y, radAt(1) * (1.4 + chargeFrac * 0.8), 0, Math.PI * 2);
+      ctx.arc(hx1, hy1, rad * 0.10 * (1 + chargeFrac), 0, Math.PI * 2);
       ctx.fill();
     }
 
     ctx.restore();
 
-    var head = spineAt(1.0);
-    var ca = e._heading || 0;
-    var faceX = head.x * Math.cos(ca) - head.y * Math.sin(ca);
-    var faceY = head.x * Math.sin(ca) + head.y * Math.cos(ca);
-    var hR = radAt(1.0);
-    var eyeR = hR * 0.42, gap = hR * 0.42;
-    if (expression === "dying" || expression === "hurt") drawHurtEyes(faceX, faceY - hR * 0.08, eyeR, gap);
-    else if (blink) drawClosedEyes(faceX, faceY - hR * 0.08, eyeR, gap);
-    else drawAnimeEyes(faceX, faceY - hR * 0.08, eyeR, gap, 0, 0, hR * 0.14, hR * 0.07, "evil");
-    if (expression === "dying" || expression === "hurt") drawAnimeMouth(faceX, faceY + hR * 0.38, hR * 0.62, hR * 0.46, "open");
-    else drawAnimeMouth(faceX, faceY + hR * 0.38, hR * 0.64, hR * 0.36, "fanged");
+    var pose = (e._heading || 0) * 0.35 - 0.15;
+    var faceX = head.x * Math.cos(pose) - head.y * Math.sin(pose);
+    var faceY = head.x * Math.sin(pose) + head.y * Math.cos(pose);
+    var eyeR = hR * 0.28, gap = hR * 0.32;
+    if (expression === "dying" || expression === "hurt") drawHurtEyes(faceX, faceY - hR * 0.04, eyeR, gap);
+    else if (blink) drawClosedEyes(faceX, faceY - hR * 0.04, eyeR, gap);
+    else drawAnimeEyes(faceX, faceY - hR * 0.04, eyeR, gap, 0, 0, hR * 0.10, hR * 0.05, "evil");
+    if (expression === "dying" || expression === "hurt") drawAnimeMouth(faceX, faceY + hR * 0.28, hR * 0.48, hR * 0.36, "open");
+    else drawAnimeMouth(faceX, faceY + hR * 0.28, hR * 0.50, hR * 0.28, "fanged");
 
     ctx.restore();
   }

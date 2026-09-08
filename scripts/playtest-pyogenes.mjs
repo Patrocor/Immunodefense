@@ -25,7 +25,7 @@ function placePyogenes(shieldOn) {
     x: cx,
     y: cy,
     progress: 0.35,
-    radiusScale: 1.35,
+    radiusScale: 1.45,
     hp: src.def.hp,
     maxHp: src.maxHp || src.def.hp,
     shieldHP: shieldOn ? maxShield : 0,
@@ -35,11 +35,11 @@ function placePyogenes(shieldOn) {
     hurtTimer: 0,
     dying: false,
     dead: false,
-    wobble: 0.6,
-    _heading: 0.15,
-    _lastPosX: cx - 28,
-    _lastPosY: cy + 6,
-    _slitherPhase: 2.4,
+    wobble: 0.4,
+    _heading: 0,
+    _lastPosX: cx - 20,
+    _lastPosY: cy,
+    _slitherPhase: 0.6,
     isBoss: true,
   };
   st.enemies = [e];
@@ -59,7 +59,7 @@ function placePyogenes(shieldOn) {
   return {
     ok: true,
     shieldOn: !!shieldOn,
-    clip: { x: Math.round(sx - 360), y: Math.round(sy - 240), width: 720, height: 480 },
+    clip: { x: Math.round(sx - 380), y: Math.round(sy - 260), width: 760, height: 520 },
   };
 }
 
@@ -125,7 +125,7 @@ if (!withCap.ok || !bare.ok) {
   console.error("Showcase failed", { spawned, withCap, bare });
   process.exit(1);
 }
-copyFileSync(join(TMP, "pyo_cap.png"), join(ART, "pyogenes_v2_cap.png"));
-copyFileSync(join(TMP, "pyo_bare.png"), join(ART, "pyogenes_v2_bare.png"));
-copyFileSync(join(TMP, "pyo_field.png"), join(ART, "pyogenes_v2_field.png"));
+copyFileSync(join(TMP, "pyo_cap.png"), join(ART, "pyogenes_v3_onix_cap.png"));
+copyFileSync(join(TMP, "pyo_bare.png"), join(ART, "pyogenes_v3_onix_bare.png"));
+copyFileSync(join(TMP, "pyo_field.png"), join(ART, "pyogenes_v3_onix_field.png"));
 console.log("OK: pyogenes screenshots in", ART);

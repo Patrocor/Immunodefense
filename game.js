@@ -23896,7 +23896,8 @@
 
   function drawBossPyogenes(e, rad, expression, blink) {
     // Pyogenes v5 — gancho Onix (cabeza + cuerno), cuerpo de COCOS
-    // deformes grandes y chicos. Visual 0.9×; hitbox sin cambiar.
+    // deformes grandes y chicos. Visual 0.72× (0.8 del 0.9 anterior);
+    // hitbox sin cambiar.
     var hit = e.hitFlash > 0;
     var t = state.time;
     var def = e.def;
@@ -23904,7 +23905,7 @@
     var shieldFrac = (sd && sd.maxHP) ? Math.max(0, (e.shieldHP || 0) / sd.maxHP) : 1;
     ctx.save();
     ctx.translate(e.x, e.y);
-    ctx.scale(0.9, 0.9);
+    ctx.scale(0.72, 0.72);
     ctx.lineJoin = "round";
     ctx.lineCap = "round";
 
@@ -23926,10 +23927,6 @@
 
     var aTail = 2.92, aHead = -1.12;
     var rArc = rad * (1.46 + 0.03 * Math.sin(phase));
-    function spineAt(u) {
-      var a = aTail + (aHead - aTail) * u;
-      return { x: Math.cos(a) * rArc, y: Math.sin(a) * rArc, a: a };
-    }
     function hash01(s, i) {
       var x = Math.sin(s * 12.9898 + i * 78.233) * 43758.5453;
       return x - Math.floor(x);

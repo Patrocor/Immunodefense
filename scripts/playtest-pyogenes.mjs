@@ -25,7 +25,7 @@ function placePyogenes(shieldOn) {
     x: cx,
     y: cy,
     progress: 0.35,
-    radiusScale: 1.45,
+    radiusScale: 1,
     hp: src.def.hp,
     maxHp: src.maxHp || src.def.hp,
     shieldHP: shieldOn ? maxShield : 0,
@@ -125,7 +125,7 @@ if (!withCap.ok || !bare.ok) {
   console.error("Showcase failed", { spawned, withCap, bare });
   process.exit(1);
 }
-copyFileSync(join(TMP, "pyo_cap.png"), join(ART, "pyogenes_v5c_chain_cap.png"));
-copyFileSync(join(TMP, "pyo_bare.png"), join(ART, "pyogenes_v5c_chain_bare.png"));
-copyFileSync(join(TMP, "pyo_field.png"), join(ART, "pyogenes_v5c_chain_field.png"));
+copyFileSync(join(TMP, "pyo_cap.png"), join(ART, "pyogenes_v5d_scale08_cap.png"));
+copyFileSync(join(TMP, "pyo_bare.png"), join(ART, "pyogenes_v5d_scale08_bare.png"));
+copyFileSync(join(TMP, "pyo_field.png"), join(ART, "pyogenes_v5d_scale08_field.png"));
 console.log("OK: pyogenes screenshots in", ART);

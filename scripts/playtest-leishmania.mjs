@@ -1,4 +1,4 @@
-/** Showcase Leishmania tadpole + nest — DISPLAY=:1 node scripts/playtest-leishmania.mjs */
+/** Showcase Leishmania eel + vacuole colony — DISPLAY=:1 node scripts/playtest-leishmania.mjs */
 import { chromium } from "playwright";
 import { mkdirSync, copyFileSync } from "node:fs";
 import { join } from "node:path";
@@ -50,6 +50,8 @@ function placeLeish(mode) {
   st.time = 2.5;
   st.selectedTower = null;
   st.selectedToBuild = null;
+  st.selectedTower = null;
+  st.selectedToBuild = null;
   g.hold(true);
   const canvas = document.getElementById("canvas");
   const rect = canvas.getBoundingClientRect();
@@ -59,7 +61,7 @@ function placeLeish(mode) {
     ok: true,
     mode,
     ama,
-    clip: { x: Math.round(sx - 290), y: Math.round(sy - 220), width: 580, height: 430 },
+    clip: { x: Math.round(sx - 330), y: Math.round(sy - 230), width: 680, height: 450 },
   };
 }
 
@@ -102,6 +104,7 @@ await page.waitForFunction(() => window.__game?.state);
 
 const spawned = await page.evaluate(spawnLeish);
 console.log("Spawn:", spawned);
+await page.mouse.move(16, 16);
 
 const pro = await page.evaluate(placeLeish, "pro");
 console.log("Pro:", pro);
@@ -124,7 +127,7 @@ if (!pro.ok || !ama.ok) {
   console.error("Showcase failed", { spawned, pro, ama });
   process.exit(1);
 }
-copyFileSync(join(TMP, "leish_pro.png"), join(ART, "leish_v3_pro.png"));
-copyFileSync(join(TMP, "leish_field.png"), join(ART, "leish_v3_field.png"));
-copyFileSync(join(TMP, "leish_ama.png"), join(ART, "leish_v3_ama.png"));
+copyFileSync(join(TMP, "leish_pro.png"), join(ART, "leish_v4_pro.png"));
+copyFileSync(join(TMP, "leish_field.png"), join(ART, "leish_v4_field.png"));
+copyFileSync(join(TMP, "leish_ama.png"), join(ART, "leish_v4_ama.png"));
 console.log("OK: leishmania screenshots in", ART);

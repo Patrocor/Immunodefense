@@ -25780,9 +25780,9 @@
   }
 
   function drawLeishmania(e, rad, expression, blink) {
-    // Leishmania v3 — vivo, bordes blandos (nada de cortes ni hélices de palitos).
-    //  · Promastigote: pera gelatinosa + ALETA ondulante + cinta de flagelo
-    //  · Amastigote: baya en un NIDO amoeboide (vacuola, sin saco rasgado)
+    // Leishmania v4 — silueta distinta de la pera-alubia.
+    //  · Promastigote: ANGUILA en S (cuerpo largo + vela ondulante + flagelo)
+    //  · Amastigote: colonia de olivas en BURBUJA (no un macrófago-saco)
     var R = rad * 0.95, t = state.time, w = e.wobble || 0, hit = e.hitFlash > 0;
     var def = e.def;
     var ama = !!e.leishAmastigote;
@@ -25856,185 +25856,210 @@
       ctx.closePath();
     }
 
+    function spineAt(u) {
+      var x = (u - 0.38) * R * 2.22;
+      var y = Math.sin(u * Math.PI * 1.25) * R * 0.24
+        + Math.sin(flagPhase * 0.85 + u * Math.PI * 2.1) * R * 0.09 * (0.35 + 0.65 * u);
+      return { x: x, y: y };
+    }
+    function widthAt(u) {
+      var body = 0.10 + 0.34 * Math.pow(u, 0.42) * (1 - 0.22 * Math.pow(u, 2.4));
+      if (u > 0.72) body = Math.max(body, 0.36 * (1 - (u - 0.72) * 0.55));
+      var lump = 1 + 0.10 * Math.sin(u * 9 + t * 1.5 + w) + 0.05 * Math.sin(u * 5 + t);
+      return R * Math.max(0.07, body) * lump;
+    }
+    function perpAt(u) {
+      var p = spineAt(u), q = spineAt(Math.min(1, u + 0.03));
+      var dx = q.x - p.x, dy = q.y - p.y, len = Math.hypot(dx, dy) || 1;
+      return { x: -dy / len, y: dx / len, p: p };
+    }
+
     ctx.save();
     ctx.translate(e.x, e.y);
     ctx.lineJoin = "round";
     ctx.lineCap = "round";
 
+    var faceX = 0, faceY = 0, eyeR = R * 0.18, gap = R * 0.22;
+
     if (ama) {
-      // Un solo macrófago amoeboide que RESPIRA. Sin recorte en C.
+      // Halo de citoplasma: un rubor, no un saco que domina.
       ctx.save();
-      ctx.rotate(-0.12 + Math.sin(t * 0.7 + w) * 0.06);
-      var mac = amoeba(-R * 0.16, 0.02 * R, R * 0.98, R * 0.86, 22, 0.4);
-      var macG = ctx.createRadialGradient(-R * 0.28, -R * 0.22, R * 0.12, -R * 0.10, 0, R * 1.15);
-      macG.addColorStop(0, hit ? "#ffffff" : "#f7e6d8");
-      macG.addColorStop(0.45, hit ? "#ffffff" : "#dcb09a");
-      macG.addColorStop(1, hit ? "#ffffff" : "#7a4a3a");
-      ctx.fillStyle = macG;
-      smoothBlob(mac);
+      ctx.rotate(-0.08 + Math.sin(t * 0.65 + w) * 0.05);
+      ctx.globalAlpha = 0.72;
+      var halo = amoeba(-R * 0.12, 0.04 * R, R * 1.08, R * 0.92, 20, 0.6);
+      var hg = ctx.createRadialGradient(-R * 0.2, -R * 0.18, R * 0.1, 0, 0, R * 1.2);
+      hg.addColorStop(0, hit ? "#ffffff" : "rgba(247, 226, 210, 0.95)");
+      hg.addColorStop(0.55, hit ? "#ffffff" : "rgba(214, 168, 148, 0.55)");
+      hg.addColorStop(1, "rgba(122, 74, 58, 0.12)");
+      ctx.fillStyle = hg;
+      smoothBlob(halo);
       ctx.fill();
-      ctx.strokeStyle = "rgba(92, 48, 38, 0.50)";
-      ctx.lineWidth = Math.max(1.4, 1.8 * U);
-      ctx.stroke();
-      // Núcleo del huésped, empujado atrás — mancha suave.
-      ctx.fillStyle = "rgba(118, 52, 78, 0.38)";
-      smoothBlob(amoeba(-R * 0.52, 0.06 * R, R * 0.26, R * 0.32, 12, 1.8));
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = "rgba(118, 52, 78, 0.22)";
+      smoothBlob(amoeba(-R * 0.58, 0.10 * R, R * 0.22, R * 0.26, 10, 1.6));
       ctx.fill();
-      // Gránulos de citoplasma (vida, no geometría).
-      ctx.fillStyle = "rgba(160, 70, 80, 0.28)";
-      for (var g = 0; g < 5; g++) {
-        var ga = t * 0.4 + g * 1.26;
-        ctx.beginPath();
-        ctx.ellipse(
-          -R * 0.22 + Math.cos(ga) * R * 0.38,
-          Math.sin(ga * 1.3) * R * 0.42,
-          R * (0.07 + 0.03 * (g % 2)),
-          R * (0.05 + 0.02 * ((g + 1) % 2)),
-          ga * 0.4, 0, Math.PI * 2
-        );
-        ctx.fill();
-      }
       ctx.restore();
 
-      // Vacuola parasitófora: burbuja blanda que ACUNA, no recorta.
-      ctx.save();
-      ctx.translate(R * 0.22, R * 0.02);
-      var vac = amoeba(0, 0, R * 0.58, R * 0.50, 16, 2.2);
-      ctx.fillStyle = hit ? "rgba(255,255,255,0.35)" : "rgba(232, 246, 168, 0.38)";
+      // Burbuja-vacuola: jabón vivo que envuelve la colonia.
+      var vac = amoeba(R * 0.06, 0, R * 0.78, R * 0.66, 18, 2.4);
+      ctx.fillStyle = hit ? "rgba(255,255,255,0.40)" : "rgba(210, 236, 140, 0.32)";
       smoothBlob(vac);
       ctx.fill();
-      ctx.strokeStyle = "rgba(90, 120, 40, 0.28)";
-      ctx.lineWidth = Math.max(1.1, 1.4 * U);
+      ctx.strokeStyle = "rgba(255,255,255,0.55)";
+      ctx.lineWidth = Math.max(2.2, 2.8 * U);
+      ctx.stroke();
+      ctx.strokeStyle = "rgba(70, 110, 30, 0.40)";
+      ctx.lineWidth = Math.max(1.2, 1.5 * U);
+      ctx.stroke();
+      ctx.strokeStyle = "rgba(255,255,255,0.70)";
+      ctx.lineWidth = Math.max(1.4, 1.8 * U);
+      ctx.beginPath();
+      ctx.ellipse(-R * 0.18, -R * 0.28, R * 0.22, R * 0.10, -0.6, 0, Math.PI * 1.1);
       ctx.stroke();
 
-      // Baya-amastigote (gorda, viva) con el par diagnóstico núcleo + cinetoplasto.
-      var berry = amoeba(0, 0, R * 0.44, R * 0.36, 16, 3.1);
-      var bg = ctx.createRadialGradient(-R * 0.10, -R * 0.12, R * 0.05, 0, 0, R * 0.50);
-      bg.addColorStop(0, hit ? "#ffffff" : "#eef8b4");
-      bg.addColorStop(0.5, hit ? "#ffffff" : def.color);
-      bg.addColorStop(1, hit ? "#ffffff" : def.colorDark);
-      ctx.fillStyle = bg;
-      smoothBlob(berry);
-      ctx.fill();
-      ctx.strokeStyle = "rgba(48, 78, 16, 0.55)";
-      ctx.lineWidth = Math.max(1.3, 1.7 * U);
-      ctx.stroke();
-      // Núcleo (punto) + cinetoplasto (raya) — Giemsa, no un óvalo suelto.
-      ctx.fillStyle = "rgba(22, 42, 8, 0.78)";
-      ctx.beginPath();
-      ctx.ellipse(R * 0.08, -R * 0.04, R * 0.09, R * 0.11, 0.3, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.beginPath();
-      ctx.ellipse(R * 0.20, R * 0.08, R * 0.045, R * 0.13, 0.55, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = "rgba(255,255,255,0.40)";
-      ctx.beginPath();
-      ctx.ellipse(-R * 0.12, -R * 0.14, R * 0.13, R * 0.07, -0.45, 0, Math.PI * 2);
-      ctx.fill();
+      function drawOlive(ox, oy, rx, ry, seed, withFace) {
+        var berry = amoeba(ox, oy, rx, ry, 14, seed);
+        var gg = ctx.createRadialGradient(ox - rx * 0.25, oy - ry * 0.3, rx * 0.12, ox, oy, rx * 1.15);
+        gg.addColorStop(0, hit ? "#ffffff" : "#eef8b4");
+        gg.addColorStop(0.5, hit ? "#ffffff" : def.color);
+        gg.addColorStop(1, hit ? "#ffffff" : def.colorDark);
+        ctx.fillStyle = gg;
+        smoothBlob(berry);
+        ctx.fill();
+        ctx.strokeStyle = "rgba(48, 78, 16, 0.55)";
+        ctx.lineWidth = Math.max(1.1, 1.4 * U);
+        ctx.stroke();
+        ctx.fillStyle = "rgba(22, 42, 8, 0.75)";
+        ctx.beginPath();
+        ctx.ellipse(ox + rx * 0.18, oy - ry * 0.08, rx * 0.16, ry * 0.22, 0.25, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.ellipse(ox + rx * 0.42, oy + ry * 0.18, rx * 0.08, ry * 0.28, 0.55, 0, Math.PI * 2);
+        ctx.fill();
+        if (withFace) {
+          ctx.fillStyle = "rgba(255,255,255,0.38)";
+          ctx.beginPath();
+          ctx.ellipse(ox - rx * 0.22, oy - ry * 0.32, rx * 0.28, ry * 0.16, -0.4, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+      drawOlive(-R * 0.22, R * 0.30, R * 0.26, R * 0.21, 3.2, false);
+      drawOlive(-R * 0.16, -R * 0.34, R * 0.22, R * 0.18, 4.1, false);
+      drawOlive(R * 0.16, R * 0.02, R * 0.46, R * 0.38, 2.8, true);
       if (morph > 0.12) {
         ctx.fillStyle = "rgba(200, 230, 120, " + (morph * 0.75) + ")";
-        ribbonCurve(R * 0.28, 0, R * 0.55, R * 0.12, R * 0.07, flagPhase);
+        ribbonCurve(R * 0.48, 0, R * 0.55, R * 0.12, R * 0.07, flagPhase);
         ctx.fill();
       }
-      ctx.restore();
+      faceX = R * 0.16;
+      faceY = -R * 0.02;
+      eyeR = R * 0.16;
+      gap = R * 0.20;
     } else {
       ctx.save();
       ctx.rotate(e._heading || 0);
 
-      // Cinta de flagelo (curvas, se adelgaza, se agita).
-      var rib = ctx.createLinearGradient(R * 0.45, 0, R * 2.15, 0);
-      rib.addColorStop(0, hit ? "rgba(255,255,255,0.85)" : "rgba(210, 236, 120, 0.90)");
+      var head = spineAt(0.96);
+      var rib = ctx.createLinearGradient(head.x, head.y, head.x + R * 1.7, head.y);
+      rib.addColorStop(0, hit ? "rgba(255,255,255,0.85)" : "rgba(210, 236, 120, 0.92)");
       rib.addColorStop(0.55, "rgba(140, 180, 50, 0.55)");
       rib.addColorStop(1, "rgba(70, 100, 25, 0.08)");
       ctx.fillStyle = rib;
-      ribbonCurve(R * 0.48, 0, R * 1.78, R * 0.34, R * 0.15, flagPhase);
+      ribbonCurve(head.x, head.y, R * 1.62, R * 0.30, R * 0.13, flagPhase);
       ctx.fill();
       ctx.strokeStyle = "rgba(70, 100, 25, 0.40)";
       ctx.lineWidth = Math.max(1.0, 1.3 * U);
       ctx.stroke();
 
-      // Aleta ondulante (membrana trypanosomátida) — rompe la silueta de hoja.
+      // Vela ondulante a lo largo del cuerpo (membrana trypanosomátida).
       var fin = [];
-      var nFin = 12;
+      var nFin = 14;
       for (var m = 0; m <= nFin; m++) {
-        var mt = m / nFin;
-        var mx = -R * 0.42 + mt * R * 1.05;
-        var wave = Math.sin(flagPhase * 1.15 + mt * Math.PI * 2.0) * R * (0.10 + 0.16 * mt);
-        fin.push({ x: mx, y: R * 0.08 + R * 0.22 * mt + wave });
+        var mt = 0.10 + (m / nFin) * 0.78;
+        var pr = perpAt(mt);
+        var wave = (0.16 + 0.20 * Math.sin(flagPhase * 1.2 + mt * Math.PI * 2.3)) * R;
+        fin.push({ x: pr.p.x + pr.x * (widthAt(mt) + wave), y: pr.p.y + pr.y * (widthAt(mt) + wave) });
       }
       for (var mb = nFin; mb >= 0; mb--) {
-        var nt = mb / nFin;
-        fin.push({
-          x: -R * 0.38 + nt * R * 0.95,
-          y: R * 0.02 + Math.sin(nt * Math.PI) * R * 0.06
-        });
+        var nt = 0.10 + (mb / nFin) * 0.78;
+        var pb = perpAt(nt);
+        fin.push({ x: pb.p.x + pb.x * widthAt(nt) * 0.55, y: pb.p.y + pb.y * widthAt(nt) * 0.55 });
       }
-      ctx.fillStyle = hit ? "rgba(255,255,255,0.55)" : "rgba(170, 210, 70, 0.55)";
+      ctx.fillStyle = hit ? "rgba(255,255,255,0.55)" : "rgba(170, 210, 70, 0.58)";
       smoothBlob(fin);
       ctx.fill();
       ctx.strokeStyle = "rgba(70, 100, 25, 0.35)";
       ctx.lineWidth = Math.max(1.0, 1.2 * U);
       ctx.stroke();
 
-      // Pera gelatinosa: gorda delante, cola que se curva, lóbulos que respiran.
-      var tad = [];
-      var nT = 20;
-      for (var ti = 0; ti < nT; ti++) {
-        var ta = (ti / nT) * Math.PI * 2;
-        var fat = 0.55 + 0.45 * Math.cos(ta);
-        var lump = 1 + 0.12 * Math.sin(ta * 3 + t * 1.55 + w) + 0.06 * Math.sin(ta * 5 + t);
-        var rx = R * (0.50 + 0.52 * Math.max(0.22, fat)) * lump;
-        var ry = R * (0.34 + 0.18 * Math.max(0.2, fat)) * lump;
-        var tx = Math.cos(ta) * rx;
-        var ty = Math.sin(ta) * ry;
-        if (tx < 0) ty += (-tx / R) * R * 0.28;
-        tad.push({ x: tx, y: ty });
+      // Cuerpo-anguila: largo, en S, gordo delante, cola viva.
+      var eel = [];
+      var nE = 16;
+      for (var ti = 0; ti <= nE; ti++) {
+        var u = ti / nE;
+        var pr = perpAt(u);
+        var wd = widthAt(u);
+        eel.push({ x: pr.p.x + pr.x * wd, y: pr.p.y + pr.y * wd });
       }
-      var tg = ctx.createRadialGradient(R * 0.20, -R * 0.18, R * 0.08, 0, 0, R * 1.08);
+      for (var tj = nE; tj >= 0; tj--) {
+        var v = tj / nE;
+        var ps = perpAt(v);
+        var we = widthAt(v);
+        eel.push({ x: ps.p.x - ps.x * we, y: ps.p.y - ps.y * we });
+      }
+      var mid = spineAt(0.62);
+      var tg = ctx.createRadialGradient(mid.x - R * 0.1, mid.y - R * 0.16, R * 0.08, mid.x, mid.y, R * 1.15);
       tg.addColorStop(0, hit ? "#ffffff" : "#f3f9b8");
       tg.addColorStop(0.42, hit ? "#ffffff" : "#b8dc58");
       tg.addColorStop(1, hit ? "#ffffff" : def.colorDark);
       ctx.fillStyle = tg;
-      smoothBlob(tad);
+      smoothBlob(eel);
       ctx.fill();
       ctx.strokeStyle = "rgba(48, 78, 16, 0.55)";
       ctx.lineWidth = Math.max(1.5, 1.9 * U);
       ctx.stroke();
 
-      // Vacuolas internas (gel vivo).
+      var nuc = spineAt(0.48);
       ctx.fillStyle = "rgba(255,255,255,0.22)";
       ctx.beginPath();
-      ctx.ellipse(-R * 0.18, R * 0.06, R * 0.12, R * 0.07, 0.4, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.beginPath();
-      ctx.ellipse(R * 0.04, R * 0.16, R * 0.08, R * 0.05, -0.3, 0, Math.PI * 2);
+      ctx.ellipse(nuc.x, nuc.y + R * 0.04, R * 0.16, R * 0.10, 0.3, 0, Math.PI * 2);
       ctx.fill();
 
-      // Cinetoplasto: mancha suave junto al flagelo, no un collar.
-      var kin = ctx.createRadialGradient(R * 0.38, 0, R * 0.02, R * 0.38, 0, R * 0.22);
+      var kinP = spineAt(0.86);
+      var kin = ctx.createRadialGradient(kinP.x, kinP.y, R * 0.02, kinP.x, kinP.y, R * 0.20);
       kin.addColorStop(0, hit ? "#ffffff" : "#1c3a0c");
       kin.addColorStop(1, "rgba(28, 58, 12, 0)");
       ctx.fillStyle = kin;
       ctx.beginPath();
-      ctx.ellipse(R * 0.38, 0.02 * R, R * 0.13, R * 0.19, 0.18, 0, Math.PI * 2);
+      ctx.ellipse(kinP.x, kinP.y, R * 0.12, R * 0.17, 0.25, 0, Math.PI * 2);
       ctx.fill();
-      ctx.fillStyle = "rgba(255,255,255,0.40)";
-      ctx.beginPath();
-      ctx.ellipse(R * 0.08, -R * 0.18, R * 0.16, R * 0.08, -0.4, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
-    }
 
-    var faceX = ama ? R * 0.22 : R * 0.10;
-    var faceY = ama ? R * 0.00 : -R * 0.06;
-    var eyeR = ama ? R * 0.17 : R * 0.20;
-    var gap = ama ? R * 0.20 : R * 0.24;
+      // Bolsillo flagelar: hoyuelo suave donde nace el látigo.
+      var pocket = spineAt(0.93);
+      ctx.fillStyle = "rgba(20, 40, 8, 0.28)";
+      ctx.beginPath();
+      ctx.ellipse(pocket.x, pocket.y, R * 0.10, R * 0.08, 0.2, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = "rgba(255,255,255,0.38)";
+      var hi = spineAt(0.70);
+      ctx.beginPath();
+      ctx.ellipse(hi.x - R * 0.04, hi.y - R * 0.14, R * 0.18, R * 0.08, -0.35, 0, Math.PI * 2);
+      ctx.fill();
+
+      var faceP = spineAt(0.68);
+      faceX = faceP.x;
+      faceY = faceP.y - R * 0.04;
+      eyeR = R * 0.17;
+      gap = R * 0.21;
+    }
     if (expression === "dying" || expression === "hurt") drawHurtEyes(faceX, faceY, eyeR, gap);
     else if (blink) drawClosedEyes(faceX, faceY, eyeR, gap);
     else drawAnimeEyes(faceX, faceY, eyeR, gap, 0, 0, R * 0.08, R * 0.04, ama ? "smug" : "evil");
     if (expression === "dying" || expression === "hurt") drawAnimeMouth(faceX, faceY + R * 0.24, R * 0.28, R * 0.22, "open");
     else drawAnimeMouth(faceX, faceY + R * 0.22, R * 0.28, R * 0.14, ama ? "smirk" : "wicked");
 
+    if (!ama) ctx.restore();
     ctx.restore();
   }
 

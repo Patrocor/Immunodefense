@@ -7,7 +7,7 @@ const ART = "/opt/cursor/artifacts";
 const TMP = "/tmp/neisseria-shots";
 mkdirSync(ART, { recursive: true });
 mkdirSync(TMP, { recursive: true });
-const sleep = (ms) => new Promise((r) => resolve => setTimeout(resolve, ms));
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 function placeNeisseria(attached) {
   const g = window.__game;
@@ -135,7 +135,7 @@ if (hooked.ok) {
 
 await page.evaluate(() => window.__game.hold(false));
 await browser.close();
-copyFileSync(join(TMP, "neisseria_bean.png"), join(ART, "neisseria_coffeebean.png"));
-copyFileSync(join(TMP, "neisseria_field.png"), join(ART, "neisseria_coffeebean_field.png"));
-copyFileSync(join(TMP, "neisseria_pili.png"), join(ART, "neisseria_coffeebean_pili.png"));
+copyFileSync(join(TMP, "neisseria_bean.png"), join(ART, "neisseria_bean_rest.png"));
+copyFileSync(join(TMP, "neisseria_field.png"), join(ART, "neisseria_bean_map.png"));
+copyFileSync(join(TMP, "neisseria_pili.png"), join(ART, "neisseria_pili_hook.png"));
 console.log("OK: neisseria screenshots in", ART);

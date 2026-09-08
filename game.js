@@ -24652,21 +24652,30 @@
       var taut = 0.55 + 0.45 * Math.sin(t * 10);
       ctx.lineCap = "round";
       for (var pi = 0; pi < 3; pi++) {
-        var side = (pi - 1) * 7 * U;
+        var side = (pi - 1) * 9 * U;
         var px0 = ox + Math.cos(heading + Math.PI / 2) * side;
         var py0 = oy + Math.sin(heading + Math.PI / 2) * side;
-        ctx.strokeStyle = "rgba(212,124,58," + (0.42 + taut * 0.35) + ")";
-        ctx.lineWidth = Math.max(1.4, (1.6 + pi * 0.15) * U);
+        ctx.strokeStyle = "rgba(90, 40, 10, 0.35)";
+        ctx.lineWidth = Math.max(3.2, 4.0 * U);
         ctx.beginPath();
         ctx.moveTo(px0, py0);
         ctx.lineTo(ptx, pty);
         ctx.stroke();
-        ctx.fillStyle = "rgba(240, 184, 128, 0.9)";
+        ctx.strokeStyle = "rgba(240, 170, 90," + (0.72 + taut * 0.28) + ")";
+        ctx.lineWidth = Math.max(2.0, 2.6 * U);
         ctx.beginPath();
-        ctx.arc(ptx + Math.cos(heading + Math.PI / 2) * (pi - 1) * 4 * U,
-                pty + Math.sin(heading + Math.PI / 2) * (pi - 1) * 4 * U,
-                R * 0.07, 0, Math.PI * 2);
+        ctx.moveTo(px0, py0);
+        ctx.lineTo(ptx, pty);
+        ctx.stroke();
+        ctx.fillStyle = "#f7d8b0";
+        ctx.beginPath();
+        ctx.arc(ptx + Math.cos(heading + Math.PI / 2) * (pi - 1) * 5 * U,
+                pty + Math.sin(heading + Math.PI / 2) * (pi - 1) * 5 * U,
+                R * 0.09, 0, Math.PI * 2);
         ctx.fill();
+        ctx.strokeStyle = def.colorDark;
+        ctx.lineWidth = Math.max(0.8, 1.0 * U);
+        ctx.stroke();
       }
     }
 

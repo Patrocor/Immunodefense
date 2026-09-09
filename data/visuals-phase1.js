@@ -52,7 +52,7 @@
     sarna:        { silhouette: "tortoise",   accent: "#8a5a2b", label: "Galería" },
     leishmania:   { silhouette: "eel",         accent: "#7aaa44", label: "Vacuola" },
     candida:      { silhouette: "germtube",    accent: "#EC407A", label: "Tubo" },
-    pseudomonas:  { silhouette: "monotrich",   accent: "#26A69A", label: "Piocianina" },
+    pseudomonas:  { silhouette: "monotrich",   accent: "#26A69A", label: "Piocianina+T3SS" },
     bossPyogenes: { silhouette: "coccihook",    accent: "#C62828", label: "Cuerno" },
     bossPseudomonas: { silhouette: "ecthyma", accent: "#00ACC1", label: "Ectima" },
     bossClostridium: { silhouette: "flytrap", accent: "#6a7a48", label: "Fauces" },

@@ -71,9 +71,9 @@ async function captureScene(name, opts) {
       dying: false,
       dead: false,
       wobble: 0.55,
-      _heading: 0.12,
-      _lastPosX: cx - 22,
-      _lastPosY: cy + 3,
+    _heading: 0.12,
+    _lastPosX: cx - 28,
+    _lastPosY: cy + 5,
       seekerCd: 99,
     };
     st.enemies = [e];

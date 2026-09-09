@@ -11605,21 +11605,68 @@
     if (!state.seekers || !state.seekers.length) return;
     for (var i = 0; i < state.seekers.length; i++) {
       var s = state.seekers[i];
-      var R = 8 * U;
-      // halo turquesa amenazante
-      var g = ctx.createRadialGradient(s.x, s.y, 1, s.x, s.y, R * 2.2);
-      g.addColorStop(0, "rgba(38,166,154,0.6)"); g.addColorStop(1, "rgba(38,166,154,0)");
-      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(s.x, s.y, R * 2.2, 0, Math.PI * 2); ctx.fill();
-      // cuerpo de la espora con flagelos
-      ctx.strokeStyle = "#00695C"; ctx.lineWidth = 1.5 * U;
+      var R = 9 * U;
+      var ang = s.target ? Math.atan2(s.target.y - s.y, s.target.x - s.x) : s.phase;
+      // Estela de piocianina.
+      var trailG = ctx.createRadialGradient(s.x - Math.cos(ang) * R * 1.2, s.y - Math.sin(ang) * R * 1.2, 1, s.x, s.y, R * 2.8);
+      trailG.addColorStop(0, "rgba(0, 188, 170, 0.35)");
+      trailG.addColorStop(1, "rgba(38, 166, 154, 0)");
+      ctx.fillStyle = trailG;
       ctx.beginPath();
-      for (var k = 0; k < 6; k++) { var ka = k * Math.PI / 3 + s.phase * 0.3; ctx.moveTo(s.x, s.y); ctx.lineTo(s.x + Math.cos(ka) * R * 1.4, s.y + Math.sin(ka) * R * 1.4); }
+      ctx.ellipse(s.x - Math.cos(ang) * R * 0.6, s.y - Math.sin(ang) * R * 0.6, R * 2.4, R * 1.5, ang, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.save();
+      ctx.translate(s.x, s.y);
+      ctx.rotate(ang);
+      // Flagelo posterior ondulante.
+      ctx.strokeStyle = "#0a4a46";
+      ctx.lineWidth = Math.max(1.2, 1.5 * U);
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      for (var fs = 0; fs <= 8; fs++) {
+        var ff = fs / 8;
+        var fx = -R * 0.55 - ff * R * 1.4;
+        var fy = Math.sin(ff * Math.PI * 2.5 + s.phase * 2) * R * 0.35;
+        if (fs === 0) ctx.moveTo(fx, fy); else ctx.lineTo(fx, fy);
+      }
       ctx.stroke();
-      ctx.fillStyle = "#26A69A"; ctx.strokeStyle = "#00695C"; ctx.lineWidth = 1.4 * U;
-      ctx.beginPath(); ctx.arc(s.x, s.y, R, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-      // ojito malvado central
-      ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(s.x, s.y, R * 0.45, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = "#1a1a22"; ctx.beginPath(); ctx.arc(s.x, s.y, R * 0.22, 0, Math.PI * 2); ctx.fill();
+      // Cuerpo bacilar mini.
+      var miniG = ctx.createLinearGradient(0, -R * 0.55, 0, R * 0.55);
+      miniG.addColorStop(0, "#80DEEA");
+      miniG.addColorStop(0.5, "#26A69A");
+      miniG.addColorStop(1, "#00695C");
+      ctx.fillStyle = miniG;
+      ctx.strokeStyle = "#00363d";
+      ctx.lineWidth = Math.max(1.2, 1.5 * U);
+      ctx.beginPath();
+      ctx.moveTo(-R * 0.55, -R * 0.42);
+      ctx.lineTo(R * 0.62, -R * 0.38);
+      ctx.arc(R * 0.62, 0, R * 0.42, -Math.PI / 2, Math.PI / 2);
+      ctx.lineTo(-R * 0.55, R * 0.42);
+      ctx.arc(-R * 0.55, 0, R * 0.38, Math.PI / 2, Math.PI * 1.5);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      // Pili frontales.
+      ctx.strokeStyle = "#004d40";
+      ctx.lineWidth = Math.max(0.9, 1.1 * U);
+      for (var pi = 0; pi < 3; pi++) {
+        var pa = -0.2 + pi * 0.2;
+        ctx.beginPath();
+        ctx.moveTo(R * 0.55, Math.sin(pa) * R * 0.28);
+        ctx.lineTo(R * 1.05, Math.sin(pa) * R * 0.18);
+        ctx.stroke();
+      }
+      // Ojo malvado.
+      ctx.fillStyle = "#fff";
+      ctx.beginPath();
+      ctx.arc(R * 0.18, 0, R * 0.20, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#1a1a22";
+      ctx.beginPath();
+      ctx.arc(R * 0.22, 0, R * 0.10, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
     }
   }
 
@@ -22666,19 +22713,23 @@
   //  · FLAGELO POLAR MONOTRICO — un solo flagelo en un extremo
   //  · BIOFILM MATRIX — capa exopolisacárida translúcida
   function drawPseudomonas(e, rad, expression, blink) {
-    // Pseudomonas aeruginosa — BACILO MONOTRICO + biofilm alginate.
-    //  · Cápsula horizontal turquesa, flagelo polar ondulante
-    //  · Piocianina (halo azul-verde), matriz EPS como escudo (no anillo)
-    // LOCKED v1 — bacilo + esporas buscadoras + spray exotoxina.
+    // Pseudomonas aeruginosa v2 — bacilo gram-negativo hiperdetallado.
+    //  · Cuerpo irregular polarizado (cabeza hinchada + cola), no cápsula plana
+    //  · Pili tipo IV en polo anterior, aguja T3SS dorsal, flagelo monotrico
+    //  · Piocianina (venas + goteos), biofilm alginate con burbujas (escudo EPS)
+    // v2 — upgrade visual frente a torres (NK/MAC).
     var hit = e.hitFlash > 0;
     var t = state.time;
     var def = e.def;
+    var w = e.wobble || 0;
     var sd = def.shield;
     var shieldRatio = (sd && sd.maxHP > 0) ? Math.max(0, (e.shieldHP || 0) / sd.maxHP) : 0;
-    // Heading tracking
+    var col = def.color, cold = def.colorDark, colL = def.colorLight || "#80DEEA";
+
     if (e._lastPosX == null) { e._lastPosX = e.x; e._lastPosY = e.y; e._heading = 0; }
     var dxM = e.x - e._lastPosX, dyM = e.y - e._lastPosY;
-    if (Math.hypot(dxM, dyM) > 0.5) {
+    var dMag = Math.hypot(dxM, dyM);
+    if (dMag > 0.5) {
       var targetAng = Math.atan2(dyM, dxM);
       var diffAng = targetAng - e._heading;
       while (diffAng >  Math.PI) diffAng -= Math.PI * 2;
@@ -22686,112 +22737,228 @@
       e._heading += diffAng * 0.15;
     }
     e._lastPosX = e.x; e._lastPosY = e.y;
+    var moving = dMag > 0.8;
+
+    function smoothBlob(pts) {
+      ctx.beginPath();
+      var n = pts.length;
+      ctx.moveTo((pts[n - 1].x + pts[0].x) / 2, (pts[n - 1].y + pts[0].y) / 2);
+      for (var i = 0; i < n; i++) {
+        var p = pts[i], q = pts[(i + 1) % n];
+        ctx.quadraticCurveTo(p.x, p.y, (p.x + q.x) / 2, (p.y + q.y) / 2);
+      }
+      ctx.closePath();
+    }
+    function rodPts(cx, cy, len, wid, seed) {
+      var pts = [];
+      for (var ri = 0; ri < 12; ri++) {
+        var a = (ri / 12) * Math.PI * 2;
+        var lump = 1
+          + 0.14 * Math.sin(a * 2 + t * 1.3 + seed + w)
+          + 0.10 * Math.sin(a * 4 + t * 0.8 + seed * 1.4);
+        var rx = (a < Math.PI ? len * 0.52 : len * 0.38) * lump;
+        var ry = wid * lump;
+        if (a > Math.PI * 0.35 && a < Math.PI * 1.65) rx *= 0.82;
+        pts.push({ x: cx + Math.cos(a) * rx, y: cy + Math.sin(a) * ry });
+      }
+      return pts;
+    }
 
     ctx.save();
     ctx.translate(e.x, e.y);
-    var breathe = 1 + Math.sin(t * 1.5 + e.wobble) * 0.05;
-    var bL = rad * 1.40 * breathe;
-    var bW = rad * 0.62 * breathe;
+    ctx.scale(1.14, 1.14);
+    var breathe = 1 + Math.sin(t * 1.5 + w) * 0.05;
+    var bL = rad * 1.32 * breathe;
+    var bW = rad * 0.58 * breathe;
 
     ctx.save();
     ctx.rotate(e._heading || 0);
 
-    // PYOCYANIN AURA — pigmento azul-verde (signature). Halo radial
-    // que rodea al bacilo, más intenso cerca del cuerpo.
-    var pyoR = bL * 1.55;
-    var pyoGrad = ctx.createRadialGradient(0, 0, bL * 0.55, 0, 0, pyoR);
-    pyoGrad.addColorStop(0,    "rgba(80, 240, 220, 0.0)");
-    pyoGrad.addColorStop(0.45, "rgba(40, 200, 180, 0.50)");
-    pyoGrad.addColorStop(1,    "rgba(20, 130, 120, 0)");
-    ctx.fillStyle = pyoGrad;
+    // Mancha de piocianina en el tejido (debajo del bacilo).
+    var stainG = ctx.createRadialGradient(bL * 0.15, bW * 0.35, bL * 0.08, 0, 0, bL * 1.65);
+    stainG.addColorStop(0, "rgba(0, 188, 170, 0.22)");
+    stainG.addColorStop(0.55, "rgba(0, 130, 120, 0.14)");
+    stainG.addColorStop(1, "rgba(0, 80, 70, 0)");
+    ctx.fillStyle = stainG;
     ctx.beginPath();
-    ctx.ellipse(0, 0, pyoR, bW * 2.4, 0, 0, Math.PI * 2);
+    ctx.ellipse(bL * 0.08, bW * 0.25, bL * 1.45, bW * 2.15, 0.08, 0, Math.PI * 2);
     ctx.fill();
 
-    // BIOFILM MATRIX — alginate/EPS envolvente (escudo wall integrado,
-    // no anillo circular genérico). Crece con shieldHP.
-    var bfRx = bL * (1.12 + shieldRatio * 0.28);
-    var bfRy = bW * (1.38 + shieldRatio * 0.32);
-    if (shieldRatio > 0.02) {
-      ctx.fillStyle = "rgba(140, 220, 210, " + (0.22 + shieldRatio * 0.38) + ")";
-      ctx.beginPath();
-      ctx.ellipse(0, 0, bfRx * 1.18, bfRy * 1.22, 0, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = "rgba(50, 160, 150, " + (0.35 + shieldRatio * 0.45) + ")";
-      ctx.lineWidth = Math.max(1.2, 1.6 * U);
-      ctx.beginPath();
-      ctx.ellipse(0, 0, bfRx * 1.18, bfRy * 1.22, 0, 0, Math.PI * 2);
-      ctx.stroke();
-    }
-    ctx.fillStyle = "rgba(180, 230, 220, " + (0.22 + shieldRatio * 0.22) + ")";
-    ctx.beginPath();
-    ctx.ellipse(0, 0, bfRx, bfRy, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = "rgba(80, 180, 170, " + (0.35 + shieldRatio * 0.35) + ")";
-    ctx.lineWidth = Math.max(0.9, 1.2 * U);
-    ctx.beginPath();
-    ctx.ellipse(0, 0, bfRx, bfRy, 0, 0, Math.PI * 2);
-    ctx.stroke();
-
-    // FLAGELO POLAR MONOTRICO — saliendo de la cola con ondulación
-    // sinusoidal (signature de pseudomonas).
-    ctx.strokeStyle = "#208078";
-    ctx.lineWidth = Math.max(1.4, 1.8 * U);
+    // Flagelo monotrico — base + onda larga (cola −X).
+    ctx.strokeStyle = hit ? "#ffffff" : "#0a4a46";
+    ctx.lineWidth = Math.max(2.0, 2.6 * U);
     ctx.lineCap = "round";
     ctx.beginPath();
-    var flagSegs = 14;
+    ctx.arc(-bL * 0.92, 0, bW * 0.22, -Math.PI * 0.5, Math.PI * 0.5);
+    ctx.stroke();
+    ctx.strokeStyle = hit ? "#ffffff" : "#208078";
+    ctx.lineWidth = Math.max(1.5, 2.0 * U);
+    ctx.beginPath();
+    var flagSegs = 18;
     for (var fs = 0; fs <= flagSegs; fs++) {
       var fsF = fs / flagSegs;
-      var fx = -bL * 0.95 - fsF * bL * 1.10;
-      var fy = Math.sin(fsF * Math.PI * 3 + t * 6 + e.wobble) * bW * 0.55 * (1 - fsF * 0.3);
+      var fx = -bL * 0.98 - fsF * bL * 1.25;
+      var fy = Math.sin(fsF * Math.PI * 3.2 + t * 6.5 + w) * bW * 0.62 * (0.35 + 0.65 * fsF);
       if (fs === 0) ctx.moveTo(fx, fy); else ctx.lineTo(fx, fy);
     }
     ctx.stroke();
+    ctx.strokeStyle = hit ? "#ffffff" : colL;
+    ctx.lineWidth = Math.max(0.9, 1.2 * U);
+    ctx.stroke();
 
-    // CUERPO BACILO — cápsula horizontal con gradiente turquesa
-    var bodyGrad = ctx.createLinearGradient(0, -bW, 0, bW);
-    bodyGrad.addColorStop(0, def.colorLight || "#80DEEA");
-    bodyGrad.addColorStop(0.5, def.color);
-    bodyGrad.addColorStop(1, def.colorDark);
-    ctx.fillStyle = hit ? "#ffffff" : bodyGrad;
-    // Cápsula (rect con extremos redondeados)
+    // Biofilm alginate — lóbulos irregulares (escudo EPS, no anillo).
+    if (shieldRatio > 0.02) {
+      var slimeLobes = [
+        { x: -bL * 0.42, y: -bW * 1.05, rx: bL * 0.38, ry: bW * 0.42, a: -0.25 },
+        { x:  bL * 0.55, y: -bW * 0.88, rx: bL * 0.34, ry: bW * 0.38, a:  0.18 },
+        { x: -bL * 0.18, y:  bW * 1.12, rx: bL * 0.42, ry: bW * 0.48, a:  0.42 },
+        { x:  bL * 0.72, y:  bW * 0.62, rx: bL * 0.28, ry: bW * 0.34, a: -0.12 }
+      ];
+      var sa = 0.24 + shieldRatio * 0.42;
+      for (var sl = 0; sl < slimeLobes.length; sl++) {
+        var sm = slimeLobes[sl];
+        ctx.fillStyle = hit ? "rgba(255,255,255,0.35)" : "rgba(150, 235, 220, " + sa + ")";
+        ctx.beginPath();
+        ctx.ellipse(sm.x, sm.y, sm.rx * (1 + shieldRatio * 0.12), sm.ry * (1 + shieldRatio * 0.12), sm.a, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = hit ? "#ffffff" : "rgba(40, 150, 140, " + (0.25 + shieldRatio * 0.35) + ")";
+        ctx.lineWidth = Math.max(1.0, 1.3 * U);
+        ctx.stroke();
+      }
+    }
+    ctx.fillStyle = "rgba(170, 230, 220, " + (0.14 + shieldRatio * 0.18) + ")";
     ctx.beginPath();
-    ctx.moveTo(-bL * 0.95, -bW);
-    ctx.lineTo(bL * 0.95, -bW);
-    ctx.arc(bL * 0.95, 0, bW, -Math.PI / 2, Math.PI / 2);
-    ctx.lineTo(-bL * 0.95, bW);
-    ctx.arc(-bL * 0.95, 0, bW, Math.PI / 2, Math.PI * 1.5);
-    ctx.closePath();
+    ctx.ellipse(0, 0, bL * (1.05 + shieldRatio * 0.22), bW * (1.28 + shieldRatio * 0.26), 0, 0, Math.PI * 2);
     ctx.fill();
-    ctx.strokeStyle = def.colorDark;
-    ctx.lineWidth = Math.max(1.2, 1.6 * U);
+
+    // Cuerpo bacilar irregular (polarizado: polo +X más ancho = cabeza).
+    var body = rodPts(0, 0, bL, bW, 0.6);
+    var bodyG = ctx.createLinearGradient(0, -bW, 0, bW);
+    bodyG.addColorStop(0, hit ? "#ffffff" : colL);
+    bodyG.addColorStop(0.45, hit ? "#ffffff" : col);
+    bodyG.addColorStop(1, hit ? "#ffffff" : cold);
+    ctx.fillStyle = bodyG;
+    smoothBlob(body);
+    ctx.fill();
+    ctx.strokeStyle = hit ? "#ffffff" : "#00363d";
+    ctx.lineWidth = Math.max(1.4, 1.9 * U);
     ctx.stroke();
 
-    // Membrana doble (gram-negativa) — línea interna más clara dentro
-    ctx.strokeStyle = "rgba(255, 255, 255, 0.35)";
-    ctx.lineWidth = 1 * U;
-    ctx.beginPath();
-    ctx.ellipse(0, 0, bL * 0.85, bW * 0.72, 0, 0, Math.PI * 2);
-    ctx.stroke();
+    // Membrana externa LPS — borde ondulado gram-negativo.
+    if (!hit) {
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.28)";
+      ctx.lineWidth = Math.max(1.0, 1.3 * U);
+      ctx.beginPath();
+      for (var lp = 0; lp <= 24; lp++) {
+        var lpf = lp / 24, la = lpf * Math.PI * 2;
+        var lrx = (la < Math.PI ? bL * 0.46 : bL * 0.34) * (1 + 0.06 * Math.sin(la * 5 + t * 2));
+        var lry = bW * 0.88 * (1 + 0.05 * Math.sin(la * 4 + t * 1.6 + w));
+        var lx = Math.cos(la) * lrx, ly = Math.sin(la) * lry;
+        if (lp === 0) ctx.moveTo(lx, ly); else ctx.lineTo(lx, ly);
+      }
+      ctx.closePath();
+      ctx.stroke();
+    }
 
-    // Highlight perlado superior (efecto humedo)
-    ctx.fillStyle = "rgba(255, 255, 255, 0.35)";
+    // Nucleoide + venas de piocianina internas.
+    if (!hit) {
+      ctx.fillStyle = "rgba(0, 60, 55, 0.35)";
+      ctx.beginPath();
+      ctx.ellipse(-bL * 0.08, 0, bL * 0.38, bW * 0.42, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "rgba(0, 172, 193, 0.55)";
+      ctx.lineWidth = Math.max(1.0, 1.2 * U);
+      ctx.lineCap = "round";
+      for (var vn = 0; vn < 4; vn++) {
+        ctx.beginPath();
+        ctx.moveTo(-bL * 0.35 + vn * bL * 0.18, -bW * 0.15);
+        ctx.quadraticCurveTo(-bL * 0.05 + vn * bL * 0.12, bW * 0.08, bL * 0.28, bW * 0.22 - vn * bW * 0.12);
+        ctx.stroke();
+      }
+      ctx.fillStyle = "rgba(0, 188, 170, 0.45)";
+      for (var gr = 0; gr < 7; gr++) {
+        var gx = -bL * 0.28 + gr * bL * 0.11 + Math.sin(t * 2 + gr) * bL * 0.03;
+        var gy = (gr % 2 ? 1 : -1) * bW * 0.22;
+        ctx.beginPath();
+        ctx.arc(gx, gy, Math.max(1.2, 1.6 * U), 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    // Pili tipo IV — racimo en polo anterior (+X).
+    ctx.strokeStyle = hit ? "#ffffff" : "#004d40";
+    ctx.lineWidth = Math.max(1.1, 1.4 * U);
+    ctx.lineCap = "round";
+    for (var pi = 0; pi < 7; pi++) {
+      var pa = -0.55 + pi * 0.18 + Math.sin(t * 3 + pi) * 0.04;
+      var plen = bL * (0.28 + (pi % 3) * 0.06);
+      ctx.beginPath();
+      ctx.moveTo(bL * 0.78, Math.sin(pa) * bW * 0.55);
+      ctx.quadraticCurveTo(bL * 0.95 + plen * 0.45, Math.sin(pa) * bW * 0.75, bL * 0.82 + plen, Math.sin(pa) * bW * 0.35);
+      ctx.stroke();
+    }
+
+    // Aguja T3SS (secreción tipo III) — fina, dorsal.
+    if (!hit) {
+      ctx.strokeStyle = "rgba(180, 255, 240, 0.75)";
+      ctx.lineWidth = Math.max(1.0, 1.3 * U);
+      ctx.beginPath();
+      ctx.moveTo(bL * 0.12, -bW * 0.72);
+      ctx.lineTo(bL * 0.38, -bW * 1.05);
+      ctx.stroke();
+      ctx.fillStyle = "rgba(0, 130, 120, 0.65)";
+      ctx.beginPath();
+      ctx.arc(bL * 0.10, -bW * 0.68, Math.max(2.0, 2.6 * U), 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Goteos de piocianina (activos al caminar).
+    if (moving && !hit) {
+      for (var dr = 0; dr < 3; dr++) {
+        var dripPhase = (t * 1.8 + dr * 1.1 + w) % 2.4;
+        if (dripPhase > 1.6) continue;
+        var dx = bL * (0.05 + dr * 0.22);
+        var dy = bW * 0.35 + dripPhase * bW * 0.55;
+        ctx.fillStyle = "rgba(0, 172, 193, " + (0.65 - dripPhase * 0.35) + ")";
+        ctx.beginPath();
+        ctx.ellipse(dx, dy, Math.max(1.5, 2 * U), Math.max(2.5, 3.2 * U), 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    // Burbujas en biofilm (solo con escudo).
+    if (shieldRatio > 0.15 && !hit) {
+      ctx.strokeStyle = "rgba(255, 255, 255, " + (0.15 + shieldRatio * 0.25) + ")";
+      ctx.lineWidth = Math.max(0.8, 1 * U);
+      for (var bb = 0; bb < 5; bb++) {
+        var bx = -bL * 0.35 + bb * bL * 0.22 + Math.sin(t + bb) * bL * 0.04;
+        var by = -bW * 0.55 + (bb % 2) * bW * 1.1;
+        ctx.beginPath();
+        ctx.arc(bx, by, Math.max(2, 2.8 * U), 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    }
+
+    // Brillo húmedo superior.
+    ctx.fillStyle = hit ? "rgba(255,255,255,0.5)" : "rgba(255, 255, 255, 0.32)";
     ctx.beginPath();
-    ctx.ellipse(0, -bW * 0.45, bL * 0.65, bW * 0.18, 0, 0, Math.PI * 2);
+    ctx.ellipse(bL * 0.12, -bW * 0.42, bL * 0.52, bW * 0.16, -0.08, 0, Math.PI * 2);
     ctx.fill();
 
     ctx.restore();
 
-    // CARA UPRIGHT (centrada en el cuerpo)
+    // Cara en polo anterior (upright, no rota con el cuerpo).
+    var headX = Math.cos(e._heading || 0) * bL * 0.42;
+    var headY = Math.sin(e._heading || 0) * bL * 0.42;
     var hpFracFace = (def && def.hp > 0) ? (e.hp / def.hp) : 1;
     var lowHp = hpFracFace < 0.20;
     var sadFace = (expression === "dying" || expression === "hurt" || lowHp);
-    var eyeR = bW * 0.42, fgap = bW * 0.55;
-    if (blink) drawClosedEyes(0, 0, eyeR, fgap);
-    else if (sadFace) drawHurtEyes(0, 0, eyeR, fgap);
-    else drawAnimeEyes(0, 0, eyeR, fgap, 0, 0, bW * 0.15, bW * 0.06, "evil");
-    if (sadFace) drawAnimeMouth(0, bW * 0.55, bW * 0.55, bW * 0.40, "open");
-    else drawAnimeMouth(0, bW * 0.55, bW * 0.55, bW * 0.20, "fanged");
+    var eyeR = bW * 0.36, fgap = bW * 0.48;
+    if (blink) drawClosedEyes(headX, headY, eyeR, fgap);
+    else if (sadFace) drawHurtEyes(headX, headY, eyeR, fgap);
+    else drawAnimeEyes(headX, headY, eyeR, fgap, 0, 0, bW * 0.14, bW * 0.06, "evil");
+    if (sadFace) drawAnimeMouth(headX, headY + bW * 0.52, bW * 0.50, bW * 0.38, "open");
+    else drawAnimeMouth(headX, headY + bW * 0.52, bW * 0.48, bW * 0.22, "fanged");
 
     ctx.restore();
   }

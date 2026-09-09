@@ -63,17 +63,19 @@ var TOWER_DEFS = {
   },
   langerhans: {
     id: "langerhans", name: "Cel. de Langerhans", shortName: "Langer",
-    color: "#3FC1C9", colorDark: "#26797f", cost: 70,     desc: "CPA de la piel: MARCA gérmenes (+daño recibido, revela ocultos, desgasta escudo), ZONA DE PRESENTACIÓN (+15% daño a aliadas cercanas) y coordina al equipo. Ultimate: MHC-II masivo + buff aliadas + IL-5 (dispara ultimates listos).",
+    color: "#3FC1C9", colorDark: "#26797f", cost: 70,     desc: "CPA de la piel con ATAQUE PROPIO: granuloma Birbeck (cadena), pulso MHC-II (marca + revela ocultos), latigazo dendrítico cada 5s. Ultimate: Tormenta MHC-II — ráfaga de antígeno propia.",
     support: "mark",
     amplifies: true,
-    presentAura: 0.15,              // aliadas en rango: +15% daño (zona de presentación)
-    // Ultimate: PRESENTACIÓN ANTIGÉNICA MASIVA + COORDINACIÓN INMUNE + IL-5.
-    specialChargeSec: 28,
-    specialName: "Presentación masiva",
+    presentAura: 0.08,
+    birbeckChain: 0.72,
+    whipInterval: 5.0,
+    markPulseSec: 1.0,
+    specialChargeSec: 30,
+    specialName: "Tormenta MHC-II",
     levels: [
-      { range: 130, damage: 9,  fireRate: 1.0, projectileSpeed: 0, splash: 0, hp: 95,  markBonus: 0.40, markDur: 4.0 },
-      { range: 150, damage: 13, fireRate: 1.0, projectileSpeed: 0, splash: 0, hp: 120, markBonus: 0.50, markDur: 4.0 },
-      { range: 170, damage: 18, fireRate: 1.0, projectileSpeed: 0, splash: 0, hp: 150, markBonus: 0.60, markDur: 4.5 }
+      { range: 135, damage: 26, fireRate: 1.15, projectileSpeed: 450, splash: 0, hp: 100, markBonus: 0.45, markDur: 3.5 },
+      { range: 155, damage: 38, fireRate: 1.28, projectileSpeed: 480, splash: 0, hp: 125, markBonus: 0.55, markDur: 4.0 },
+      { range: 175, damage: 52, fireRate: 1.40, projectileSpeed: 510, splash: 0, hp: 155, markBonus: 0.65, markDur: 4.5 }
     ],
     upgradeCost: [75, 130]
   },

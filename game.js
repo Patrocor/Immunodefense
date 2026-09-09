@@ -7117,6 +7117,16 @@
           damageEnemy(e, (e.dotDps || 0) * 0.4, e.dotSource || "eosinofilo");
         }
       }
+      // Procesamiento antigénico (Langerhans): DoT propio sobre gérmenes marcados.
+      if ((e.langerDotT || 0) > 0) {
+        e.langerDotT -= dt;
+        e.langerDotTick = (e.langerDotTick || 0) - dt;
+        if (e.langerDotTick <= 0) {
+          e.langerDotTick = 0.35;
+          if ((e.langerDotDps || 0) > 0) damageEnemy(e, e.langerDotDps * 0.35, "langerhans");
+        }
+        if (e.langerDotT <= 0) { e.langerDotT = 0; e.langerDotDps = 0; }
+      }
       // Sarna: madriguera (se entierra, intocable salvo si está marcada).
       var burrowFactor = 1;
       if (e.def.burrow && (e.state === "walking")) {
@@ -7920,26 +7930,19 @@
       return;
     }
     if (def.id === "langerhans") {
-      // PRESENTACIÓN ANTIGÉNICA MASIVA + COORDINACIÓN INMUNE.
-      // 1) Marca a TODOS los enemies en rango con flag MHC-II → +60%
-      //    damage recibido por 6s (reusa markTimer/markBonus del sistema base)
-      // 2) Buffea TODAS las torres aliadas en rango → +25% fireRate 6s
+      // TORMENTA MHC-II — poder PROPIO: oleada de antígeno + procesamiento masivo.
       var lStats = towerStats(t);
-      var lR = lStats.range * U;
-      var MARK_BONUS = 0.75;          // +75% MHC-II masivo (vs mark pasiva 0.40-0.60)
-      var MARK_DUR = 8.0;
-      var BUFF_DUR = 8.0;
-      // Marcar enemigos en rango (reusa el campo markTimer/markBonus
-      // del sistema base — el dmg modifier en damageEnemy lo aplica auto)
+      var lR = lStats.range * U * 1.3;
       for (var i = 0; i < state.enemies.length; i++) {
         var e = state.enemies[i];
         if (e.dead || e.dying) continue;
-        var de = Math.hypot(e.x - t.x, e.y - t.y);
-        if (de > lR) continue;
-        e.markTimer = MARK_DUR;
-        e.markBonus = MARK_BONUS;
+        if (Math.hypot(e.x - t.x, e.y - t.y) > lR) continue;
+        e.markTimer = 7.0;
+        e.markBonus = 0.80;
         e.revealed = true;
-        // Visual: flag MHC-II flotando sobre el germ
+        if (e.def.cloaked || e.burrowed) e.revealFlashT = 0.85;
+        damageEnemy(e, lStats.damage * 3.2, "langerhans");
+        langerApplyProcess(e, lStats.damage * 0.58, 5.5);
         pushEffect({
           kind: "atpText",
           x: e.x, y: e.y - e.def.radius * U - 8 * U,
@@ -7949,43 +7952,14 @@
           color: "#ffd24a"
         });
       }
-      // Buffear torres aliadas en rango (incluyendo Langerhans mismo)
-      for (var ti = 0; ti < state.towers.length; ti++) {
-        var ally = state.towers[ti];
-        if (ally === t) continue;
-        var da = Math.hypot(ally.x - t.x, ally.y - t.y);
-        if (da > lR) continue;
-        ally.langerBuff = 1.30;
-        ally.langerBuffT = BUFF_DUR;
-        ally.langerDmgBuff = 1.22;
-        ally.langerDmgBuffT = BUFF_DUR;
-        ally.langerLinkT = BUFF_DUR;
-        ally.langerLinkFromX = t.x;
-        ally.langerLinkFromY = t.y;
-        pushEffect({
-          kind: "atpText", x: ally.x, y: ally.y - 20 * U, vy: -22 * U,
-          text: "+30%", life: 1.0, max: 1.0, color: "#26c6da"
-        });
-      }
-      // IL-5: coordina ultimates de granulocitos y fagocitos con ≥40% carga.
-      for (var li5 = 0; li5 < state.towers.length; li5++) {
-        var ilt5 = state.towers[li5];
-        if (ilt5 === t) continue;
-        if (Math.hypot(ilt5.x - t.x, ilt5.y - t.y) > lR) continue;
-        var il5Ids = ["eosinofilo", "mastocito", "neutrofilo", "nk"];
-        if (il5Ids.indexOf(ilt5.def.id) !== -1 && (ilt5.specialCharge || 0) >= 0.4) {
-          ilt5.specialReady = true;
-          triggerTowerSpecial(ilt5);
-          pushEffect({ kind: "particle", x: ilt5.x, y: ilt5.y,
-            vx: 0, vy: -40 * U, life: 0.6, max: 0.6, color: "#26c6da" });
-        }
-      }
-      showMsg("¡Presentación masiva MHC-II!");
-      t.specialAnim = 1.5;             // duración del visual del ultimate
+      t.langerStorm = { spikesLeft: 7, nextSpike: 0.06 };
+      pushEffect({ kind: "novaRing", x: t.x, y: t.y, r: lR, color: "#3FC1C9", life: 0.8, max: 0.8 });
+      t.specialAnim = 1.7;
       t.specialReady = false;
       t.specialCharge = 0;
+      showMsg("¡Tormenta MHC-II!");
       sfx("upgrade");
-      triggerShake(0.15, 4);
+      triggerShake(0.18, 5);
       return;
     }
     if (def.id === "linfocitoT") {
@@ -8797,6 +8771,167 @@
     ctx.restore();
   }
 
+  // ── LANGERHANS — kit propio (ataque + poderes signature) ─────────────
+  function langerEnemyOk(e) {
+    if (!e || e.dead || e.dying || e.absorbing || e.beingEngulfed || e.beingDropped) return false;
+    if (e.state === "falling" || e.state === "entering") return false;
+    if (e.burrowed && !e.revealed) return false;
+    if (e.def.cloaked && !e.revealed) return false;
+    return true;
+  }
+  function langerApplyProcess(e, dps, dur) {
+    if (!e || e.dead) return;
+    e.langerDotT = Math.max(e.langerDotT || 0, dur);
+    e.langerDotDps = Math.max(e.langerDotDps || 0, dps);
+  }
+  function langerApplyMark(t, e, stats, bonusExtra) {
+    if (!e || e.dead) return;
+    var wasMarked = (e.markTimer || 0) > 0;
+    e.markTimer = stats.markDur;
+    e.markBonus = (stats.markBonus || 0.45) + (bonusExtra || 0);
+    e.revealed = true;
+    e.slowTimer = Math.max(e.slowTimer || 0, 0.45);
+    if (e.def.cloaked || e.burrowed) {
+      e.revealFlashT = 0.8;
+      if (!e.langerRevealMsg) {
+        e.langerRevealMsg = true;
+        showMsg("¡Langerhans revela " + (e.def.shortName || e.def.name) + "!");
+      }
+    }
+    if (!wasMarked && e.def.shield && (e.shieldHP || 0) > 0) {
+      e.shieldHP -= (t.level >= 2 ? 2 : 1);
+      e.shieldHitTimer = 0.25;
+      if (e.shieldHP <= 0) { e.shieldHP = 0; e.shieldShatterTimer = 0.45; e.noShieldRegen = true; }
+    }
+    if (!wasMarked) {
+      e.markSplatAngle = Math.random() * Math.PI * 2;
+      e.markSplatR = 0.45 + Math.random() * 0.30;
+    }
+  }
+  function langerPickTarget(t, rangePx) {
+    var hidden = null, hiddenP = -1, best = null, bestP = -1;
+    for (var i = 0; i < state.enemies.length; i++) {
+      var e = state.enemies[i];
+      if (e.dead || e.dying || e.absorbing || e.beingEngulfed || e.beingDropped) continue;
+      if (e.state === "falling" || e.state === "entering") continue;
+      if (Math.hypot(e.x - t.x, e.y - t.y) > rangePx) continue;
+      var isHidden = (e.def.cloaked && !e.revealed) || (e.burrowed && !e.revealed);
+      if (isHidden && e.progress > hiddenP) { hiddenP = e.progress; hidden = e; }
+      if (langerEnemyOk(e) && e.progress > bestP) { bestP = e.progress; best = e; }
+    }
+    return hidden || best;
+  }
+  function langerMarkPulse(t, stats, rangePx) {
+    for (var i = 0; i < state.enemies.length; i++) {
+      var se = state.enemies[i];
+      if (se.dead || se.dying || se.absorbing) continue;
+      if (Math.hypot(se.x - t.x, se.y - t.y) > rangePx) continue;
+      var wasMarked = (se.markTimer || 0) > 0;
+      langerApplyMark(t, se, stats, 0);
+      if (!wasMarked) {
+        pushEffect({
+          kind: "markDart", x: t.x, y: t.y, tx: se.x, ty: se.y,
+          travel: 0.32, life: 0.32, max: 0.32, color: t.def.color
+        });
+      }
+    }
+  }
+  function langerDendriticWhip(t, stats, rangePx) {
+    var target = langerPickTarget(t, rangePx);
+    if (!target) return;
+    var whipDmg = stats.damage * 3.4;
+    damageEnemy(target, whipDmg, "langerhans");
+    langerApplyMark(t, target, stats, 0.12);
+    langerApplyProcess(target, stats.damage * 0.55, 3.5);
+    pushEffect({
+      kind: "dendriteWhip", x1: t.x, y1: t.y, x2: target.x, y2: target.y,
+      life: 0.38, max: 0.38, color: t.def.color
+    });
+    pushEffect({
+      kind: "atpText", x: target.x, y: target.y - 22 * U, vy: -32 * U,
+      text: "CRACK", life: 0.7, max: 0.7, color: "#7cf0e8"
+    });
+    t.attackAnim = 0.32;
+    t.muzzleFlash = 0.12;
+  }
+  function langerFireBirbeck(t, target, stats, dmg) {
+    damageEnemy(target, dmg, "langerhans");
+    langerApplyMark(t, target, stats, 0);
+    langerApplyProcess(target, stats.damage * 0.42, 2.8);
+    var gsDur = 0.18;
+    pushEffect({
+      kind: "granuleShot", x: t.x, y: t.y,
+      vx: (target.x - t.x) / gsDur, vy: (target.y - t.y) / gsDur,
+      life: gsDur, max: gsDur
+    });
+    var chain = null, chainD = Infinity;
+    var chainR = 88 * U;
+    for (var ci = 0; ci < state.enemies.length; ci++) {
+      var ce = state.enemies[ci];
+      if (ce === target || !langerEnemyOk(ce)) continue;
+      var cd = Math.hypot(ce.x - target.x, ce.y - target.y);
+      if (cd <= chainR && cd < chainD) { chainD = cd; chain = ce; }
+    }
+    if (chain) {
+      var chainDmg = dmg * (t.def.birbeckChain || 0.72);
+      damageEnemy(chain, chainDmg, "langerhans");
+      langerApplyMark(t, chain, stats, 0);
+      langerApplyProcess(chain, stats.damage * 0.32, 2.2);
+      var gs2 = 0.14;
+      pushEffect({
+        kind: "granuleShot", x: target.x, y: target.y,
+        vx: (chain.x - target.x) / gs2, vy: (chain.y - target.y) / gs2,
+        life: gs2, max: gs2
+      });
+    }
+  }
+  function langerUpdatePassives(t, dt, stats, rangePx) {
+    t.langerMarkT = (t.langerMarkT || 0) - dt;
+    if (t.langerMarkT <= 0) {
+      t.langerMarkT = t.def.markPulseSec || 1.0;
+      langerMarkPulse(t, stats, rangePx);
+    }
+    t.langerWhipT = (t.langerWhipT || 0) - dt;
+    if (t.langerWhipT <= 0) {
+      t.langerWhipT = t.def.whipInterval || 5.0;
+      langerDendriticWhip(t, stats, rangePx);
+    }
+    if (t.langerStorm && (t.langerStorm.spikesLeft || 0) > 0) {
+      t.langerStorm.nextSpike = (t.langerStorm.nextSpike || 0) - dt;
+      if (t.langerStorm.nextSpike <= 0) {
+        t.langerStorm.nextSpike = 0.11;
+        var st = langerPickTarget(t, rangePx * 1.15);
+        if (st) {
+          damageEnemy(st, stats.damage * 2.4, "langerhans");
+          langerApplyMark(t, st, stats, 0.15);
+          langerApplyProcess(st, stats.damage * 0.5, 3.0);
+          pushEffect({
+            kind: "markDart", x: t.x, y: t.y, tx: st.x, ty: st.y,
+            life: 0.2, max: 0.2, color: "#ffd24a"
+          });
+        }
+        t.langerStorm.spikesLeft--;
+        if (t.langerStorm.spikesLeft <= 0) t.langerStorm = null;
+      }
+    }
+    if (t.def.amplifies) {
+      for (var ampI = 0; ampI < state.towers.length; ampI++) {
+        var ampAlly = state.towers[ampI];
+        if (ampAlly === t) continue;
+        if (Math.hypot(ampAlly.x - t.x, ampAlly.y - t.y) > rangePx) continue;
+        if (ampAlly.def.id === "eosinofilo") ampAlly.ilc2EosinT = 4;
+        if (ampAlly.def.id === "mastocito")  ampAlly.ilc2MastoT = 5;
+      }
+    }
+    if ((t.def.presentAura || 0) > 0) {
+      for (var lz = 0; lz < state.towers.length; lz++) {
+        var lzt = state.towers[lz];
+        if (lzt === t) continue;
+        if (Math.hypot(lzt.x - t.x, lzt.y - t.y) <= rangePx) lzt.langerZoneT = 2.0;
+      }
+    }
+  }
+
   function updateTowers(dt) {
     // Recalcula sinergias por proximidad al inicio del frame (O(n²)
     // pero con n<20 es trivial).
@@ -9058,6 +9193,10 @@
       if (t.stunTimer > 0) t.stunTimer -= dt;
       if (t.slowFireTimer > 0) t.slowFireTimer -= dt;
       if (t.stunTimer > 0 || t.devouredBy) continue;   // paralizada / siendo devorada
+      if (t.def.id === "langerhans") {
+        var langStatsEarly = towerStats(t);
+        langerUpdatePassives(t, dt, langStatsEarly, langStatsEarly.range * U);
+      }
       if (t.cooldown > 0) continue;
       var stats = towerStats(t);
       var rangePx = stats.range * U;
@@ -9081,6 +9220,19 @@
           });
           var macTarget = macCandidates[0];
           fireCannonAt(t, macTarget.x, macTarget.y);
+        }
+        continue;
+      }
+      if (t.def.id === "langerhans") {
+        var lgTarget = langerPickTarget(t, rangePx);
+        if (lgTarget) {
+          fireTower(t, lgTarget);
+          t.cooldown = (1 / stats.fireRate) * (t.slowFireTimer > 0 ? 2 : 1);
+          t.muzzleFlash = 0.14;
+          t.attackAnim = 0.26;
+          sfx("linfTAttack");
+        } else {
+          t.cooldown = 0.18;
         }
         continue;
       }
@@ -9169,8 +9321,8 @@
         }
       }
       // Torres de SOPORTE: aplican aura a todos los gérmenes en rango (sin
-      // objetivo único). Langerhans marca (+daño y revela); Mastocito ralentiza.
-      if (t.def.support) {
+      // objetivo único). Langerhans tiene kit propio arriba; Mastocito ralentiza.
+      if (t.def.support && t.def.id !== "langerhans") {
         var acted = false;
         for (var sj = 0; sj < state.enemies.length; sj++) {
           var se = state.enemies[sj];
@@ -9307,6 +9459,11 @@
     if (t.def.bonusVsKinds && t.def.bonusVsKinds.indexOf(target.def.baseKind) >= 0) dmg *= t.def.bonusVsMult;
     // Sebocito: ×3 vs acné y dermatofito
     if (t.def.sebumSpecialist && t.def.sebumSpecialist.indexOf(target.def.id) >= 0) dmg *= 3;
+
+    if (t.def.id === "langerhans") {
+      langerFireBirbeck(t, target, stats, dmg);
+      return;
+    }
 
     // ══ NK — HACHAZO EN ARCO + EJECUCIÓN ══
     // Corta a todos los gérmenes en un cono hacia el objetivo (sus hachas) y
@@ -16963,7 +17120,7 @@
       ctx.font = "bold " + Math.round(8 * U) + "px Fredoka, sans-serif";
       ctx.textAlign = "center";
       ctx.textBaseline = "bottom";
-      ctx.fillText("+15%", t.x, t.y - 30 * U);
+      ctx.fillText("+8%", t.x, t.y - 30 * U);
       ctx.restore();
     }
     // Level-up sparkles
@@ -27388,6 +27545,27 @@
       ctx.beginPath();
       ctx.arc(ef.x, ef.y, rr, 0, Math.PI * 2);
       ctx.fill();
+      ctx.restore();
+      return;
+    }
+    if (ef.kind === "dendriteWhip") {
+      var dwT = 1 - ef.life / ef.max;
+      ctx.save();
+      ctx.globalAlpha = alpha * (1 - dwT * 0.35);
+      ctx.strokeStyle = ef.color || "#3FC1C9";
+      ctx.lineWidth = (5 - dwT * 2.5) * U;
+      ctx.lineCap = "round";
+      var mx = (ef.x1 + ef.x2) * 0.5, my = (ef.y1 + ef.y2) * 0.5 - 28 * U;
+      ctx.beginPath();
+      ctx.moveTo(ef.x1, ef.y1);
+      ctx.quadraticCurveTo(mx, my, ef.x2, ef.y2);
+      ctx.stroke();
+      ctx.strokeStyle = "rgba(255,255,255," + (alpha * 0.55) + ")";
+      ctx.lineWidth = (2 - dwT) * U;
+      ctx.beginPath();
+      ctx.moveTo(ef.x1, ef.y1);
+      ctx.quadraticCurveTo(mx, my, ef.x2, ef.y2);
+      ctx.stroke();
       ctx.restore();
       return;
     }

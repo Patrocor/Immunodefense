@@ -1,4 +1,4 @@
-/** Captura pDC v3 — Faro IFN majestuoso + Tormenta IFN-α. DISPLAY=:1 node scripts/playtest-pdc.mjs */
+/** Captura pDC v4 — Faro IFN robusto + Tormenta IFN-α. DISPLAY=:1 node scripts/playtest-pdc.mjs */
 import { chromium } from "playwright";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
@@ -125,7 +125,8 @@ const info = await page.evaluate(() => {
 
   pd.ifnPulse = 2.8;
   pd.ifnBuffT = 4.5;
-  pd.specialAnim = 0.62;
+  pd.specialAnim = 0.55;
+  pd.attackAnim = 0.38;
 
   g.hold(true);
   const canvas = document.getElementById("canvas");
@@ -139,11 +140,11 @@ const info = await page.evaluate(() => {
   };
 });
 
-console.log("pDC v3 faro IFN:", info);
+console.log("pDC v4 faro IFN robusto:", info);
 await sleep(500);
-await page.screenshot({ path: join(ART, "pdc_v3_beacon_field.png") });
+await page.screenshot({ path: join(ART, "pdc_v4_beacon_field.png") });
 if (info.ok) {
-  await page.screenshot({ path: join(ART, "pdc_v3_beacon_ultimate.png"), clip: info.clip });
+  await page.screenshot({ path: join(ART, "pdc_v4_beacon_ultimate.png"), clip: info.clip });
 }
 await page.evaluate(() => window.__game.hold(false));
 await browser.close();

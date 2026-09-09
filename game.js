@@ -9585,7 +9585,7 @@
         fireTower(t, target);
         t.cooldown = (1 / stats.fireRate) * (t.slowFireTimer > 0 ? 2 : 1);
         t.muzzleFlash = 0.08;
-        t.attackAnim = t.def.id === "sebocito" ? 0.42 : (t.def.id === "pdc" ? 0.34 : 0.20);
+        t.attackAnim = t.def.id === "sebocito" ? 0.42 : (t.def.id === "pdc" ? 0.48 : 0.20);
         if (t.def.id === "neutrofilo") sfx("macroAttack");
         else if (t.def.id === "linfocitoB") sfx("linfBAttack");
         else sfx("linfTAttack");
@@ -9713,7 +9713,17 @@
       pushEffect({ kind: "melee", x1: t.x, y1: t.y, x2: target.x, y2: target.y, life: 0.28, max: 0.28, color: t.def.color, towerId: t.def.id });
     } else {
       var isSebumShot = t.def.id === "sebocito";
+      var isPdcShot = t.def.id === "pdc";
       var lvlStats = t.def.levels[Math.min(t.level, t.def.levels.length - 1)];
+      if (isPdcShot) {
+        var ifnX = t.x + (Math.random() - 0.5) * 4 * U;
+        var ifnY = t.y - 22 * U;
+        pushEffect({
+          kind: "ifnIgnite", x: ifnX, y: ifnY,
+          tx: target.x, ty: target.y,
+          life: 0.32, max: 0.32
+        });
+      }
       if (isSebumShot) {
         var spitX = t.x + (Math.random() - 0.5) * 5 * U;
         var spitY = t.y - 16 * U;
@@ -20018,26 +20028,54 @@
   }
 
   function drawPDC(t, pulse, expression, blink) {
-    // pDC v3 — FARO IFN: columna hexagonal + corona de 6 arcos dendríticos.
-    // Estructura MAJESTUOSA vertical (no blob/esfera) — torre antiviral única.
-    // Ultimate Tormenta IFN-α: tormenta de ondas que destrozan virus.
+    // pDC v4 — FARO IFN robusto: latido vertical, encendido→emisión, corona dinámica.
+    // Ciclo ataque: carga IFN (0.48s) → destello corona → rayo + proyectil ondulado.
     var doingUlt = (t.specialAnim || 0) > 0;
     var chargeFrac = doingUlt ? 1 : Math.max(0, Math.min(1, t.specialCharge || 0));
     var ultAnim = t.specialAnim || 0;
     var ultMax = 1.65;
+    var atkMax = 0.48;
     var atk = t.attackAnim || 0;
-    var emitAtk = atk > 0 && atk < 0.18 ? Math.min(1, (0.18 - atk) / 0.18) : 0;
-    var chargeAtk = atk > 0.18 ? Math.min(1, (atk - 0.18) / 0.16) : 0;
+    var igniteAtk = atk > 0 ? Math.min(1, atk / (atkMax * 0.58)) : 0;
+    var emitAtk = atk > 0 && atk < atkMax * 0.52
+      ? Math.min(1, (atkMax * 0.52 - atk) / (atkMax * 0.52)) : 0;
     var ifnActive = (t.ifnBuffT || 0) > 0 || doingUlt;
+    var time = state.time, w = (t.idlePhase || 0);
     var majesty = 1 + chargeFrac * 0.08;
-    if (doingUlt && ultAnim > 1.05) majesty = 1 + ((ultMax - ultAnim) / (ultMax - 1.05)) * 0.18;
-    else if (chargeAtk > 0) majesty = 1 + chargeAtk * 0.06;
+    if (doingUlt) {
+      if (ultAnim > 1.05) {
+        var uCharge = (ultMax - ultAnim) / (ultMax - 1.05);
+        majesty = 1 + uCharge * 0.24 + Math.sin((t.ifnPulse || 0) * 0.85) * 0.07;
+      } else {
+        majesty = 1.18 + Math.sin((t.ifnPulse || 0) * 1.15) * 0.09;
+      }
+    } else if (igniteAtk > 0.05) {
+      majesty = 1 + igniteAtk * 0.14;
+    } else if (emitAtk > 0.05) {
+      majesty = 1 + 0.11 - emitAtk * 0.05;
+    }
     var R = 14.5 * U * pulse * majesty;
     var H = R * 2.55;
-    var time = state.time, w = (t.idlePhase || 0);
-    var crownExt = doingUlt ? (ultAnim > 1.05 ? 0.1 : 0.38 + (1 - ultAnim / 1.05) * 0.55) : (chargeAtk * 0.15 + chargeFrac * 0.12);
+    var heartbeat = Math.sin(time * 2.35 + w * 0.28) * R * 0.042 * (doingUlt ? 1.85 : 1);
+    var spireSquashX = 1, spireSquashY = 1;
+    if (igniteAtk > 0.05) {
+      spireSquashX = 1 - igniteAtk * 0.09;
+      spireSquashY = 1 + igniteAtk * 0.16;
+    } else if (emitAtk > 0.05) {
+      spireSquashX = 1 + emitAtk * 0.11;
+      spireSquashY = 1 - emitAtk * 0.07 + Math.sin(emitAtk * Math.PI) * 0.09;
+    } else if (!doingUlt) {
+      spireSquashY = 1 + Math.sin(time * 2.35 + w) * 0.028;
+      spireSquashX = 1 - Math.sin(time * 2.35 + w) * 0.016;
+    }
+    var crownExt = doingUlt
+      ? (ultAnim > 1.05 ? 0.08 + ((ultMax - ultAnim) / (ultMax - 1.05)) * 0.42
+        : 0.48 + (1 - ultAnim / 1.05) * 0.62)
+      : (igniteAtk * 0.34 + chargeFrac * 0.14);
+    if (emitAtk > 0.22) crownExt *= Math.max(0.35, 1 - emitAtk * 0.55);
+    if (emitAtk > 0.62) crownExt += (emitAtk - 0.62) * 0.85;
     ctx.save();
-    ctx.translate(t.x, t.y);
+    ctx.translate(t.x, t.y + heartbeat);
 
     function hexRing(y, radX, radY, rot) {
       ctx.beginPath();
@@ -20075,18 +20113,26 @@
         ctx.stroke();
       }
       if (ultAnim <= 1.05) {
-        for (var iw = 0; iw < 12; iw++) {
-          var iwa = iw * (Math.PI * 2 / 12) + time * 2.2 + uf * 1.5;
-          var iwR = R * (1.25 + uf * 3.8);
-          ctx.strokeStyle = "rgba(210,180,255," + (uf * 0.75) + ")";
-          ctx.lineWidth = Math.max(1.5, 2 * U);
+        for (var iw = 0; iw < 16; iw++) {
+          var iwa = iw * (Math.PI * 2 / 16) + time * 2.6 + uf * 1.8;
+          var iwR = R * (1.35 + uf * 4.2);
+          ctx.strokeStyle = "rgba(210,180,255," + (uf * 0.82) + ")";
+          ctx.lineWidth = Math.max(1.5, 2.2 * U);
           ctx.lineCap = "round";
           ctx.beginPath();
           ctx.moveTo(Math.cos(iwa) * R * 0.35, -H * 0.22 + Math.sin(iwa) * R * 0.12);
-          ctx.lineTo(Math.cos(iwa) * iwR, -H * (0.42 + uf * 0.35) + Math.sin(iwa) * R * 0.2);
+          ctx.lineTo(Math.cos(iwa) * iwR, -H * (0.44 + uf * 0.42) + Math.sin(iwa) * R * 0.22);
           ctx.stroke();
         }
       }
+    } else if (igniteAtk > 0.08) {
+      ctx.strokeStyle = "rgba(140,90,240," + (igniteAtk * 0.42) + ")";
+      ctx.lineWidth = Math.max(1.6, 2.2 * U);
+      hexRing(-H * 0.18, R * (0.95 + igniteAtk * 0.35), R * (0.72 + igniteAtk * 0.28), time * 0.35);
+      ctx.stroke();
+      ctx.strokeStyle = "rgba(210,180,255," + (igniteAtk * 0.35) + ")";
+      hexRing(-H * 0.28, R * (0.72 + igniteAtk * 0.22), R * (0.55 + igniteAtk * 0.18), -time * 0.28);
+      ctx.stroke();
     }
 
     ctx.fillStyle = "rgba(0,0,0,0.22)";
@@ -20107,12 +20153,13 @@
     ctx.lineJoin = "round";
     for (var ar = 0; ar < 6; ar++) {
       var ba = (ar / 6) * Math.PI * 2 - Math.PI / 2 + w * 0.04 + Math.sin(time * 1.3 + ar) * 0.03;
+      var crownSpread = 1 + crownExt * 0.85 + igniteAtk * 0.18;
       var bx = Math.cos(ba) * R * 0.88, by = R * 0.38;
-      var lean = (ar % 2 ? 1 : -1) * 0.24;
-      var mx = Math.cos(ba + lean) * R * (1.15 + crownExt * 0.55);
-      var my = -H * (0.08 + crownExt * 0.12);
-      var tx = Math.cos(ba + lean * 0.65) * R * (1.42 + crownExt * 0.75);
-      var ty = -H * (0.48 + crownExt * 0.38);
+      var lean = (ar % 2 ? 1 : -1) * (0.24 + crownExt * 0.08);
+      var mx = Math.cos(ba + lean) * R * (1.15 + crownExt * 0.62) * crownSpread;
+      var my = -H * (0.08 + crownExt * 0.14);
+      var tx = Math.cos(ba + lean * 0.65) * R * (1.42 + crownExt * 0.82) * crownSpread;
+      var ty = -H * (0.48 + crownExt * 0.42);
       ctx.strokeStyle = "#1a0b40";
       ctx.lineWidth = Math.max(3.5, 4.8 * U);
       ctx.beginPath();
@@ -20143,9 +20190,14 @@
     }
 
     var spireTop = -H * 0.58, spireBot = R * 0.48;
+    var spireMidY = (spireTop + spireBot) * 0.5;
+    ctx.save();
+    ctx.translate(0, spireMidY);
+    ctx.scale(spireSquashX, spireSquashY);
+    ctx.translate(0, -spireMidY);
     var spireG = ctx.createLinearGradient(0, spireTop, 0, spireBot);
-    spireG.addColorStop(0, ifnActive ? "#e8d6ff" : "#c4a6ff");
-    spireG.addColorStop(0.38, "#8a5ce8");
+    spireG.addColorStop(0, ifnActive || igniteAtk > 0.2 ? "#f4ebff" : "#c4a6ff");
+    spireG.addColorStop(0.38, igniteAtk > 0.2 ? "#a070f0" : "#8a5ce8");
     spireG.addColorStop(1, "#2e1466");
     ctx.fillStyle = spireG;
     ctx.beginPath();
@@ -20162,8 +20214,15 @@
     ctx.strokeStyle = "#1a0b40";
     ctx.lineWidth = Math.max(2, 2.6 * U);
     ctx.stroke();
+    if (igniteAtk > 0.12) {
+      ctx.fillStyle = "rgba(232,210,255," + (igniteAtk * 0.55) + ")";
+      ctx.beginPath();
+      ctx.arc(0, spireTop + R * 0.08, R * (0.12 + igniteAtk * 0.18), 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
 
-    ctx.strokeStyle = "rgba(210,180,255," + (0.35 + chargeFrac * 0.25) + ")";
+    ctx.strokeStyle = "rgba(210,180,255," + (0.35 + chargeFrac * 0.25 + igniteAtk * 0.3) + ")";
     ctx.lineWidth = Math.max(1.2, 1.6 * U);
     for (var band = 0; band < 3; band++) {
       var by2 = spireTop + R * (0.35 + band * 0.42);
@@ -20182,13 +20241,15 @@
     }
 
     var coreY = -H * 0.12;
-    var coreR = R * 0.38 * (doingUlt ? (0.94 + 0.06 * Math.sin((t.ifnPulse || 0) * 1.1)) : 1);
+    var coreR = R * 0.38 * (doingUlt
+      ? (0.92 + 0.1 * Math.sin((t.ifnPulse || 0) * 1.1))
+      : (1 + igniteAtk * 0.12 + emitAtk * 0.06));
     var coreGlow = ctx.createRadialGradient(0, coreY, coreR * 0.1, 0, coreY, coreR * 1.8);
-    coreGlow.addColorStop(0, "rgba(210,180,255," + (0.55 + chargeFrac * 0.25) + ")");
+    coreGlow.addColorStop(0, "rgba(210,180,255," + (0.55 + chargeFrac * 0.25 + igniteAtk * 0.35) + ")");
     coreGlow.addColorStop(1, "rgba(106,61,212,0)");
     ctx.fillStyle = coreGlow;
     ctx.beginPath(); ctx.arc(0, coreY, coreR * 1.8, 0, Math.PI * 2); ctx.fill();
-    drawMandala(0, coreY, coreR, doingUlt ? time * 1.6 : 0);
+    drawMandala(0, coreY, coreR, doingUlt ? time * 1.8 : (igniteAtk * time * 2.4));
 
     ctx.fillStyle = "rgba(230, 220, 255, 0.88)";
     ctx.strokeStyle = "#1a0b40";
@@ -20219,22 +20280,45 @@
     }
 
     if (emitAtk > 0.05 && t.lastTargetX != null) {
-      var pdx = t.lastTargetX - t.x, pdy = t.lastTargetY - t.y;
+      var pdx = t.lastTargetX - t.x, pdy = t.lastTargetY - (t.y + heartbeat);
       var pdLen = Math.hypot(pdx, pdy) || 1;
       var pdnx = pdx / pdLen, pdny = pdy / pdLen;
-      var beam = Math.min(pdLen, R * 3.2) * emitAtk;
-      ctx.strokeStyle = "rgba(210,180,255,0.88)";
-      ctx.lineWidth = Math.max(2.2, 3 * U) * emitAtk;
+      var beam = Math.min(pdLen, R * 3.6) * emitAtk;
+      var tipX = pdnx * beam, tipY = -H * 0.42 + pdny * beam;
+      ctx.save();
       ctx.lineCap = "round";
+      ctx.strokeStyle = "rgba(106,61,212," + (emitAtk * 0.55) + ")";
+      ctx.lineWidth = Math.max(4.5, 6 * U) * emitAtk;
       ctx.beginPath();
       ctx.moveTo(0, -H * 0.42);
-      ctx.lineTo(pdnx * beam, -H * 0.42 + pdny * beam);
+      ctx.lineTo(tipX, tipY);
       ctx.stroke();
+      ctx.strokeStyle = "rgba(210,180,255,0.92)";
+      ctx.lineWidth = Math.max(2.4, 3.2 * U) * emitAtk;
+      ctx.beginPath();
+      ctx.moveTo(0, -H * 0.42);
+      ctx.lineTo(tipX, tipY);
+      ctx.stroke();
+      ctx.fillStyle = "rgba(232,210,255," + (emitAtk * 0.95) + ")";
+      ctx.beginPath();
+      ctx.arc(tipX, tipY, R * 0.16 * emitAtk, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "rgba(255,255,255," + (emitAtk * 0.85) + ")";
+      ctx.beginPath();
+      ctx.arc(0, -H * 0.42, R * (0.14 + emitAtk * 0.12), 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    } else if (igniteAtk > 0.15) {
+      ctx.fillStyle = "rgba(232,210,255," + (igniteAtk * 0.45) + ")";
+      ctx.beginPath();
+      ctx.arc(0, -H * 0.42, R * (0.1 + igniteAtk * 0.14), 0, Math.PI * 2);
+      ctx.fill();
     }
 
+    var faceMood = doingUlt ? "angry" : (igniteAtk > 0.2 ? "serious" : "focused");
     ctx.save();
     ctx.translate(0, R * 0.22);
-    towerFace(R * 0.72, expression, blink, "focused", doingUlt ? "angry" : "serious");
+    towerFace(R * 0.72, expression, blink, faceMood, doingUlt ? "angry" : faceMood);
     ctx.restore();
     ctx.restore();
   }
@@ -29260,6 +29344,46 @@
       ctx.beginPath();
       ctx.ellipse(ex, ey, 6 * U * (1 - spT * 0.2), 4.5 * U * (1 - spT * 0.2), Math.atan2(ny, nx), 0, Math.PI * 2);
       ctx.fill();
+      ctx.restore();
+    } else if (ef.kind === "ifnIgnite") {
+      // Destello IFN desde la cúspide del faro hacia el blanco (ataque normal).
+      var igT = 1 - ef.life / ef.max;
+      var igDx = (ef.tx || ef.x) - ef.x, igDy = (ef.ty || ef.y) - ef.y;
+      var igLen = Math.hypot(igDx, igDy) || 1;
+      var igNx = igDx / igLen, igNy = igDy / igLen;
+      var igArc = Math.sin(igT * Math.PI) * Math.min(igLen, 140 * U);
+      var igMx = igNx * igArc * 0.52 + igNy * 10 * U;
+      var igMy = igNy * igArc * 0.52 - igNx * 10 * U;
+      var igEx = igNx * igArc, igEy = igNy * igArc;
+      ctx.save();
+      ctx.translate(ef.x, ef.y);
+      ctx.globalAlpha = (1 - igT) * 0.94;
+      ctx.lineCap = "round";
+      for (var igL = 0; igL < 3; igL++) {
+        ctx.strokeStyle = igL === 0 ? "rgba(106,61,212,0.75)" : (igL === 1 ? "rgba(140,90,240,0.85)" : "rgba(232,210,255,0.95)");
+        ctx.lineWidth = Math.max(2.5, (4.5 - igL * 1.2) * U) * (1 - igT * 0.25);
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.quadraticCurveTo(igMx, igMy, igEx, igEy);
+        ctx.stroke();
+      }
+      ctx.fillStyle = "rgba(255,255,255," + ((1 - igT) * 0.9) + ")";
+      ctx.beginPath();
+      ctx.arc(0, 0, 5 * U * (1 - igT * 0.15), 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "rgba(210,180,255," + ((1 - igT) * 0.95) + ")";
+      ctx.beginPath();
+      ctx.arc(igEx, igEy, 5.5 * U * (1 - igT * 0.2), 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "rgba(140,90,240," + ((1 - igT) * 0.55) + ")";
+      ctx.lineWidth = Math.max(1.2, 1.6 * U);
+      for (var igH = 0; igH < 6; igH++) {
+        var igHa = igH * (Math.PI / 3) + igT * 1.4;
+        ctx.beginPath();
+        ctx.moveTo(Math.cos(igHa) * 4 * U, Math.sin(igHa) * 4 * U);
+        ctx.lineTo(Math.cos(igHa) * 9 * U * (1 + igT * 0.4), Math.sin(igHa) * 9 * U * (1 + igT * 0.4));
+        ctx.stroke();
+      }
       ctx.restore();
     } else if (ef.kind === "sebumRain") {
       // Lluvia grasienta omnidireccional (ultimate) — cae en todo el rango.

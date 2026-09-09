@@ -8011,13 +8011,26 @@
         }
         // Gránulo coral real (no una partícula genérica) viajando de la
         // torre al enemigo — se ve claramente que escupió sus gránulos.
-        var gsDur = 0.22 + Math.random() * 0.05;
-        pushEffect({ kind: "granuleShot", x: t.x, y: t.y,
-          vx: (ee.x - t.x) / gsDur, vy: (ee.y - t.y) / gsDur,
-          life: gsDur, max: gsDur });
+        var gsDur = 0.20 + Math.random() * 0.06;
+        for (var gsN = 0; gsN < 2; gsN++) {
+          var gsOx = (Math.random() - 0.5) * 14 * U;
+          var gsOy = (Math.random() - 0.5) * 14 * U;
+          pushEffect({ kind: "granuleShot", x: t.x + gsOx, y: t.y + gsOy,
+            vx: (ee.x - t.x - gsOx) / gsDur, vy: (ee.y - t.y - gsOy) / gsDur,
+            life: gsDur, max: gsDur, crystal: true });
+        }
+        if (ee.def.baseKind === "parasito") {
+          for (var tp = 0; tp < 4; tp++) {
+            var tpa = Math.random() * Math.PI * 2;
+            var tps = (40 + Math.random() * 50) * U;
+            pushEffect({ kind: "particle", x: ee.x, y: ee.y,
+              vx: Math.cos(tpa) * tps, vy: Math.sin(tpa) * tps - 18 * U,
+              life: 0.55, max: 0.65, color: "rgba(160, 230, 90, 0.85)" });
+          }
+        }
       }
-      pushEffect({ kind: "novaRing", x: t.x, y: t.y, r: eoR, color: "#F2774E", life: 0.55, max: 0.55 });
-      t.specialAnim = 1.0;
+      pushEffect({ kind: "eosinBurst", x: t.x, y: t.y, r: eoR, life: 0.72, max: 0.72 });
+      t.specialAnim = 1.25;
       t.specialReady = false;
       t.specialCharge = 0;
       sfx("upgrade");
@@ -18743,146 +18756,226 @@
   }
 
   // EOSINÓFILO — cuerpo BILOBULADO (cacahuate) repleto de gránulos rojos (agresivo).
+  function drawEosinCrystal(cx, cy, sz, ang, alpha) {
+    // Cristaloide MBP/ECP — gránulo eosinofílico bipyramidal (microscopía).
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(ang || 0);
+    if (alpha != null) ctx.globalAlpha = alpha;
+    var w = sz * 0.44, h = sz * 1.08;
+    var cg = ctx.createLinearGradient(0, -h, 0, h);
+    cg.addColorStop(0, "rgba(255, 205, 175, 0.96)");
+    cg.addColorStop(0.42, "rgba(242, 119, 78, 0.93)");
+    cg.addColorStop(1, "rgba(148, 48, 32, 0.90)");
+    ctx.fillStyle = cg;
+    ctx.beginPath();
+    ctx.moveTo(0, -h);
+    ctx.lineTo(w, -h * 0.12);
+    ctx.lineTo(w * 0.50, h * 0.38);
+    ctx.lineTo(0, h);
+    ctx.lineTo(-w * 0.50, h * 0.38);
+    ctx.lineTo(-w, -h * 0.12);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = "rgba(92, 28, 18, 0.58)";
+    ctx.lineWidth = Math.max(0.7, 0.95 * U);
+    ctx.stroke();
+    ctx.fillStyle = "rgba(255, 240, 230, 0.55)";
+    ctx.beginPath();
+    ctx.moveTo(0, -h * 0.55);
+    ctx.lineTo(w * 0.18, -h * 0.05);
+    ctx.lineTo(0, h * 0.12);
+    ctx.lineTo(-w * 0.18, -h * 0.05);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
   function drawEosinofilo(t, pulse, expression, blink) {
-    // Eosinófilo — granulocito anti-parasitario. Biología:
-    //  · CUERPO BILOBULADO (2 esferas conectadas como cacahuete/audífonos)
-    //  · GRÁNULOS EOSINOFÍLICOS GIGANTES de color coral en ambos lóbulos
-    //  · 2 antenas/sensores anti-parásitos
-    var R = 15 * U * pulse;
-    var off = R * 0.55;          // separación de los 2 lóbulos
+    // Eosinófilo v2 — granulocito bilobulado anti-parásito.
+    //  · Silueta orgánica tipo "gafas"/núcleo bilobulado (no dos círculos + puente)
+    //  · Gránulos cristaloides MBP/ECP incrustados; receptores CCR3 en superficie
+    //  · Ultimate Descarga: doble lóbulo expansivo + lluvia cristalina (no anillo)
+    var R = 17 * U * pulse;
+    var off = R * 0.62;
     var time = state.time;
+    var phase = t.idlePhase || 0;
     var attacking = (expression === "attacking");
-    // Carga real del ultimate (t.specialCharge: 0→1) — alimenta la
-    // migración/vibración de gránulos, el erizado de antenas y el anillo
-    // de anticipación, todos más abajo.
-    var chargeFrac = Math.max(0, Math.min(1, t.specialCharge || 0));
+    var doingUlt = (t.specialAnim || 0) > 0;
+    var chargeFrac = doingUlt ? 1 : Math.max(0, Math.min(1, t.specialCharge || 0));
+    var il4 = (t.ilc2EosinT || 0) > 0;
+
+    function smoothBlob(pts) {
+      ctx.beginPath();
+      var n = pts.length;
+      ctx.moveTo((pts[n - 1].x + pts[0].x) / 2, (pts[n - 1].y + pts[0].y) / 2);
+      for (var i = 0; i < n; i++) {
+        var p = pts[i], q = pts[(i + 1) % n];
+        ctx.quadraticCurveTo(p.x, p.y, (p.x + q.x) / 2, (p.y + q.y) / 2);
+      }
+      ctx.closePath();
+    }
+    function lobePts(cx, cy, rx, ry, seed) {
+      var pts = [];
+      for (var i = 0; i < 14; i++) {
+        var a = (i / 14) * Math.PI * 2;
+        var lump = 1
+          + 0.11 * Math.sin(a * 3 + time * 1.5 + seed + phase)
+          + 0.07 * Math.sin(a * 5 + time * 0.9 + seed * 1.3);
+        pts.push({ x: cx + Math.cos(a) * rx * lump, y: cy + Math.sin(a) * ry * lump });
+      }
+      return pts;
+    }
+
     ctx.save();
     ctx.translate(t.x, t.y);
+    ctx.scale(1.16, 1.16);
 
-    // Ultimate Descarga de gránulos: anillo expansivo de gránulos al disparar.
-    if ((t.specialAnim || 0) > 0) {
-      var goFrac = 1 - t.specialAnim / 1.0;
-      ctx.save();
-      ctx.globalAlpha = Math.max(0, 1 - goFrac);
-      ctx.strokeStyle = t.def.color;
-      ctx.lineWidth = 3 * U;
+    // Sinergia IL-4/IL-13 (Mastocito/Langerhans): halo cálido tenue.
+    if (il4) {
+      var ilG = ctx.createRadialGradient(0, 0, R * 0.4, 0, 0, R * 2.4);
+      ilG.addColorStop(0, "rgba(255, 200, 120, 0.18)");
+      ilG.addColorStop(1, "rgba(255, 160, 80, 0)");
+      ctx.fillStyle = ilG;
       ctx.beginPath();
-      ctx.arc(0, 0, R * (1.5 + goFrac * 5), 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.restore();
-    } else if (chargeFrac > 0.15) {
-      // Anillo de anticipación: asoma gradualmente con la carga real, en
-      // el lugar (no se expande) — anticipa el estallido real de arriba.
-      var preRingPulse = 0.6 + 0.4 * Math.sin(time * 4);
-      ctx.save();
-      ctx.strokeStyle = t.def.color;
-      ctx.globalAlpha = chargeFrac * 0.40 * preRingPulse;
-      ctx.lineWidth = 2 * U;
-      ctx.beginPath();
-      ctx.arc(0, 0, R * 1.55, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.restore();
-    }
-
-    // CUERPO BILOBULADO — 2 esferas coral conectadas
-    function drawLobe(cxp) {
-      var bodyGrad = ctx.createRadialGradient(cxp - R * 0.3, -R * 0.3, R * 0.2, cxp, 0, R);
-      bodyGrad.addColorStop(0, "#ffe5d4");
-      bodyGrad.addColorStop(0.6, t.def.color);
-      bodyGrad.addColorStop(1, t.def.colorDark);
-      ctx.fillStyle = bodyGrad;
-      ctx.beginPath();
-      ctx.arc(cxp, 0, R, 0, Math.PI * 2);
+      ctx.ellipse(0, 0, R * 2.2, R * 1.5, 0, 0, Math.PI * 2);
       ctx.fill();
-      ctx.strokeStyle = t.def.colorDark;
-      ctx.lineWidth = Math.max(1.3, 1.6 * U);
-      ctx.stroke();
     }
-    drawLobe(-off);
-    drawLobe(off);
 
-    // PUENTE entre los 2 lóbulos (citoplasma conectado) — banda coral entre
-    // los lóbulos para que se vea como un solo organismo bilobulado.
-    var bridgeH = R * 0.55;
-    var bridgeGrad = ctx.createLinearGradient(0, -bridgeH / 2, 0, bridgeH / 2);
-    bridgeGrad.addColorStop(0, t.def.colorDark);
-    bridgeGrad.addColorStop(0.5, t.def.color);
-    bridgeGrad.addColorStop(1, t.def.colorDark);
-    ctx.fillStyle = bridgeGrad;
-    ctx.fillRect(-off, -bridgeH / 2, off * 2, bridgeH);
-
-    // GRÁNULOS EOSINOFÍLICOS GIGANTES en CADA lóbulo (signature) — migran
-    // hacia el borde y vibran con fuerza creciente a medida que la
-    // Descarga real se acerca a disparar (t.specialCharge → 1).
-    var granJitter = chargeFrac * 1.6 * U;
-    for (var lobeS = -1; lobeS <= 1; lobeS += 2) {
-      var lobeCx = lobeS * off;
-      var nGran = 5;
-      for (var g = 0; g < nGran; g++) {
-        var ga = (g * 137.5 * Math.PI / 180 + time * 0.06 + lobeS) % (Math.PI * 2);
-        var gd = R * (0.42 + (g % 2) * 0.18 + chargeFrac * 0.24);
-        var gx = lobeCx + Math.cos(ga) * gd + (Math.random() - 0.5) * granJitter;
-        var gy = Math.sin(ga) * gd + (Math.random() - 0.5) * granJitter;
-        var gSize = R * 0.14;
-        // Gránulo coral con gradiente para volumen
-        var granGrad = ctx.createRadialGradient(gx - gSize * 0.3, gy - gSize * 0.3, 0, gx, gy, gSize);
-        granGrad.addColorStop(0, "rgba(255, 180, 150, 0.95)");
-        granGrad.addColorStop(0.6, "rgba(240, 110, 80, 0.92)");
-        granGrad.addColorStop(1, "rgba(180, 60, 40, 0.88)");
-        ctx.fillStyle = granGrad;
+    // Ultimate — doble onda bilobulada + lluvia de cristaloides.
+    if (doingUlt) {
+      var uf = 1 - (t.specialAnim / 1.25);
+      ctx.save();
+      for (var lob = -1; lob <= 1; lob += 2) {
+        ctx.globalAlpha = Math.max(0, (1 - uf) * 0.62);
+        ctx.strokeStyle = t.def.color;
+        ctx.lineWidth = Math.max(2.2, 2.8 * U) * (1 - uf * 0.4);
         ctx.beginPath();
-        ctx.arc(gx, gy, gSize, 0, Math.PI * 2);
+        ctx.ellipse(lob * off * (1 + uf * 0.35), 0, R * (1.05 + uf * 4.8), R * (0.85 + uf * 3.4), lob * 0.15, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.fillStyle = "rgba(242, 119, 78, " + ((1 - uf) * 0.12) + ")";
         ctx.fill();
-        ctx.strokeStyle = "rgba(120, 40, 30, 0.50)";
-        ctx.lineWidth = 0.8 * U;
+      }
+      for (var rb = 0; rb < 18; rb++) {
+        var ra = rb * (Math.PI * 2 / 18) + time * 1.2;
+        var rr = R * (0.6 + uf * 5.8);
+        drawEosinCrystal(
+          Math.cos(ra) * rr,
+          Math.sin(ra) * rr * 0.72,
+          R * 0.20 * (1 - uf * 0.45),
+          ra + Math.PI * 0.5,
+          Math.max(0, (1 - uf) * 0.85)
+        );
+      }
+      ctx.restore();
+    } else if (chargeFrac > 0.12) {
+      var preP = 0.55 + 0.45 * Math.sin(time * 5);
+      ctx.save();
+      ctx.globalAlpha = chargeFrac * 0.38 * preP;
+      ctx.strokeStyle = t.def.color;
+      ctx.lineWidth = Math.max(1.6, 2 * U);
+      for (var pl = -1; pl <= 1; pl += 2) {
+        ctx.beginPath();
+        ctx.ellipse(pl * off, 0, R * 1.08, R * 0.92, pl * 0.12, 0, Math.PI * 2);
         ctx.stroke();
       }
+      ctx.restore();
     }
 
-    // 2 ANTENAS/CUERNOS arriba — sensores anti-parásitos en cada lóbulo.
-    // Se erizan (mayor amplitud + más largas) y brillan con un halo coral
-    // a medida que la carga real del ultimate avanza ("detectando" que
-    // ya casi está lista la Descarga de gránulos).
-    var antPulse = Math.sin(time * 2) * (0.05 + chargeFrac * 0.16);
-    var antTip = R * 0.85 * (1 + antPulse) * (1 + chargeFrac * 0.30);
-    ctx.strokeStyle = t.def.colorDark;
-    ctx.lineWidth = Math.max(1.4, 1.8 * U);
-    ctx.lineCap = "round";
-    for (var ant = -1; ant <= 1; ant += 2) {
-      var antBaseX = ant * off;
-      var antBaseY = -R * 0.55;
-      var antTipX = antBaseX + ant * R * 0.25;
-      var antTipY = antBaseY - antTip;
-      ctx.beginPath();
-      ctx.moveTo(antBaseX, antBaseY);
-      ctx.lineTo(antTipX, antTipY);
+    // Sombra bajo la célula.
+    ctx.fillStyle = "rgba(0,0,0,0.22)";
+    ctx.beginPath();
+    ctx.ellipse(0, R * 0.72, R * 1.55, R * 0.38, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Citoplasma bilobulado — dos lóbulos orgánicos + istmo curvo (no rect).
+    function fillLobe(cx, cy, rx, ry, seed) {
+      var pts = lobePts(cx, cy, rx, ry, seed);
+      var g = ctx.createRadialGradient(cx - rx * 0.25, cy - ry * 0.28, rx * 0.12, cx, cy, rx * 1.15);
+      g.addColorStop(0, "#ffe8dc");
+      g.addColorStop(0.55, t.def.color);
+      g.addColorStop(1, t.def.colorDark);
+      ctx.fillStyle = g;
+      smoothBlob(pts);
+      ctx.fill();
+      ctx.strokeStyle = t.def.colorDark;
+      ctx.lineWidth = Math.max(1.3, 1.7 * U);
       ctx.stroke();
-      if (chargeFrac > 0.15) {
-        ctx.fillStyle = "rgba(255, 140, 100, " + (chargeFrac * 0.55) + ")";
+    }
+    fillLobe(-off, 0, R * 0.98, R * 0.88, 0.4);
+    fillLobe(off, 0, R * 0.98, R * 0.88, 1.1);
+    var isthmus = [
+      { x: -off + R * 0.15, y: -R * 0.42 },
+      { x: off - R * 0.15, y: -R * 0.42 },
+      { x: off - R * 0.05, y: R * 0.42 },
+      { x: -off + R * 0.05, y: R * 0.42 }
+    ];
+    var ig = ctx.createLinearGradient(0, -R * 0.4, 0, R * 0.4);
+    ig.addColorStop(0, t.def.colorDark);
+    ig.addColorStop(0.5, t.def.color);
+    ig.addColorStop(1, t.def.colorDark);
+    ctx.fillStyle = ig;
+    smoothBlob(isthmus);
+    ctx.fill();
+
+    // Núcleo bilobulado (figura-8 oscura) — signature microscópica.
+    ctx.fillStyle = "rgba(80, 28, 18, 0.72)";
+    ctx.beginPath();
+    ctx.ellipse(-off * 0.92, -R * 0.06, R * 0.38, R * 0.30, -0.12, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(off * 0.92, -R * 0.06, R * 0.38, R * 0.30, 0.12, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "rgba(120, 45, 30, 0.55)";
+    ctx.beginPath();
+    ctx.ellipse(0, 0, R * 0.14, R * 0.22, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Gránulos cristaloides incrustados — migran al borde al cargar el ultimate.
+    var granDrift = chargeFrac * R * 0.22;
+    for (var lobeS = -1; lobeS <= 1; lobeS += 2) {
+      var lobeCx = lobeS * off;
+      for (var g = 0; g < 6; g++) {
+        var ga = (g * 137.5 * Math.PI / 180 + time * 0.08 + lobeS + phase) % (Math.PI * 2);
+        var gd = R * (0.38 + (g % 2) * 0.16 + granDrift);
+        var gx = lobeCx + Math.cos(ga) * gd;
+        var gy = Math.sin(ga) * gd * 0.88 + Math.sin(time * 4 + g) * chargeFrac * 1.2 * U;
+        var gSize = R * 0.17 * (0.85 + (g % 3) * 0.12);
+        drawEosinCrystal(gx, gy, gSize, ga + Math.PI * 0.5, 0.92);
+      }
+    }
+
+    // Receptores CCR3 — Y cortos en superficie (anti-parásito).
+    ctx.strokeStyle = t.def.colorDark;
+    ctx.lineWidth = Math.max(1.2, 1.5 * U);
+    ctx.lineCap = "round";
+    for (var cr = 0; cr < 4; cr++) {
+      var cSide = (cr < 2) ? -1 : 1;
+      var cLobe = (cr % 2 === 0) ? -1 : 1;
+      var cbx = cLobe * off + cSide * R * 0.55;
+      var cby = -R * 0.62 + (cr % 2) * R * 0.18;
+      var cLen = R * (0.38 + chargeFrac * 0.22);
+      ctx.beginPath();
+      ctx.moveTo(cbx, cby);
+      ctx.lineTo(cbx + cSide * cLen * 0.35, cby - cLen);
+      ctx.stroke();
+      if (chargeFrac > 0.2) {
+        ctx.fillStyle = "rgba(255, 150, 110, " + (chargeFrac * 0.5) + ")";
         ctx.beginPath();
-        ctx.arc(antTipX, antTipY, R * 0.22 * (1 + chargeFrac * 0.6), 0, Math.PI * 2);
+        ctx.arc(cbx + cSide * cLen * 0.35, cby - cLen, R * 0.12 * (1 + chargeFrac * 0.4), 0, Math.PI * 2);
         ctx.fill();
       }
-      ctx.fillStyle = "rgba(240, 110, 80, 0.95)";
-      ctx.beginPath();
-      ctx.arc(antTipX, antTipY, R * 0.10, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = "rgba(120, 40, 30, 0.65)";
-      ctx.lineWidth = 0.8 * U;
-      ctx.stroke();
-      ctx.strokeStyle = t.def.colorDark;
-      ctx.lineWidth = Math.max(1.4, 1.8 * U);
     }
 
-    // CARA — entre los 2 lóbulos (en el puente)
-    var faceY = -R * 0.05;
-    var eyeR = R * 0.18;
-    var eyeGap = off * 0.55;
+    // Cara en el istmo — expresión feroz anti-parásito.
+    var faceY = R * 0.02;
+    var eyeR = R * 0.17;
+    var eyeGap = off * 0.52;
     if (blink) drawClosedEyes(0, faceY, eyeR, eyeGap);
     else if (expression === "dying") drawHurtEyes(0, faceY, eyeR, eyeGap);
     else if (expression === "levelup") drawSparkleEyes(0, faceY, eyeR, eyeGap);
-    else drawAnimeEyes(0, faceY, eyeR, eyeGap, 0, 0, R * 0.14, R * 0.05, "fierce");
-    drawAnimeMouth(0, faceY + R * 0.34, R * 0.32, R * 0.16, attacking ? "fanged" : "serious");
+    else drawAnimeEyes(0, faceY, eyeR, eyeGap, 0, 0, R * 0.13, R * 0.05, "fierce");
+    drawAnimeMouth(0, faceY + R * 0.32, R * 0.30, R * 0.15, attacking || doingUlt ? "fanged" : "serious");
     ctx.restore();
   }
 
@@ -27789,39 +27882,30 @@
       ctx.fill();
       ctx.globalAlpha = 1;
     } else if (ef.kind === "granuleShot") {
-      // Gránulo coral real del Eosinófilo (mismo gradiente que los del
-      // cuerpo) viajando hacia el enemigo, con estela + brillo de
-      // impacto creciente al final — para que se vea que escupió algo.
       var gsAge = 1 - ef.life / ef.max;
-      var gsImpact = Math.max(0, (gsAge - 0.65) / 0.35);
-      var gsR = (3.0 + gsImpact * 2.5) * U;
+      var gsImpact = Math.max(0, (gsAge - 0.60) / 0.40);
+      var gsR = (3.5 + gsImpact * 3.0) * U;
       ctx.save();
       ctx.globalAlpha = alpha;
       var gsSpd = Math.hypot(ef.vx, ef.vy) || 1;
-      var gsTailLen = 10 * U;
+      var gsAng = Math.atan2(ef.vy, ef.vx);
+      var gsTailLen = 14 * U;
       var gsTx = -ef.vx / gsSpd * gsTailLen, gsTy = -ef.vy / gsSpd * gsTailLen;
       var gsTailGrad = ctx.createLinearGradient(ef.x, ef.y, ef.x + gsTx, ef.y + gsTy);
-      gsTailGrad.addColorStop(0, "rgba(240, 110, 80, 0.55)");
-      gsTailGrad.addColorStop(1, "rgba(240, 110, 80, 0)");
+      gsTailGrad.addColorStop(0, "rgba(242, 119, 78, 0.55)");
+      gsTailGrad.addColorStop(1, "rgba(242, 119, 78, 0)");
       ctx.strokeStyle = gsTailGrad;
-      ctx.lineWidth = gsR * 1.1;
+      ctx.lineWidth = gsR * 0.85;
       ctx.lineCap = "round";
       ctx.beginPath();
       ctx.moveTo(ef.x, ef.y);
       ctx.lineTo(ef.x + gsTx, ef.y + gsTy);
       ctx.stroke();
-      var gsGrad = ctx.createRadialGradient(ef.x - gsR * 0.3, ef.y - gsR * 0.3, 0, ef.x, ef.y, gsR);
-      gsGrad.addColorStop(0, "rgba(255, 180, 150, 0.95)");
-      gsGrad.addColorStop(0.6, "rgba(240, 110, 80, 0.92)");
-      gsGrad.addColorStop(1, "rgba(180, 60, 40, 0.88)");
-      ctx.fillStyle = gsGrad;
-      ctx.beginPath();
-      ctx.arc(ef.x, ef.y, gsR, 0, Math.PI * 2);
-      ctx.fill();
+      drawEosinCrystal(ef.x, ef.y, gsR, gsAng + Math.PI * 0.5, 1);
       if (gsImpact > 0.05) {
-        ctx.fillStyle = "rgba(255, 200, 170, " + (gsImpact * 0.6) + ")";
+        ctx.fillStyle = "rgba(180, 255, 110, " + (gsImpact * 0.45) + ")";
         ctx.beginPath();
-        ctx.arc(ef.x, ef.y, gsR * (1.5 + gsImpact * 1.5), 0, Math.PI * 2);
+        ctx.ellipse(ef.x, ef.y, gsR * (1.2 + gsImpact), gsR * (0.7 + gsImpact * 0.5), gsAng, 0, Math.PI * 2);
         ctx.fill();
       }
       ctx.globalAlpha = 1;
@@ -28231,6 +28315,25 @@
       dwGrad.addColorStop(1, "rgba(0,0,0,0)");
       ctx.fillStyle = dwGrad;
       ctx.beginPath(); ctx.arc(ef.x, ef.y, dwR * 0.5, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    } else if (ef.kind === "eosinBurst") {
+      // Descarga de gránulos — onda bilobulada (no anillo circular).
+      var ebT = 1 - ef.life / ef.max;
+      var ebOff = ef.r * 0.22;
+      ctx.save();
+      ctx.translate(ef.x, ef.y);
+      ctx.globalAlpha = (1 - ebT) * 0.55;
+      for (var ebL = -1; ebL <= 1; ebL += 2) {
+        var ebRx = ef.r * (0.08 + ebT * 0.92);
+        var ebRy = ef.r * (0.06 + ebT * 0.68);
+        ctx.fillStyle = "rgba(242, 119, 78, " + ((1 - ebT) * 0.14) + ")";
+        ctx.beginPath();
+        ctx.ellipse(ebL * ebOff * (1 + ebT * 0.4), 0, ebRx, ebRy, ebL * 0.12, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = "rgba(242, 119, 78, " + ((1 - ebT) * 0.75) + ")";
+        ctx.lineWidth = Math.max(2, 3 * U) * (1 - ebT * 0.5);
+        ctx.stroke();
+      }
       ctx.restore();
     } else if (ef.kind === "novaRing") {
       var nrT = 1 - ef.life / ef.max;

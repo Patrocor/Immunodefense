@@ -8,7 +8,7 @@
     mastocito:    { role: "control",    label: "Ralent.",glyph: "snowflake",arc: "#4F8FE0", silhouette: "horseshoe" },
     langerhans:   { role: "marca",      label: "APC",    glyph: "target",   arc: "#3FC1C9", silhouette: "dendrite", labelKit: "Birbeck+Latigazo" },
     nk:           { role: "citotoxico", label: "NK",     glyph: "perforin", arc: "#E84393", silhouette: "lgl", labelKit: "Hachazo+Frenesí" },
-    eosinofilo:   { role: "parasito",   label: "Eosino", glyph: "granule",  arc: "#F2774E" },
+    eosinofilo:   { role: "parasito",   label: "Eosino", glyph: "granule",  arc: "#F2774E", silhouette: "bilobe", labelKit: "Perdigones+Descarga" },
     linfocitoB:   { role: "opsoniza",   label: "Ig",     glyph: "antibody", arc: "#50C878" },
     linfocitoT:   { role: "apoptosis",  label: "CD8",    glyph: "cross",    arc: "#9370DB" },
     sebocito:     { role: "sebo",       label: "Sebo",   glyph: "droplet",  arc: "#c8980a" },

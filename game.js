@@ -18393,6 +18393,7 @@
   function drawLinfocitoT(t, pulse, expression, blink) {
     // Linfocito T citotóxico CD8+ — silueta POLARIZADA (gota/uropodo),
     // NO circular como el B. Leading edge con TCR; uropodo con gránulos.
+    // LOCKED v2 — Cachetadas+Coscorrones @1.1× (user OK "Queda").
     var x = t.x, y = t.y;
     var doingApoptosis = !!(t.apoptosisTargets && !t.apoptosisBurst && (t.specialAnim || 0) > 0);
     var apCountdown = doingApoptosis ? Math.max(0, Math.min(1, 1 - (t.specialAnim - 0.3) / 1.8)) : 0;

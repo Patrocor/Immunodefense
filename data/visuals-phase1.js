@@ -11,7 +11,7 @@
     eosinofilo:   { role: "parasito",   label: "Eosino", glyph: "granule",  arc: "#F2774E", silhouette: "bilobe", labelKit: "Perdigones+Descarga" },
     linfocitoB:   { role: "opsoniza",   label: "Ig",     glyph: "antibody", arc: "#50C878", silhouette: "round", labelKit: "Latigazos+Puñetazos" },
     linfocitoT:   { role: "apoptosis",  label: "CD8",    glyph: "cross",    arc: "#9370DB", silhouette: "teardrop", labelKit: "Cachetadas+Coscorrones" },
-    sebocito:     { role: "sebo",       label: "Sebo",   glyph: "droplet",  arc: "#c8980a" },
+    sebocito:     { role: "sebo",       label: "Sebo",   glyph: "droplet",  arc: "#c8980a", silhouette: "sac", labelKit: "Hinchazón+Volcán" },
     pdc:          { role: "interferon", label: "IFN",    glyph: "wave",     arc: "#6a3dd4" },
     linfocitogd:  { role: "cazador",    label: "γδ",     glyph: "delta",    arc: "#8bc34a" },
     complemento:  { role: "tanque",     label: "MAC",    glyph: "net",      arc: "#FFD24A" },

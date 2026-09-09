@@ -19817,6 +19817,7 @@
   function drawSebocito(t, pulse, expression, blink) {
     // Sebocito — holocrino: se HINCHA y ESCUPE grasita. Ultimate: mega-hinchazón
     // + erupción volcánica + lluvia grasienta omnidireccional.
+    // LOCKED v2 — Hinchazón+Volcán (user OK "Bien").
     var doingUlt = (t.def.id === "sebocito" && (t.specialAnim || 0) > 0);
     var chargeFrac = doingUlt ? 1 : Math.max(0, Math.min(1, t.specialCharge || 0));
     var atk = t.attackAnim || 0;

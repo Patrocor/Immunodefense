@@ -1,4 +1,4 @@
-/** Captura pDC v1 — Tormenta IFN-α. DISPLAY=:1 node scripts/playtest-pdc.mjs */
+/** Captura pDC v2 — cuerpo plasmocitoide + Tormenta IFN-α. DISPLAY=:1 node scripts/playtest-pdc.mjs */
 import { chromium } from "playwright";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
@@ -139,11 +139,11 @@ const info = await page.evaluate(() => {
   };
 });
 
-console.log("pDC v1 Tormenta IFN-α:", info);
+console.log("pDC v2 cuerpo plasmocitoide:", info);
 await sleep(500);
-await page.screenshot({ path: join(ART, "pdc_v1_tormenta_field.png") });
+await page.screenshot({ path: join(ART, "pdc_v2_plasmocyte_field.png") });
 if (info.ok) {
-  await page.screenshot({ path: join(ART, "pdc_v1_tormenta_ultimate.png"), clip: info.clip });
+  await page.screenshot({ path: join(ART, "pdc_v2_plasmocyte_ultimate.png"), clip: info.clip });
 }
 await page.evaluate(() => window.__game.hold(false));
 await browser.close();

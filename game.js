@@ -18796,6 +18796,7 @@
     //  · Silueta orgánica tipo "gafas"/núcleo bilobulado (no dos círculos + puente)
     //  · Gránulos cristaloides MBP/ECP incrustados; receptores CCR3 en superficie
     //  · Ultimate Descarga: doble lóbulo expansivo + lluvia cristalina (no anillo)
+    // LOCKED v2 — Perdigones+Descarga (user OK "Queda").
     var R = 17 * U * pulse;
     var off = R * 0.62;
     var time = state.time;

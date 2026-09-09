@@ -18397,7 +18397,7 @@
     var doingApoptosis = !!(t.apoptosisTargets && !t.apoptosisBurst && (t.specialAnim || 0) > 0);
     var apCountdown = doingApoptosis ? Math.max(0, Math.min(1, 1 - (t.specialAnim - 0.3) / 1.8)) : 0;
     var ultBoost = doingApoptosis ? (1.06 + apCountdown * 0.14) : 1;
-    var R = 20 * U * pulse * ultBoost;
+    var R = 20 * U * pulse * ultBoost * 1.1;
     var time = state.time;
     var attacking = (expression === "attacking") || doingApoptosis;
     var chargeFrac = doingApoptosis ? apCountdown : Math.max(0, Math.min(1, t.specialCharge || 0));

@@ -26,7 +26,7 @@ var TOWER_DEFS = {
     color: "#50C878",
     colorDark: "#2c8049",
     cost: 83,
-    desc: "Produce anticuerpos IgG e IgM que opsonizan bacterias marcándolas para su destrucción. Ultimate: cañones de anticuerpos penetrantes.",
+    desc: "Produce anticuerpos IgG e IgM que opsonizan bacterias marcándolas para su destrucción. Ultimate: plasmocito — latigazos y puñetazos delgados con protrusiones Y penetrantes.",
     machineGun: true,
     // Ultimate: DIFERENCIACIÓN A PLASMOCITO — la torre se infla y
     // dispara una ráfaga de 30 anticuerpos Y al sector más cercano

@@ -1,4 +1,4 @@
-/** Captura Linfocito B v2 — Plasmocito caricaturesco. DISPLAY=:1 node scripts/playtest-linfocitoB.mjs */
+/** Captura Linfocito B v3 — Plasmocito latigazos/puñetazos. DISPLAY=:1 node scripts/playtest-linfocitoB.mjs */
 import { chromium } from "playwright";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
@@ -76,76 +76,57 @@ const info = await page.evaluate(() => {
   lb.cannonTarget = { x: tx, y: ty };
   lb.cannonRecoil = 0.07;
   lb.plasmoPulse = 2.4;
+  lb.plasmoLashIdx = 1;
   lb.specialAnim = 0.92;
 
+  const R = 18 * U * 1.72;
   const aimAng = Math.atan2(ty - lb.y, tx - lb.x);
   const nx = Math.cos(aimAng);
   const ny = Math.sin(aimAng);
-  const perpX = -ny;
-  const perpY = nx;
-  const R = 18 * U * 1.72;
-  const barrelLen = 22 * U;
 
   st.effects.push({
     kind: "igComicBurst",
     x: lb.x,
     y: lb.y,
-    r: 130 * U,
-    life: 0.42,
+    r: 95 * U,
+    life: 0.35,
     max: 0.55,
   });
 
-  st.effects.push({
-    kind: "atpText",
-    x: lb.x,
-    y: lb.y - R * 1.35,
-    vy: -18 * U,
-    text: "¡PLASMA!",
-    life: 0.65,
-    max: 0.65,
-    color: "#ffd24a",
-  });
-
-  for (const sign of [-1, 1]) {
-    const cbX = lb.x + sign * perpX * R * 0.92;
-    const cbY = lb.y + sign * perpY * R * 0.92;
-    const mX = cbX + nx * barrelLen;
-    const mY = cbY + ny * barrelLen;
+  // Simular impactos desde las puntas de los latigazos.
+  for (let li = 0; li < 4; li++) {
+    const lateral = li < 2 ? (li === 0 ? -0.68 : 0.68) : (li === 2 ? -0.34 : 0.34);
+    const extMul = li < 2 ? 1.18 : 0.94;
+    const extend = R * 2.9 * extMul;
+    const baseAng = aimAng + lateral * 0.52;
+    const bx = lb.x + Math.cos(baseAng) * R * 0.84;
+    const by = lb.y + Math.sin(baseAng) * R * 0.84;
+    const tipX = bx + nx * extend;
+    const tipY = by + ny * extend;
     st.effects.push({
-      kind: "antibodyBeam",
-      startX: mX,
-      startY: mY,
-      endX: mX + nx * 130 * U,
-      endY: mY + ny * 130 * U,
-      life: 0.10,
-      max: 0.10,
-      comic: true,
+      kind: "antibodyLash",
+      x1: bx, y1: by, x2: tipX, y2: tipY,
+      cx: (bx + tipX) * 0.48 + (-ny) * (li % 2 ? -1 : 1) * R * 0.72,
+      cy: (by + tipY) * 0.48 + (nx) * (li % 2 ? -1 : 1) * R * 0.72,
+      whip: li < 2,
+      life: 0.14,
+      max: 0.16,
     });
-    for (let b = 0; b < 4; b++) {
+    for (let b = 0; b < 3; b++) {
       st.effects.push({
         kind: "antibodyHeavy",
-        x: mX + nx * (20 + b * 32) * U,
-        y: mY + ny * (20 + b * 32) * U,
-        vx: nx * 680 * U + (Math.random() - 0.5) * 40 * U,
-        vy: ny * 680 * U + (Math.random() - 0.5) * 40 * U,
+        x: tipX + nx * (12 + b * 28) * U,
+        y: tipY + ny * (12 + b * 28) * U,
+        vx: nx * 660 * U + (Math.random() - 0.5) * 35 * U,
+        vy: ny * 660 * U + (Math.random() - 0.5) * 35 * U,
         rot: aimAng + Math.PI / 2,
         rotSpd: 14,
-        size: (b % 2 ? 9 : 14) * U,
-        life: 0.4,
-        max: 0.4,
+        size: (b % 2 ? 8 : 13) * U,
+        life: 0.38,
+        max: 0.38,
         comic: true,
       });
     }
-    st.effects.push({
-      kind: "atpText",
-      x: mX,
-      y: mY - 12 * U,
-      vy: -24 * U,
-      text: "IgG!",
-      life: 0.45,
-      max: 0.45,
-      color: "#ffd24a",
-    });
   }
 
   g.hold(true);
@@ -159,11 +140,11 @@ const info = await page.evaluate(() => {
   };
 });
 
-console.log("Linfocito B v2:", info);
+console.log("Linfocito B v3:", info);
 await sleep(500);
-await page.screenshot({ path: join(ART, "linfocitoB_v2_plasmocito_field.png") });
+await page.screenshot({ path: join(ART, "linfocitoB_v3_plasmocito_field.png") });
 if (info.ok) {
-  await page.screenshot({ path: join(ART, "linfocitoB_v2_plasmocito_ultimate.png"), clip: info.clip });
+  await page.screenshot({ path: join(ART, "linfocitoB_v3_plasmocito_ultimate.png"), clip: info.clip });
 }
 await page.evaluate(() => window.__game.hold(false));
 await browser.close();

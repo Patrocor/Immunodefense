@@ -7926,9 +7926,9 @@
       // 2) Buffea TODAS las torres aliadas en rango → +25% fireRate 6s
       var lStats = towerStats(t);
       var lR = lStats.range * U;
-      var MARK_BONUS = 0.60;          // +60% (más fuerte que mark base 0.35-0.55)
-      var MARK_DUR = 6.0;
-      var BUFF_DUR = 6.0;
+      var MARK_BONUS = 0.75;          // +75% MHC-II masivo (vs mark pasiva 0.40-0.60)
+      var MARK_DUR = 8.0;
+      var BUFF_DUR = 8.0;
       // Marcar enemigos en rango (reusa el campo markTimer/markBonus
       // del sistema base — el dmg modifier en damageEnemy lo aplica auto)
       for (var i = 0; i < state.enemies.length; i++) {
@@ -7955,29 +7955,32 @@
         if (ally === t) continue;
         var da = Math.hypot(ally.x - t.x, ally.y - t.y);
         if (da > lR) continue;
-        ally.langerBuff = 1.25;
+        ally.langerBuff = 1.30;
         ally.langerBuffT = BUFF_DUR;
+        ally.langerDmgBuff = 1.22;
+        ally.langerDmgBuffT = BUFF_DUR;
         ally.langerLinkT = BUFF_DUR;
         ally.langerLinkFromX = t.x;
         ally.langerLinkFromY = t.y;
         pushEffect({
           kind: "atpText", x: ally.x, y: ally.y - 20 * U, vy: -22 * U,
-          text: "+25%", life: 1.0, max: 1.0, color: "#26c6da"
+          text: "+30%", life: 1.0, max: 1.0, color: "#26c6da"
         });
       }
-      // IL-5 (antes ILC2): activa ultimates de Eosinófilo/Mastocito ≥50% carga.
+      // IL-5: coordina ultimates de granulocitos y fagocitos con ≥40% carga.
       for (var li5 = 0; li5 < state.towers.length; li5++) {
         var ilt5 = state.towers[li5];
         if (ilt5 === t) continue;
         if (Math.hypot(ilt5.x - t.x, ilt5.y - t.y) > lR) continue;
-        if ((ilt5.def.id === "eosinofilo" || ilt5.def.id === "mastocito") &&
-            (ilt5.specialCharge || 0) >= 0.5) {
+        var il5Ids = ["eosinofilo", "mastocito", "neutrofilo", "nk"];
+        if (il5Ids.indexOf(ilt5.def.id) !== -1 && (ilt5.specialCharge || 0) >= 0.4) {
           ilt5.specialReady = true;
           triggerTowerSpecial(ilt5);
           pushEffect({ kind: "particle", x: ilt5.x, y: ilt5.y,
             vx: 0, vy: -40 * U, life: 0.6, max: 0.6, color: "#26c6da" });
         }
       }
+      showMsg("¡Presentación masiva MHC-II!");
       t.specialAnim = 1.5;             // duración del visual del ultimate
       t.specialReady = false;
       t.specialCharge = 0;
@@ -8381,13 +8384,13 @@
     // Esto refleja la biología: la dendrítica presenta antígeno a todos.
     neutrofilo:  {
       linfocitoB: { damage:   1.20 }, // B opsoniza → neutrófilo fagocita +20%
-      langerhans: { damage:   1.20 }  // marca presenta → +20% daño
+      langerhans: { damage:   1.25 }  // marca presenta → +25% daño
     },
     linfocitoB:  {
-      langerhans: { fireRate: 1.25 }  // presenta antígeno → B reconoce más rápido
+      langerhans: { fireRate: 1.28, damage: 1.15 }  // presenta → B reconoce y opsoniza más
     },
     linfocitoT:  {
-      langerhans: { damage:   1.30 },
+      langerhans: { damage:   1.35 },
       pdc:        { fireRate: 1.20 }
     },
     nk:          {
@@ -8422,10 +8425,9 @@
     }
   };
 
-  // Langerhans solo presenta antígeno a MAX_LANGERHANS_TARGETS torres por
-  // limite biológico de capacidad de presentación. Las 3 más cercanas dentro
-  // del rango ganan el buff; el resto, aunque esté en rango, no.
-  var MAX_LANGERHANS_TARGETS = 3;
+  // Sinergia Langerhans: hasta 6 receptores más cercanos (antes 3 — era
+  // invisible y frustraba al jugador).
+  var MAX_LANGERHANS_TARGETS = 6;
 
   function computeSynergyBuffs() {
     // Pase 1: cada Langerhans elige hasta 3 receptores (los más cercanos
@@ -8489,6 +8491,9 @@
     if ((t.tempBoostTimer || 0) > 0) effLevel = Math.min(t.def.levels.length - 1, t.level + 1);
     var base = t.def.levels[effLevel];
     var hasLangerBuff = ((t.langerBuffT || 0) > 0) && (t.langerBuff || 0) > 1;
+    var hasLangerDmgBuff = ((t.langerDmgBuffT || 0) > 0) && (t.langerDmgBuff || 0) > 1;
+    var hasLangerZone = (t.langerZoneT || 0) > 0;
+    var langerZoneMult = (t.def && t.def.presentAura) || 0.15;
     var hasKcBuff   = (t.def.id === "neutrofilo") && ((t.kcBuffT  || 0) > 0);
     var hasIfnBuff  = (t.def.id === "pdc")        && ((t.ifnBuffT || 0) > 0);
     var hasIl17Buff = ((t.il17BuffT || 0) > 0);
@@ -8502,7 +8507,7 @@
     // pasiva) y su descarga puntual (conductionBoost, temporal).
     var hasConduct = (t.conductionAura || 0) > 0 || (t.conductionBoost || 0) > 0;
     var hasModsFail = (t.modsFailPenalty || 0) > 0;   // MODS: órgano fallando cerca
-    if (!t.synBuff && !hasLangerBuff && !hasKcBuff && !hasIfnBuff && !hasIl17Buff && !hasIlc2Eosin && !hasCitoBuff && !hasCombo && !corneum && !swarm && !hasAlarm && !hasConduct && !hasModsFail) return base;
+    if (!t.synBuff && !hasLangerBuff && !hasLangerDmgBuff && !hasLangerZone && !hasKcBuff && !hasIfnBuff && !hasIl17Buff && !hasIlc2Eosin && !hasCitoBuff && !hasCombo && !corneum && !swarm && !hasAlarm && !hasConduct && !hasModsFail) return base;
     // Devuelve una copia con multiplicadores aplicados.
     var out = {};
     for (var k in base) { if (base.hasOwnProperty(k)) out[k] = base[k]; }
@@ -8511,8 +8516,11 @@
       if (out.range != null)    out.range    = out.range    * t.synBuff.range;
       if (out.fireRate != null) out.fireRate = out.fireRate * t.synBuff.fireRate;
     }
-    // Buff Langerhans ultimate: fireRate boost temporal
+    // Buff Langerhans ultimate: cadencia + daño temporal
     if (hasLangerBuff && out.fireRate != null) out.fireRate = out.fireRate * t.langerBuff;
+    if (hasLangerDmgBuff && out.damage != null) out.damage = out.damage * t.langerDmgBuff;
+    // Zona de presentación pasiva: aliadas en rango de Langerhans pegan más fuerte.
+    if (hasLangerZone && out.damage != null) out.damage = out.damage * (1 + langerZoneMult);
     // Queratinocito IL-8: Neutrófilos cercanos disparan 30% más rápido
     if (hasKcBuff && out.fireRate != null) out.fireRate = out.fireRate * 1.30;
     // pDC Tormenta IFN-α: pDC misma dispara 40% más rápido durante la tormenta
@@ -8836,6 +8844,11 @@
         t.langerLinkT -= dt;
         if (t.langerLinkT <= 0) t.langerLinkT = 0;
       }
+      if ((t.langerDmgBuffT || 0) > 0) {
+        t.langerDmgBuffT -= dt;
+        if (t.langerDmgBuffT <= 0) { t.langerDmgBuffT = 0; t.langerDmgBuff = 1; }
+      }
+      if ((t.langerZoneT || 0) > 0) t.langerZoneT -= dt;
       if ((t.prrAlarmT || 0) > 0) {
         t.prrAlarmT -= dt;
         if (t.prrAlarmT <= 0) { t.prrAlarmT = 0; t.prrAlarmDecoy = 0; }
@@ -9169,12 +9182,19 @@
             // Langerhans hacia el germen y dejarle un "splat" cian fijo.
             var wasMarked = (se.markTimer || 0) > 0;
             se.markTimer = stats.markDur; se.markBonus = stats.markBonus; se.revealed = true;
-            if (se.def.cloaked || se.burrowed) se.revealFlashT = 0.55;
+            se.slowTimer = Math.max(se.slowTimer || 0, 0.5);   // procesamiento antigénico
+            if (se.def.cloaked || se.burrowed) {
+              se.revealFlashT = 0.75;
+              if (!se.langerRevealMsg) {
+                se.langerRevealMsg = true;
+                showMsg("¡Langerhans revela " + (se.def.shortName || se.def.name) + "!");
+              }
+            }
             // DESGASTE DE ESCUDO: cada marca NUEVA le quita 1 punto de escudo.
             // La Langerhans no hace daño, pero ABRE a los encapsulados para
             // que el resto del equipo pueda matarlos.
             if (!wasMarked && se.def.shield && (se.shieldHP || 0) > 0) {
-              se.shieldHP -= 1;
+              se.shieldHP -= (t.level >= 2 ? 2 : 1);
               se.shieldHitTimer = 0.25;
               if (se.shieldHP <= 0) { se.shieldHP = 0; se.shieldShatterTimer = 0.45; se.noShieldRegen = true; }
               pushEffect({ kind: "particle", x: se.x, y: se.y, vx: 0, vy: -30 * U, life: 0.4, max: 0.4, color: "#3FC1C9" });
@@ -9202,8 +9222,19 @@
             var ampAlly = state.towers[ampI];
             if (ampAlly === t) continue;
             if (Math.hypot(ampAlly.x - t.x, ampAlly.y - t.y) > rangePx) continue;
-            if (ampAlly.def.id === "eosinofilo") { ampAlly.ilc2EosinT = 5; acted = true; }
-            if (ampAlly.def.id === "mastocito")  { ampAlly.ilc2MastoT = 6; acted = true; }
+            if (ampAlly.def.id === "eosinofilo") { ampAlly.ilc2EosinT = 6; acted = true; }
+            if (ampAlly.def.id === "mastocito")  { ampAlly.ilc2MastoT = 7; acted = true; }
+          }
+        }
+        // Zona de presentación: todas las aliadas en rango reciben +15% daño.
+        if (t.def.id === "langerhans" && (t.def.presentAura || 0) > 0) {
+          for (var lz = 0; lz < state.towers.length; lz++) {
+            var lzt = state.towers[lz];
+            if (lzt === t) continue;
+            if (Math.hypot(lzt.x - t.x, lzt.y - t.y) <= rangePx) {
+              lzt.langerZoneT = 2.5;
+              acted = true;
+            }
           }
         }
         // LANGERHANS — DARDO DE ANTÍGENO: ataque propio de poco poder. Pica al
@@ -9219,14 +9250,14 @@
             if (ldd <= rangePx && ldd < ldD) { ldD = ldd; ldT = lde; }
           }
           if (ldT) {
-            damageEnemy(ldT, stats.damage * 0.4, "langerhans");   // 0.4 = el tic del aura
+            damageEnemy(ldT, stats.damage * 0.55, "langerhans");
             pushEffect({ kind: "markDart", x: t.x, y: t.y, tx: ldT.x, ty: ldT.y,
               travel: 0.22, life: 0.22, max: 0.22, color: "#7cf0e8" });
             t.muzzleFlash = 0.08;
           }
         }
         if (acted) { t.attackAnim = 0.2; t.muzzleFlash = 0.06; }
-        t.cooldown = 0.4;   // cadencia del tic de aura
+        t.cooldown = 0.35;   // cadencia del tic de aura
         continue;
       }
       var target = null, bestProgress = -1;
@@ -10358,7 +10389,7 @@
       ctx.font = "bold " + Math.round(9 * U) + "px Fredoka, sans-serif";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.fillText("+25%", (fx + tw.x) * 0.5, (fy + tw.y) * 0.5 - 8 * U);
+      ctx.fillText("+30%", (fx + tw.x) * 0.5, (fy + tw.y) * 0.5 - 8 * U);
       ctx.restore();
     }
   }
@@ -16919,6 +16950,22 @@
       ctx.fillText("+45%", t.x, t.y - 28 * U);
       ctx.restore();
     }
+    if ((t.langerZoneT || 0) > 0 && t.def.id !== "langerhans") {
+      var lzA = Math.min(1, t.langerZoneT / 2.5);
+      ctx.save();
+      ctx.globalAlpha = 0.45 + 0.35 * Math.sin(state.time * 3.5);
+      ctx.strokeStyle = "rgba(63, 193, 201, " + (0.35 + lzA * 0.45) + ")";
+      ctx.lineWidth = 1.8 * U;
+      ctx.beginPath();
+      ctx.arc(t.x, t.y, 24 * U, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.fillStyle = "rgba(63, 193, 201, " + (0.55 + lzA * 0.35) + ")";
+      ctx.font = "bold " + Math.round(8 * U) + "px Fredoka, sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "bottom";
+      ctx.fillText("+15%", t.x, t.y - 30 * U);
+      ctx.restore();
+    }
     // Level-up sparkles
     if (levelup) {
       var lp = (t.levelupAnim / 0.5);
@@ -21427,6 +21474,18 @@
       ctx.ellipse(sx + ssize * 0.45, sy + ssize * 0.30, ssize * 0.25, ssize * 0.18, sa, 0, Math.PI * 2);
       ctx.fill();
       ctx.restore();
+      // Etiqueta MHC-II: cuánto extra recibe el germen mientras está marcado.
+      if ((e.markBonus || 0) > 0) {
+        var mbPct = Math.round(e.markBonus * 100);
+        ctx.save();
+        ctx.globalAlpha = fade * 0.92;
+        ctx.fillStyle = "#ffd24a";
+        ctx.font = "bold " + Math.round(9 * U) + "px Fredoka, sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "bottom";
+        ctx.fillText("MHC +" + mbPct + "%", e.x, e.y - rad * scale - 6 * U);
+        ctx.restore();
+      }
     }
     // Tentáculos/puñetazos (S. epidermidis): seudópodos que extienden hacia
     // la torre objetivo con puño que vibra al golpear.

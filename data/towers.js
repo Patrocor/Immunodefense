@@ -63,18 +63,17 @@ var TOWER_DEFS = {
   },
   langerhans: {
     id: "langerhans", name: "Cel. de Langerhans", shortName: "Langer",
-    color: "#3FC1C9", colorDark: "#26797f", cost: 70,     desc: "Captura antígenos y activa la respuesta: MARCA gérmenes (+daño, desgasta escudo), AMPLIFICA Eosinófilos/Mastocitos y su ultimate puede activar los suyos (IL-5). Dardos de antígeno de daño leve. Ultimate: Presentación Antigénica Masiva.",
+    color: "#3FC1C9", colorDark: "#26797f", cost: 70,     desc: "CPA de la piel: MARCA gérmenes (+daño recibido, revela ocultos, desgasta escudo), ZONA DE PRESENTACIÓN (+15% daño a aliadas cercanas) y coordina al equipo. Ultimate: MHC-II masivo + buff aliadas + IL-5 (dispara ultimates listos).",
     support: "mark",
     amplifies: true,
+    presentAura: 0.15,              // aliadas en rango: +15% daño (zona de presentación)
     // Ultimate: PRESENTACIÓN ANTIGÉNICA MASIVA + COORDINACIÓN INMUNE + IL-5.
-    // Marca masiva MHC-II, buff de cadencia a aliados y puede disparar
-    // ultimates de Eosinófilo/Mastocito con ≥50% de carga.
-    specialChargeSec: 30 * 1.15,  // +15%: poderes tardan un poco más en cargar
+    specialChargeSec: 28,
     specialName: "Presentación masiva",
     levels: [
-      { range: 120, damage: 7,  fireRate: 1.0, projectileSpeed: 0, splash: 0, hp: 90,  markBonus: 0.35, markDur: 3.0 },
-      { range: 140, damage: 11, fireRate: 1.0, projectileSpeed: 0, splash: 0, hp: 115, markBonus: 0.45, markDur: 3.0 },
-      { range: 160, damage: 15, fireRate: 1.0, projectileSpeed: 0, splash: 0, hp: 145, markBonus: 0.55, markDur: 3.5 }
+      { range: 130, damage: 9,  fireRate: 1.0, projectileSpeed: 0, splash: 0, hp: 95,  markBonus: 0.40, markDur: 4.0 },
+      { range: 150, damage: 13, fireRate: 1.0, projectileSpeed: 0, splash: 0, hp: 120, markBonus: 0.50, markDur: 4.0 },
+      { range: 170, damage: 18, fireRate: 1.0, projectileSpeed: 0, splash: 0, hp: 150, markBonus: 0.60, markDur: 4.5 }
     ],
     upgradeCost: [75, 130]
   },

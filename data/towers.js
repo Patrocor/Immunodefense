@@ -180,6 +180,8 @@ var TOWER_DEFS = {
     color: "#E8A33D", colorDark: "#8A5A12", cost: 35,
     desc: "Receptor PRR/TLR que detecta moléculas asociadas a patógenos y emite alarmas. Actúa como señuelo atrayendo los poderes especiales de los gérmenes hacia sí.",
     decoyAttraction: 2.5,
+    specialChargeSec: 22,
+    specialName: "Alarma PRR",
     levels: [
       { range: 130, damage: 10, fireRate: 0.6, projectileSpeed: 0, splash: 0, hp: 140 },
       { range: 130, damage: 16, fireRate: 0.7, projectileSpeed: 0, splash: 0, hp: 200 },

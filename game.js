@@ -7632,7 +7632,9 @@
               if (tw2.devouredBy) continue;
               var dd2 = Math.hypot(tw2.x - e.x, tw2.y - e.y);
               if (dd2 >= pr) continue;
-              var weighted = tw2.def.decoyAttraction ? dd2 / tw2.def.decoyAttraction : dd2;
+              var decoyW = (tw2.prrAlarmT || 0) > 0 && tw2.prrAlarmDecoy
+                ? tw2.prrAlarmDecoy : (tw2.def.decoyAttraction || 0);
+              var weighted = decoyW ? dd2 / decoyW : dd2;
               if (weighted < bd) { bd = weighted; tgt = tw2; }
             }
             if (tgt) { e.powerCharge = 0.55; e.powerTarget = tgt; }  // inicia carga
@@ -7777,6 +7779,55 @@
       triggerUltimateHitstop();
       return;
     }
+    // Queratinocito alterna: Turno de secreción ↔ Cornificación.
+    if (def.id === "queratinocito") {
+      var doCornify = !!t.keraCornifyPending;
+      t.keraCornifyPending = !doCornify;
+      if (doCornify) {
+        triggerUltimateHitstop();
+        var kcStats = towerStats(t);
+        var kcR = kcStats.range * U * 1.2;
+        for (var kci = 0; kci < state.enemies.length; kci++) {
+          var kce = state.enemies[kci];
+          if (kce.dead || kce.dying || kce.absorbing) continue;
+          if (kce.burrowed && !kce.revealed) continue;
+          if (kce.def.cloaked && !kce.revealed) continue;
+          if (Math.hypot(kce.x - t.x, kce.y - t.y) > kcR) continue;
+          kce.slowTimer = Math.max(kce.slowTimer || 0, 4.0);
+          damageEnemy(kce, Math.max(12, kcStats.damage * 3.5), "queratinocito");
+        }
+        pushEffect({ kind: "novaRing", x: t.x, y: t.y, r: kcR, color: "#d4a855", life: 0.65, max: 0.65 });
+        t.specialAnim = 1.2;
+        t.specialReady = false;
+        t.specialCharge = 0;
+        showMsg("¡Cornificación!");
+        sfx("upgrade");
+        triggerShake(0.12, 3);
+      } else {
+        var stp = towerStats(t);
+        var patch = (t.def.levels[t.level] && t.def.levels[t.level].patch) || { count: 2, r: 32, life: 6, dot: 16, slow: true, kind: "defensin" };
+        var arc = nearestPathProgress(t.x, t.y);
+        if (!state.sebumPuddles) state.sebumPuddles = [];
+        var n = patch.count || 2;
+        for (var pk = 0; pk < n; pk++) {
+          var off = (pk - (n - 1) / 2) * 46 * U;
+          var pt = arc ? pathPos(arc.progress + off, arc.heridaIdx) : { x: t.x, y: t.y + (pk - (n - 1) / 2) * 40 * U };
+          state.sebumPuddles.push({
+            x: pt.x, y: pt.y, r: (patch.r || 32) * U, life: patch.life || 6, max: patch.life || 6,
+            dot: patch.dot || 16, slow: !!patch.slow, kind: patch.kind || "defensin",
+            srcId: t.def.id
+          });
+          pushEffect({ kind: "place", x: pt.x, y: pt.y, life: 0.5, max: 0.5, color: "#cfeaff" });
+        }
+        t.specialAnim = 1.4;
+        t.specialReady = false;
+        t.specialCharge = 0;
+        pushEffect({ kind: "defensinWave", x: t.x, y: t.y, r: stp.range * U * 0.55, life: 0.7, max: 0.7 });
+        showMsg("¡Secreción de defensinas!");
+        sfx("upgrade");
+      }
+      return;
+    }
     if (def.producer) {
       // TURNO DE SECRECIÓN: el nicho vuelca parches antimicrobianos sobre el
       // carril más cercano dentro de su rango. Cada parche daña + frena.
@@ -7826,7 +7877,13 @@
         var nbCenter = computeUltimateTarget(t);
         nbTargets.push({ x: nbCenter.x, y: nbCenter.y, enemy: null });
       }
-      t.biteUlt = { targets: nbTargets, idx: 0, nextAt: 0.06 };
+      t.biteUlt = { targets: nbTargets, idx: 0, nextAt: 0.06, kills: 0 };
+      for (var ntg = 0; ntg < nbTargets.length; ntg++) {
+        pushEffect({
+          kind: "biteTelegraph", x: nbTargets[ntg].x, y: nbTargets[ntg].y,
+          r: 22 * U, life: 0.55, max: 0.55, color: "#B79CE0"
+        });
+      }
       t.specialAnim = nbTargets.length * 0.36 + 0.22;
       t.specialReady = false;
       t.specialCharge = 0;
@@ -7898,8 +7955,15 @@
         if (ally === t) continue;
         var da = Math.hypot(ally.x - t.x, ally.y - t.y);
         if (da > lR) continue;
-        ally.langerBuff = 1.25;        // 25% más fireRate
+        ally.langerBuff = 1.25;
         ally.langerBuffT = BUFF_DUR;
+        ally.langerLinkT = BUFF_DUR;
+        ally.langerLinkFromX = t.x;
+        ally.langerLinkFromY = t.y;
+        pushEffect({
+          kind: "atpText", x: ally.x, y: ally.y - 20 * U, vy: -22 * U,
+          text: "+25%", life: 1.0, max: 1.0, color: "#26c6da"
+        });
       }
       // IL-5 (antes ILC2): activa ultimates de Eosinófilo/Mastocito ≥50% carga.
       for (var li5 = 0; li5 < state.towers.length; li5++) {
@@ -7996,6 +8060,8 @@
         me2.slowTimer = Math.max(me2.slowTimer || 0, 3.0);
         damageEnemy(me2, (maStats.dotPerSec || 4) * 8, "mastocito");
       }
+      pushEffect({ kind: "mastocWave", x: t.x, y: t.y, r: maR * 0.55, life: 0.55, max: 0.55 });
+      pushEffect({ kind: "mastocWave", x: t.x, y: t.y, r: maR * 0.82, life: 0.65, max: 0.65 });
       pushEffect({ kind: "mastocWave", x: t.x, y: t.y, r: maR, life: 0.7, max: 0.7 });
       t.specialAnim = 1.0;
       t.specialReady = false;
@@ -8004,44 +8070,56 @@
       triggerShake(0.12, 4);
       return;
     }
-    if (def.id === "queratinocito") {
-      // CORNIFICACIÓN: la capa córnea forma una barrera — congela todos
-      // los gérmenes en rango 4 s y les hace daño AoE masivo al final.
-      var kcStats = towerStats(t);
-      var kcR = kcStats.range * U * 1.2;
-      for (var kci = 0; kci < state.enemies.length; kci++) {
-        var kce = state.enemies[kci];
-        if (kce.dead || kce.dying || kce.absorbing) continue;
-        if (kce.burrowed && !kce.revealed) continue;
-        if (kce.def.cloaked && !kce.revealed) continue;
-        if (Math.hypot(kce.x - t.x, kce.y - t.y) > kcR) continue;
-        kce.slowTimer = Math.max(kce.slowTimer || 0, 4.0);
-        damageEnemy(kce, kcStats.damage * 3.5, "queratinocito");
-        pushEffect({ kind: "particle", x: kce.x, y: kce.y,
-          vx: 0, vy: -30 * U, life: 0.6, max: 0.6, color: "#d4a855" });
+    if (def.id === "centinela") {
+      // ALARMA PRR: señal masiva — señuelo ×4, buffea aliadas y revela gérmenes.
+      var ceStats = towerStats(t);
+      var ceR = ceStats.range * U * 1.5;
+      t.prrAlarmT = 8.0;
+      t.prrAlarmDecoy = (def.decoyAttraction || 2.5) * 4;
+      for (var cai = 0; cai < state.towers.length; cai++) {
+        var cal2 = state.towers[cai];
+        if (cal2 === t) continue;
+        if (Math.hypot(cal2.x - t.x, cal2.y - t.y) <= ceR) cal2.alarmBuffT = 8.0;
       }
-      pushEffect({ kind: "novaRing", x: t.x, y: t.y, r: kcR, color: "#d4a855", life: 0.65, max: 0.65 });
-      t.specialAnim = 1.2;
+      for (var cei = 0; cei < state.enemies.length; cei++) {
+        var cee = state.enemies[cei];
+        if (cee.dead || cee.dying || cee.absorbing) continue;
+        if (Math.hypot(cee.x - t.x, cee.y - t.y) > ceR) continue;
+        cee.revealed = true;
+        if (cee.def.cloaked || cee.burrowed) cee.revealFlashT = 0.6;
+      }
+      pushEffect({ kind: "novaRing", x: t.x, y: t.y, r: ceR, color: "#E8A33D", life: 0.75, max: 0.75 });
+      pushEffect({
+        kind: "atpText", x: t.x, y: t.y - 32 * U, vy: -24 * U,
+        text: "PRR", life: 1.2, max: 1.2, color: "#FFE9B0", big: true
+      });
+      t.specialAnim = 1.4;
       t.specialReady = false;
       t.specialCharge = 0;
+      showMsg("¡Alarma PRR!");
       sfx("upgrade");
-      triggerShake(0.12, 3);
+      triggerShake(0.14, 4);
       return;
     }
     if (def.id === "sebocito") {
-      // HIPERSEBORRHEA: inunda el path con charcos de sebo reforzados.
+      // HIPERSEBORRHEA: charcos sobre el carril + daño directo.
       var sbStats = towerStats(t);
       var sbLvl = def.levels[Math.min(t.level, def.levels.length - 1)];
       var sbPuddle = sbLvl.puddle || { r: 38, life: 8, dot: 18 };
       var sbR = sbStats.range * U * 1.4;
       if (!state.sebumPuddles) state.sebumPuddles = [];
-      // 6 charcos distribuidos a lo largo del path dentro del rango.
+      var sbArc = nearestPathProgress(t.x, t.y);
       for (var sbi = 0; sbi < 6; sbi++) {
-        var sbAngle = (sbi / 6) * Math.PI * 2;
-        var sbDist  = sbR * (0.35 + (sbi % 3) * 0.2);
-        var sbx = t.x + Math.cos(sbAngle) * sbDist;
-        var sby = t.y + Math.sin(sbAngle) * sbDist;
-        state.sebumPuddles.push({ x: sbx, y: sby, r: sbPuddle.r * U * 1.5, life: sbPuddle.life * 1.5, max: sbPuddle.life * 1.5, dot: sbPuddle.dot * 1.8 });
+        var sbOff = (sbi - 2.5) * 52 * U;
+        var sbPt = sbArc ? pathPos(sbArc.progress + sbOff, sbArc.heridaIdx) : {
+          x: t.x + Math.cos((sbi / 6) * Math.PI * 2) * sbR * 0.45,
+          y: t.y + Math.sin((sbi / 6) * Math.PI * 2) * sbR * 0.45
+        };
+        state.sebumPuddles.push({
+          x: sbPt.x, y: sbPt.y, r: sbPuddle.r * U * 1.5, life: sbPuddle.life * 1.5,
+          max: sbPuddle.life * 1.5, dot: sbPuddle.dot * 1.8, kind: "sebum", srcId: "sebocito"
+        });
+        pushEffect({ kind: "place", x: sbPt.x, y: sbPt.y, life: 0.5, max: 0.5, color: "#c8980a" });
       }
       // Daño directo a todos en rango
       for (var sbj = 0; sbj < state.enemies.length; sbj++) {
@@ -8077,6 +8155,9 @@
           pde.slowTimer = Math.max(pde.slowTimer || 0, 3.5);
           pushEffect({ kind: "particle", x: pde.x, y: pde.y,
             vx: 0, vy: -40 * U, life: 0.5, max: 0.5, color: "#6a3dd4" });
+        } else {
+          damageEnemy(pde, pdStats.damage * 1.2, "pdc");
+          pde.slowTimer = Math.max(pde.slowTimer || 0, 1.8);
         }
       }
       // pDC misma entra en modo tormenta: dispara 40% más rápido 5s
@@ -8751,6 +8832,14 @@
         t.langerBuffT -= dt;
         if (t.langerBuffT <= 0) { t.langerBuffT = 0; t.langerBuff = 1; }
       }
+      if ((t.langerLinkT || 0) > 0) {
+        t.langerLinkT -= dt;
+        if (t.langerLinkT <= 0) t.langerLinkT = 0;
+      }
+      if ((t.prrAlarmT || 0) > 0) {
+        t.prrAlarmT -= dt;
+        if (t.prrAlarmT <= 0) { t.prrAlarmT = 0; t.prrAlarmDecoy = 0; }
+      }
       if ((t.kcBuffT   || 0) > 0) t.kcBuffT   -= dt;
       if ((t.ifnBuffT  || 0) > 0) t.ifnBuffT  -= dt;
       if ((t.il17BuffT || 0) > 0) t.il17BuffT -= dt;
@@ -8797,6 +8886,9 @@
           var biteStats = towerStats(t);
           if (bt.enemy && !bt.enemy.dead && !bt.enemy.dying && !bt.enemy.absorbing) {
             damageEnemy(bt.enemy, biteStats.damage * 3.2, "neutrofilo");
+            if (bt.enemy.dead || bt.enemy.dying) {
+              t.biteUlt.kills = (t.biteUlt.kills || 0) + 1;
+            }
             pushEffect({ kind: "melee", x1: t.x, y1: t.y, x2: bt.x, y2: bt.y, life: 0.30, max: 0.30, color: t.def.color, towerId: t.def.id });
           } else if (!bt.enemy) {
             dealAoEDamageAt(bt.x, bt.y, 30 * U, biteStats.damage * 2.5);
@@ -8818,6 +8910,15 @@
           t.biteUlt.nextAt = 0.34;
         }
         if ((t.specialAnim || 0) <= 0) {
+          if (t.biteUlt && (t.biteUlt.kills || 0) >= 2) {
+            if (!state.cannonNets) state.cannonNets = [];
+            state.cannonNets.push({
+              x: t.x, y: t.y, r: 48 * U, dps: 12, life: 3.5, max: 3.5,
+              seed: Math.random() * 100, kind: "netosis"
+            });
+            pushEffect({ kind: "shock", x: t.x, y: t.y, r: 48 * U, life: 0.55, max: 0.55, color: "#e8dcff" });
+            showMsg("¡NETosis tras ÑAM!");
+          }
           t.biteUlt = null;
           t.biteGrotesque = false;
         }
@@ -8960,7 +9061,12 @@
           if (Math.hypot(me.x - t.x, me.y - t.y) <= rangePx) macCandidates.push(me);
         }
         if (macCandidates.length) {
-          var macTarget = macCandidates[Math.floor(Math.random() * macCandidates.length)];
+          macCandidates.sort(function (a, b) {
+            var sa = a.progress + (a.def.isBoss ? 1000 : 0) + ((a.shieldHP || 0) > 0 ? 500 : 0);
+            var sb = b.progress + (b.def.isBoss ? 1000 : 0) + ((b.shieldHP || 0) > 0 ? 500 : 0);
+            return sb - sa;
+          });
+          var macTarget = macCandidates[0];
           fireCannonAt(t, macTarget.x, macTarget.y);
         }
         continue;
@@ -10227,6 +10333,33 @@
         ctx.stroke();
         ctx.restore();
       }
+    }
+  }
+
+  function drawLangerLinks() {
+    for (var i = 0; i < state.towers.length; i++) {
+      var tw = state.towers[i];
+      if ((tw.langerLinkT || 0) <= 0) continue;
+      var fx = tw.langerLinkFromX, fy = tw.langerLinkFromY;
+      if (fx == null || fy == null) continue;
+      var alpha = Math.min(1, tw.langerLinkT / 6.0);
+      var pulse = 0.45 + 0.35 * Math.sin(state.time * 6 + i);
+      ctx.save();
+      ctx.globalAlpha = alpha * pulse;
+      ctx.strokeStyle = "#26c6da";
+      ctx.lineWidth = 2.2 * U;
+      ctx.setLineDash([5 * U, 4 * U]);
+      ctx.beginPath();
+      ctx.moveTo(fx, fy);
+      ctx.lineTo(tw.x, tw.y);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = "rgba(38, 198, 218, " + (alpha * 0.85) + ")";
+      ctx.font = "bold " + Math.round(9 * U) + "px Fredoka, sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("+25%", (fx + tw.x) * 0.5, (fy + tw.y) * 0.5 - 8 * U);
+      ctx.restore();
     }
   }
 
@@ -12367,7 +12500,9 @@
       if (tw2 === exclude || tw2.devouredBy) continue;
       var dd2 = Math.hypot(tw2.x - e.x, tw2.y - e.y);
       if (dd2 >= pr) continue;
-      var weighted = tw2.def.decoyAttraction ? dd2 / tw2.def.decoyAttraction : dd2;
+      var decoyW2 = (tw2.prrAlarmT || 0) > 0 && tw2.prrAlarmDecoy
+        ? tw2.prrAlarmDecoy : (tw2.def.decoyAttraction || 0);
+      var weighted = decoyW2 ? dd2 / decoyW2 : dd2;
       if (weighted < bd) { bd = weighted; tgt = tw2; }
     }
     return tgt;
@@ -16773,6 +16908,17 @@
     else if (t.def.id === "tregSepsis") drawTregSepsis(t, pulse, expression, blink);
     else drawLinfocitoT(t, pulse, expression, blink);
     drawTowerRoleBadge(t);
+    if ((t.il17BuffT || 0) > 0 && t.def.id !== "linfocitogd") {
+      var il17A = Math.min(1, t.il17BuffT / 8.0);
+      ctx.save();
+      ctx.globalAlpha = 0.55 + 0.35 * Math.sin(state.time * 4);
+      ctx.fillStyle = "rgba(139,195,74," + il17A + ")";
+      ctx.font = "bold " + Math.round(9 * U) + "px Fredoka, sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "bottom";
+      ctx.fillText("+45%", t.x, t.y - 28 * U);
+      ctx.restore();
+    }
     // Level-up sparkles
     if (levelup) {
       var lp = (t.levelupAnim / 0.5);
@@ -18155,6 +18301,27 @@
         ctx.lineTo(Math.cos(sa) * R * 2.10, Math.sin(sa) * R * 2.10);
         ctx.stroke();
       }
+      // Cono de caza hacia el sector bloqueado del ultimate.
+      if (t.frenzyTarget) {
+        var fdx = t.frenzyTarget.x - t.x, fdy = t.frenzyTarget.y - t.y;
+        var fang = Math.atan2(fdy, fdx);
+        var nkStats = towerStats(t);
+        var coneLen = nkStats.range * U * 0.92;
+        var coneSpread = Math.PI / 4.5;
+        var coneA = 0.22 + 0.12 * Math.sin(time * 8);
+        ctx.fillStyle = "rgba(232, 67, 147, " + coneA + ")";
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.arc(0, 0, coneLen, fang - coneSpread, fang + coneSpread);
+        ctx.closePath();
+        ctx.fill();
+        ctx.strokeStyle = "rgba(255, 180, 220, " + (coneA + 0.15) + ")";
+        ctx.lineWidth = 1.4 * U;
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.lineTo(Math.cos(fang) * coneLen, Math.sin(fang) * coneLen);
+        ctx.stroke();
+      }
     }
 
     // ── Anillo crosshair rotando (mira de cazadora) — gira más rápido y
@@ -18782,8 +18949,9 @@
     var R = 16 * U * pulse;
     var time = state.time;
     var lured = !!t.beingLured;
-    var beamPulse = lured
-      ? (0.6 + 0.4 * Math.sin(time * 16))
+    var prrAlarm = (t.prrAlarmT || 0) > 0;
+    var beamPulse = (lured || prrAlarm)
+      ? (0.6 + 0.4 * Math.sin(time * (prrAlarm ? 12 : 16)))
       : (0.4 + 0.3 * Math.sin(time * 1.6));
 
     ctx.save();
@@ -18846,9 +19014,8 @@
     ctx.arc(0, beaconY, beaconR, 0, Math.PI * 2);
     ctx.fill();
 
-    // Haz rotatorio + anillo de alarma — SOLO mientras está atrayendo de
-    // verdad (lured real, no decorativo).
-    if (lured) {
+    // Haz rotatorio + anillo de alarma — mientras atrae o durante Alarma PRR.
+    if (lured || prrAlarm) {
       ctx.save();
       ctx.translate(0, beaconY);
       ctx.rotate(time * 5);
@@ -27681,6 +27848,31 @@
       ctx.fillStyle = "rgba(255,255,255," + ((1 - sbT) * 0.4) + ")";
       ctx.beginPath(); ctx.arc(ef.x, ef.y, sbR * 0.4, 0, Math.PI * 2); ctx.fill();
       ctx.restore();
+    } else if (ef.kind === "biteTelegraph") {
+      var btT = 1 - ef.life / ef.max;
+      var btR = (ef.r || 22 * U) * (0.85 + 0.15 * Math.sin(btT * Math.PI * 4));
+      ctx.save();
+      ctx.globalAlpha = alpha * 0.9;
+      ctx.strokeStyle = ef.color || "#B79CE0";
+      ctx.lineWidth = (2.5 + btT * 1.5) * U;
+      ctx.beginPath();
+      ctx.arc(ef.x, ef.y, btR, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.fillStyle = "rgba(183, 156, 224, " + (alpha * 0.25) + ")";
+      ctx.beginPath();
+      ctx.arc(ef.x, ef.y, btR * 0.55, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "#ffd24a";
+      ctx.lineWidth = 1.8 * U;
+      ctx.lineCap = "round";
+      for (var btI = 0; btI < 4; btI++) {
+        var btA = btI * Math.PI / 2 + btT * Math.PI;
+        ctx.beginPath();
+        ctx.moveTo(ef.x + Math.cos(btA) * btR * 0.35, ef.y + Math.sin(btA) * btR * 0.35);
+        ctx.lineTo(ef.x + Math.cos(btA) * btR * 0.95, ef.y + Math.sin(btA) * btR * 0.95);
+        ctx.stroke();
+      }
+      ctx.restore();
     } else if (ef.kind === "mastocWave") {
       var mwT = 1 - ef.life / ef.max;
       var mwR = ef.r * (0.05 + 0.95 * mwT);
@@ -30849,6 +31041,7 @@
       safeDraw("Tower:" + (tw.def && tw.def.id), function () { drawTower(tw); });
     }
     safeDraw("ApoptosisMarks", drawApoptosisMarks);
+    safeDraw("LangerLinks", drawLangerLinks);
     safeDraw("HuntLines", drawHuntLines);
     safeDraw("Guardians", drawGuardians);
     safeDraw("Fragments", drawFragments);

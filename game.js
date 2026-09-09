@@ -8153,10 +8153,13 @@
       return;
     }
     if (def.id === "pdc") {
-      // TORMENTA IFN-α: ráfaga de interferón — aplasta todos los virus
-      // en rango, los paraliza y activa el overclocking propio.
+      // TORMENTA IFN-α: ráfaga antiviral — aniquila virus en rango y paraliza el resto.
       var pdStats = towerStats(t);
-      var pdR = pdStats.range * U * 1.3;
+      var pdR = pdStats.range * U * 1.45;
+      t.ifnPulse = 0;
+      t.specialAnim = 1.65;
+      t.specialReady = false;
+      t.specialCharge = 0;
       for (var pdi = 0; pdi < state.enemies.length; pdi++) {
         var pde = state.enemies[pdi];
         if (pde.dead || pde.dying || pde.absorbing) continue;
@@ -8164,24 +8167,27 @@
         if (pde.def.cloaked && !pde.revealed) continue;
         if (Math.hypot(pde.x - t.x, pde.y - t.y) > pdR) continue;
         if (pde.def.baseKind === "virus") {
-          var pdDmg = pdStats.damage * (t.def.bonusVs ? t.def.bonusVs.mult : 1) * 3.0;
+          var pdDmg = pdStats.damage * (t.def.bonusVs ? t.def.bonusVs.mult : 1) * 3.2;
           damageEnemy(pde, pdDmg, "pdc");
-          pde.slowTimer = Math.max(pde.slowTimer || 0, 3.5);
-          pushEffect({ kind: "particle", x: pde.x, y: pde.y,
-            vx: 0, vy: -40 * U, life: 0.5, max: 0.5, color: "#6a3dd4" });
+          pde.slowTimer = Math.max(pde.slowTimer || 0, 3.8);
+          pushEffect({
+            kind: "ifnShred", x: pde.x, y: pde.y,
+            r: ((pde.def && pde.def.radius) ? pde.def.radius : 16) * U * 2.4,
+            life: 0.55, max: 0.55
+          });
         } else {
-          damageEnemy(pde, pdStats.damage * 1.2, "pdc");
+          damageEnemy(pde, pdStats.damage * 1.15, "pdc");
           pde.slowTimer = Math.max(pde.slowTimer || 0, 1.8);
         }
       }
-      // pDC misma entra en modo tormenta: dispara 40% más rápido 5s
       t.ifnBuffT = 5.0;
-      pushEffect({ kind: "novaRing", x: t.x, y: t.y, r: pdR, color: "#6a3dd4", life: 0.65, max: 0.65 });
-      t.specialAnim = 1.4;
-      t.specialReady = false;
-      t.specialCharge = 0;
+      pushEffect({ kind: "ifnStorm", x: t.x, y: t.y, r: pdR, life: 1.25, max: 1.25 });
+      pushEffect({ kind: "novaRing", x: t.x, y: t.y, r: pdR, color: "#6a3dd4", life: 0.8, max: 0.8 });
+      pushEffect({ kind: "atpText", x: t.x, y: t.y - 40 * U, vy: -28 * U,
+        text: "IFN-α!", life: 0.75, max: 0.75, color: "#d4b8ff" });
+      showMsg("¡Tormenta IFN-α!");
       sfx("upgrade");
-      triggerShake(0.14, 4);
+      triggerShake(0.18, 5);
       return;
     }
     if (def.id === "linfocitogd") {
@@ -9193,6 +9199,9 @@
       if (t.def.id === "sebocito" && (t.specialAnim || 0) > 0) {
         t.sebumPulse = (t.sebumPulse || 0) + dt * 10;
       }
+      if (t.def.id === "pdc" && (t.specialAnim || 0) > 0) {
+        t.ifnPulse = (t.ifnPulse || 0) + dt * 12;
+      }
       // Linfocito T ultimate: tras el retraso de carga (1.8s, specialAnim
       // arrancó en 2.1), ejecuta a todos los marcados juntos, una sola vez.
       if (t.def.id === "linfocitoT" && (t.specialAnim || 0) > 0 && t.apoptosisTargets && !t.apoptosisBurst) {
@@ -9576,7 +9585,7 @@
         fireTower(t, target);
         t.cooldown = (1 / stats.fireRate) * (t.slowFireTimer > 0 ? 2 : 1);
         t.muzzleFlash = 0.08;
-        t.attackAnim = t.def.id === "sebocito" ? 0.42 : 0.20;
+        t.attackAnim = t.def.id === "sebocito" ? 0.42 : (t.def.id === "pdc" ? 0.34 : 0.20);
         if (t.def.id === "neutrofilo") sfx("macroAttack");
         else if (t.def.id === "linfocitoB") sfx("linfBAttack");
         else sfx("linfTAttack");
@@ -20009,59 +20018,120 @@
   }
 
   function drawPDC(t, pulse, expression, blink) {
-    // Célula Dendrítica Plasmocitoide — fábrica de INTERFERÓN tipo I
-    // (antiviral). Aspecto plasmocitoide: núcleo excéntrico "en reloj",
-    // dendritas cortas gruesas, y emisión de paquetes de IFN en ondas.
-    var R = 15 * U * pulse, time = state.time, w = (t.idlePhase || 0);
-    var ifnActive = (t.ifnBuffT || 0) > 0;
+    // pDC — fábrica de IFN tipo I (TLR7/9). Emite paquetes antivirales;
+    // ultimate Tormenta IFN-α: tormenta de ondas que destrozan virus.
+    var doingUlt = (t.specialAnim || 0) > 0;
+    var chargeFrac = doingUlt ? 1 : Math.max(0, Math.min(1, t.specialCharge || 0));
+    var ultAnim = t.specialAnim || 0;
+    var ultMax = 1.65;
+    var atk = t.attackAnim || 0;
+    var emitAtk = atk > 0 && atk < 0.18 ? Math.min(1, (0.18 - atk) / 0.18) : 0;
+    var chargeAtk = atk > 0.18 ? Math.min(1, (atk - 0.18) / 0.16) : 0;
+    var ifnActive = (t.ifnBuffT || 0) > 0 || doingUlt;
+    var R = 15 * U * pulse;
+    if (doingUlt && ultAnim > 1.05) R *= 1 + ((ultMax - ultAnim) / (ultMax - 1.05)) * 0.22;
+    else if (chargeAtk > 0) R *= 1 + chargeAtk * 0.12;
+    var time = state.time, w = (t.idlePhase || 0);
     ctx.save();
     ctx.translate(t.x, t.y);
 
-    // Ondas de interferón concéntricas (2) expandiéndose.
+    if (doingUlt) {
+      var uf = 1 - ultAnim / ultMax;
+      for (var sr = 0; sr < 3; sr++) {
+        var srp = ((time * 1.8 + sr * 0.33 + uf * 0.5) % 1);
+        ctx.strokeStyle = "rgba(140, 90, 240, " + ((1 - srp) * 0.55 * uf) + ")";
+        ctx.lineWidth = Math.max(2, 3 * U) * (1 - srp * 0.5);
+        ctx.beginPath();
+        ctx.arc(0, 0, R * (1.1 + srp * (2.8 + sr * 0.4)), 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      if (ultAnim <= 1.05) {
+        for (var iw = 0; iw < 12; iw++) {
+          var iwa = iw * (Math.PI * 2 / 12) + time * 2.2 + uf * 1.5;
+          var iwR = R * (1.4 + uf * 4.2);
+          ctx.strokeStyle = "rgba(210,180,255," + (uf * 0.75) + ")";
+          ctx.lineWidth = Math.max(1.5, 2 * U);
+          ctx.lineCap = "round";
+          ctx.beginPath();
+          ctx.moveTo(Math.cos(iwa) * R * 0.8, Math.sin(iwa) * R * 0.8);
+          ctx.lineTo(Math.cos(iwa) * iwR, Math.sin(iwa) * iwR);
+          ctx.stroke();
+        }
+      }
+    }
+
     for (var wv = 0; wv < 2; wv++) {
-      var wp = ((time * (ifnActive ? 1.4 : 0.7) + wv * 0.5) % 1);
-      ctx.strokeStyle = "rgba(140, 90, 240, " + ((ifnActive ? 0.6 : 0.35) * (1 - wp)) + ")";
+      var wp = ((time * (ifnActive ? 1.6 : 0.7) + wv * 0.5) % 1);
+      ctx.strokeStyle = "rgba(140, 90, 240, " + ((ifnActive ? 0.65 : 0.35) * (1 - wp)) + ")";
       ctx.lineWidth = Math.max(1.4, 2 * U);
       ctx.beginPath(); ctx.arc(0, 0, R * (1.0 + wp * 0.9), 0, Math.PI * 2); ctx.stroke();
     }
 
-    // Dendritas cortas y GRUESAS (pocas, definidas), meciéndose.
-    ctx.strokeStyle = "#2a1266"; ctx.lineWidth = Math.max(2, 3 * U); ctx.lineCap = "round";
+    ctx.strokeStyle = "#2a1266";
+    ctx.lineWidth = Math.max(2, 3 * U);
+    ctx.lineCap = "round";
+    var dendExt = doingUlt ? (ultAnim > 1.05 ? 0.15 : 0.55 + (1 - ultAnim / 1.05) * 0.45) : (chargeAtk * 0.2 + emitAtk * 0.15);
     for (var di2 = 0; di2 < 5; di2++) {
       var da2 = (di2 / 5) * Math.PI * 2 + w + Math.sin(time * 1.5 + di2) * 0.1;
-      var dlen = R * (0.5 + 0.15 * Math.sin(time * 3 + di2));
+      var dlen = R * (0.5 + dendExt + 0.15 * Math.sin(time * 3 + di2));
       ctx.beginPath();
       ctx.moveTo(Math.cos(da2) * R * 0.9, Math.sin(da2) * R * 0.9);
       ctx.lineTo(Math.cos(da2) * (R + dlen), Math.sin(da2) * (R + dlen));
       ctx.stroke();
     }
 
-    // Cuerpo con BORDE GRUESO.
     var gp = ctx.createRadialGradient(-R * 0.28, -R * 0.28, R * 0.08, 0, 0, R);
-    gp.addColorStop(0, "#c4a6ff"); gp.addColorStop(0.55, "#6a3dd4"); gp.addColorStop(1, "#2e1466");
-    ctx.fillStyle = gp; ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = "#1a0b40"; ctx.lineWidth = Math.max(1.8, 2.4 * U); ctx.stroke();
+    gp.addColorStop(0, ifnActive ? "#e8d6ff" : "#c4a6ff");
+    gp.addColorStop(0.55, "#6a3dd4");
+    gp.addColorStop(1, "#2e1466");
+    ctx.fillStyle = gp;
+    ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = "#1a0b40";
+    ctx.lineWidth = Math.max(1.8, 2.4 * U);
+    ctx.stroke();
 
-    // Núcleo excéntrico "en reloj" (grande, oscuro, a un costado) con cromatina.
     ctx.save();
     ctx.beginPath(); ctx.arc(0, 0, R * 0.92, 0, Math.PI * 2); ctx.clip();
     ctx.fillStyle = "rgba(38, 18, 84, 0.78)";
-    ctx.beginPath(); ctx.arc(R * 0.34, R * 0.3, R * 0.5, 0, Math.PI * 2); ctx.fill();
+    var nucPulse = doingUlt ? (0.5 + 0.5 * Math.sin((t.ifnPulse || 0) * 1.1)) : 1;
+    ctx.beginPath();
+    ctx.arc(R * 0.34, R * 0.3, R * 0.5 * nucPulse, 0, Math.PI * 2);
+    ctx.fill();
     ctx.fillStyle = "rgba(18, 6, 46, 0.6)";
     for (var ch = 0; ch < 6; ch++) {
-      var cha = (ch / 6) * Math.PI * 2;
-      ctx.beginPath(); ctx.arc(R * 0.34 + Math.cos(cha) * R * 0.36, R * 0.3 + Math.sin(cha) * R * 0.36, R * 0.07, 0, Math.PI * 2); ctx.fill();
+      var cha = (ch / 6) * Math.PI * 2 + (doingUlt ? time * 2 : 0);
+      ctx.beginPath();
+      ctx.arc(R * 0.34 + Math.cos(cha) * R * 0.36, R * 0.3 + Math.sin(cha) * R * 0.36, R * 0.07, 0, Math.PI * 2);
+      ctx.fill();
     }
     ctx.restore();
 
-    // Paquetes de interferón emitiéndose (dots brillantes que salen).
+    var pktN = doingUlt ? 10 : (ifnActive ? 6 : 4);
     ctx.fillStyle = ifnActive ? "rgba(210,180,255,0.95)" : "rgba(190,150,255,0.7)";
-    for (var pk = 0; pk < 4; pk++) {
-      var pka = (pk / 4) * Math.PI * 2 + time * 1.0, rel = (time * 0.8 + pk * 0.25) % 1;
-      ctx.beginPath(); ctx.arc(Math.cos(pka) * R * (1.0 + rel * 0.8), Math.sin(pka) * R * (1.0 + rel * 0.8), R * 0.11 * (1 - rel), 0, Math.PI * 2); ctx.fill();
+    for (var pk = 0; pk < pktN; pk++) {
+      var pka = (pk / pktN) * Math.PI * 2 + time * (ifnActive ? 1.4 : 1.0);
+      var rel = (time * (ifnActive ? 1.1 : 0.8) + pk * 0.25) % 1;
+      var pr = R * (0.95 + rel * (doingUlt ? 1.6 : 0.8));
+      ctx.beginPath();
+      ctx.arc(Math.cos(pka) * pr, Math.sin(pka) * pr, R * 0.11 * (1 - rel * 0.35), 0, Math.PI * 2);
+      ctx.fill();
     }
 
-    towerFace(R, expression, blink, "focused", "angry");
+    if (emitAtk > 0.05 && t.lastTargetX != null) {
+      var pdx = t.lastTargetX - t.x, pdy = t.lastTargetY - t.y;
+      var pdLen = Math.hypot(pdx, pdy) || 1;
+      var pdnx = pdx / pdLen, pdny = pdy / pdLen;
+      var beam = Math.min(pdLen, R * 2.5) * emitAtk;
+      ctx.strokeStyle = "rgba(210,180,255,0.85)";
+      ctx.lineWidth = Math.max(2, 2.8 * U) * emitAtk;
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.moveTo(R * 0.2 * pdnx, R * 0.2 * pdny);
+      ctx.lineTo(pdnx * beam, pdny * beam);
+      ctx.stroke();
+    }
+
+    towerFace(R, expression, blink, doingUlt ? "focused" : "focused", doingUlt ? "angry" : "angry");
     ctx.restore();
   }
 
@@ -28127,18 +28197,35 @@
       var midY = (p.y + by) / 2 + Math.sin(perpA) * zig;
       ctx.save();
       ctx.lineCap = "round"; ctx.lineJoin = "round";
-      // Aura ancha del rayo
       ctx.strokeStyle = "rgba(232,67,147,0.45)"; ctx.lineWidth = 6 * U;
       ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(midX, midY); ctx.lineTo(p.x, p.y); ctx.stroke();
-      // Núcleo del rayo (blanco brillante)
       ctx.strokeStyle = "#fff"; ctx.lineWidth = 2.2 * U;
       ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(midX, midY); ctx.lineTo(p.x, p.y); ctx.stroke();
-      // Punta
       ctx.shadowColor = "rgba(232,67,147,0.95)"; ctx.shadowBlur = 12;
       ctx.fillStyle = "#fff";
       ctx.beginPath(); ctx.arc(p.x, p.y, 4 * U, 0, Math.PI * 2); ctx.fill();
       ctx.fillStyle = "#E84393";
       ctx.beginPath(); ctx.arc(p.x, p.y, 2.5 * U, 0, Math.PI * 2); ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.restore();
+    } else if (p.towerId === "pdc") {
+      // Paquete IFN-α: onda sinusoidal violeta con núcleo brillante.
+      var ifnTx = p.x - Math.cos(ang) * 16 * U, ifnTy = p.y - Math.sin(ang) * 16 * U;
+      ctx.strokeStyle = "rgba(106,61,212,0.5)"; ctx.lineWidth = 3.5 * U; ctx.lineCap = "round";
+      ctx.beginPath(); ctx.moveTo(ifnTx, ifnTy); ctx.lineTo(p.x, p.y); ctx.stroke();
+      ctx.save();
+      ctx.translate(p.x, p.y); ctx.rotate(ang);
+      ctx.shadowColor = "rgba(140,90,240,0.9)"; ctx.shadowBlur = 10;
+      ctx.strokeStyle = "#d4b8ff"; ctx.lineWidth = 2 * U;
+      ctx.beginPath();
+      for (var wi = 0; wi <= 8; wi++) {
+        var wx = -10 * U + wi * 2.8 * U;
+        var wy = Math.sin(wi * 1.2 + state.time * 6) * 3.5 * U;
+        wi ? ctx.lineTo(wx, wy) : ctx.moveTo(wx, wy);
+      }
+      ctx.stroke();
+      ctx.fillStyle = "#e8d6ff";
+      ctx.beginPath(); ctx.arc(0, 0, 4.5 * U, 0, Math.PI * 2); ctx.fill();
       ctx.shadowBlur = 0;
       ctx.restore();
     } else if (p.towerId === "eosinofilo") {
@@ -29107,6 +29194,58 @@
       ctx.beginPath();
       ctx.arc(ef.x, ef.y, ef.r, 0, Math.PI * 2);
       ctx.fill();
+      ctx.restore();
+    } else if (ef.kind === "ifnStorm") {
+      // Tormenta IFN-α: ondas antivirales en espiral + destello central.
+      var isT = 1 - ef.life / ef.max;
+      ctx.save();
+      ctx.translate(ef.x, ef.y);
+      ctx.globalAlpha = (1 - isT) * 0.9;
+      for (var ir = 0; ir < 4; ir++) {
+        var irr = ef.r * (0.15 + isT * (0.85 + ir * 0.08));
+        ctx.strokeStyle = "rgba(106,61,212," + ((1 - isT) * (0.75 - ir * 0.12)) + ")";
+        ctx.lineWidth = Math.max(2.5, 4 * U) * (1 - ir * 0.18);
+        ctx.beginPath(); ctx.arc(0, 0, irr, 0, Math.PI * 2); ctx.stroke();
+      }
+      for (var is = 0; is < 24; is++) {
+        var isa = is * (Math.PI * 2 / 24) + isT * 3.5 + state.time * 0.8;
+        var isR0 = ef.r * (0.2 + isT * 0.35);
+        var isR1 = ef.r * (0.55 + isT * 0.48);
+        ctx.strokeStyle = "rgba(210,180,255," + ((1 - isT) * 0.7) + ")";
+        ctx.lineWidth = Math.max(1.2, 1.8 * U);
+        ctx.lineCap = "round";
+        ctx.beginPath();
+        ctx.moveTo(Math.cos(isa) * isR0, Math.sin(isa) * isR0);
+        ctx.lineTo(Math.cos(isa + 0.35) * isR1, Math.sin(isa + 0.35) * isR1);
+        ctx.stroke();
+        ctx.fillStyle = "rgba(232,210,255," + ((1 - isT) * 0.85) + ")";
+        ctx.beginPath();
+        ctx.arc(Math.cos(isa + 0.35) * isR1, Math.sin(isa + 0.35) * isR1, 2.5 * U, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      var isFog = ctx.createRadialGradient(0, 0, ef.r * 0.05, 0, 0, ef.r * 0.65);
+      isFog.addColorStop(0, "rgba(140,90,240," + ((1 - isT) * 0.35) + ")");
+      isFog.addColorStop(1, "rgba(140,90,240,0)");
+      ctx.fillStyle = isFog;
+      ctx.beginPath(); ctx.arc(0, 0, ef.r * 0.65, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    } else if (ef.kind === "ifnShred") {
+      // Destello antiviral sobre un virus alcanzado por la tormenta.
+      var ishT = 1 - ef.life / ef.max;
+      ctx.save();
+      ctx.translate(ef.x, ef.y);
+      ctx.globalAlpha = (1 - ishT) * 0.88;
+      ctx.strokeStyle = "rgba(210,180,255," + ((1 - ishT) * 0.9) + ")";
+      ctx.lineWidth = Math.max(2, 3 * U) * (1 - ishT * 0.4);
+      for (var ix = 0; ix < 6; ix++) {
+        var ixa = ix * (Math.PI / 3) + ishT * 1.2;
+        ctx.beginPath();
+        ctx.moveTo(Math.cos(ixa) * ef.r * 0.15, Math.sin(ixa) * ef.r * 0.15);
+        ctx.lineTo(Math.cos(ixa) * ef.r * (0.55 + ishT * 0.35), Math.sin(ixa) * ef.r * (0.55 + ishT * 0.35));
+        ctx.stroke();
+      }
+      ctx.fillStyle = "rgba(106,61,212," + ((1 - ishT) * 0.25) + ")";
+      ctx.beginPath(); ctx.arc(0, 0, ef.r * (0.35 + ishT * 0.25), 0, Math.PI * 2); ctx.fill();
       ctx.restore();
     } else if (ef.kind === "sebumSplash") {
       // Impacto de charco: estrella de sebo al aterrizar en el carril.

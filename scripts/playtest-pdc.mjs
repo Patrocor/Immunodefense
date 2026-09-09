@@ -144,7 +144,7 @@ console.log("pDC v4 faro IFN robusto:", info);
 await sleep(500);
 await page.screenshot({ path: join(ART, "pdc_v4_beacon_field.png") });
 if (info.ok) {
-  await page.screenshot({ path: join(ART, "pdc_v4_beacon_ultimate.png"), clip: info.clip });
+  await page.screenshot({ path: join(ART, "pdc_v4_beacon_ultimate_wide.png"), clip: info.clip });
 }
 await page.evaluate(() => window.__game.hold(false));
 await browser.close();

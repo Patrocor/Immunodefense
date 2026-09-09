@@ -20029,6 +20029,7 @@
 
   function drawPDC(t, pulse, expression, blink) {
     // pDC v4 — FARO IFN robusto: latido vertical, encendido→emisión, corona dinámica.
+    // LOCKED v4 — Faro+Tormenta (user OK tras cuerpo central más ancho).
     // Ciclo ataque: carga IFN (0.48s) → destello corona → rayo + proyectil ondulado.
     var doingUlt = (t.specialAnim || 0) > 0;
     var chargeFrac = doingUlt ? 1 : Math.max(0, Math.min(1, t.specialCharge || 0));
@@ -20056,6 +20057,7 @@
     }
     var R = 14.5 * U * pulse * majesty;
     var H = R * 2.55;
+    var bodyW = 1.38;   // columna hex + medallón más anchos (cuerpo robusto)
     var heartbeat = Math.sin(time * 2.35 + w * 0.28) * R * 0.042 * (doingUlt ? 1.85 : 1);
     var spireSquashX = 1, spireSquashY = 1;
     if (igniteAtk > 0.05) {
@@ -20128,23 +20130,23 @@
     } else if (igniteAtk > 0.08) {
       ctx.strokeStyle = "rgba(140,90,240," + (igniteAtk * 0.42) + ")";
       ctx.lineWidth = Math.max(1.6, 2.2 * U);
-      hexRing(-H * 0.18, R * (0.95 + igniteAtk * 0.35), R * (0.72 + igniteAtk * 0.28), time * 0.35);
+      hexRing(-H * 0.18, R * (0.95 * bodyW + igniteAtk * 0.35), R * (0.72 + igniteAtk * 0.28), time * 0.35);
       ctx.stroke();
       ctx.strokeStyle = "rgba(210,180,255," + (igniteAtk * 0.35) + ")";
-      hexRing(-H * 0.28, R * (0.72 + igniteAtk * 0.22), R * (0.55 + igniteAtk * 0.18), -time * 0.28);
+      hexRing(-H * 0.28, R * (0.72 * bodyW + igniteAtk * 0.22), R * (0.55 + igniteAtk * 0.18), -time * 0.28);
       ctx.stroke();
     }
 
     ctx.fillStyle = "rgba(0,0,0,0.22)";
     ctx.beginPath();
-    ctx.ellipse(0, R * 0.72, R * 1.35, R * 0.28, 0, 0, Math.PI * 2);
+    ctx.ellipse(0, R * 0.72, R * 1.35 * bodyW, R * 0.28, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    var platG = ctx.createRadialGradient(0, R * 0.42, R * 0.1, 0, R * 0.42, R * 1.35);
+    var platG = ctx.createRadialGradient(0, R * 0.42, R * 0.1, 0, R * 0.42, R * 1.35 * bodyW);
     platG.addColorStop(0, "rgba(120,80,200,0.35)");
     platG.addColorStop(1, "rgba(120,80,200,0)");
     ctx.fillStyle = platG;
-    hexRing(R * 0.42, R * 1.22, R * 0.62, time * 0.04);
+    hexRing(R * 0.42, R * 1.22 * bodyW, R * 0.62, time * 0.04);
     ctx.fill();
 
     ctx.strokeStyle = "#2a1266";
@@ -20154,7 +20156,7 @@
     for (var ar = 0; ar < 6; ar++) {
       var ba = (ar / 6) * Math.PI * 2 - Math.PI / 2 + w * 0.04 + Math.sin(time * 1.3 + ar) * 0.03;
       var crownSpread = 1 + crownExt * 0.85 + igniteAtk * 0.18;
-      var bx = Math.cos(ba) * R * 0.88, by = R * 0.38;
+      var bx = Math.cos(ba) * R * 0.88 * bodyW, by = R * 0.38;
       var lean = (ar % 2 ? 1 : -1) * (0.24 + crownExt * 0.08);
       var mx = Math.cos(ba + lean) * R * (1.15 + crownExt * 0.62) * crownSpread;
       var my = -H * (0.08 + crownExt * 0.14);
@@ -20185,7 +20187,7 @@
       var wp = ((time * (ifnActive ? 1.6 : 0.7) + wv * 0.5) % 1);
       ctx.strokeStyle = "rgba(140, 90, 240, " + ((ifnActive ? 0.65 : 0.35) * (1 - wp)) + ")";
       ctx.lineWidth = Math.max(1.4, 2 * U);
-      hexRing(-H * 0.06 + wv * R * 0.08, R * (0.72 + wp * 0.65), R * (0.55 + wp * 0.5), -time * 0.2 + wv);
+      hexRing(-H * 0.06 + wv * R * 0.08, R * (0.72 * bodyW + wp * 0.65), R * (0.55 + wp * 0.5), -time * 0.2 + wv);
       ctx.stroke();
     }
 
@@ -20201,14 +20203,14 @@
     spireG.addColorStop(1, "#2e1466");
     ctx.fillStyle = spireG;
     ctx.beginPath();
-    ctx.moveTo(-R * 0.42, spireBot);
-    ctx.lineTo(-R * 0.28, spireTop + R * 0.18);
+    ctx.moveTo(-R * 0.42 * bodyW, spireBot);
+    ctx.lineTo(-R * 0.28 * bodyW, spireTop + R * 0.18);
     ctx.lineTo(0, spireTop);
-    ctx.lineTo(R * 0.28, spireTop + R * 0.18);
-    ctx.lineTo(R * 0.42, spireBot);
-    ctx.quadraticCurveTo(R * 0.48, R * 0.18, R * 0.34, spireBot);
-    ctx.lineTo(-R * 0.34, spireBot);
-    ctx.quadraticCurveTo(-R * 0.48, R * 0.18, -R * 0.42, spireBot);
+    ctx.lineTo(R * 0.28 * bodyW, spireTop + R * 0.18);
+    ctx.lineTo(R * 0.42 * bodyW, spireBot);
+    ctx.quadraticCurveTo(R * 0.48 * bodyW, R * 0.18, R * 0.34 * bodyW, spireBot);
+    ctx.lineTo(-R * 0.34 * bodyW, spireBot);
+    ctx.quadraticCurveTo(-R * 0.48 * bodyW, R * 0.18, -R * 0.42 * bodyW, spireBot);
     ctx.closePath();
     ctx.fill();
     ctx.strokeStyle = "#1a0b40";
@@ -20227,8 +20229,8 @@
     for (var band = 0; band < 3; band++) {
       var by2 = spireTop + R * (0.35 + band * 0.42);
       ctx.beginPath();
-      ctx.moveTo(-R * (0.34 - band * 0.04), by2);
-      ctx.lineTo(R * (0.34 - band * 0.04), by2);
+      ctx.moveTo(-R * (0.34 * bodyW - band * 0.04), by2);
+      ctx.lineTo(R * (0.34 * bodyW - band * 0.04), by2);
       ctx.stroke();
     }
 
@@ -20236,12 +20238,12 @@
       var hdy = -H * (0.02 + hd * 0.16) + Math.sin(time * 1.5 + hd) * R * 0.02;
       ctx.strokeStyle = "rgba(180,140,255," + (0.25 + (ifnActive ? 0.2 : 0)) + ")";
       ctx.lineWidth = Math.max(1.2, 1.5 * U);
-      hexRing(hdy, R * (0.78 - hd * 0.06), R * (0.42 - hd * 0.04), time * (0.25 + hd * 0.1));
+      hexRing(hdy, R * (0.78 * bodyW - hd * 0.06), R * (0.42 - hd * 0.04), time * (0.25 + hd * 0.1));
       ctx.stroke();
     }
 
     var coreY = -H * 0.12;
-    var coreR = R * 0.38 * (doingUlt
+    var coreR = R * 0.38 * bodyW * (doingUlt
       ? (0.92 + 0.1 * Math.sin((t.ifnPulse || 0) * 1.1))
       : (1 + igniteAtk * 0.12 + emitAtk * 0.06));
     var coreGlow = ctx.createRadialGradient(0, coreY, coreR * 0.1, 0, coreY, coreR * 1.8);
@@ -20255,15 +20257,15 @@
     ctx.strokeStyle = "#1a0b40";
     ctx.lineWidth = Math.max(1.4, 1.8 * U);
     ctx.beginPath();
-    ctx.moveTo(-R * 0.52, R * 0.08);
-    ctx.lineTo(-R * 0.52, R * 0.42);
-    ctx.quadraticCurveTo(-R * 0.52, R * 0.58, -R * 0.34, R * 0.58);
-    ctx.lineTo(R * 0.34, R * 0.58);
-    ctx.quadraticCurveTo(R * 0.52, R * 0.58, R * 0.52, R * 0.42);
-    ctx.lineTo(R * 0.52, R * 0.08);
-    ctx.quadraticCurveTo(R * 0.52, -R * 0.02, R * 0.38, -R * 0.02);
-    ctx.lineTo(-R * 0.38, -R * 0.02);
-    ctx.quadraticCurveTo(-R * 0.52, -R * 0.02, -R * 0.52, R * 0.08);
+    ctx.moveTo(-R * 0.52 * bodyW, R * 0.08);
+    ctx.lineTo(-R * 0.52 * bodyW, R * 0.42);
+    ctx.quadraticCurveTo(-R * 0.52 * bodyW, R * 0.58, -R * 0.34 * bodyW, R * 0.58);
+    ctx.lineTo(R * 0.34 * bodyW, R * 0.58);
+    ctx.quadraticCurveTo(R * 0.52 * bodyW, R * 0.58, R * 0.52 * bodyW, R * 0.42);
+    ctx.lineTo(R * 0.52 * bodyW, R * 0.08);
+    ctx.quadraticCurveTo(R * 0.52 * bodyW, -R * 0.02, R * 0.38 * bodyW, -R * 0.02);
+    ctx.lineTo(-R * 0.38 * bodyW, -R * 0.02);
+    ctx.quadraticCurveTo(-R * 0.52 * bodyW, -R * 0.02, -R * 0.52 * bodyW, R * 0.08);
     ctx.closePath();
     ctx.fill();
     ctx.stroke();
@@ -20275,7 +20277,7 @@
       var rel = (time * (ifnActive ? 0.9 : 0.55) + pk * 0.22) % 1;
       var pkY = coreY + (pk % 3 - 1) * R * 0.22;
       ctx.beginPath();
-      ctx.arc(Math.cos(pka) * R * (0.55 + rel * 0.85), pkY + Math.sin(pka) * R * 0.18, R * 0.08 * (1 - rel * 0.4), 0, Math.PI * 2);
+      ctx.arc(Math.cos(pka) * R * (0.55 * bodyW + rel * 0.85), pkY + Math.sin(pka) * R * 0.18, R * 0.08 * (1 - rel * 0.4), 0, Math.PI * 2);
       ctx.fill();
     }
 
@@ -20318,7 +20320,7 @@
     var faceMood = doingUlt ? "angry" : (igniteAtk > 0.2 ? "serious" : "focused");
     ctx.save();
     ctx.translate(0, R * 0.22);
-    towerFace(R * 0.72, expression, blink, faceMood, doingUlt ? "angry" : faceMood);
+    towerFace(R * 0.72 * bodyW, expression, blink, faceMood, doingUlt ? "angry" : faceMood);
     ctx.restore();
     ctx.restore();
   }

@@ -18082,6 +18082,7 @@
     // En su membrana lleva ANTICUERPOS Y (BCR, IgM/IgD) anclados.
     // Cuando se activa, se DIFERENCIA a PLASMOCITO — membrana inflada
     // lanza latigazos/puñetazos delgados con protrusiones Y al blanco.
+    // LOCKED v3 — Latigazos+Puñetazos (user OK "Bien").
     var x = t.x, y = t.y;
     var doingUltimate = (t.def.id === "linfocitoB" && (t.specialAnim || 0) > 0);
     // Inflación durante el ultimate (plasmocito mode).

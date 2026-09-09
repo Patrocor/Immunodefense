@@ -9,7 +9,7 @@
     langerhans:   { role: "marca",      label: "APC",    glyph: "target",   arc: "#3FC1C9", silhouette: "dendrite", labelKit: "Birbeck+Latigazo" },
     nk:           { role: "citotoxico", label: "NK",     glyph: "perforin", arc: "#E84393", silhouette: "lgl", labelKit: "Hachazo+Frenesí" },
     eosinofilo:   { role: "parasito",   label: "Eosino", glyph: "granule",  arc: "#F2774E", silhouette: "bilobe", labelKit: "Perdigones+Descarga" },
-    linfocitoB:   { role: "opsoniza",   label: "Ig",     glyph: "antibody", arc: "#50C878" },
+    linfocitoB:   { role: "opsoniza",   label: "Ig",     glyph: "antibody", arc: "#50C878", silhouette: "round", labelKit: "Latigazos+Puñetazos" },
     linfocitoT:   { role: "apoptosis",  label: "CD8",    glyph: "cross",    arc: "#9370DB" },
     sebocito:     { role: "sebo",       label: "Sebo",   glyph: "droplet",  arc: "#c8980a" },
     pdc:          { role: "interferon", label: "IFN",    glyph: "wave",     arc: "#6a3dd4" },

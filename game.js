@@ -21497,7 +21497,7 @@
       ctx.translate(-e.x, -e.y);
     }
     drawShadow(e.x, e.y + rad * 0.85, rad * 0.85 * scale, rad * 0.22 * scale);
-    if (def.id !== "saureus" && def.id !== "malassezia" && def.id !== "dermatofito" && def.id !== "neisseria" && def.id !== "hpv" && def.id !== "sarna" && def.id !== "leishmania" && def.id !== "candida" && def.id !== "bossPyogenes" && def.id !== "bossPseudomonas" && def.id !== "bossClostridium" && def.id !== "bossMRSA") drawGermKindFrame(e, rad * scale);
+    if (def.id !== "saureus" && def.id !== "malassezia" && def.id !== "dermatofito" && def.id !== "neisseria" && def.id !== "hpv" && def.id !== "sarna" && def.id !== "leishmania" && def.id !== "candida" && def.id !== "pseudomonas" && def.id !== "bossPyogenes" && def.id !== "bossPseudomonas" && def.id !== "bossClostridium" && def.id !== "bossMRSA") drawGermKindFrame(e, rad * scale);
     // Halo de daño genérico: pulso radial DRAMÁTICO amarillo→rojo
     // alrededor del germen cuando recibe golpe. Combina varias capas
     // (glow externo + flash blanco central + anillo dorado + chispas
@@ -21652,7 +21652,7 @@
     // Shield overlay (drawn on top of body but under HP bar).
     // S. aureus dibuja su cápsula como casco irregular del racimo;
     // el anillo circular genérico lo volvería otra vez un círculo dorado.
-    if (def.shield && def.id !== "saureus" && def.id !== "dermatofito" && def.id !== "hpv" && def.id !== "candida" && def.id !== "bossPyogenes" && def.id !== "bossPseudomonas" && def.id !== "bossClostridium" && def.id !== "bossMRSA" &&
+    if (def.shield && def.id !== "saureus" && def.id !== "dermatofito" && def.id !== "hpv" && def.id !== "candida" && def.id !== "pseudomonas" && def.id !== "bossPyogenes" && def.id !== "bossPseudomonas" && def.id !== "bossClostridium" && def.id !== "bossMRSA" &&
         (e.shieldHP > 0 || e.shieldShatterTimer > 0)) {
       drawShield(e, rad * scale);
     }
@@ -22666,9 +22666,15 @@
   //  · FLAGELO POLAR MONOTRICO — un solo flagelo en un extremo
   //  · BIOFILM MATRIX — capa exopolisacárida translúcida
   function drawPseudomonas(e, rad, expression, blink) {
+    // Pseudomonas aeruginosa — BACILO MONOTRICO + biofilm alginate.
+    //  · Cápsula horizontal turquesa, flagelo polar ondulante
+    //  · Piocianina (halo azul-verde), matriz EPS como escudo (no anillo)
+    // LOCKED v1 — bacilo + esporas buscadoras + spray exotoxina.
     var hit = e.hitFlash > 0;
     var t = state.time;
     var def = e.def;
+    var sd = def.shield;
+    var shieldRatio = (sd && sd.maxHP > 0) ? Math.max(0, (e.shieldHP || 0) / sd.maxHP) : 0;
     // Heading tracking
     if (e._lastPosX == null) { e._lastPosX = e.x; e._lastPosY = e.y; e._heading = 0; }
     var dxM = e.x - e._lastPosX, dyM = e.y - e._lastPosY;
@@ -22702,16 +22708,29 @@
     ctx.ellipse(0, 0, pyoR, bW * 2.4, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    // BIOFILM MATRIX — gota translúcida envolviendo al bacilo (matriz
-    // exopolisacárida resistente). Doble capa sutil.
-    ctx.fillStyle = "rgba(180, 230, 220, 0.30)";
+    // BIOFILM MATRIX — alginate/EPS envolvente (escudo wall integrado,
+    // no anillo circular genérico). Crece con shieldHP.
+    var bfRx = bL * (1.12 + shieldRatio * 0.28);
+    var bfRy = bW * (1.38 + shieldRatio * 0.32);
+    if (shieldRatio > 0.02) {
+      ctx.fillStyle = "rgba(140, 220, 210, " + (0.22 + shieldRatio * 0.38) + ")";
+      ctx.beginPath();
+      ctx.ellipse(0, 0, bfRx * 1.18, bfRy * 1.22, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "rgba(50, 160, 150, " + (0.35 + shieldRatio * 0.45) + ")";
+      ctx.lineWidth = Math.max(1.2, 1.6 * U);
+      ctx.beginPath();
+      ctx.ellipse(0, 0, bfRx * 1.18, bfRy * 1.22, 0, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.fillStyle = "rgba(180, 230, 220, " + (0.22 + shieldRatio * 0.22) + ")";
     ctx.beginPath();
-    ctx.ellipse(0, 0, bL * 1.20, bW * 1.55, 0, 0, Math.PI * 2);
+    ctx.ellipse(0, 0, bfRx, bfRy, 0, 0, Math.PI * 2);
     ctx.fill();
-    ctx.strokeStyle = "rgba(80, 180, 170, 0.45)";
+    ctx.strokeStyle = "rgba(80, 180, 170, " + (0.35 + shieldRatio * 0.35) + ")";
     ctx.lineWidth = Math.max(0.9, 1.2 * U);
     ctx.beginPath();
-    ctx.ellipse(0, 0, bL * 1.20, bW * 1.55, 0, 0, Math.PI * 2);
+    ctx.ellipse(0, 0, bfRx, bfRy, 0, 0, Math.PI * 2);
     ctx.stroke();
 
     // FLAGELO POLAR MONOTRICO — saliendo de la cola con ondulación
@@ -29690,7 +29709,7 @@
     else if (kind === "virus") drawVirus(fakeEnemy, R, "idle", false);
     else if (kind === "hongo") drawHongo(fakeEnemy, R, "idle", false);
     else drawBoss(fakeEnemy, R, "idle", false);
-    if (def.shield && def.id !== "saureus" && def.id !== "dermatofito" && def.id !== "hpv" && def.id !== "candida" && def.id !== "bossPyogenes" && def.id !== "bossPseudomonas" && def.id !== "bossClostridium" && def.id !== "bossMRSA") drawShield(fakeEnemy, R);
+    if (def.shield && def.id !== "saureus" && def.id !== "dermatofito" && def.id !== "hpv" && def.id !== "candida" && def.id !== "pseudomonas" && def.id !== "bossPyogenes" && def.id !== "bossPseudomonas" && def.id !== "bossClostridium" && def.id !== "bossMRSA") drawShield(fakeEnemy, R);
     ctx.restore();
   }
 

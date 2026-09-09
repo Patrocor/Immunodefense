@@ -6,7 +6,7 @@
     neutrofilo:   { role: "fagocito",   label: "PMN",    glyph: "star",     arc: "#B79CE0", silhouette: "polarized" },
     queratinocito:{ role: "productor",  label: "Barrera", glyph: "gear",     arc: "#d4a855", silhouette: "mosaic" },
     mastocito:    { role: "control",    label: "Ralent.",glyph: "snowflake",arc: "#4F8FE0", silhouette: "horseshoe" },
-    langerhans:   { role: "marca",      label: "APC",    glyph: "target",   arc: "#3FC1C9" },
+    langerhans:   { role: "marca",      label: "APC",    glyph: "target",   arc: "#3FC1C9", silhouette: "dendrite", labelKit: "Birbeck+Latigazo" },
     nk:           { role: "citotoxico", label: "NK",     glyph: "perforin", arc: "#E84393" },
     eosinofilo:   { role: "parasito",   label: "Eosino", glyph: "granule",  arc: "#F2774E" },
     linfocitoB:   { role: "opsoniza",   label: "Ig",     glyph: "antibody", arc: "#50C878" },

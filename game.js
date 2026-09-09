@@ -7987,6 +7987,7 @@
       }
       t.apoptosisBurst = false;
       t.apoptosisPulse = 0;
+      t.apoptosisSlapT = 0;
       t.specialAnim = 2.1;
       t.specialReady = false;
       t.specialCharge = 0;
@@ -9177,7 +9178,22 @@
       // Linfocito T ultimate: tras el retraso de carga (1.8s, specialAnim
       // arrancó en 2.1), ejecuta a todos los marcados juntos, una sola vez.
       if (t.def.id === "linfocitoT" && (t.specialAnim || 0) > 0 && t.apoptosisTargets && !t.apoptosisBurst) {
-        t.apoptosisPulse = (t.apoptosisPulse || 0) + dt * 9;
+        t.apoptosisPulse = (t.apoptosisPulse || 0) + dt * 11;
+        t.apoptosisSlapT = (t.apoptosisSlapT || 0) - dt;
+        if (t.apoptosisSlapT <= 0) {
+          t.apoptosisSlapT = 0.16;
+          for (var ls = 0; ls < t.apoptosisTargets.length; ls++) {
+            var lse = t.apoptosisTargets[ls];
+            if (!lse || lse.dead || !lse.apoptosisMarked) continue;
+            pushEffect({
+              kind: "apoptosisSlap",
+              x: lse.x, y: lse.y - 6 * U,
+              slapKind: ls % 2 ? "fist" : "palm",
+              big: false,
+              life: 0.24, max: 0.24
+            });
+          }
+        }
         if (t.specialAnim <= 0.3) {
           t.apoptosisBurst = true;
           t.apoptosisFlash = 0.30;
@@ -9188,19 +9204,32 @@
             if (lbE.dead || lbE.dying) continue;
             damageEnemy(lbE, ltBurstStats.damage * 3, "linfocitoT");
             pushEffect({
-              kind: "apoptosisBurst", x: lbE.x, y: lbE.y,
-              r: ((lbE.def && lbE.def.radius) ? lbE.def.radius : 16) * U * 1.8,
-              life: 0.48, max: 0.48
+              kind: "apoptosisSlap",
+              x: lbE.x, y: lbE.y,
+              slapKind: lb % 2 ? "fist" : "palm",
+              big: true,
+              life: 0.52, max: 0.52
             });
-            for (var lp = 0; lp < 10; lp++) {
-              var lpa = Math.random() * Math.PI * 2, lps = (35 + Math.random() * 55) * U;
+            pushEffect({
+              kind: "apoptosisBurst", x: lbE.x, y: lbE.y,
+              r: ((lbE.def && lbE.def.radius) ? lbE.def.radius : 16) * U * 2.2,
+              life: 0.52, max: 0.52
+            });
+            pushEffect({
+              kind: "atpText", x: lbE.x, y: lbE.y - 16 * U, vy: -32 * U,
+              text: lb % 2 ? "¡PAM!" : "¡TOC!",
+              life: 0.62, max: 0.62,
+              color: lb % 2 ? "#ffd24a" : "#fff0ff"
+            });
+            for (var lp = 0; lp < 12; lp++) {
+              var lpa = Math.random() * Math.PI * 2, lps = (45 + Math.random() * 70) * U;
               pushEffect({ kind: "particle", x: lbE.x, y: lbE.y,
                 vx: Math.cos(lpa) * lps, vy: Math.sin(lpa) * lps,
-                life: 0.45, max: 0.55, color: lp % 2 ? "#9370DB" : "#e6d6ff" });
+                life: 0.48, max: 0.58, color: lp % 3 ? "#9370DB" : (lp % 2 ? "#e6d6ff" : "#ffd24a") });
             }
           }
           sfx("sell");
-          triggerShake(0.14, 5);
+          triggerShake(0.18, 6);
         }
       }
       // Estreptolisina O: DoT activo mientras lisisTimer > 0.
@@ -10567,79 +10596,55 @@
         if (!e || e.dead) continue;
         var stillMarked = !!e.apoptosisMarked;
         if (!stillMarked && flashFrac <= 0) continue;
-        // Hilo de granzima conectando la torre con el objetivo — curvo,
-        // con gránulos viajando hacia la cruz de ejecución.
-        ctx.save();
-        var mx = (t.x + e.x) * 0.5 + (-(e.y - t.y) / (Math.hypot(e.x - t.x, e.y - t.y) || 1)) * 22 * U;
-        var my = (t.y + e.y) * 0.5 + ((e.x - t.x) / (Math.hypot(e.x - t.x, e.y - t.y) || 1)) * 22 * U;
         if (stillMarked) {
-          var beamPulse = 0.45 + 0.35 * Math.sin(state.time * 8 + i);
-          ctx.globalAlpha = beamPulse;
-          ctx.strokeStyle = "#7a52b8";
-          ctx.lineWidth = Math.max(1.6, 2.1 * U);
+          var beamPulse = 0.38 + 0.32 * Math.sin(state.time * 9 + i);
+          ctx.save();
+          ctx.globalAlpha = beamPulse * 0.55;
+          ctx.strokeStyle = "#9370DB";
+          ctx.lineWidth = Math.max(2.8, 3.4 * U);
+          ctx.setLineDash([6 * U, 5 * U]);
           ctx.beginPath();
           ctx.moveTo(t.x, t.y);
-          ctx.quadraticCurveTo(mx, my, e.x, e.y);
+          ctx.lineTo(e.x, e.y);
           ctx.stroke();
-          ctx.strokeStyle = "rgba(230, 214, 255, " + (beamPulse * 0.75) + ")";
-          ctx.lineWidth = Math.max(0.9, 1.2 * U);
-          ctx.beginPath();
-          ctx.moveTo(t.x, t.y);
-          ctx.quadraticCurveTo(mx, my, e.x, e.y);
-          ctx.stroke();
-          var travel = ((state.time * 0.85 + i * 0.17) % 1);
-          var tu = travel;
-          var dotX = (1 - tu) * (1 - tu) * t.x + 2 * (1 - tu) * tu * mx + tu * tu * e.x;
-          var dotY = (1 - tu) * (1 - tu) * t.y + 2 * (1 - tu) * tu * my + tu * tu * e.y;
-          ctx.fillStyle = "#c9a0ff";
-          ctx.beginPath();
-          ctx.arc(dotX, dotY, 3.5 * U, 0, Math.PI * 2);
-          ctx.fill();
+          ctx.setLineDash([]);
+          ctx.restore();
         } else {
+          ctx.save();
           ctx.globalAlpha = flashFrac;
-          ctx.strokeStyle = "#e6d6ff";
-          ctx.lineWidth = (2.2 + flashFrac * 3.2) * U;
+          ctx.strokeStyle = "#ffd24a";
+          ctx.lineWidth = (3.5 + flashFrac * 4) * U;
           ctx.beginPath();
           ctx.moveTo(t.x, t.y);
-          ctx.quadraticCurveTo(mx, my, e.x, e.y);
+          ctx.lineTo(e.x, e.y);
           ctx.stroke();
+          ctx.restore();
         }
-        ctx.restore();
         if (!stillMarked) continue;
-        var pulse = 0.7 + 0.3 * Math.sin(state.time * 10);
-        var mr = 11 * U;
-        var markY = e.y - (e.def.radius || 16) * U - 12 * U;
+        var pulse = 0.75 + 0.25 * Math.sin(state.time * 11 + i);
+        var mr = 13 * U;
+        var markY = e.y - (e.def.radius || 16) * U - 10 * U;
         ctx.save();
         ctx.translate(e.x, markY);
         ctx.globalAlpha = pulse;
-        var haloR = mr * (1.35 + Math.sin(state.time * 6 + i) * 0.12);
-        var haloG = ctx.createRadialGradient(0, 0, mr * 0.2, 0, 0, haloR);
-        haloG.addColorStop(0, "rgba(147, 112, 219, 0.45)");
-        haloG.addColorStop(1, "rgba(147, 112, 219, 0)");
-        ctx.fillStyle = haloG;
+        ctx.fillStyle = "rgba(147, 112, 219, " + (0.35 + pulse * 0.25) + ")";
         ctx.beginPath();
-        ctx.arc(0, 0, haloR, 0, Math.PI * 2);
+        ctx.ellipse(0, mr * 0.15, mr * 0.85, mr * 0.62, 0, 0, Math.PI * 2);
         ctx.fill();
-        ctx.fillStyle = "#2a1040";
-        ctx.strokeStyle = "#c9a0ff";
-        ctx.lineWidth = Math.max(1.8, 2.2 * U);
-        ctx.beginPath();
-        ctx.arc(0, 0, mr, 0, Math.PI * 2);
-        ctx.fill(); ctx.stroke();
-        ctx.strokeStyle = "#fff0ff";
-        ctx.lineWidth = Math.max(2.2, 2.6 * U);
-        ctx.lineCap = "round";
-        ctx.beginPath();
-        ctx.moveTo(-mr * 0.55, -mr * 0.55); ctx.lineTo(mr * 0.55, mr * 0.55);
-        ctx.moveTo(mr * 0.55, -mr * 0.55); ctx.lineTo(-mr * 0.55, mr * 0.55);
-        ctx.stroke();
-        ctx.fillStyle = "rgba(255,255,255,0.55)";
-        for (var mg = 0; mg < 3; mg++) {
-          var mga = mg * (Math.PI * 2 / 3) + state.time * 2 + i;
+        ctx.fillStyle = "#c9a0ff";
+        ctx.strokeStyle = "#5d44a0";
+        ctx.lineWidth = Math.max(1.4, 1.8 * U);
+        for (var fp = -2; fp <= 2; fp++) {
           ctx.beginPath();
-          ctx.arc(Math.cos(mga) * mr * 0.72, Math.sin(mga) * mr * 0.72, 2.2 * U, 0, Math.PI * 2);
+          ctx.ellipse(fp * mr * 0.22, -mr * 0.55, mr * 0.12, mr * 0.28, fp * 0.06, 0, Math.PI * 2);
           ctx.fill();
+          ctx.stroke();
         }
+        ctx.font = "bold " + Math.round(8 * U) + "px Fredoka, sans-serif";
+        ctx.fillStyle = "#ffd24a";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(i % 2 ? "TOC" : "PAM", 0, mr * 0.2);
         ctx.restore();
       }
     }
@@ -18338,158 +18343,181 @@
     ctx.restore();
   }
 
+  function drawOpenSlapPalm(cx, cy, size, rot) {
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(rot);
+    ctx.fillStyle = "#e6d6f5";
+    ctx.strokeStyle = "#4a2d78";
+    ctx.lineWidth = Math.max(1.8, 2.2 * U);
+    ctx.beginPath();
+    ctx.ellipse(0, size * 0.08, size * 0.72, size * 0.58, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    for (var fi = -2; fi <= 2; fi++) {
+      var fx = fi * size * 0.22;
+      ctx.beginPath();
+      ctx.ellipse(fx, -size * 0.52, size * 0.13, size * 0.34, fi * 0.08, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function drawBonkFist(cx, cy, size, rot) {
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(rot);
+    ctx.fillStyle = "#d8c4ef";
+    ctx.strokeStyle = "#4a2d78";
+    ctx.lineWidth = Math.max(2, 2.6 * U);
+    ctx.beginPath();
+    ctx.arc(0, 0, size * 0.62, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "rgba(255,255,255,0.45)";
+    ctx.beginPath();
+    ctx.arc(-size * 0.18, -size * 0.18, size * 0.16, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "#5d44a0";
+    ctx.lineWidth = Math.max(1.4, 1.8 * U);
+    for (var kn = 0; kn < 3; kn++) {
+      ctx.beginPath();
+      ctx.moveTo(-size * 0.35 + kn * size * 0.35, -size * 0.55);
+      ctx.lineTo(-size * 0.35 + kn * size * 0.35, -size * 0.78);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
   function drawLinfocitoT(t, pulse, expression, blink) {
-    // Linfocito T citotóxico (CD8+). Biología:
-    //  · NÚCLEO REDONDO GRANDE (~60% del cuerpo, poco citoplasma)
-    //  · TCR (T-cell receptor) en membrana: 5 formas tipo V angular
-    //  · GRÁNULOS LÍTICOS (perforina/granzima) púrpura intenso
-    //  · Distinto al B: T tiene look militar/citotóxico (vs. B humoral)
+    // Linfocito T citotóxico CD8+ — silueta POLARIZADA (gota/uropodo),
+    // NO circular como el B. Leading edge con TCR; uropodo con gránulos.
     var x = t.x, y = t.y;
     var doingApoptosis = !!(t.apoptosisTargets && !t.apoptosisBurst && (t.specialAnim || 0) > 0);
     var apCountdown = doingApoptosis ? Math.max(0, Math.min(1, 1 - (t.specialAnim - 0.3) / 1.8)) : 0;
-    var ultBoost = doingApoptosis ? (1.08 + apCountdown * 0.10) : 1;
-    var R = 19 * U * pulse * ultBoost;
+    var ultBoost = doingApoptosis ? (1.06 + apCountdown * 0.14) : 1;
+    var R = 20 * U * pulse * ultBoost;
     var time = state.time;
     var attacking = (expression === "attacking") || doingApoptosis;
-    // Carga real del ultimate (t.specialCharge: 0→1) — alimenta el giro
-    // de los TCR, el brillo de los gránulos líticos y el aura de
-    // anticipación, todos más abajo.
     var chargeFrac = doingApoptosis ? apCountdown : Math.max(0, Math.min(1, t.specialCharge || 0));
-    ctx.save();
-    ctx.translate(x, y);
-
-    // Aura de anticipación: asoma gradualmente con la carga real ANTES
-    // del disparo — anticipa el aura grande de Apoptosis de más abajo.
-    if (!doingApoptosis && chargeFrac > 0.15) {
-      var preApR = R * (1.2 + chargeFrac * 0.8 + Math.sin(time * 6) * 0.08);
-      var preApGrad = ctx.createRadialGradient(0, 0, R * 0.5, 0, 0, preApR);
-      preApGrad.addColorStop(0, "rgba(147, 112, 219, " + (chargeFrac * 0.35) + ")");
-      preApGrad.addColorStop(1, "rgba(147, 112, 219, 0)");
-      ctx.fillStyle = preApGrad;
-      ctx.beginPath(); ctx.arc(0, 0, preApR, 0, Math.PI * 2); ctx.fill();
+    var aimAng = 0;
+    if (doingApoptosis && t.apoptosisTargets && t.apoptosisTargets[0]) {
+      aimAng = Math.atan2(t.apoptosisTargets[0].y - y, t.apoptosisTargets[0].x - x);
+    } else if (t.lastTargetX != null && t.lastTargetY != null) {
+      aimAng = Math.atan2(t.lastTargetY - y, t.lastTargetX - x);
     }
 
-    // Ultimate Apoptosis: aura púrpura pulsante + anillo de cuenta atrás.
+    function linfoTBodyPath() {
+      ctx.beginPath();
+      ctx.moveTo(R * 1.12, 0);
+      ctx.quadraticCurveTo(R * 0.38, R * 0.95, -R * 0.55, R * 0.58);
+      ctx.quadraticCurveTo(-R * 0.92, R * 0.08, -R * 0.78, -R * 0.38);
+      ctx.quadraticCurveTo(-R * 0.62, -R * 0.72, -R * 0.05, -R * 0.82);
+      ctx.quadraticCurveTo(R * 0.42, -R * 0.88, R * 1.12, 0);
+      ctx.closePath();
+    }
+
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(aimAng);
+
+    if (!doingApoptosis && chargeFrac > 0.15) {
+      var preApR = R * (1.35 + chargeFrac * 0.75);
+      var preApGrad = ctx.createRadialGradient(R * 0.35, 0, R * 0.2, R * 0.35, 0, preApR);
+      preApGrad.addColorStop(0, "rgba(147, 112, 219, " + (chargeFrac * 0.38) + ")");
+      preApGrad.addColorStop(1, "rgba(147, 112, 219, 0)");
+      ctx.fillStyle = preApGrad;
+      ctx.beginPath(); ctx.arc(R * 0.35, 0, preApR, 0, Math.PI * 2); ctx.fill();
+    }
+
     if (doingApoptosis) {
-      var apR = R * (1.8 + Math.sin(time * 10) * 0.18 + apCountdown * 0.9);
-      var apGrad = ctx.createRadialGradient(0, 0, R * 0.5, 0, 0, apR);
-      apGrad.addColorStop(0, "rgba(147, 112, 219, " + (0.45 + apCountdown * 0.25) + ")");
+      var apR = R * (2.0 + Math.sin(time * 11) * 0.22 + apCountdown * 0.85);
+      var apGrad = ctx.createRadialGradient(R * 0.4, 0, R * 0.3, R * 0.4, 0, apR);
+      apGrad.addColorStop(0, "rgba(147, 112, 219, " + (0.5 + apCountdown * 0.28) + ")");
       apGrad.addColorStop(1, "rgba(147, 112, 219, 0)");
       ctx.fillStyle = apGrad;
-      ctx.beginPath(); ctx.arc(0, 0, apR, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = "rgba(201, 160, 255, " + (0.35 + apCountdown * 0.45) + ")";
-      ctx.lineWidth = Math.max(2, 2.6 * U);
+      ctx.beginPath(); ctx.arc(R * 0.35, 0, apR, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = "rgba(255, 210, 74, " + (0.35 + apCountdown * 0.5) + ")";
+      ctx.lineWidth = Math.max(2.4, 3 * U);
       ctx.beginPath();
-      ctx.arc(0, 0, R * 1.35, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * apCountdown);
+      ctx.arc(0, 0, R * 1.42, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * apCountdown);
       ctx.stroke();
     }
 
-    // CUERPO redondo con tinte violeta-blue cool
-    var bodyGrad = ctx.createRadialGradient(-R * 0.3, -R * 0.3, R * 0.2, 0, 0, R);
-    bodyGrad.addColorStop(0, "#e6d6f5");
-    bodyGrad.addColorStop(0.6, t.def.color);
+    var bodyGrad = ctx.createRadialGradient(R * 0.15, -R * 0.25, R * 0.15, R * 0.05, 0, R * 1.05);
+    bodyGrad.addColorStop(0, "#f0e6fa");
+    bodyGrad.addColorStop(0.55, t.def.color);
     bodyGrad.addColorStop(1, t.def.colorDark);
     ctx.fillStyle = bodyGrad;
-    ctx.beginPath();
-    ctx.arc(0, 0, R, 0, Math.PI * 2);
+    linfoTBodyPath();
     ctx.fill();
     ctx.strokeStyle = t.def.colorDark;
-    ctx.lineWidth = Math.max(1.4, 1.7 * U);
+    ctx.lineWidth = Math.max(1.6, 2 * U);
     ctx.stroke();
 
-    // NÚCLEO grande característico de linfocito (poco citoplasma)
-    var nucR = R * 0.55;
-    var nucGrad = ctx.createRadialGradient(-nucR * 0.3, -nucR * 0.35, nucR * 0.10, 0, R * 0.10, nucR);
-    nucGrad.addColorStop(0, "rgba(120, 70, 165, 0.95)");
-    nucGrad.addColorStop(1, "rgba(60, 30, 95, 0.95)");
+    var nucR = R * 0.46;
+    var nucCx = -R * 0.38, nucCy = R * 0.06;
+    var nucGrad = ctx.createRadialGradient(nucCx - nucR * 0.25, nucCy - nucR * 0.3, nucR * 0.1, nucCx, nucCy, nucR);
+    nucGrad.addColorStop(0, "rgba(130, 80, 175, 0.96)");
+    nucGrad.addColorStop(1, "rgba(55, 28, 90, 0.96)");
     ctx.fillStyle = nucGrad;
     ctx.beginPath();
-    ctx.arc(0, R * 0.10, nucR, 0, Math.PI * 2);
+    ctx.arc(nucCx, nucCy, nucR, 0, Math.PI * 2);
     ctx.fill();
-    ctx.strokeStyle = "rgba(40, 20, 70, 0.65)";
+    ctx.strokeStyle = "rgba(40, 20, 70, 0.7)";
     ctx.lineWidth = 0.9 * U;
     ctx.stroke();
 
-    // TCR (T-cell receptors) — 5 formas V/anguladas en membrana
-    // (distinta de las Y's del Linfocito B)
     ctx.strokeStyle = t.def.colorDark;
-    ctx.lineWidth = Math.max(1.4, 1.7 * U);
+    ctx.lineWidth = Math.max(1.5, 1.9 * U);
     ctx.lineCap = "round";
-    var nTCR = attacking ? 6 : 5;
-    var spinT = attacking ? 1.2 : (0.4 + chargeFrac * 0.8);
+    var nTCR = attacking ? 5 : 4;
     for (var i = 0; i < nTCR; i++) {
-      var ai = i * Math.PI * 2 / nTCR + time * spinT;
-      var ax = Math.cos(ai) * (R + 4 * U);
-      var ay = Math.sin(ai) * (R + 4 * U);
-      // V angular apuntando hacia afuera (radial) — se abre más con la
-      // carga real, listo para la Apoptosis.
-      var spread = 0.20 + chargeFrac * 0.09;
-      var vLen = (5 + chargeFrac * 2.2) * U;
-      var perp1A = ai + Math.PI / 2 + spread;
-      var perp2A = ai + Math.PI / 2 - spread;
+      var spreadT = -0.42 + (i / (nTCR - 1 || 1)) * 0.84;
+      var ax = R * 0.92 + Math.cos(spreadT) * R * 0.08;
+      var ay = Math.sin(spreadT) * R * 0.72;
+      var vLen = (5.5 + chargeFrac * 2.5) * U;
       ctx.beginPath();
-      ctx.moveTo(ax + Math.cos(perp1A) * vLen, ay + Math.sin(perp1A) * vLen);
+      ctx.moveTo(ax + Math.cos(spreadT + 0.55) * vLen, ay + Math.sin(spreadT + 0.55) * vLen);
       ctx.lineTo(ax, ay);
-      ctx.lineTo(ax + Math.cos(perp2A) * vLen, ay + Math.sin(perp2A) * vLen);
+      ctx.lineTo(ax + Math.cos(spreadT - 0.55) * vLen, ay + Math.sin(spreadT - 0.55) * vLen);
       ctx.stroke();
     }
 
-    // GRÁNULOS LÍTICOS púrpura intenso (perforina + granzima) — signature
-    // citotóxica. Distribuidos en el citoplasma (entre núcleo y membrana).
-    // Brillan más fuerte y vibran con la carga real — perforina/granzima
-    // concentrándose antes del burst de Apoptosis.
-    ctx.fillStyle = "rgba(" + Math.round(70 + chargeFrac * 110) + ", " + Math.round(30 + chargeFrac * 50) + ", " + Math.round(110 + chargeFrac * 100) + ", 0.85)";
-    var nLytic = 7;
-    var granJitterT = chargeFrac * 1.1 * U;
-    for (var g = 0; g < nLytic; g++) {
-      var ga = (g * 137.5 * Math.PI / 180 + time * 0.15) % (Math.PI * 2);
-      var gd = R * (0.72 + (g % 3) * 0.05);
-      var gx = Math.cos(ga) * gd + (Math.random() - 0.5) * granJitterT;
-      var gy = Math.sin(ga) * gd + (Math.random() - 0.5) * granJitterT;
-      // skip si choca con el núcleo
-      var dToNuc = Math.hypot(gx, gy - R * 0.10);
-      if (dToNuc < nucR + R * 0.06) continue;
-      var gPulse = 0.5 + 0.5 * Math.sin(time * 3 + g);
-      ctx.globalAlpha = Math.min(1, 0.65 + gPulse * 0.25 + chargeFrac * 0.15);
+    ctx.fillStyle = "rgba(" + Math.round(80 + chargeFrac * 100) + ", " + Math.round(35 + chargeFrac * 45) + ", " + Math.round(120 + chargeFrac * 90) + ", 0.88)";
+    for (var g = 0; g < 6; g++) {
+      var ga = Math.PI * 0.55 + g * 0.28 + time * 0.12;
+      var gx = Math.cos(ga) * R * 0.62 - R * 0.35;
+      var gy = Math.sin(ga) * R * 0.55 + R * 0.05;
       ctx.beginPath();
-      ctx.arc(gx, gy, R * (0.08 + chargeFrac * 0.025), 0, Math.PI * 2);
+      ctx.arc(gx, gy, R * (0.09 + chargeFrac * 0.02), 0, Math.PI * 2);
       ctx.fill();
     }
-    ctx.globalAlpha = 1;
 
-    // CD8 HELMET — banda militar diagonal en la parte superior del cuerpo.
-    // Signature visual de CD8 cytotoxic T cell — distintivo militar.
-    ctx.save();
+    ctx.fillStyle = "rgba(255, 240, 220, 0.75)";
+    ctx.strokeStyle = "#3a2060";
+    ctx.lineWidth = Math.max(1.2, 1.5 * U);
     ctx.beginPath();
-    ctx.arc(0, 0, R, 0, Math.PI * 2);
-    ctx.clip();
-    var helmetGrad = ctx.createLinearGradient(0, -R, 0, -R * 0.30);
-    helmetGrad.addColorStop(0, "rgba(40, 20, 70, 0.95)");
-    helmetGrad.addColorStop(0.85, "rgba(70, 35, 110, 0.85)");
-    helmetGrad.addColorStop(1, "rgba(70, 35, 110, 0)");
-    ctx.fillStyle = helmetGrad;
-    ctx.fillRect(-R, -R, R * 2, R * 0.75);
-    // Línea blanca de banda diagonal (insignia)
-    ctx.strokeStyle = "rgba(255, 240, 220, 0.55)";
-    ctx.lineWidth = 1.4 * U;
+    ctx.arc(R * 0.22, -R * 0.22, R * 0.11, 0, Math.PI * 2);
+    ctx.fill(); ctx.stroke();
     ctx.beginPath();
-    ctx.moveTo(-R * 0.85, -R * 0.45);
-    ctx.lineTo(R * 0.85, -R * 0.65);
-    ctx.stroke();
+    ctx.arc(R * 0.22, R * 0.08, R * 0.11, 0, Math.PI * 2);
+    ctx.fill(); ctx.stroke();
+
+    var eyeR = R * 0.15;
+    var fy = -R * 0.28, fx = R * 0.18, eyeGap = R * 0.22;
+    if (blink) drawClosedEyes(fx, fy, eyeR, eyeGap);
+    else if (expression === "dying") drawHurtEyes(fx, fy, eyeR, eyeGap);
+    else if (expression === "levelup") drawSparkleEyes(fx, fy, eyeR, eyeGap);
+    else if (attacking || doingApoptosis) drawFocusedEyes(fx, fy, eyeR, eyeGap, R * 0.16, R * 0.07);
+    else drawAnimeEyes(fx, fy, eyeR, eyeGap, 0, 0, R * 0.11, R * 0.04, "fierce");
+    drawAnimeMouth(fx, fy + R * 0.26, R * 0.38, R * 0.17, attacking || doingApoptosis ? "fanged" : "serious");
+
     ctx.restore();
 
-    // Cara — sharper/militar (parte superior del cuerpo, sobre el helmet)
-    var eyeR = R * 0.16;
-    var fy = -R * 0.38;
-    if (blink) drawClosedEyes(0, fy, eyeR, R * 0.25);
-    else if (expression === "dying") drawHurtEyes(0, fy, eyeR, R * 0.25);
-    else if (expression === "levelup") drawSparkleEyes(0, fy, eyeR, R * 0.25);
-    else if (attacking) drawFocusedEyes(0, fy, eyeR, R * 0.25, R * 0.18, R * 0.06);
-    else drawAnimeEyes(0, fy, eyeR, R * 0.25, 0, 0, R * 0.12, R * 0.04, "fierce");
-    drawAnimeMouth(0, fy + R * 0.28, R * 0.42, R * 0.18, attacking ? "fanged" : "serious");
-
-    // Ultimate: latigazos delgados de granzima hacia cada objetivo marcado.
     if (doingApoptosis && t.apoptosisTargets) {
+      var slapPhase = (t.apoptosisPulse || 0);
       for (var lt = 0; lt < t.apoptosisTargets.length; lt++) {
         var te = t.apoptosisTargets[lt];
         if (!te || te.dead || !te.apoptosisMarked) continue;
@@ -18497,50 +18525,48 @@
         var tdist = Math.hypot(tdx, tdy) || 1;
         var tnx = tdx / tdist, tny = tdy / tdist;
         var tpx = -tny, tpy = tnx;
-        var baseAng = Math.atan2(tdy, tdx) + (lt - (t.apoptosisTargets.length - 1) * 0.5) * 0.07;
-        var baseX = Math.cos(baseAng) * R * 0.84;
-        var baseY = Math.sin(baseAng) * R * 0.84;
-        var reach = Math.min(tdist, R * 3.4);
-        var tipX = baseX + tnx * reach;
-        var tipY = baseY + tny * reach;
-        var curve = (lt % 2 ? 1 : -1) * R * 0.42;
-        var ctrlX = (baseX + tipX) * 0.5 + tpx * curve;
-        var ctrlY = (baseY + tipY) * 0.5 + tpy * curve;
+        var wind = 0.52 + 0.48 * Math.sin(slapPhase * 1.35 + lt * 1.1);
+        var reach = Math.min(tdist * 0.88, R * 4.6) * wind;
+        var baseX = x + Math.cos(aimAng) * R * 0.55 - Math.sin(aimAng) * (lt - 1) * R * 0.18;
+        var baseY = y + Math.sin(aimAng) * R * 0.55 + Math.cos(aimAng) * (lt - 1) * R * 0.18;
+        var elbowX = baseX + tnx * reach * 0.42 + tpx * R * 0.22 * (lt % 2 ? 1 : -1);
+        var elbowY = baseY + tny * reach * 0.42 + tpy * R * 0.22 * (lt % 2 ? 1 : -1);
+        var handX = baseX + tnx * reach;
+        var handY = baseY + tny * reach;
+        var handAng = Math.atan2(handY - elbowY, handX - elbowX);
+        var handSize = R * (0.55 + wind * 0.25);
         ctx.save();
         ctx.lineCap = "round";
-        ctx.strokeStyle = "#4a2d78";
+        ctx.lineJoin = "round";
+        ctx.strokeStyle = "#3a2060";
+        ctx.lineWidth = Math.max(4.5, 5.8 * U);
+        ctx.beginPath();
+        ctx.moveTo(baseX, baseY);
+        ctx.quadraticCurveTo(elbowX, elbowY, handX, handY);
+        ctx.stroke();
+        ctx.strokeStyle = "#b794f6";
         ctx.lineWidth = Math.max(2.2, 2.8 * U);
         ctx.beginPath();
         ctx.moveTo(baseX, baseY);
-        ctx.quadraticCurveTo(ctrlX, ctrlY, tipX, tipY);
+        ctx.quadraticCurveTo(elbowX, elbowY, handX, handY);
         ctx.stroke();
-        ctx.strokeStyle = "#b794f6";
-        ctx.lineWidth = Math.max(1.1, 1.5 * U);
-        ctx.beginPath();
-        ctx.moveTo(baseX, baseY);
-        ctx.quadraticCurveTo(ctrlX, ctrlY, tipX, tipY);
-        ctx.stroke();
-        for (var gp = 1; gp <= 4; gp++) {
-          var gf = gp / 5;
-          var gu = gf;
-          var gx = (1 - gu) * (1 - gu) * baseX + 2 * (1 - gu) * gu * ctrlX + gu * gu * tipX;
-          var gy = (1 - gu) * (1 - gu) * baseY + 2 * (1 - gu) * gu * ctrlY + gu * gu * tipY;
-          ctx.fillStyle = "rgba(147, 112, 219, " + (0.75 + gp * 0.05) + ")";
-          ctx.beginPath();
-          ctx.arc(gx, gy, R * (0.06 + gp * 0.012), 0, Math.PI * 2);
-          ctx.fill();
+        if (lt % 2 === 0) drawOpenSlapPalm(handX, handY, handSize, handAng + Math.PI * 0.5);
+        else drawBonkFist(handX, handY, handSize * 0.92, handAng);
+        if (wind > 0.82) {
+          ctx.fillStyle = "rgba(255, 210, 74, " + (((wind - 0.82) / 0.18) * 0.65) + ")";
+          for (var st = 0; st < 5; st++) {
+            var sta = st * (Math.PI * 2 / 5) + slapPhase;
+            ctx.beginPath();
+            ctx.moveTo(handX, handY);
+            ctx.lineTo(handX + Math.cos(sta) * R * 0.55, handY + Math.sin(sta) * R * 0.55);
+            ctx.lineTo(handX + Math.cos(sta + 0.22) * R * 0.32, handY + Math.sin(sta + 0.22) * R * 0.32);
+            ctx.closePath();
+            ctx.fill();
+          }
         }
-        ctx.strokeStyle = "#fff0ff";
-        ctx.lineWidth = Math.max(1.8, 2.2 * U);
-        ctx.beginPath();
-        ctx.moveTo(tipX - 5 * U, tipY - 5 * U); ctx.lineTo(tipX + 5 * U, tipY + 5 * U);
-        ctx.moveTo(tipX + 5 * U, tipY - 5 * U); ctx.lineTo(tipX - 5 * U, tipY + 5 * U);
-        ctx.stroke();
         ctx.restore();
       }
     }
-
-    ctx.restore();
   }
 
   // Cara de torre (seria; triste al morir). mood/mouthKind dan personalidad propia.
@@ -28325,12 +28351,25 @@
       ctx.beginPath();
       ctx.arc(0, 0, ef.r * abT * 0.75, 0, Math.PI * 2);
       ctx.fill();
-      ctx.strokeStyle = "#fff0ff";
-      ctx.lineWidth = Math.max(2.2, 2.8 * U) * (1 - abT * 0.4);
-      ctx.beginPath();
-      ctx.moveTo(-ef.r * 0.45, -ef.r * 0.45); ctx.lineTo(ef.r * 0.45, ef.r * 0.45);
-      ctx.moveTo(ef.r * 0.45, -ef.r * 0.45); ctx.lineTo(-ef.r * 0.45, ef.r * 0.45);
-      ctx.stroke();
+      ctx.restore();
+    } else if (ef.kind === "apoptosisSlap") {
+      var asT = 1 - ef.life / ef.max;
+      var asScale = (ef.big ? 1.45 : 1) * (0.65 + asT * 0.55);
+      ctx.save();
+      ctx.translate(ef.x, ef.y);
+      ctx.globalAlpha = (1 - asT) * 0.92;
+      ctx.fillStyle = "rgba(255, 210, 74, " + ((1 - asT) * 0.55) + ")";
+      for (var as = 0; as < 6; as++) {
+        var asa = as * (Math.PI * 2 / 6) + asT * 0.5;
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.lineTo(Math.cos(asa) * 18 * U * asScale, Math.sin(asa) * 18 * U * asScale);
+        ctx.lineTo(Math.cos(asa + 0.25) * 10 * U * asScale, Math.sin(asa + 0.25) * 10 * U * asScale);
+        ctx.closePath();
+        ctx.fill();
+      }
+      if (ef.slapKind === "fist") drawBonkFist(0, 0, 10 * U * asScale, -0.4);
+      else drawOpenSlapPalm(0, 0, 11 * U * asScale, -Math.PI * 0.5);
       ctx.restore();
     } else if (ef.kind === "igComicBurst") {
       var igT = 1 - ef.life / ef.max;

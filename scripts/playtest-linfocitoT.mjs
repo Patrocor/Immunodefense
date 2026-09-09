@@ -1,4 +1,4 @@
-/** Captura Linfocito T v1 — Apoptosis. DISPLAY=:1 node scripts/playtest-linfocitoT.mjs */
+/** Captura Linfocito T v2 — Apoptosis cachetadas. DISPLAY=:1 node scripts/playtest-linfocitoT.mjs */
 import { chromium } from "playwright";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
@@ -42,16 +42,16 @@ const info = await page.evaluate(() => {
   const cy = (F.top + F.bottom) * 0.52;
   const U = g.metrics.U;
 
-  g.place("linfocitoT", 0.32, 0.52);
+  g.place("linfocitoT", 0.30, 0.52);
   const lt = st.towers[0];
   if (!lt) return { ok: false, reason: "no lt placed" };
   lt.level = 2;
 
   const defs = window.ImmunoDefenseData.enemyDefs;
   const germSpots = [
-    { id: "molluscum", x: cx + 95, y: cy - 35, progress: 0.52 },
-    { id: "hsv", x: cx + 55, y: cy + 18, progress: 0.48 },
-    { id: "saureus", x: cx + 130, y: cy + 8, progress: 0.55 },
+    { id: "molluscum", x: cx + 100, y: cy - 30, progress: 0.52 },
+    { id: "hsv", x: cx + 60, y: cy + 20, progress: 0.48 },
+    { id: "saureus", x: cx + 135, y: cy + 5, progress: 0.55 },
   ];
 
   st.enemies = [];
@@ -85,17 +85,30 @@ const info = await page.evaluate(() => {
 
   lt.apoptosisTargets = st.enemies.slice(0, 3);
   lt.apoptosisBurst = false;
-  lt.apoptosisPulse = 2.1;
-  lt.specialAnim = 1.35;
-  lt.apoptosisFlash = 0;
+  lt.apoptosisPulse = 2.6;
+  lt.apoptosisSlapT = 0.05;
+  lt.specialAnim = 1.25;
+  lt.lastTargetX = germSpots[0].x;
+  lt.lastTargetY = germSpots[0].y;
 
   st.effects.push({
-    kind: "apoptosisCharge",
-    x: lt.x,
-    y: lt.y,
-    r: 100 * U,
-    life: 0.4,
-    max: 0.55,
+    kind: "apoptosisSlap",
+    x: germSpots[0].x,
+    y: germSpots[0].y,
+    slapKind: "palm",
+    big: true,
+    life: 0.35,
+    max: 0.52,
+  });
+  st.effects.push({
+    kind: "atpText",
+    x: germSpots[1].x,
+    y: germSpots[1].y - 14 * U,
+    vy: -30 * U,
+    text: "¡PAM!",
+    life: 0.5,
+    max: 0.5,
+    color: "#ffd24a",
   });
 
   g.hold(true);
@@ -109,11 +122,11 @@ const info = await page.evaluate(() => {
   };
 });
 
-console.log("Linfocito T v1:", info);
+console.log("Linfocito T v2:", info);
 await sleep(500);
-await page.screenshot({ path: join(ART, "linfocitoT_v1_apoptosis_field.png") });
+await page.screenshot({ path: join(ART, "linfocitoT_v2_apoptosis_field.png") });
 if (info.ok) {
-  await page.screenshot({ path: join(ART, "linfocitoT_v1_apoptosis_ultimate.png"), clip: info.clip });
+  await page.screenshot({ path: join(ART, "linfocitoT_v2_apoptosis_ultimate.png"), clip: info.clip });
 }
 await page.evaluate(() => window.__game.hold(false));
 await browser.close();

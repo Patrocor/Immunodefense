@@ -47,7 +47,7 @@ var TOWER_DEFS = {
     color: "#9370DB",
     colorDark: "#5d44a0",
     cost: 121,
-    desc: "Reconoce péptidos en MHC-I y libera granzima B y perforina induciendo apoptosis. Ultimate: elimina instantáneamente hasta 5 enemigos.",
+    desc: "Reconoce péptidos en MHC-I y libera granzima B y perforina induciendo apoptosis. Ultimate: cachetadas y coscorrones de ejecución hasta 5 enemigos.",
     // Ultimate: APOPTOSIS — marca con granzima a los enemigos más
     // avanzados en rango (hasta 5); tras un breve retraso, todos
     // explotan juntos con daño masivo (ejecución retardada, no más

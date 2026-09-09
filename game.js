@@ -20018,8 +20018,8 @@
   }
 
   function drawPDC(t, pulse, expression, blink) {
-    // pDC — morfología PLASMACITOIDE real: óvalo asimétrico, núcleo excéntrico
-    // "en reloj" y dendritas cortas en el polo superior (no esfera genérica).
+    // pDC v3 — FARO IFN: columna hexagonal + corona de 6 arcos dendríticos.
+    // Estructura MAJESTUOSA vertical (no blob/esfera) — torre antiviral única.
     // Ultimate Tormenta IFN-α: tormenta de ondas que destrozan virus.
     var doingUlt = (t.specialAnim || 0) > 0;
     var chargeFrac = doingUlt ? 1 : Math.max(0, Math.min(1, t.specialCharge || 0));
@@ -20029,25 +20029,40 @@
     var emitAtk = atk > 0 && atk < 0.18 ? Math.min(1, (0.18 - atk) / 0.18) : 0;
     var chargeAtk = atk > 0.18 ? Math.min(1, (atk - 0.18) / 0.16) : 0;
     var ifnActive = (t.ifnBuffT || 0) > 0 || doingUlt;
-    var bodyInflate = 1;
-    if (doingUlt && ultAnim > 1.05) bodyInflate = 1 + ((ultMax - ultAnim) / (ultMax - 1.05)) * 0.2;
-    else if (chargeAtk > 0) bodyInflate = 1 + chargeAtk * 0.1;
-    var R = 16 * U * pulse * bodyInflate;
+    var majesty = 1 + chargeFrac * 0.08;
+    if (doingUlt && ultAnim > 1.05) majesty = 1 + ((ultMax - ultAnim) / (ultMax - 1.05)) * 0.18;
+    else if (chargeAtk > 0) majesty = 1 + chargeAtk * 0.06;
+    var R = 14.5 * U * pulse * majesty;
+    var H = R * 2.55;
     var time = state.time, w = (t.idlePhase || 0);
+    var crownExt = doingUlt ? (ultAnim > 1.05 ? 0.1 : 0.38 + (1 - ultAnim / 1.05) * 0.55) : (chargeAtk * 0.15 + chargeFrac * 0.12);
     ctx.save();
     ctx.translate(t.x, t.y);
 
-    function pdcBodyPath(infl) {
-      infl = infl || 1;
-      var bx = R * 1.02 * infl, by = R * 1.22 * infl;
+    function hexRing(y, radX, radY, rot) {
       ctx.beginPath();
-      ctx.moveTo(-bx * 0.52, by * 0.58);
-      ctx.quadraticCurveTo(-bx * 0.95, by * 0.12, -bx * 0.38, -by * 0.62);
-      ctx.quadraticCurveTo(-bx * 0.05, -by * 0.92, bx * 0.38, -by * 0.66);
-      ctx.quadraticCurveTo(bx * 0.92, -by * 0.22, bx * 0.82, by * 0.28);
-      ctx.quadraticCurveTo(bx * 0.68, by * 0.88, bx * 0.12, by * 0.82);
-      ctx.quadraticCurveTo(-bx * 0.42, by * 0.92, -bx * 0.52, by * 0.58);
+      for (var hi = 0; hi < 6; hi++) {
+        var ha = hi * (Math.PI / 3) + (rot || 0);
+        var hx = Math.cos(ha) * radX, hy = y + Math.sin(ha) * radY;
+        hi ? ctx.lineTo(hx, hy) : ctx.moveTo(hx, hy);
+      }
       ctx.closePath();
+    }
+
+    function drawMandala(cx, cy, rad, spin) {
+      ctx.fillStyle = "rgba(18, 6, 46, 0.94)";
+      ctx.beginPath(); ctx.arc(cx, cy, rad, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = "rgba(140, 100, 210, " + (0.65 + (doingUlt ? 0.25 : 0)) + ")";
+      ctx.lineWidth = Math.max(0.9, 1.2 * U);
+      for (var mi = 0; mi < 8; mi++) {
+        var ma = mi * (Math.PI / 4) + spin;
+        ctx.beginPath();
+        ctx.moveTo(cx + Math.cos(ma) * rad * 0.14, cy + Math.sin(ma) * rad * 0.14);
+        ctx.lineTo(cx + Math.cos(ma) * rad * 0.88, cy + Math.sin(ma) * rad * 0.88);
+        ctx.stroke();
+      }
+      ctx.fillStyle = "rgba(210, 180, 255, " + (0.35 + chargeFrac * 0.2) + ")";
+      ctx.beginPath(); ctx.arc(cx, cy, rad * 0.22, 0, Math.PI * 2); ctx.fill();
     }
 
     if (doingUlt) {
@@ -20056,129 +20071,150 @@
         var srp = ((time * 1.8 + sr * 0.33 + uf * 0.5) % 1);
         ctx.strokeStyle = "rgba(140, 90, 240, " + ((1 - srp) * 0.55 * uf) + ")";
         ctx.lineWidth = Math.max(2, 3 * U) * (1 - srp * 0.5);
-        ctx.beginPath();
-        ctx.ellipse(0, R * 0.05, R * (1.05 + srp * (2.6 + sr * 0.35)), R * (1.2 + srp * (2.4 + sr * 0.3)), 0, 0, Math.PI * 2);
+        hexRing(-H * 0.08, R * (1.0 + srp * (2.4 + sr * 0.3)), R * (0.85 + srp * (2.0 + sr * 0.25)), time * 0.15 + sr);
         ctx.stroke();
       }
       if (ultAnim <= 1.05) {
         for (var iw = 0; iw < 12; iw++) {
           var iwa = iw * (Math.PI * 2 / 12) + time * 2.2 + uf * 1.5;
-          var iwR = R * (1.35 + uf * 4.0);
+          var iwR = R * (1.25 + uf * 3.8);
           ctx.strokeStyle = "rgba(210,180,255," + (uf * 0.75) + ")";
           ctx.lineWidth = Math.max(1.5, 2 * U);
           ctx.lineCap = "round";
           ctx.beginPath();
-          ctx.moveTo(Math.cos(iwa) * R * 0.55, Math.sin(iwa) * R * 0.55 - R * 0.35);
-          ctx.lineTo(Math.cos(iwa) * iwR, Math.sin(iwa) * iwR * 0.85 - R * 0.55);
+          ctx.moveTo(Math.cos(iwa) * R * 0.35, -H * 0.22 + Math.sin(iwa) * R * 0.12);
+          ctx.lineTo(Math.cos(iwa) * iwR, -H * (0.42 + uf * 0.35) + Math.sin(iwa) * R * 0.2);
           ctx.stroke();
         }
       }
+    }
+
+    ctx.fillStyle = "rgba(0,0,0,0.22)";
+    ctx.beginPath();
+    ctx.ellipse(0, R * 0.72, R * 1.35, R * 0.28, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    var platG = ctx.createRadialGradient(0, R * 0.42, R * 0.1, 0, R * 0.42, R * 1.35);
+    platG.addColorStop(0, "rgba(120,80,200,0.35)");
+    platG.addColorStop(1, "rgba(120,80,200,0)");
+    ctx.fillStyle = platG;
+    hexRing(R * 0.42, R * 1.22, R * 0.62, time * 0.04);
+    ctx.fill();
+
+    ctx.strokeStyle = "#2a1266";
+    ctx.lineWidth = Math.max(2.4, 3.2 * U);
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    for (var ar = 0; ar < 6; ar++) {
+      var ba = (ar / 6) * Math.PI * 2 - Math.PI / 2 + w * 0.04 + Math.sin(time * 1.3 + ar) * 0.03;
+      var bx = Math.cos(ba) * R * 0.88, by = R * 0.38;
+      var lean = (ar % 2 ? 1 : -1) * 0.24;
+      var mx = Math.cos(ba + lean) * R * (1.15 + crownExt * 0.55);
+      var my = -H * (0.08 + crownExt * 0.12);
+      var tx = Math.cos(ba + lean * 0.65) * R * (1.42 + crownExt * 0.75);
+      var ty = -H * (0.48 + crownExt * 0.38);
+      ctx.strokeStyle = "#1a0b40";
+      ctx.lineWidth = Math.max(3.5, 4.8 * U);
+      ctx.beginPath();
+      ctx.moveTo(bx, by);
+      ctx.quadraticCurveTo(mx, my, tx, ty);
+      ctx.stroke();
+      ctx.strokeStyle = ifnActive ? "#b89cff" : "#7a52d4";
+      ctx.lineWidth = Math.max(2, 2.6 * U);
+      ctx.beginPath();
+      ctx.moveTo(bx, by);
+      ctx.quadraticCurveTo(mx, my, tx, ty);
+      ctx.stroke();
+      ctx.fillStyle = ifnActive ? "#e8d6ff" : "#c4a6ff";
+      ctx.beginPath();
+      ctx.arc(tx, ty, R * (0.11 + crownExt * 0.04), 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "#1a0b40";
+      ctx.lineWidth = Math.max(1, 1.3 * U);
+      ctx.stroke();
     }
 
     for (var wv = 0; wv < 2; wv++) {
       var wp = ((time * (ifnActive ? 1.6 : 0.7) + wv * 0.5) % 1);
       ctx.strokeStyle = "rgba(140, 90, 240, " + ((ifnActive ? 0.65 : 0.35) * (1 - wp)) + ")";
       ctx.lineWidth = Math.max(1.4, 2 * U);
-      ctx.beginPath();
-      ctx.ellipse(0, R * 0.06, R * (0.95 + wp * 0.85), R * (1.1 + wp * 0.75), 0, 0, Math.PI * 2);
+      hexRing(-H * 0.06 + wv * R * 0.08, R * (0.72 + wp * 0.65), R * (0.55 + wp * 0.5), -time * 0.2 + wv);
       ctx.stroke();
     }
 
-    var auraA = 0.14 + chargeFrac * 0.12 + (ifnActive ? 0.1 : 0);
-    var auraG = ctx.createRadialGradient(0, R * 0.08, R * 0.35, 0, R * 0.08, R * 2.2);
-    auraG.addColorStop(0, "rgba(140,90,240," + auraA + ")");
-    auraG.addColorStop(1, "rgba(140,90,240,0)");
-    ctx.fillStyle = auraG;
-    pdcBodyPath(bodyInflate * 1.08);
-    ctx.fill();
-
-    var cyG = ctx.createRadialGradient(-R * 0.42, -R * 0.12, R * 0.08, R * 0.22, R * 0.32, R * 1.15);
-    cyG.addColorStop(0, ifnActive ? "#f0e6ff" : "#ddd0ff");
-    cyG.addColorStop(0.42, "#9a6ef0");
-    cyG.addColorStop(1, "#2e1466");
-    ctx.fillStyle = cyG;
-    pdcBodyPath(bodyInflate);
+    var spireTop = -H * 0.58, spireBot = R * 0.48;
+    var spireG = ctx.createLinearGradient(0, spireTop, 0, spireBot);
+    spireG.addColorStop(0, ifnActive ? "#e8d6ff" : "#c4a6ff");
+    spireG.addColorStop(0.38, "#8a5ce8");
+    spireG.addColorStop(1, "#2e1466");
+    ctx.fillStyle = spireG;
+    ctx.beginPath();
+    ctx.moveTo(-R * 0.42, spireBot);
+    ctx.lineTo(-R * 0.28, spireTop + R * 0.18);
+    ctx.lineTo(0, spireTop);
+    ctx.lineTo(R * 0.28, spireTop + R * 0.18);
+    ctx.lineTo(R * 0.42, spireBot);
+    ctx.quadraticCurveTo(R * 0.48, R * 0.18, R * 0.34, spireBot);
+    ctx.lineTo(-R * 0.34, spireBot);
+    ctx.quadraticCurveTo(-R * 0.48, R * 0.18, -R * 0.42, spireBot);
+    ctx.closePath();
     ctx.fill();
     ctx.strokeStyle = "#1a0b40";
-    ctx.lineWidth = Math.max(1.8, 2.5 * U);
+    ctx.lineWidth = Math.max(2, 2.6 * U);
     ctx.stroke();
 
-    ctx.save();
-    pdcBodyPath(bodyInflate * 0.96);
-    ctx.clip();
-    ctx.fillStyle = "rgba(230, 220, 255, 0.35)";
-    ctx.beginPath();
-    ctx.ellipse(-R * 0.38, -R * 0.08, R * 0.38, R * 0.52, -0.25, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = "rgba(120, 80, 200, " + (0.35 + chargeFrac * 0.25) + ")";
-    ctx.lineWidth = Math.max(1, 1.4 * U);
-    ctx.lineCap = "round";
-    for (var ves = 0; ves < 4; ves++) {
-      var vAng = -Math.PI / 2 + (ves - 1.5) * 0.42;
-      var vcx = Math.cos(vAng) * R * 0.18;
-      var vcy = -R * 0.52 + Math.sin(vAng) * R * 0.08;
-      ctx.beginPath();
-      ctx.arc(vcx, vcy, R * (0.11 + ves * 0.02), 0, Math.PI * 2);
-      ctx.stroke();
-    }
-    ctx.restore();
-
-    var nucCx = R * 0.36, nucCy = R * 0.34, nucRx = R * 0.46, nucRy = R * 0.40;
-    var nucPulse = doingUlt ? (0.92 + 0.08 * Math.sin((t.ifnPulse || 0) * 1.1)) : 1;
-    ctx.fillStyle = "rgba(28, 10, 62, 0.92)";
-    ctx.beginPath();
-    ctx.ellipse(nucCx, nucCy, nucRx * nucPulse, nucRy * nucPulse, 0.18, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = "rgba(12, 4, 32, 0.85)";
+    ctx.strokeStyle = "rgba(210,180,255," + (0.35 + chargeFrac * 0.25) + ")";
     ctx.lineWidth = Math.max(1.2, 1.6 * U);
+    for (var band = 0; band < 3; band++) {
+      var by2 = spireTop + R * (0.35 + band * 0.42);
+      ctx.beginPath();
+      ctx.moveTo(-R * (0.34 - band * 0.04), by2);
+      ctx.lineTo(R * (0.34 - band * 0.04), by2);
+      ctx.stroke();
+    }
+
+    for (var hd = 0; hd < 3; hd++) {
+      var hdy = -H * (0.02 + hd * 0.16) + Math.sin(time * 1.5 + hd) * R * 0.02;
+      ctx.strokeStyle = "rgba(180,140,255," + (0.25 + (ifnActive ? 0.2 : 0)) + ")";
+      ctx.lineWidth = Math.max(1.2, 1.5 * U);
+      hexRing(hdy, R * (0.78 - hd * 0.06), R * (0.42 - hd * 0.04), time * (0.25 + hd * 0.1));
+      ctx.stroke();
+    }
+
+    var coreY = -H * 0.12;
+    var coreR = R * 0.38 * (doingUlt ? (0.94 + 0.06 * Math.sin((t.ifnPulse || 0) * 1.1)) : 1);
+    var coreGlow = ctx.createRadialGradient(0, coreY, coreR * 0.1, 0, coreY, coreR * 1.8);
+    coreGlow.addColorStop(0, "rgba(210,180,255," + (0.55 + chargeFrac * 0.25) + ")");
+    coreGlow.addColorStop(1, "rgba(106,61,212,0)");
+    ctx.fillStyle = coreGlow;
+    ctx.beginPath(); ctx.arc(0, coreY, coreR * 1.8, 0, Math.PI * 2); ctx.fill();
+    drawMandala(0, coreY, coreR, doingUlt ? time * 1.6 : 0);
+
+    ctx.fillStyle = "rgba(230, 220, 255, 0.88)";
+    ctx.strokeStyle = "#1a0b40";
+    ctx.lineWidth = Math.max(1.4, 1.8 * U);
+    ctx.beginPath();
+    ctx.moveTo(-R * 0.52, R * 0.08);
+    ctx.lineTo(-R * 0.52, R * 0.42);
+    ctx.quadraticCurveTo(-R * 0.52, R * 0.58, -R * 0.34, R * 0.58);
+    ctx.lineTo(R * 0.34, R * 0.58);
+    ctx.quadraticCurveTo(R * 0.52, R * 0.58, R * 0.52, R * 0.42);
+    ctx.lineTo(R * 0.52, R * 0.08);
+    ctx.quadraticCurveTo(R * 0.52, -R * 0.02, R * 0.38, -R * 0.02);
+    ctx.lineTo(-R * 0.38, -R * 0.02);
+    ctx.quadraticCurveTo(-R * 0.52, -R * 0.02, -R * 0.52, R * 0.08);
+    ctx.closePath();
+    ctx.fill();
     ctx.stroke();
-    ctx.strokeStyle = "rgba(90, 60, 140, " + (0.55 + (doingUlt ? 0.25 : 0)) + ")";
-    ctx.lineWidth = Math.max(0.8, 1.1 * U);
-    for (var clk = 0; clk < 8; clk++) {
-      var cla = clk * (Math.PI / 4) + (doingUlt ? time * 1.6 : 0);
-      ctx.beginPath();
-      ctx.moveTo(nucCx + Math.cos(cla) * nucRx * 0.12, nucCy + Math.sin(cla) * nucRy * 0.12);
-      ctx.lineTo(nucCx + Math.cos(cla) * nucRx * 0.82, nucCy + Math.sin(cla) * nucRy * 0.82);
-      ctx.stroke();
-    }
-    ctx.fillStyle = "rgba(18, 6, 46, 0.75)";
-    for (var ch = 0; ch < 6; ch++) {
-      var cha = (ch / 6) * Math.PI * 2 + (doingUlt ? time * 2 : 0);
-      ctx.beginPath();
-      ctx.arc(nucCx + Math.cos(cha) * nucRx * 0.55, nucCy + Math.sin(cha) * nucRy * 0.55, R * 0.06, 0, Math.PI * 2);
-      ctx.fill();
-    }
 
-    ctx.strokeStyle = "#2a1266";
-    ctx.lineWidth = Math.max(2.2, 3.2 * U);
-    ctx.lineCap = "round";
-    var dendExt = doingUlt ? (ultAnim > 1.05 ? 0.12 : 0.48 + (1 - ultAnim / 1.05) * 0.42) : (chargeAtk * 0.18 + emitAtk * 0.12);
-    var dendBase = [
-      [-0.22, -0.78], [0.08, -0.86], [0.32, -0.74], [0.02, -0.92]
-    ];
-    for (var di2 = 0; di2 < dendBase.length; di2++) {
-      var db = dendBase[di2];
-      var dbx = db[0] * R, dby = db[1] * R;
-      var sway = Math.sin(time * 2.2 + di2 + w) * R * 0.04;
-      var dlen = R * (0.42 + dendExt + 0.1 * Math.sin(time * 3 + di2));
-      ctx.beginPath();
-      ctx.moveTo(dbx + sway * 0.3, dby);
-      ctx.quadraticCurveTo(dbx + sway, dby - dlen * 0.55, dbx + sway * 1.2, dby - dlen);
-      ctx.stroke();
-      ctx.fillStyle = "#1a0b40";
-      ctx.beginPath();
-      ctx.arc(dbx + sway * 1.2, dby - dlen, R * 0.09, 0, Math.PI * 2);
-      ctx.fill();
-    }
-
-    var pktN = doingUlt ? 10 : (ifnActive ? 6 : 4);
-    ctx.fillStyle = ifnActive ? "rgba(210,180,255,0.95)" : "rgba(190,150,255,0.7)";
+    var pktN = doingUlt ? 12 : (ifnActive ? 8 : 5);
+    ctx.fillStyle = ifnActive ? "rgba(210,180,255,0.95)" : "rgba(190,150,255,0.75)";
     for (var pk = 0; pk < pktN; pk++) {
-      var pka = (pk / pktN) * Math.PI * 2 + time * (ifnActive ? 1.4 : 1.0);
-      var rel = (time * (ifnActive ? 1.1 : 0.8) + pk * 0.25) % 1;
-      var pr = R * (0.85 + rel * (doingUlt ? 1.5 : 0.75));
+      var pka = (pk / pktN) * Math.PI * 2 + time * (ifnActive ? 1.2 : 0.7);
+      var rel = (time * (ifnActive ? 0.9 : 0.55) + pk * 0.22) % 1;
+      var pkY = coreY + (pk % 3 - 1) * R * 0.22;
       ctx.beginPath();
-      ctx.arc(Math.cos(pka) * pr * 0.55 - R * 0.08, Math.sin(pka) * pr * 0.55 + R * 0.12, R * 0.10 * (1 - rel * 0.35), 0, Math.PI * 2);
+      ctx.arc(Math.cos(pka) * R * (0.55 + rel * 0.85), pkY + Math.sin(pka) * R * 0.18, R * 0.08 * (1 - rel * 0.4), 0, Math.PI * 2);
       ctx.fill();
     }
 
@@ -20186,19 +20222,19 @@
       var pdx = t.lastTargetX - t.x, pdy = t.lastTargetY - t.y;
       var pdLen = Math.hypot(pdx, pdy) || 1;
       var pdnx = pdx / pdLen, pdny = pdy / pdLen;
-      var beam = Math.min(pdLen, R * 2.5) * emitAtk;
-      ctx.strokeStyle = "rgba(210,180,255,0.85)";
-      ctx.lineWidth = Math.max(2, 2.8 * U) * emitAtk;
+      var beam = Math.min(pdLen, R * 3.2) * emitAtk;
+      ctx.strokeStyle = "rgba(210,180,255,0.88)";
+      ctx.lineWidth = Math.max(2.2, 3 * U) * emitAtk;
       ctx.lineCap = "round";
       ctx.beginPath();
-      ctx.moveTo(-R * 0.05, -R * 0.55);
-      ctx.lineTo(-R * 0.05 + pdnx * beam, -R * 0.55 + pdny * beam);
+      ctx.moveTo(0, -H * 0.42);
+      ctx.lineTo(pdnx * beam, -H * 0.42 + pdny * beam);
       ctx.stroke();
     }
 
     ctx.save();
-    ctx.translate(-R * 0.22, -R * 0.06);
-    towerFace(R * 0.78, expression, blink, doingUlt ? "focused" : "focused", doingUlt ? "angry" : "angry");
+    ctx.translate(0, R * 0.22);
+    towerFace(R * 0.72, expression, blink, "focused", doingUlt ? "angry" : "serious");
     ctx.restore();
     ctx.restore();
   }

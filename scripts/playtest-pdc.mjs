@@ -1,4 +1,4 @@
-/** Captura pDC v2 — cuerpo plasmocitoide + Tormenta IFN-α. DISPLAY=:1 node scripts/playtest-pdc.mjs */
+/** Captura pDC v3 — Faro IFN majestuoso + Tormenta IFN-α. DISPLAY=:1 node scripts/playtest-pdc.mjs */
 import { chromium } from "playwright";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
@@ -135,15 +135,15 @@ const info = await page.evaluate(() => {
   return {
     ok: true,
     enemies: st.enemies.length,
-    clip: { x: Math.round(sx - 320), y: Math.round(sy - 260), width: 880, height: 560 },
+    clip: { x: Math.round(sx - 320), y: Math.round(sy - 320), width: 900, height: 620 },
   };
 });
 
-console.log("pDC v2 cuerpo plasmocitoide:", info);
+console.log("pDC v3 faro IFN:", info);
 await sleep(500);
-await page.screenshot({ path: join(ART, "pdc_v2_plasmocyte_field.png") });
+await page.screenshot({ path: join(ART, "pdc_v3_beacon_field.png") });
 if (info.ok) {
-  await page.screenshot({ path: join(ART, "pdc_v2_plasmocyte_ultimate.png"), clip: info.clip });
+  await page.screenshot({ path: join(ART, "pdc_v3_beacon_ultimate.png"), clip: info.clip });
 }
 await page.evaluate(() => window.__game.hold(false));
 await browser.close();

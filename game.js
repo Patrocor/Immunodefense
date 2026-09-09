@@ -24515,7 +24515,10 @@
   }
 
   function drawBossMRSA(e, rad, expression, blink) {
-    // MRSA v4 — megacolonias staphylé alargadas: cadena posterior + puente + capa frontal.
+    // LOCKED v4 — megacolonias staphylé alargadas (user OK).
+    //  · Racimo central + cadena posterior + puente + capa frontal
+    //  · Pedúnculo + PNAG + membrana por coco; mecA en uva central
+    //  · Escudo = cápsula + biofilm exterior (doble casco irregular)
     var hit = e.hitFlash > 0;
     var t = state.time;
     var def = e.def;

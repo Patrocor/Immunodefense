@@ -1,4 +1,4 @@
-/** Captura Sebocito v1 — Hiperseborrhea holocrina. DISPLAY=:1 node scripts/playtest-sebocito.mjs */
+/** Captura Sebocito v2 — hinchazón + erupción volcánica + lluvia. DISPLAY=:1 node scripts/playtest-sebocito.mjs */
 import { chromium } from "playwright";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
@@ -52,6 +52,7 @@ const info = await page.evaluate(() => {
     { id: "cacnes", x: cx + 95, y: cy - 28, progress: 0.5 },
     { id: "dermatofito", x: cx + 130, y: cy + 12, progress: 0.54 },
     { id: "cacnes", x: cx + 70, y: cy + 38, progress: 0.46 },
+    { id: "dermatofito", x: cx + 55, y: cy - 55, progress: 0.42 },
   ];
 
   for (const spot of germSpots) {
@@ -81,20 +82,21 @@ const info = await page.evaluate(() => {
   sb.specialCharge = 1;
   g.tapTower(0);
 
-  const sbR = 185 * U * 1.4;
+  const sbR = 185 * U * 1.55;
   const puddle = { r: 38, life: 8, dot: 18 };
 
-  for (let i = 0; i < 6; i++) {
-    const off = (i - 2.5) * 52 * U;
-    const px = sb.x + off * 0.85;
-    const py = sb.y + Math.sin(i * 0.9) * 18 * U;
+  for (let i = 0; i < 16; i++) {
+    const ang = Math.random() * Math.PI * 2;
+    const dist = Math.sqrt(Math.random()) * sbR * 0.9;
+    const px = sb.x + Math.cos(ang) * dist;
+    const py = sb.y + Math.sin(ang) * dist;
     st.sebumPuddles.push({
       x: px,
       y: py,
-      r: puddle.r * U * 1.5,
-      life: puddle.life * 1.5,
-      max: puddle.life * 1.5,
-      dot: puddle.dot * 1.8,
+      r: puddle.r * U * (1.1 + Math.random() * 0.4),
+      life: puddle.life * 1.4,
+      max: puddle.life * 1.4,
+      dot: puddle.dot * 1.7,
       kind: "sebum",
       srcId: "sebocito",
     });
@@ -102,19 +104,27 @@ const info = await page.evaluate(() => {
       kind: "sebumSplash",
       x: px,
       y: py,
-      r: puddle.r * U * 1.1,
-      life: 0.38,
+      r: puddle.r * U * 0.95,
+      life: 0.32 + Math.random() * 0.12,
       max: 0.5,
     });
   }
 
   st.effects.push({
-    kind: "sebumGeyser",
+    kind: "sebumVolcano",
     x: sb.x,
-    y: sb.y - 12 * U,
-    r: sbR * 0.55,
-    life: 0.62,
-    max: 0.85,
+    y: sb.y - 14 * U,
+    r: sbR * 0.62,
+    life: 0.72,
+    max: 1.05,
+  });
+  st.effects.push({
+    kind: "sebumRain",
+    x: sb.x,
+    y: sb.y,
+    r: sbR,
+    life: 0.85,
+    max: 1.35,
   });
   st.effects.push({
     kind: "novaRing",
@@ -122,22 +132,22 @@ const info = await page.evaluate(() => {
     y: sb.y,
     r: sbR,
     color: "#c8980a",
-    life: 0.42,
-    max: 0.65,
+    life: 0.48,
+    max: 0.75,
   });
   st.effects.push({
     kind: "atpText",
     x: sb.x,
-    y: sb.y - 38 * U,
-    vy: -24 * U,
+    y: sb.y - 42 * U,
+    vy: -26 * U,
     text: "¡GLU!",
-    life: 0.55,
-    max: 0.7,
+    life: 0.6,
+    max: 0.75,
     color: "#ffe79a",
   });
 
-  sb.sebumPulse = 2.4;
-  sb.specialAnim = 0.78;
+  sb.sebumPulse = 3.2;
+  sb.specialAnim = 0.72;
 
   g.hold(true);
   const canvas = document.getElementById("canvas");
@@ -147,15 +157,15 @@ const info = await page.evaluate(() => {
   return {
     ok: true,
     enemies: st.enemies.length,
-    clip: { x: Math.round(sx - 320), y: Math.round(sy - 260), width: 860, height: 560 },
+    clip: { x: Math.round(sx - 340), y: Math.round(sy - 280), width: 900, height: 580 },
   };
 });
 
-console.log("Sebocito v1 Hiperseborrhea:", info);
+console.log("Sebocito v2 volcán:", info);
 await sleep(500);
-await page.screenshot({ path: join(ART, "sebocito_v1_hiperseborrhea_field.png") });
+await page.screenshot({ path: join(ART, "sebocito_v2_volcan_field.png") });
 if (info.ok) {
-  await page.screenshot({ path: join(ART, "sebocito_v1_hiperseborrhea_ultimate.png"), clip: info.clip });
+  await page.screenshot({ path: join(ART, "sebocito_v2_volcan_ultimate.png"), clip: info.clip });
 }
 await page.evaluate(() => window.__game.hold(false));
 await browser.close();

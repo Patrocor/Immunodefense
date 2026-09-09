@@ -8101,29 +8101,32 @@
       return;
     }
     if (def.id === "sebocito") {
-      // HIPERSEBORRHEA holocrina: el saco revienta y inunda el carril.
+      // HIPERSEBORRHEA holocrina: mega-hinchazón → erupción volcánica →
+      // lluvia grasienta en todas direcciones (como lluvia ácida).
       var sbStats = towerStats(t);
       var sbLvl = def.levels[Math.min(t.level, def.levels.length - 1)];
       var sbPuddle = sbLvl.puddle || { r: 38, life: 8, dot: 18 };
-      var sbR = sbStats.range * U * 1.4;
+      var sbR = sbStats.range * U * 1.55;
       if (!state.sebumPuddles) state.sebumPuddles = [];
-      var sbArc = nearestPathProgress(t.x, t.y);
       t.sebumPulse = 0;
-      t.specialAnim = 1.0;
+      t.specialAnim = 1.8;
       t.specialReady = false;
       t.specialCharge = 0;
-      for (var sbi = 0; sbi < 6; sbi++) {
-        var sbOff = (sbi - 2.5) * 52 * U;
-        var sbPt = sbArc ? pathPos(sbArc.progress + sbOff, sbArc.heridaIdx) : {
-          x: t.x + Math.cos((sbi / 6) * Math.PI * 2) * sbR * 0.45,
-          y: t.y + Math.sin((sbi / 6) * Math.PI * 2) * sbR * 0.45
-        };
+      for (var sbi = 0; sbi < 20; sbi++) {
+        var sbAng = Math.random() * Math.PI * 2;
+        var sbDist = Math.sqrt(Math.random()) * sbR * 0.94;
+        var sbPx = t.x + Math.cos(sbAng) * sbDist;
+        var sbPy = t.y + Math.sin(sbAng) * sbDist;
         state.sebumPuddles.push({
-          x: sbPt.x, y: sbPt.y, r: sbPuddle.r * U * 1.5, life: sbPuddle.life * 1.5,
-          max: sbPuddle.life * 1.5, dot: sbPuddle.dot * 1.8, kind: "sebum", srcId: "sebocito"
+          x: sbPx, y: sbPy, r: sbPuddle.r * U * (1.15 + Math.random() * 0.35),
+          life: sbPuddle.life * 1.4, max: sbPuddle.life * 1.4,
+          dot: sbPuddle.dot * 1.7, kind: "sebum", srcId: "sebocito"
         });
-        pushEffect({ kind: "sebumSplash", x: sbPt.x, y: sbPt.y, r: sbPuddle.r * U * 1.1, life: 0.5, max: 0.5 });
-        pushEffect({ kind: "place", x: sbPt.x, y: sbPt.y, life: 0.5, max: 0.5, color: "#c8980a" });
+        pushEffect({
+          kind: "sebumSplash", x: sbPx, y: sbPy,
+          r: sbPuddle.r * U * (0.85 + Math.random() * 0.3),
+          life: 0.45 + Math.random() * 0.15, max: 0.55
+        });
       }
       for (var sbj = 0; sbj < state.enemies.length; sbj++) {
         var sbe = state.enemies[sbj];
@@ -8131,15 +8134,22 @@
         if (sbe.burrowed && !sbe.revealed) continue;
         if (sbe.def.cloaked && !sbe.revealed) continue;
         if (Math.hypot(sbe.x - t.x, sbe.y - t.y) > sbR) continue;
-        damageEnemy(sbe, sbStats.damage * 2.0, "sebocito");
+        damageEnemy(sbe, sbStats.damage * 2.2, "sebocito");
       }
-      pushEffect({ kind: "sebumGeyser", x: t.x, y: t.y - 12 * U, r: sbR * 0.55, life: 0.85, max: 0.85 });
-      pushEffect({ kind: "novaRing", x: t.x, y: t.y, r: sbR, color: "#c8980a", life: 0.65, max: 0.65 });
-      pushEffect({ kind: "atpText", x: t.x, y: t.y - 38 * U, vy: -24 * U,
-        text: "¡GLU!", life: 0.7, max: 0.7, color: "#ffe79a" });
+      pushEffect({
+        kind: "sebumVolcano", x: t.x, y: t.y - 14 * U,
+        r: sbR * 0.62, life: 1.05, max: 1.05
+      });
+      pushEffect({
+        kind: "sebumRain", x: t.x, y: t.y, r: sbR,
+        life: 1.35, max: 1.35
+      });
+      pushEffect({ kind: "novaRing", x: t.x, y: t.y, r: sbR, color: "#c8980a", life: 0.75, max: 0.75 });
+      pushEffect({ kind: "atpText", x: t.x, y: t.y - 42 * U, vy: -26 * U,
+        text: "¡GLU!", life: 0.75, max: 0.75, color: "#ffe79a" });
       showMsg("¡Hiperseborrhea!");
       sfx("upgrade");
-      triggerShake(0.16, 5);
+      triggerShake(0.2, 6);
       return;
     }
     if (def.id === "pdc") {
@@ -9566,7 +9576,7 @@
         fireTower(t, target);
         t.cooldown = (1 / stats.fireRate) * (t.slowFireTimer > 0 ? 2 : 1);
         t.muzzleFlash = 0.08;
-        t.attackAnim = 0.20;
+        t.attackAnim = t.def.id === "sebocito" ? 0.42 : 0.20;
         if (t.def.id === "neutrofilo") sfx("macroAttack");
         else if (t.def.id === "linfocitoB") sfx("linfBAttack");
         else sfx("linfTAttack");
@@ -9695,6 +9705,31 @@
     } else {
       var isSebumShot = t.def.id === "sebocito";
       var lvlStats = t.def.levels[Math.min(t.level, t.def.levels.length - 1)];
+      if (isSebumShot) {
+        var spitX = t.x + (Math.random() - 0.5) * 5 * U;
+        var spitY = t.y - 16 * U;
+        pushEffect({
+          kind: "sebumSpit", x: spitX, y: spitY,
+          tx: target.x, ty: target.y,
+          life: 0.28, max: 0.28
+        });
+        state.projectiles.push({
+          x: spitX, y: spitY,
+          target: target,
+          damage: dmg,
+          speedDesign: stats.projectileSpeed * 0.92,
+          splashDesign: stats.splash,
+          color: t.def.color,
+          towerId: t.def.id,
+          attackerType: t.def.id,
+          slowOnHit: null,
+          isSebumShot: true,
+          sebumPuddle: lvlStats.puddle,
+          rot: 0,
+          dead: false
+        });
+        return;
+      }
       state.projectiles.push({
         x: t.x, y: t.y,
         target: target,
@@ -9705,8 +9740,8 @@
         towerId: t.def.id,
         attackerType: t.def.id,
         slowOnHit: t.def.slowOnHit || null,   // {dur, mult} — Plaqueta lo usa
-        isSebumShot: isSebumShot,
-        sebumPuddle: isSebumShot ? lvlStats.puddle : null,
+        isSebumShot: false,
+        sebumPuddle: null,
         rot: 0,
         dead: false
       });
@@ -19780,17 +19815,40 @@
   }
 
   function drawSebocito(t, pulse, expression, blink) {
-    // Sebocito — glándula sebácea HOLOCRINA: saco lipídico con conducto
-    // folicular (no esfera genérica). Ultimate: revienta en géiseres de sebo.
+    // Sebocito — holocrino: se HINCHA y ESCUPE grasita. Ultimate: mega-hinchazón
+    // + erupción volcánica + lluvia grasienta omnidireccional.
     var doingUlt = (t.def.id === "sebocito" && (t.specialAnim || 0) > 0);
     var chargeFrac = doingUlt ? 1 : Math.max(0, Math.min(1, t.specialCharge || 0));
-    var ultFrac = doingUlt ? Math.max(0, Math.min(1, t.specialAnim / 1.0)) : 0;
-    var inflate = doingUlt
-      ? (1.1 + (1 - ultFrac) * 0.42 + Math.sin((t.sebumPulse || 0) * 0.9) * 0.07)
-      : (1 + chargeFrac * 0.1);
+    var atk = t.attackAnim || 0;
+    var atkMax = 0.42;
+    var swellAtk = atk > 0 ? Math.min(1, atk / (atkMax * 0.58)) : 0;
+    var spitAtk = atk > 0 && atk < atkMax * 0.52 ? Math.min(1, (atkMax * 0.52 - atk) / (atkMax * 0.52)) : 0;
+    var ultAnim = t.specialAnim || 0;
+    var ultMax = 1.8;
+    var inflate = 1 + chargeFrac * 0.08;
+    var gape = chargeFrac * 0.1;
+    if (doingUlt) {
+      if (ultAnim > 1.12) {
+        var uCharge = (ultMax - ultAnim) / (ultMax - 1.12);
+        inflate = 1.08 + uCharge * 0.68 + Math.sin((t.sebumPulse || 0) * 0.75) * 0.07;
+        gape = uCharge * 0.1;
+      } else if (ultAnim > 0.38) {
+        var uErupt = (1.12 - ultAnim) / (1.12 - 0.38);
+        inflate = 1.76 - uErupt * 0.22 + Math.sin((t.sebumPulse || 0) * 1.3) * 0.09;
+        gape = 0.14 + uErupt * 0.78;
+      } else {
+        inflate = 1.24 + Math.sin((t.sebumPulse || 0) * 0.55) * 0.05;
+        gape = 0.32;
+      }
+    } else if (swellAtk > 0.05) {
+      inflate += swellAtk * 0.34;
+      gape = Math.max(gape, swellAtk * 0.2);
+    } else if (spitAtk > 0.05) {
+      inflate = Math.max(1, inflate + 0.34 - spitAtk * 0.14);
+      gape = Math.max(gape, spitAtk * 0.58);
+    }
     var R = 17 * U * pulse * inflate;
     var time = state.time, w = (t.idlePhase || 0);
-    var gape = doingUlt ? (0.35 + (1 - ultFrac) * 0.55) : chargeFrac * 0.12;
     ctx.save();
     ctx.translate(t.x, t.y);
 
@@ -19812,7 +19870,7 @@
       ctx.closePath();
     }
 
-    var auraA = 0.16 + 0.1 * Math.sin(time * 1.4 + w) + chargeFrac * 0.12;
+    var auraA = 0.16 + 0.1 * Math.sin(time * 1.4 + w) + chargeFrac * 0.12 + swellAtk * 0.1;
     var aur = ctx.createRadialGradient(0, R * 0.1, R * 0.4, 0, R * 0.1, R * 2.1);
     aur.addColorStop(0, "rgba(200,152,10," + auraA + ")");
     aur.addColorStop(1, "rgba(200,152,10,0)");
@@ -19825,14 +19883,14 @@
     g.addColorStop(0.45, "#e8b820");
     g.addColorStop(1, "#6a4c04");
     ctx.fillStyle = g;
-    sacPath(gape * 0.5);
+    sacPath(gape * 0.55);
     ctx.fill();
     ctx.strokeStyle = "#3f2c02";
     ctx.lineWidth = Math.max(2, 2.6 * U);
     ctx.stroke();
 
     ctx.save();
-    sacPath(gape * 0.45);
+    sacPath(gape * 0.5);
     ctx.clip();
     var vpos = [
       [-0.28, 0.08, 0.32], [0.24, -0.05, 0.28], [0.18, 0.32, 0.26],
@@ -19840,7 +19898,7 @@
     ];
     for (var vc = 0; vc < vpos.length; vc++) {
       var vx = vpos[vc][0] * R, vy = vpos[vc][1] * R;
-      var vR = vpos[vc][2] * R * (0.9 + 0.14 * Math.sin(time * 2.2 + vc) + chargeFrac * 0.08);
+      var vR = vpos[vc][2] * R * (0.88 + 0.16 * Math.sin(time * 2.2 + vc) + swellAtk * 0.1 + chargeFrac * 0.06);
       var vg = ctx.createRadialGradient(vx - vR * 0.28, vy - vR * 0.32, vR * 0.08, vx, vy, vR);
       vg.addColorStop(0, "rgba(255,250,220,0.98)");
       vg.addColorStop(0.65, "rgba(232,192,88,0.75)");
@@ -19872,56 +19930,80 @@
     ctx.ellipse(-R * 0.22, R * 0.02, R * 0.22, R * 0.1, -0.45, 0, Math.PI * 2);
     ctx.fill();
 
-    if (doingUlt) {
-      for (var gj = 0; gj < 7; gj++) {
-        var gja = -Math.PI / 2 + (gj - 3) * 0.38 + Math.sin(time * 5 + gj) * 0.1;
-        var gLen = R * (1.8 + Math.sin(time * 7 + gj * 0.8) * 0.55) * (1 - ultFrac * 0.25);
-        var gEx = Math.cos(gja) * gLen, gEy = Math.sin(gja) * gLen - R * 0.95;
-        var gMx = Math.cos(gja) * gLen * 0.45 + Math.sin(gja) * R * 0.35;
-        var gMy = Math.sin(gja) * gLen * 0.45 - R * 1.05;
+    if (doingUlt && ultAnim > 0.38 && ultAnim <= 1.12) {
+      var uEruptVis = (1.12 - ultAnim) / (1.12 - 0.38);
+      for (var vj = 0; vj < 9; vj++) {
+        var vja = -Math.PI / 2 + (vj - 4) * 0.28 + Math.sin(time * 6 + vj) * 0.12;
+        var vLen = R * (2.2 + uEruptVis * 2.4 + Math.sin(time * 8 + vj) * 0.5);
+        var vEx = Math.cos(vja) * vLen * 0.35, vEy = Math.sin(vja) * vLen - R * 1.1;
+        var vMx = Math.cos(vja) * vLen * 0.55, vMy = Math.sin(vja) * vLen * 0.55 - R * 1.15;
         ctx.save();
         ctx.lineCap = "round";
         ctx.strokeStyle = "#5a4208";
-        ctx.lineWidth = Math.max(4.5, 5.8 * U);
+        ctx.lineWidth = Math.max(5, 6.5 * U) * (0.75 + uEruptVis * 0.35);
         ctx.beginPath();
         ctx.moveTo(0, -R * 1.05);
-        ctx.quadraticCurveTo(gMx, gMy, gEx, gEy);
+        ctx.quadraticCurveTo(vMx * 0.4, vMy, vEx, vEy);
         ctx.stroke();
         ctx.strokeStyle = "#ffe79a";
-        ctx.lineWidth = Math.max(2.2, 2.8 * U);
+        ctx.lineWidth = Math.max(2.5, 3.2 * U);
         ctx.beginPath();
         ctx.moveTo(0, -R * 1.05);
-        ctx.quadraticCurveTo(gMx, gMy, gEx, gEy);
+        ctx.quadraticCurveTo(vMx * 0.4, vMy, vEx, vEy);
         ctx.stroke();
-        ctx.fillStyle = "rgba(255,232,130,0.92)";
+        ctx.fillStyle = "rgba(255,232,130,0.9)";
         ctx.beginPath();
-        ctx.arc(gEx, gEy, R * 0.18, 0, Math.PI * 2);
+        ctx.arc(vEx, vEy, R * 0.16, 0, Math.PI * 2);
         ctx.fill();
         ctx.restore();
       }
-      ctx.fillStyle = "rgba(255,240,160," + (0.35 + (1 - ultFrac) * 0.45) + ")";
-      for (var spk = 0; spk < 8; spk++) {
-        var spa = spk * (Math.PI * 2 / 8) + time * 3;
+      ctx.fillStyle = "rgba(255,240,160," + (0.4 + uEruptVis * 0.45) + ")";
+      for (var spk = 0; spk < 10; spk++) {
+        var spa = spk * (Math.PI * 2 / 10) + time * 4;
         ctx.beginPath();
         ctx.moveTo(0, -R * 1.02);
-        ctx.lineTo(Math.cos(spa) * R * 0.65, -R * 1.02 + Math.sin(spa) * R * 0.35);
-        ctx.lineTo(Math.cos(spa + 0.2) * R * 0.42, -R * 1.02 + Math.sin(spa + 0.2) * R * 0.22);
+        ctx.lineTo(Math.cos(spa) * R * (0.55 + uEruptVis * 0.35), -R * 1.02 + Math.sin(spa) * R * 0.3);
+        ctx.lineTo(Math.cos(spa + 0.18) * R * 0.35, -R * 1.02 + Math.sin(spa + 0.18) * R * 0.18);
         ctx.closePath();
         ctx.fill();
       }
-    } else {
-      for (var d = 0; d < 3; d++) {
-        var da2 = -Math.PI / 2 + (d - 1) * 0.35 + Math.sin(time * 1.2 + d) * 0.08;
-        var dr2 = R * 1.18, dR2 = R * (0.12 + chargeFrac * 0.05);
-        var dx3 = Math.cos(da2) * dr2 * 0.15, dy3 = -R * 1.18 + Math.sin(da2) * R * 0.08;
-        ctx.fillStyle = "rgba(255,232,130,0.9)";
-        ctx.beginPath();
-        ctx.arc(dx3, dy3, dR2, 0, Math.PI * 2);
-        ctx.fill();
-      }
+    } else if (spitAtk > 0.12 && t.lastTargetX != null) {
+      var stx = t.lastTargetX - t.x, sty = t.lastTargetY - t.y;
+      var stLen = Math.hypot(stx, sty) || 1;
+      var stNx = stx / stLen, stNy = sty / stLen;
+      var spitLen = Math.min(stLen, R * 2.8) * spitAtk;
+      var sMx = stNx * spitLen * 0.45 + stNy * R * 0.12;
+      var sMy = stNy * spitLen * 0.45 - stNx * R * 0.12;
+      var sEx = stNx * spitLen, sEy = stNy * spitLen;
+      ctx.save();
+      ctx.lineCap = "round";
+      ctx.strokeStyle = "#5a4208";
+      ctx.lineWidth = Math.max(3.5, 4.5 * U) * spitAtk;
+      ctx.beginPath();
+      ctx.moveTo(0, -R * 1.02);
+      ctx.quadraticCurveTo(sMx, sMy - R * 1.02, sEx, sEy - R * 1.02);
+      ctx.stroke();
+      ctx.strokeStyle = "#ffe79a";
+      ctx.lineWidth = Math.max(1.8, 2.4 * U) * spitAtk;
+      ctx.beginPath();
+      ctx.moveTo(0, -R * 1.02);
+      ctx.quadraticCurveTo(sMx, sMy - R * 1.02, sEx, sEy - R * 1.02);
+      ctx.stroke();
+      ctx.fillStyle = "rgba(255,232,130,0.92)";
+      ctx.beginPath();
+      ctx.arc(sEx, sEy - R * 1.02, R * 0.14 * spitAtk, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    } else if (!doingUlt && swellAtk > 0.08) {
+      ctx.strokeStyle = "rgba(200,152,10," + (swellAtk * 0.35) + ")";
+      ctx.lineWidth = Math.max(1.5, 2 * U);
+      ctx.beginPath();
+      ctx.ellipse(0, R * 0.1, R * (1.05 + swellAtk * 0.18), R * (1.02 + swellAtk * 0.15), 0, 0, Math.PI * 2);
+      ctx.stroke();
     }
 
-    towerFace(R * 0.92, expression, blink, "happy", "happy");
+    var faceExpr = doingUlt ? (ultAnim > 1.12 ? "serious" : "happy") : (swellAtk > 0.15 ? "serious" : "happy");
+    towerFace(R * 0.92, expression === "attacking" ? faceExpr : expression, blink, faceExpr, faceExpr);
     ctx.restore();
   }
 
@@ -28077,6 +28159,28 @@
       ctx.beginPath(); ctx.arc(p.x, p.y, 3 * U, 0, Math.PI * 2); ctx.fill();
       ctx.shadowBlur = 0;
       ctx.restore();
+    } else if (p.isSebumShot || p.towerId === "sebocito") {
+      // Gota grasienta viscosa — escupida desde el saco hinchado.
+      var tx = p.x - Math.cos(ang) * 14 * U, ty = p.y - Math.sin(ang) * 14 * U;
+      ctx.strokeStyle = "rgba(90,66,8,0.55)"; ctx.lineWidth = 4 * U; ctx.lineCap = "round";
+      ctx.beginPath(); ctx.moveTo(tx, ty); ctx.lineTo(p.x, p.y); ctx.stroke();
+      ctx.strokeStyle = "rgba(255,232,130,0.75)"; ctx.lineWidth = 2 * U;
+      ctx.beginPath(); ctx.moveTo(tx, ty); ctx.lineTo(p.x, p.y); ctx.stroke();
+      var sg = ctx.createRadialGradient(p.x - 2 * U, p.y - 3 * U, 1, p.x, p.y, 9 * U);
+      sg.addColorStop(0, "#fff8d8");
+      sg.addColorStop(0.45, "#e8b820");
+      sg.addColorStop(1, "rgba(106,76,4,0.85)");
+      ctx.fillStyle = sg;
+      ctx.beginPath();
+      ctx.ellipse(p.x, p.y, 8 * U, 6.5 * U, ang + 0.4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "#5a4208";
+      ctx.lineWidth = 1.2 * U;
+      ctx.stroke();
+      ctx.fillStyle = "rgba(255,255,255,0.45)";
+      ctx.beginPath();
+      ctx.ellipse(p.x - 2 * U, p.y - 2 * U, 2.5 * U, 1.2 * U, ang, 0, Math.PI * 2);
+      ctx.fill();
     } else {
       // Genérico (cualquier futura torre con projectileSpeed).
       ctx.fillStyle = p.color;
@@ -28868,52 +28972,140 @@
         ctx.beginPath(); ctx.arc(mgx, mgy, (2.5 - mwT * 1.2) * Math.max(1, U), 0, Math.PI * 2); ctx.fill();
       }
       ctx.restore();
-    } else if (ef.kind === "sebumGeyser") {
-      // Hiperseborrhea: columna de sebo que brota del saco holocrino.
+    } else if (ef.kind === "sebumGeyser" || ef.kind === "sebumVolcano") {
+      // Erupción volcánica: columna de sebo que brota y luego se dispersa.
       var sgT = 1 - ef.life / ef.max;
-      var sgH = ef.r * (0.35 + sgT * 1.65);
-      var sgW = ef.r * (0.22 + (1 - sgT) * 0.18);
+      var sgH = ef.r * (0.45 + sgT * 2.1);
+      var sgW = ef.r * (0.26 + (1 - sgT) * 0.22);
       ctx.save();
       ctx.translate(ef.x, ef.y);
-      ctx.globalAlpha = (1 - sgT) * 0.92;
+      ctx.globalAlpha = (1 - sgT) * 0.94;
       var sgG = ctx.createLinearGradient(0, 0, 0, -sgH);
-      sgG.addColorStop(0, "rgba(90,66,8,0.95)");
-      sgG.addColorStop(0.35, "rgba(232,184,32,0.88)");
-      sgG.addColorStop(0.72, "rgba(255,240,160,0.72)");
+      sgG.addColorStop(0, "rgba(90,66,8,0.98)");
+      sgG.addColorStop(0.28, "rgba(232,184,32,0.92)");
+      sgG.addColorStop(0.62, "rgba(255,240,160,0.78)");
       sgG.addColorStop(1, "rgba(255,250,220,0)");
       ctx.fillStyle = sgG;
       ctx.beginPath();
-      ctx.moveTo(-sgW * 0.55, 0);
-      ctx.quadraticCurveTo(-sgW * 0.95, -sgH * 0.42, -sgW * 0.35, -sgH * 0.88);
-      ctx.quadraticCurveTo(0, -sgH * 1.05, sgW * 0.35, -sgH * 0.88);
-      ctx.quadraticCurveTo(sgW * 0.95, -sgH * 0.42, sgW * 0.55, 0);
+      ctx.moveTo(-sgW * 0.58, 0);
+      ctx.quadraticCurveTo(-sgW * 1.05, -sgH * 0.38, -sgW * 0.38, -sgH * 0.92);
+      ctx.quadraticCurveTo(0, -sgH * 1.12, sgW * 0.38, -sgH * 0.92);
+      ctx.quadraticCurveTo(sgW * 1.05, -sgH * 0.38, sgW * 0.58, 0);
       ctx.closePath();
       ctx.fill();
       ctx.lineCap = "round";
-      for (var sgs = 0; sgs < 5; sgs++) {
-        var sga = -Math.PI / 2 + (sgs - 2) * 0.34 + Math.sin(sgT * 8 + sgs) * 0.08;
-        var sgLen = sgH * (0.72 + (sgs % 2) * 0.22);
-        var sgMx = Math.cos(sga) * sgLen * 0.42;
-        var sgMy = Math.sin(sga) * sgLen * 0.42;
+      for (var sgs = 0; sgs < 7; sgs++) {
+        var sga = -Math.PI / 2 + (sgs - 3) * 0.26 + Math.sin(sgT * 9 + sgs) * 0.1;
+        var sgLen = sgH * (0.78 + (sgs % 2) * 0.28);
+        var sgMx = Math.cos(sga) * sgLen * 0.48;
+        var sgMy = Math.sin(sga) * sgLen * 0.48;
         var sgEx = Math.cos(sga) * sgLen;
         var sgEy = Math.sin(sga) * sgLen;
-        ctx.strokeStyle = "rgba(90,66,8," + ((1 - sgT) * 0.85) + ")";
-        ctx.lineWidth = Math.max(3.5, 4.8 * U) * (1 - sgT * 0.35);
+        ctx.strokeStyle = "rgba(90,66,8," + ((1 - sgT) * 0.88) + ")";
+        ctx.lineWidth = Math.max(4, 5.5 * U) * (1 - sgT * 0.35);
         ctx.beginPath();
         ctx.moveTo(0, 0);
         ctx.quadraticCurveTo(sgMx, sgMy, sgEx, sgEy);
         ctx.stroke();
-        ctx.strokeStyle = "rgba(255,232,130," + ((1 - sgT) * 0.9) + ")";
-        ctx.lineWidth = Math.max(1.8, 2.4 * U) * (1 - sgT * 0.4);
+        ctx.strokeStyle = "rgba(255,232,130," + ((1 - sgT) * 0.92) + ")";
+        ctx.lineWidth = Math.max(2, 2.8 * U) * (1 - sgT * 0.4);
         ctx.beginPath();
         ctx.moveTo(0, 0);
         ctx.quadraticCurveTo(sgMx, sgMy, sgEx, sgEy);
         ctx.stroke();
         ctx.fillStyle = "rgba(255,232,130," + ((1 - sgT) * 0.95) + ")";
         ctx.beginPath();
-        ctx.arc(sgEx, sgEy, Math.max(3, 4.5 * U) * (1 - sgT * 0.3), 0, Math.PI * 2);
+        ctx.arc(sgEx, sgEy, Math.max(3.5, 5 * U) * (1 - sgT * 0.25), 0, Math.PI * 2);
         ctx.fill();
       }
+      if (sgT > 0.35) {
+        var rainT = (sgT - 0.35) / 0.65;
+        for (var sgr = 0; sgr < 14; sgr++) {
+          var sgra = sgr * (Math.PI * 2 / 14) + sgT * 2.2;
+          var sgrr = ef.r * (0.35 + rainT * 0.75);
+          var sgrx = Math.cos(sgra) * sgrr;
+          var sgry = Math.sin(sgra) * sgrr * 0.55 - sgH * 0.15 * rainT;
+          ctx.strokeStyle = "rgba(200,152,10," + (rainT * 0.7) + ")";
+          ctx.lineWidth = Math.max(1.5, 2 * U);
+          ctx.beginPath();
+          ctx.moveTo(sgrx, sgry);
+          ctx.lineTo(sgrx - 1.5 * U, sgry + 8 * U);
+          ctx.stroke();
+          ctx.fillStyle = "rgba(255,232,130," + (rainT * 0.85) + ")";
+          ctx.beginPath();
+          ctx.arc(sgrx, sgry + 8 * U, 2.2 * U, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+      ctx.restore();
+    } else if (ef.kind === "sebumSpit") {
+      // Escupitajo grasiento hacia el blanco (ataque normal).
+      var spT = 1 - ef.life / ef.max;
+      var dx = (ef.tx || ef.x) - ef.x, dy = (ef.ty || ef.y) - ef.y;
+      var dLen = Math.hypot(dx, dy) || 1;
+      var nx = dx / dLen, ny = dy / dLen;
+      var arc = Math.sin(spT * Math.PI) * Math.min(dLen, 120 * U);
+      var mx = nx * arc * 0.55 + ny * 8 * U;
+      var my = ny * arc * 0.55 - nx * 8 * U;
+      var ex = nx * arc, ey = ny * arc;
+      ctx.save();
+      ctx.translate(ef.x, ef.y);
+      ctx.globalAlpha = (1 - spT) * 0.92;
+      ctx.lineCap = "round";
+      ctx.strokeStyle = "rgba(90,66,8,0.85)";
+      ctx.lineWidth = Math.max(3.5, 4.5 * U) * (1 - spT * 0.35);
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.quadraticCurveTo(mx, my, ex, ey);
+      ctx.stroke();
+      ctx.strokeStyle = "rgba(255,232,130,0.9)";
+      ctx.lineWidth = Math.max(1.8, 2.4 * U);
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.quadraticCurveTo(mx, my, ex, ey);
+      ctx.stroke();
+      ctx.fillStyle = "rgba(255,232,130,0.95)";
+      ctx.beginPath();
+      ctx.ellipse(ex, ey, 6 * U * (1 - spT * 0.2), 4.5 * U * (1 - spT * 0.2), Math.atan2(ny, nx), 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    } else if (ef.kind === "sebumRain") {
+      // Lluvia grasienta omnidireccional (ultimate) — cae en todo el rango.
+      var srT = 1 - ef.life / ef.max;
+      var rainAlpha = Math.sin(Math.min(1, ef.life / ef.max) * Math.PI) * 0.82;
+      ctx.save();
+      ctx.globalAlpha = rainAlpha;
+      var n = 52;
+      for (var i = 0; i < n; i++) {
+        var seedA = (i * 137.508) % 360;
+        var seedR = ((i * 53) % 100) / 100;
+        var dropX = ef.x + Math.cos(seedA * Math.PI / 180) * ef.r * seedR * 0.96;
+        var phase = ((i * 37) % 100) / 100;
+        var yProgress = (srT + phase) % 1;
+        var dropTop = ef.y - ef.r * 0.72;
+        var dropBot = ef.y + ef.r * 0.58;
+        var ry = dropTop + yProgress * (dropBot - dropTop);
+        var dropLen = 9 * U + (i % 3) * 3 * U;
+        ctx.strokeStyle = "rgba(200,152,10,0.85)";
+        ctx.lineWidth = Math.max(1.5, 2 * U);
+        ctx.lineCap = "round";
+        ctx.beginPath();
+        ctx.moveTo(dropX, ry);
+        ctx.lineTo(dropX - 2 * U, ry - dropLen);
+        ctx.stroke();
+        ctx.fillStyle = "rgba(255,232,130,0.92)";
+        ctx.beginPath();
+        ctx.ellipse(dropX, ry, 2.4 * U, 1.8 * U, 0.3, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = rainAlpha * 0.25;
+      var fog = ctx.createRadialGradient(ef.x, ef.y, ef.r * 0.1, ef.x, ef.y, ef.r);
+      fog.addColorStop(0, "rgba(200,152,10,0.35)");
+      fog.addColorStop(1, "rgba(200,152,10,0)");
+      ctx.fillStyle = fog;
+      ctx.beginPath();
+      ctx.arc(ef.x, ef.y, ef.r, 0, Math.PI * 2);
+      ctx.fill();
       ctx.restore();
     } else if (ef.kind === "sebumSplash") {
       // Impacto de charco: estrella de sebo al aterrizar en el carril.

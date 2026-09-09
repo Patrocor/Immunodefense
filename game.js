@@ -24515,11 +24515,7 @@
   }
 
   function drawBossMRSA(e, rad, expression, blink) {
-    // MRSA v3 — morfología celular: megacolonias staphylé (S. aureus).
-    //  · Cocos gram+ en racimo irregular (división en varios planos), no absceso cutáneo
-    //  · Pedúnculo + matriz PNAG + membrana circular por coco
-    //  · Escudo = cápsula gelatinosa + biofilm exterior (doble casco irregular, no arc())
-    //  · Cassette mecA (SCCmec) en uva central; PVL verde al cargar spray
+    // MRSA v4 — megacolonias staphylé alargadas: cadena posterior + puente + capa frontal.
     var hit = e.hitFlash > 0;
     var t = state.time;
     var def = e.def;
@@ -24554,7 +24550,7 @@
       return Math.sin(e._jigglePhase * 1.6 + idx * 1.1 + e.wobble) * amp * U;
     }
 
-    // Racimo grande: pera / staphylé, cola estrecha al pedúnculo (−X).
+    // Racimo central (pera staphylé) + extensiones que alargan la silueta en −X y +X.
     var cluster = [
       { x: -bigR * 2.18 + wrig(1, 0.6), y: -bigR * 0.08 + wrig(1, 0.7), r: bigR * 0.24 },
       { x: -bigR * 1.95 + wrig(2, 0.6), y:  bigR * 0.32 + wrig(2, 0.7), r: bigR * 0.26 },
@@ -24570,10 +24566,33 @@
       { x:  bigR * 0.08 + wrig(12, 0.5), y:  bigR * 0.92 + wrig(12, 0.6), r: bigR * 0.26 },
       { x: -bigR * 1.05 + wrig(13, 0.6), y:  bigR * 0.08 + wrig(13, 0.7), r: bigR * 0.30 }
     ];
-    var sites = cluster.concat([
-      { x: 0, y: 0, r: bigR },
-      { x: -bigR * 2.48, y: -bigR * 0.20, r: bigR * 0.11 },
-      { x: -bigR * 2.62, y:  bigR * 0.08, r: bigR * 0.09 }
+    // Puente cuello: une racimo con cadena de división posterior.
+    var neckBridge = [
+      { x: -bigR * 2.38 + wrig(14, 0.5), y: -bigR * 0.20 + wrig(14, 0.6), r: bigR * 0.20 },
+      { x: -bigR * 2.48 + wrig(15, 0.5), y:  bigR * 0.16 + wrig(15, 0.6), r: bigR * 0.19 },
+      { x: -bigR * 2.58 + wrig(16, 0.45), y: -bigR * 0.04 + wrig(16, 0.55), r: bigR * 0.17 }
+    ];
+    // Cadena de cocos en zigzag hacia atrás (colonia alargada).
+    var tailChain = [
+      { x: -bigR * 2.88 + wrig(20, 0.4), y: -bigR * 0.18 + wrig(20, 0.5), r: bigR * 0.16 },
+      { x: -bigR * 3.22 + wrig(21, 0.38), y:  bigR * 0.12 + wrig(21, 0.48), r: bigR * 0.15 },
+      { x: -bigR * 3.55 + wrig(22, 0.35), y: -bigR * 0.24 + wrig(22, 0.45), r: bigR * 0.14 },
+      { x: -bigR * 3.88 + wrig(23, 0.32), y:  bigR * 0.08 + wrig(23, 0.42), r: bigR * 0.13 },
+      { x: -bigR * 4.18 + wrig(24, 0.30), y: -bigR * 0.20 + wrig(24, 0.40), r: bigR * 0.12 },
+      { x: -bigR * 4.45 + wrig(25, 0.28), y:  bigR * 0.06 + wrig(25, 0.38), r: bigR * 0.11 },
+      { x: -bigR * 4.68 + wrig(26, 0.25), y: -bigR * 0.14 + wrig(26, 0.35), r: bigR * 0.10 },
+      { x: -bigR * 4.88 + wrig(27, 0.22), y:  bigR * 0.02 + wrig(27, 0.32), r: bigR * 0.09 }
+    ];
+    // Capa frontal: empuja la silueta hacia +X (racimo que avanza).
+    var frontCaps = [
+      { x:  bigR * 1.38 + wrig(17, 0.45), y: -bigR * 0.38 + wrig(17, 0.5), r: bigR * 0.30 },
+      { x:  bigR * 1.55 + wrig(18, 0.42), y:  bigR * 0.08 + wrig(18, 0.48), r: bigR * 0.26 },
+      { x:  bigR * 1.42 + wrig(19, 0.40), y:  bigR * 0.42 + wrig(19, 0.46), r: bigR * 0.22 },
+      { x:  bigR * 1.72 + wrig(28, 0.35), y: -bigR * 0.08 + wrig(28, 0.40), r: bigR * 0.18 }
+    ];
+    var peripheral = cluster.concat(neckBridge, tailChain, frontCaps);
+    var sites = peripheral.concat([
+      { x: 0, y: 0, r: bigR }
     ]);
 
     function traceHull(pad) {
@@ -24602,32 +24621,28 @@
     function drawPeduncle() {
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
+      var tipX = tailChain[tailChain.length - 1].x;
+      var tipY = tailChain[tailChain.length - 1].y;
       ctx.strokeStyle = hit ? "#ffffff" : "#4a3010";
-      ctx.lineWidth = Math.max(5.2, 6.4 * U);
+      ctx.lineWidth = Math.max(4.2, 5.2 * U);
       ctx.beginPath();
       ctx.moveTo(-bigR * 1.62, 0);
-      ctx.quadraticCurveTo(-bigR * 2.28, -bigR * 0.14, -bigR * 3.05, -bigR * 0.48);
+      ctx.quadraticCurveTo(-bigR * 2.35, -bigR * 0.10, neckBridge[0].x, neckBridge[0].y);
+      ctx.quadraticCurveTo(tipX * 0.72, tipY * 0.55, tipX - bigR * 0.22, tipY);
       ctx.stroke();
       ctx.strokeStyle = hit ? "#ffffff" : "#c89828";
-      ctx.lineWidth = Math.max(2.8, 3.5 * U);
+      ctx.lineWidth = Math.max(2.2, 2.8 * U);
       ctx.stroke();
       ctx.strokeStyle = hit ? "#ffffff" : "#4a3010";
-      ctx.lineWidth = Math.max(3.8, 4.6 * U);
+      ctx.lineWidth = Math.max(3.0, 3.8 * U);
       ctx.beginPath();
       ctx.moveTo(-bigR * 2.05, 0.05 * bigR);
-      ctx.quadraticCurveTo(-bigR * 2.35, bigR * 0.42, -bigR * 1.92, bigR * 0.48);
+      ctx.quadraticCurveTo(-bigR * 2.55, bigR * 0.38, neckBridge[1].x, neckBridge[1].y + bigR * 0.08);
+      ctx.quadraticCurveTo(tipX * 0.68, tipY * 0.62 + bigR * 0.05, tipX - bigR * 0.18, tipY + bigR * 0.06);
       ctx.stroke();
       ctx.strokeStyle = hit ? "#ffffff" : "#c89828";
-      ctx.lineWidth = Math.max(1.8, 2.3 * U);
+      ctx.lineWidth = Math.max(1.5, 2.0 * U);
       ctx.stroke();
-      ctx.fillStyle = hit ? "#ffffff" : "#5a3810";
-      ctx.beginPath();
-      ctx.arc(-bigR * 1.82, 0.02 * bigR, bigR * 0.18, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = hit ? "#ffffff" : "#e0b04a";
-      ctx.beginPath();
-      ctx.arc(-bigR * 1.90, -bigR * 0.05, bigR * 0.09, 0, Math.PI * 2);
-      ctx.fill();
     }
 
     // Biofilm exterior oscuro (mrsaHalo + doubleRing) — casco irregular, no círculo.
@@ -24679,8 +24694,17 @@
       [0, 2], [1, 3], [2, 4], [3, 5], [4, 6], [5, 7], [6, 8], [7, 8],
       [9, 6], [9, 7], [10, 4], [11, 5], [12, 1], [12, 3], [9, 10], [9, 11]
     ];
+    var cOff = cluster.length;
+    grapeLinks.push([0, cOff], [1, cOff + 1], [cOff, cOff + 1], [cOff + 1, cOff + 2]);
+    for (var tc = 0; tc < tailChain.length - 1; tc++) {
+      grapeLinks.push([cOff + 3 + tc, cOff + 4 + tc]);
+    }
+    grapeLinks.push([cOff + 2, cOff + 3]);
+    var fOff = cOff + 3 + tailChain.length;
+    grapeLinks.push([8, fOff], [9, fOff], [6, fOff], [7, fOff + 1], [fOff, fOff + 1], [fOff + 1, fOff + 2], [fOff + 2, fOff + 3]);
     for (var ln = 0; ln < grapeLinks.length; ln++) {
-      var ga = cluster[grapeLinks[ln][0]], gb = cluster[grapeLinks[ln][1]];
+      var ga = peripheral[grapeLinks[ln][0]], gb = peripheral[grapeLinks[ln][1]];
+      if (!ga || !gb) continue;
       ctx.beginPath();
       ctx.moveTo(ga.x, ga.y);
       ctx.quadraticCurveTo(
@@ -24694,6 +24718,12 @@
       ctx.beginPath();
       ctx.moveTo(0, 0);
       ctx.lineTo(cluster[lk + 2].x * 0.58, cluster[lk + 2].y * 0.58);
+      ctx.stroke();
+    }
+    for (var tl = 0; tl < tailChain.length; tl++) {
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(tailChain[tl].x * 0.42, tailChain[tl].y * 0.42);
       ctx.stroke();
     }
 
@@ -24716,7 +24746,7 @@
       coccusSites.push({ x: cx, y: cy, r: r });
     }
 
-    for (var i = 0; i < cluster.length; i++) drawCoco(cluster[i].x, cluster[i].y, cluster[i].r);
+    for (var i = 0; i < peripheral.length; i++) drawCoco(peripheral[i].x, peripheral[i].y, peripheral[i].r);
     drawCoco(0, 0, bigR);
 
     // Cassette mecA (SCCmec) — banda oscura en uva central.
@@ -24758,7 +24788,9 @@
     var toxinDrops = [
       { x: bigR * 0.52, y: bigR * 1.22, s: bigR * 0.22, a: 0.16 },
       { x: -bigR * 0.25, y: bigR * 1.15, s: bigR * 0.18, a: -0.10 },
-      { x: bigR * 0.98, y: bigR * 0.92, s: bigR * 0.16, a: 0.48 }
+      { x: bigR * 1.05, y: bigR * 0.92, s: bigR * 0.16, a: 0.48 },
+      { x: tailChain[3].x + bigR * 0.08, y: tailChain[3].y - bigR * 0.42, s: bigR * 0.11, a: -0.35 },
+      { x: frontCaps[3].x + bigR * 0.12, y: frontCaps[3].y + bigR * 0.38, s: bigR * 0.13, a: 0.22 }
     ];
     for (var tx = 0; tx < toxinDrops.length; tx++) {
       var td = toxinDrops[tx];

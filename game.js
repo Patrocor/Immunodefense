@@ -7986,10 +7986,14 @@
         t.apoptosisTargets[lj].apoptosisMarked = true;
       }
       t.apoptosisBurst = false;
+      t.apoptosisPulse = 0;
       t.specialAnim = 2.1;
       t.specialReady = false;
       t.specialCharge = 0;
+      pushEffect({ kind: "apoptosisCharge", x: t.x, y: t.y, r: ltR * 0.42, life: 0.55, max: 0.55 });
+      showMsg("¡Apoptosis!");
       sfx("upgrade");
+      triggerShake(0.10, 3);
       return;
     }
     if (def.id === "eosinofilo") {
@@ -9173,6 +9177,7 @@
       // Linfocito T ultimate: tras el retraso de carga (1.8s, specialAnim
       // arrancó en 2.1), ejecuta a todos los marcados juntos, una sola vez.
       if (t.def.id === "linfocitoT" && (t.specialAnim || 0) > 0 && t.apoptosisTargets && !t.apoptosisBurst) {
+        t.apoptosisPulse = (t.apoptosisPulse || 0) + dt * 9;
         if (t.specialAnim <= 0.3) {
           t.apoptosisBurst = true;
           t.apoptosisFlash = 0.30;
@@ -9182,15 +9187,20 @@
             lbE.apoptosisMarked = false;
             if (lbE.dead || lbE.dying) continue;
             damageEnemy(lbE, ltBurstStats.damage * 3, "linfocitoT");
-            for (var lp = 0; lp < 8; lp++) {
-              var lpa = Math.random() * Math.PI * 2, lps = (30 + Math.random() * 40) * U;
+            pushEffect({
+              kind: "apoptosisBurst", x: lbE.x, y: lbE.y,
+              r: ((lbE.def && lbE.def.radius) ? lbE.def.radius : 16) * U * 1.8,
+              life: 0.48, max: 0.48
+            });
+            for (var lp = 0; lp < 10; lp++) {
+              var lpa = Math.random() * Math.PI * 2, lps = (35 + Math.random() * 55) * U;
               pushEffect({ kind: "particle", x: lbE.x, y: lbE.y,
                 vx: Math.cos(lpa) * lps, vy: Math.sin(lpa) * lps,
-                life: 0.4, max: 0.5, color: "#9370DB" });
+                life: 0.45, max: 0.55, color: lp % 2 ? "#9370DB" : "#e6d6ff" });
             }
           }
           sfx("sell");
-          triggerShake(0.12, 4);
+          triggerShake(0.14, 5);
         }
       }
       // Estreptolisina O: DoT activo mientras lisisTimer > 0.
@@ -10557,46 +10567,79 @@
         if (!e || e.dead) continue;
         var stillMarked = !!e.apoptosisMarked;
         if (!stillMarked && flashFrac <= 0) continue;
-        // Hilo de granzima conectando la torre con el objetivo — para que
-        // se vea claramente que está "atado" a esos enemigos en vez de
-        // que el estallido aparezca de la nada.
+        // Hilo de granzima conectando la torre con el objetivo — curvo,
+        // con gránulos viajando hacia la cruz de ejecución.
         ctx.save();
+        var mx = (t.x + e.x) * 0.5 + (-(e.y - t.y) / (Math.hypot(e.x - t.x, e.y - t.y) || 1)) * 22 * U;
+        var my = (t.y + e.y) * 0.5 + ((e.x - t.x) / (Math.hypot(e.x - t.x, e.y - t.y) || 1)) * 22 * U;
         if (stillMarked) {
           var beamPulse = 0.45 + 0.35 * Math.sin(state.time * 8 + i);
           ctx.globalAlpha = beamPulse;
-          ctx.strokeStyle = "#9a6fd0";
-          ctx.lineWidth = 1.3 * U;
-          ctx.setLineDash([4 * U, 3 * U]);
+          ctx.strokeStyle = "#7a52b8";
+          ctx.lineWidth = Math.max(1.6, 2.1 * U);
+          ctx.beginPath();
+          ctx.moveTo(t.x, t.y);
+          ctx.quadraticCurveTo(mx, my, e.x, e.y);
+          ctx.stroke();
+          ctx.strokeStyle = "rgba(230, 214, 255, " + (beamPulse * 0.75) + ")";
+          ctx.lineWidth = Math.max(0.9, 1.2 * U);
+          ctx.beginPath();
+          ctx.moveTo(t.x, t.y);
+          ctx.quadraticCurveTo(mx, my, e.x, e.y);
+          ctx.stroke();
+          var travel = ((state.time * 0.85 + i * 0.17) % 1);
+          var tu = travel;
+          var dotX = (1 - tu) * (1 - tu) * t.x + 2 * (1 - tu) * tu * mx + tu * tu * e.x;
+          var dotY = (1 - tu) * (1 - tu) * t.y + 2 * (1 - tu) * tu * my + tu * tu * e.y;
+          ctx.fillStyle = "#c9a0ff";
+          ctx.beginPath();
+          ctx.arc(dotX, dotY, 3.5 * U, 0, Math.PI * 2);
+          ctx.fill();
         } else {
           ctx.globalAlpha = flashFrac;
           ctx.strokeStyle = "#e6d6ff";
-          ctx.lineWidth = (1.3 + flashFrac * 2.8) * U;
+          ctx.lineWidth = (2.2 + flashFrac * 3.2) * U;
+          ctx.beginPath();
+          ctx.moveTo(t.x, t.y);
+          ctx.quadraticCurveTo(mx, my, e.x, e.y);
+          ctx.stroke();
         }
-        ctx.beginPath();
-        ctx.moveTo(t.x, t.y);
-        ctx.lineTo(e.x, e.y);
-        ctx.stroke();
-        ctx.setLineDash([]);
         ctx.restore();
         if (!stillMarked) continue;
         var pulse = 0.7 + 0.3 * Math.sin(state.time * 10);
-        var mr = 10 * U;
+        var mr = 11 * U;
+        var markY = e.y - (e.def.radius || 16) * U - 12 * U;
         ctx.save();
-        ctx.translate(e.x, e.y - (e.def.radius || 16) * U - 10 * U);
+        ctx.translate(e.x, markY);
         ctx.globalAlpha = pulse;
+        var haloR = mr * (1.35 + Math.sin(state.time * 6 + i) * 0.12);
+        var haloG = ctx.createRadialGradient(0, 0, mr * 0.2, 0, 0, haloR);
+        haloG.addColorStop(0, "rgba(147, 112, 219, 0.45)");
+        haloG.addColorStop(1, "rgba(147, 112, 219, 0)");
+        ctx.fillStyle = haloG;
+        ctx.beginPath();
+        ctx.arc(0, 0, haloR, 0, Math.PI * 2);
+        ctx.fill();
         ctx.fillStyle = "#2a1040";
         ctx.strokeStyle = "#c9a0ff";
-        ctx.lineWidth = 1.6 * U;
+        ctx.lineWidth = Math.max(1.8, 2.2 * U);
         ctx.beginPath();
         ctx.arc(0, 0, mr, 0, Math.PI * 2);
         ctx.fill(); ctx.stroke();
-        ctx.strokeStyle = "#e6d6ff";
-        ctx.lineWidth = 1.9 * U;
+        ctx.strokeStyle = "#fff0ff";
+        ctx.lineWidth = Math.max(2.2, 2.6 * U);
         ctx.lineCap = "round";
         ctx.beginPath();
-        ctx.moveTo(-mr * 0.5, -mr * 0.5); ctx.lineTo(mr * 0.5, mr * 0.5);
-        ctx.moveTo(mr * 0.5, -mr * 0.5); ctx.lineTo(-mr * 0.5, mr * 0.5);
+        ctx.moveTo(-mr * 0.55, -mr * 0.55); ctx.lineTo(mr * 0.55, mr * 0.55);
+        ctx.moveTo(mr * 0.55, -mr * 0.55); ctx.lineTo(-mr * 0.55, mr * 0.55);
         ctx.stroke();
+        ctx.fillStyle = "rgba(255,255,255,0.55)";
+        for (var mg = 0; mg < 3; mg++) {
+          var mga = mg * (Math.PI * 2 / 3) + state.time * 2 + i;
+          ctx.beginPath();
+          ctx.arc(Math.cos(mga) * mr * 0.72, Math.sin(mga) * mr * 0.72, 2.2 * U, 0, Math.PI * 2);
+          ctx.fill();
+        }
         ctx.restore();
       }
     }
@@ -18302,19 +18345,22 @@
     //  · GRÁNULOS LÍTICOS (perforina/granzima) púrpura intenso
     //  · Distinto al B: T tiene look militar/citotóxico (vs. B humoral)
     var x = t.x, y = t.y;
-    var R = 19 * U * pulse;
+    var doingApoptosis = !!(t.apoptosisTargets && !t.apoptosisBurst && (t.specialAnim || 0) > 0);
+    var apCountdown = doingApoptosis ? Math.max(0, Math.min(1, 1 - (t.specialAnim - 0.3) / 1.8)) : 0;
+    var ultBoost = doingApoptosis ? (1.08 + apCountdown * 0.10) : 1;
+    var R = 19 * U * pulse * ultBoost;
     var time = state.time;
-    var attacking = (expression === "attacking");
+    var attacking = (expression === "attacking") || doingApoptosis;
     // Carga real del ultimate (t.specialCharge: 0→1) — alimenta el giro
     // de los TCR, el brillo de los gránulos líticos y el aura de
     // anticipación, todos más abajo.
-    var chargeFrac = Math.max(0, Math.min(1, t.specialCharge || 0));
+    var chargeFrac = doingApoptosis ? apCountdown : Math.max(0, Math.min(1, t.specialCharge || 0));
     ctx.save();
     ctx.translate(x, y);
 
     // Aura de anticipación: asoma gradualmente con la carga real ANTES
     // del disparo — anticipa el aura grande de Apoptosis de más abajo.
-    if (!((t.specialAnim || 0) > 0) && chargeFrac > 0.15) {
+    if (!doingApoptosis && chargeFrac > 0.15) {
       var preApR = R * (1.2 + chargeFrac * 0.8 + Math.sin(time * 6) * 0.08);
       var preApGrad = ctx.createRadialGradient(0, 0, R * 0.5, 0, 0, preApR);
       preApGrad.addColorStop(0, "rgba(147, 112, 219, " + (chargeFrac * 0.35) + ")");
@@ -18323,16 +18369,19 @@
       ctx.beginPath(); ctx.arc(0, 0, preApR, 0, Math.PI * 2); ctx.fill();
     }
 
-    // Ultimate Apoptosis: aura púrpura pulsante mientras espera el burst
-    // (specialAnim arranca en 2.1 y el burst ocurre cerca de 0.3 restante).
-    if (t.apoptosisTargets && !t.apoptosisBurst && (t.specialAnim || 0) > 0) {
-      var apFrac = 1 - Math.max(0, (t.specialAnim - 0.3)) / 1.8;
-      var apR = R * (1.6 + Math.sin(time * 10) * 0.15 + apFrac * 0.8);
+    // Ultimate Apoptosis: aura púrpura pulsante + anillo de cuenta atrás.
+    if (doingApoptosis) {
+      var apR = R * (1.8 + Math.sin(time * 10) * 0.18 + apCountdown * 0.9);
       var apGrad = ctx.createRadialGradient(0, 0, R * 0.5, 0, 0, apR);
-      apGrad.addColorStop(0, "rgba(147, 112, 219, 0.55)");
+      apGrad.addColorStop(0, "rgba(147, 112, 219, " + (0.45 + apCountdown * 0.25) + ")");
       apGrad.addColorStop(1, "rgba(147, 112, 219, 0)");
       ctx.fillStyle = apGrad;
       ctx.beginPath(); ctx.arc(0, 0, apR, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = "rgba(201, 160, 255, " + (0.35 + apCountdown * 0.45) + ")";
+      ctx.lineWidth = Math.max(2, 2.6 * U);
+      ctx.beginPath();
+      ctx.arc(0, 0, R * 1.35, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * apCountdown);
+      ctx.stroke();
     }
 
     // CUERPO redondo con tinte violeta-blue cool
@@ -18438,6 +18487,59 @@
     else if (attacking) drawFocusedEyes(0, fy, eyeR, R * 0.25, R * 0.18, R * 0.06);
     else drawAnimeEyes(0, fy, eyeR, R * 0.25, 0, 0, R * 0.12, R * 0.04, "fierce");
     drawAnimeMouth(0, fy + R * 0.28, R * 0.42, R * 0.18, attacking ? "fanged" : "serious");
+
+    // Ultimate: latigazos delgados de granzima hacia cada objetivo marcado.
+    if (doingApoptosis && t.apoptosisTargets) {
+      for (var lt = 0; lt < t.apoptosisTargets.length; lt++) {
+        var te = t.apoptosisTargets[lt];
+        if (!te || te.dead || !te.apoptosisMarked) continue;
+        var tdx = te.x - x, tdy = te.y - y;
+        var tdist = Math.hypot(tdx, tdy) || 1;
+        var tnx = tdx / tdist, tny = tdy / tdist;
+        var tpx = -tny, tpy = tnx;
+        var baseAng = Math.atan2(tdy, tdx) + (lt - (t.apoptosisTargets.length - 1) * 0.5) * 0.07;
+        var baseX = Math.cos(baseAng) * R * 0.84;
+        var baseY = Math.sin(baseAng) * R * 0.84;
+        var reach = Math.min(tdist, R * 3.4);
+        var tipX = baseX + tnx * reach;
+        var tipY = baseY + tny * reach;
+        var curve = (lt % 2 ? 1 : -1) * R * 0.42;
+        var ctrlX = (baseX + tipX) * 0.5 + tpx * curve;
+        var ctrlY = (baseY + tipY) * 0.5 + tpy * curve;
+        ctx.save();
+        ctx.lineCap = "round";
+        ctx.strokeStyle = "#4a2d78";
+        ctx.lineWidth = Math.max(2.2, 2.8 * U);
+        ctx.beginPath();
+        ctx.moveTo(baseX, baseY);
+        ctx.quadraticCurveTo(ctrlX, ctrlY, tipX, tipY);
+        ctx.stroke();
+        ctx.strokeStyle = "#b794f6";
+        ctx.lineWidth = Math.max(1.1, 1.5 * U);
+        ctx.beginPath();
+        ctx.moveTo(baseX, baseY);
+        ctx.quadraticCurveTo(ctrlX, ctrlY, tipX, tipY);
+        ctx.stroke();
+        for (var gp = 1; gp <= 4; gp++) {
+          var gf = gp / 5;
+          var gu = gf;
+          var gx = (1 - gu) * (1 - gu) * baseX + 2 * (1 - gu) * gu * ctrlX + gu * gu * tipX;
+          var gy = (1 - gu) * (1 - gu) * baseY + 2 * (1 - gu) * gu * ctrlY + gu * gu * tipY;
+          ctx.fillStyle = "rgba(147, 112, 219, " + (0.75 + gp * 0.05) + ")";
+          ctx.beginPath();
+          ctx.arc(gx, gy, R * (0.06 + gp * 0.012), 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.strokeStyle = "#fff0ff";
+        ctx.lineWidth = Math.max(1.8, 2.2 * U);
+        ctx.beginPath();
+        ctx.moveTo(tipX - 5 * U, tipY - 5 * U); ctx.lineTo(tipX + 5 * U, tipY + 5 * U);
+        ctx.moveTo(tipX + 5 * U, tipY - 5 * U); ctx.lineTo(tipX - 5 * U, tipY + 5 * U);
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
+
     ctx.restore();
   }
 
@@ -28187,6 +28289,47 @@
       ctx.beginPath();
       ctx.moveTo(sx, sy);
       ctx.lineTo(ex, ey);
+      ctx.stroke();
+      ctx.restore();
+    } else if (ef.kind === "apoptosisCharge") {
+      var acT = 1 - ef.life / ef.max;
+      ctx.save();
+      ctx.translate(ef.x, ef.y);
+      ctx.globalAlpha = (1 - acT) * 0.75;
+      ctx.strokeStyle = "#9370DB";
+      ctx.lineWidth = Math.max(2.4, 3 * U);
+      ctx.beginPath();
+      ctx.arc(0, 0, ef.r * (0.35 + acT * 0.85), 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.strokeStyle = "rgba(230, 214, 255, " + ((1 - acT) * 0.65) + ")";
+      ctx.lineWidth = Math.max(1.2, 1.6 * U);
+      for (var ax = 0; ax < 4; ax++) {
+        var axa = ax * Math.PI / 2 + acT * 0.8;
+        ctx.beginPath();
+        ctx.moveTo(Math.cos(axa) * ef.r * 0.2, Math.sin(axa) * ef.r * 0.2);
+        ctx.lineTo(Math.cos(axa) * ef.r * (0.55 + acT * 0.5), Math.sin(axa) * ef.r * (0.55 + acT * 0.5));
+        ctx.stroke();
+      }
+      ctx.restore();
+    } else if (ef.kind === "apoptosisBurst") {
+      var abT = 1 - ef.life / ef.max;
+      ctx.save();
+      ctx.translate(ef.x, ef.y);
+      ctx.globalAlpha = (1 - abT) * 0.9;
+      ctx.strokeStyle = "rgba(201, 160, 255, " + ((1 - abT) * 0.85) + ")";
+      ctx.lineWidth = Math.max(2.5, 3.2 * U);
+      ctx.beginPath();
+      ctx.arc(0, 0, ef.r * (0.25 + abT * 1.15), 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.fillStyle = "rgba(147, 112, 219, " + ((1 - abT) * 0.35) + ")";
+      ctx.beginPath();
+      ctx.arc(0, 0, ef.r * abT * 0.75, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "#fff0ff";
+      ctx.lineWidth = Math.max(2.2, 2.8 * U) * (1 - abT * 0.4);
+      ctx.beginPath();
+      ctx.moveTo(-ef.r * 0.45, -ef.r * 0.45); ctx.lineTo(ef.r * 0.45, ef.r * 0.45);
+      ctx.moveTo(ef.r * 0.45, -ef.r * 0.45); ctx.lineTo(-ef.r * 0.45, ef.r * 0.45);
       ctx.stroke();
       ctx.restore();
     } else if (ef.kind === "igComicBurst") {

@@ -7904,16 +7904,18 @@
       return;
     }
     if (def.id === "linfocitoB") {
-      // MODO RAMBO ARTILLERO — dos cañones flanquean el cuerpo y
-      // disparan balas Y gordas continuas (penetrantes) al sector del
-      // camino más cercano (o vertical arriba en diseminación).
+      // PLASMOCITO RAMBO — dos cañones Y disparan balas perforantes caricaturescas.
       t.cannonTarget = computeUltimateTarget(t);
       t.cannonFireT = 0;
       t.cannonRecoil = 0;
+      t.plasmoPulse = 0;
       t.specialAnim = 1.6;
       t.specialReady = false;
       t.specialCharge = 0;
+      pushEffect({ kind: "igComicBurst", x: t.x, y: t.y, r: towerStats(t).range * U * 0.35, life: 0.55, max: 0.55 });
+      showMsg("¡PLASMA!");
       sfx("upgrade");
+      triggerShake(0.14, 4);
       return;
     }
     if (def.id === "nk") {
@@ -8219,21 +8221,35 @@
     var muzzleX = cannonBaseX + nx * barrelLen;
     var muzzleY = cannonBaseY + ny * barrelLen;
     var stats = towerStats(t);
-    var dmg = stats.damage * 2.5;            // daño por germen perforado
-    // Spawn proyectil gordo en movimiento (atraviesa todos los gérmenes).
+    var dmg = stats.damage * 2.5;
     pushEffect({
       kind: "antibodyHeavy",
       x: muzzleX, y: muzzleY,
-      vx: nx * 700 * U,                       // velocidad alta
+      vx: nx * 700 * U,
       vy: ny * 700 * U,
       rot: Math.atan2(ny, nx) + Math.PI / 2,
-      rotSpd: 9,
-      size: 12 * U,                           // 3x el normal (4u)
+      rotSpd: 14,
+      size: 14 * U,
       dmg: dmg,
-      hitIds: {},                             // set de gérmenes ya golpeados
-      life: 1.4, max: 1.4                     // tiempo máximo de vida (off-screen safety)
+      hitIds: {},
+      life: 1.4, max: 1.4,
+      comic: true
     });
-    // Muzzle flash chico al disparar.
+    if (Math.random() < 0.45) {
+      pushEffect({
+        kind: "antibodyHeavy",
+        x: muzzleX, y: muzzleY,
+        vx: nx * 640 * U + (Math.random() - 0.5) * 90 * U,
+        vy: ny * 640 * U + (Math.random() - 0.5) * 90 * U,
+        rot: Math.atan2(ny, nx) + Math.PI / 2,
+        rotSpd: 18,
+        size: 9 * U,
+        dmg: dmg * 0.55,
+        hitIds: {},
+        life: 1.0, max: 1.0,
+        comic: true
+      });
+    }
     pushEffect({
       kind: "particle",
       x: muzzleX, y: muzzleY,
@@ -8242,7 +8258,24 @@
       life: 0.18, max: 0.18,
       color: "rgba(180, 255, 200, 0.95)"
     });
-    t.cannonRecoil = 0.06;
+    for (var mf = 0; mf < 5; mf++) {
+      var mfa = Math.atan2(ny, nx) + (Math.random() - 0.5) * 0.9;
+      var mfs = (80 + Math.random() * 120) * U;
+      pushEffect({ kind: "particle", x: muzzleX, y: muzzleY,
+        vx: Math.cos(mfa) * mfs, vy: Math.sin(mfa) * mfs,
+        life: 0.22, max: 0.28, color: mf % 2 ? "#fff7c4" : "#7CFC9E" });
+    }
+    pushEffect({ kind: "atpText", x: muzzleX, y: muzzleY - 10 * U, vy: -22 * U,
+      text: "IgG!", life: 0.55, max: 0.55, color: "#ffd24a" });
+    pushEffect({
+      kind: "antibodyBeam",
+      startX: muzzleX, startY: muzzleY,
+      endX: muzzleX + nx * 110 * U,
+      endY: muzzleY + ny * 110 * U,
+      life: 0.10, max: 0.10,
+      comic: true
+    });
+    t.cannonRecoil = 0.08;
   }
 
   // Dispara UNA perforina durante el frenesí citotóxico del NK.
@@ -9087,6 +9120,7 @@
       // Linfocito B ultimate: cañones disparan rayos continuos mientras
       // dure specialAnim. ~16 disparos/s por cañón (alternando).
       if (t.def.id === "linfocitoB" && (t.specialAnim || 0) > 0 && t.cannonTarget) {
+        t.plasmoPulse = (t.plasmoPulse || 0) + dt * 14;
         if ((t.cannonRecoil || 0) > 0) t.cannonRecoil -= dt;
         t.cannonFireT = (t.cannonFireT || 0) - dt;
         if (t.cannonFireT <= 0) {
@@ -18023,28 +18057,72 @@
     // Inflación durante el ultimate (plasmocito mode).
     var ultBoost = 1.0;
     if (doingUltimate) {
-      // Progreso 0→1 normalizado a la duración real del ultimate (1.6s).
-      // BUG fix: antes dividía por 0.90 → ut negativo los primeros 0.7s →
-      // ultBoost negativo → R negativo → flickering del cuerpo.
       var ut = Math.max(0, Math.min(1, 1 - t.specialAnim / 1.6));
-      // Crece en los primeros 0.2 (ut 0→0.22), mantiene, decrece en último 0.2
-      if (ut < 0.22) ultBoost = 1 + (ut / 0.22) * 0.45;
-      else if (ut < 0.78) ultBoost = 1.45;
-      else ultBoost = 1 + ((1 - ut) / 0.22) * 0.45;
+      if (ut < 0.18) ultBoost = 1 + (ut / 0.18) * 0.72;
+      else if (ut < 0.72) ultBoost = 1.72 + Math.sin((t.plasmoPulse || 0) * 0.35) * 0.08;
+      else ultBoost = 1 + ((1 - ut) / 0.28) * 0.72;
     }
     var R = 18 * U * pulse * ultBoost;
+    var wobbleUlt = doingUltimate ? Math.sin((t.plasmoPulse || 0) * 0.9) * R * 0.06 : 0;
     var t0 = state.time;
     // Carga real del ultimate (t.specialCharge: 0→1) — intensifica el aura,
     // las cintas RER y el giro de anticuerpos ANTES de la diferenciación
     // real a Plasmocito, en vez de saltar de golpe solo al disparar.
     var chargeFrac = doingUltimate ? 0 : Math.max(0, Math.min(1, t.specialCharge || 0));
     ctx.save();
-    ctx.translate(x, y);
+    ctx.translate(x + wobbleUlt * 0.35, y + wobbleUlt);
+
+    // Ultimate: líneas de acción manga + cinturón de Y orbitando.
+    if (doingUltimate) {
+      ctx.save();
+      ctx.globalAlpha = 0.28 + 0.18 * Math.sin((t.plasmoPulse || 0) * 0.55);
+      ctx.strokeStyle = "#143d24";
+      ctx.lineWidth = Math.max(1.8, 2.2 * U);
+      ctx.lineCap = "round";
+      for (var sl = 0; sl < 14; sl++) {
+        var sla = sl * (Math.PI * 2 / 14) + (t.plasmoPulse || 0) * 0.25;
+        var slIn = R * (1.05 + (sl % 3) * 0.08);
+        var slOut = R * (1.85 + (sl % 2) * 0.35);
+        ctx.beginPath();
+        ctx.moveTo(Math.cos(sla) * slIn, Math.sin(sla) * slIn);
+        ctx.lineTo(Math.cos(sla) * slOut, Math.sin(sla) * slOut);
+        ctx.stroke();
+      }
+      ctx.restore();
+      for (var belt = 0; belt < 12; belt++) {
+        var ba = belt * (Math.PI * 2 / 12) - (t.plasmoPulse || 0) * 0.55;
+        var br = R * (1.32 + (belt % 3) * 0.06);
+        drawYShape(Math.cos(ba) * br, Math.sin(ba) * br, 5 * U, ba + Math.PI / 2, "#fff7c4", "#2c8049");
+      }
+      // Burbujas cómicas "IgG!" flotando alrededor.
+      for (var bub = 0; bub < 5; bub++) {
+        var bubA = bub * (Math.PI * 2 / 5) + (t.plasmoPulse || 0) * 0.35;
+        var bubR = R * (1.55 + Math.sin((t.plasmoPulse || 0) + bub) * 0.12);
+        var bubX = Math.cos(bubA) * bubR;
+        var bubY = Math.sin(bubA) * bubR * 0.75 - R * 0.15;
+        ctx.save();
+        ctx.translate(bubX, bubY);
+        ctx.rotate(Math.sin((t.plasmoPulse || 0) + bub * 1.7) * 0.18);
+        ctx.fillStyle = "rgba(255, 255, 255, 0.92)";
+        ctx.strokeStyle = "#1a4a2a";
+        ctx.lineWidth = Math.max(1.4, 1.8 * U);
+        var bw = 22 * U, bh = 14 * U;
+        roundRect(-bw * 0.5, -bh * 0.5, bw, bh, 4 * U);
+        ctx.fill();
+        ctx.stroke();
+        ctx.font = "bold " + Math.round(9 * U) + "px Fredoka, sans-serif";
+        ctx.fillStyle = "#2c8049";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText("IgG!", 0, 0);
+        ctx.restore();
+      }
+    }
 
     // Aura verde sutil siempre; crece gradualmente con la carga real;
-    // INTENSA durante ultimate.
-    var auraStrength = doingUltimate ? 0.55 : (0.25 + chargeFrac * 0.25);
-    var auraR = R * (doingUltimate ? 2.2 : (1.6 + chargeFrac * 0.5));
+    // INTENSA durante ultimate (pulso caricaturesco).
+    var auraStrength = doingUltimate ? (0.55 + 0.25 * Math.sin((t.plasmoPulse || 0) * 0.6)) : (0.25 + chargeFrac * 0.25);
+    var auraR = R * (doingUltimate ? 2.45 : (1.6 + chargeFrac * 0.5));
     var auraGrad = ctx.createRadialGradient(0, 0, R * 0.5, 0, 0, auraR);
     auraGrad.addColorStop(0, "rgba(124, 252, 158, " + (auraStrength * 0.55) + ")");
     auraGrad.addColorStop(1, "rgba(124, 252, 158, 0)");
@@ -18065,6 +18143,27 @@
     ctx.strokeStyle = t.def.colorDark;
     ctx.lineWidth = Math.max(1.4, 1.7 * U);
     ctx.stroke();
+    if (doingUltimate) {
+      ctx.strokeStyle = "#0a1a10";
+      ctx.lineWidth = Math.max(2.8, 3.4 * U);
+      ctx.stroke();
+    }
+
+    // Chimenea "fábrica de anticuerpos" — gag caricaturesco en ultimate.
+    if (doingUltimate) {
+      var chimW = R * 0.22, chimH = R * 0.42;
+      var chimY = -R * 0.92;
+      ctx.fillStyle = "#1a4a2a";
+      ctx.fillRect(-chimW * 0.5, chimY, chimW, chimH);
+      ctx.fillStyle = "#2c8049";
+      ctx.fillRect(-chimW * 0.62, chimY - chimH * 0.22, chimW * 1.24, chimH * 0.28);
+      for (var puff = 0; puff < 4; puff++) {
+        var puffT = ((t.plasmoPulse || 0) * 0.4 + puff * 0.55) % 1;
+        var puffX = (puff - 1.5) * R * 0.14 + Math.sin(puffT * Math.PI * 2) * R * 0.08;
+        var puffY = chimY - chimH * 0.35 - puffT * R * 0.55;
+        drawYShape(puffX, puffY, (3.5 + puff * 0.6) * U, puff * 0.7, "#fff7c4", "#2c8049");
+      }
+    }
 
     // NÚCLEO redondo grande característico del linfocito (ocupa ~50%
     // del cuerpo — los B/T linfocitos tienen poco citoplasma y mucho
@@ -18100,15 +18199,14 @@
     }
 
     // ANTICUERPOS Y pegados a la membrana (BCR de superficie).
-    // 5 en la membrana orbitando lento. Durante ultimate: 8 + más rápido.
-    var ab = doingUltimate ? 8 : 5;
-    var spinSpd = doingUltimate ? 3.5 : (0.8 + chargeFrac * 2.2);
+    var ab = doingUltimate ? 12 : 5;
+    var spinSpd = doingUltimate ? 5.5 : (0.8 + chargeFrac * 2.2);
     for (var i = 0; i < ab; i++) {
       var a = i * Math.PI * 2 / ab + t0 * spinSpd;
-      var ax = Math.cos(a) * (R + 6 * U);
-      var ay = Math.sin(a) * (R + 6 * U);
-      var abSize = doingUltimate ? 6 * U : (5.5 + chargeFrac * 1.2) * U;
-      drawYShape(ax, ay, abSize, a + Math.PI / 2, "#fff7c4", t.def.colorDark);
+      var ax = Math.cos(a) * (R + (doingUltimate ? 10 : 6) * U);
+      var ay = Math.sin(a) * (R + (doingUltimate ? 10 : 6) * U);
+      var abSize = doingUltimate ? 7.5 * U : (5.5 + chargeFrac * 1.2) * U;
+      drawYShape(ax, ay, abSize, a + Math.PI / 2, "#fff7c4", "#1a4a2a");
     }
 
     // CARA. Durante ultimate: extática maniática (ojos con estrellas
@@ -18116,7 +18214,20 @@
     var eyeR = R * 0.22;
     var fy = -R * 0.18;
     if (doingUltimate) {
-      // Eyes con sparkles + boca enorme
+      // Gotas de sudor anime + ojos estrella + boca enorme.
+      ctx.fillStyle = "rgba(120, 200, 255, 0.85)";
+      for (var sw = 0; sw < 3; sw++) {
+        var swX = (sw - 1) * R * 0.55;
+        var swY = fy - R * (0.55 + sw * 0.08) + Math.sin((t.plasmoPulse || 0) + sw) * R * 0.04;
+        ctx.beginPath();
+        ctx.ellipse(swX, swY, R * 0.07, R * 0.11, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "rgba(255,255,255,0.55)";
+        ctx.beginPath();
+        ctx.ellipse(swX - R * 0.02, swY - R * 0.03, R * 0.025, R * 0.04, -0.4, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "rgba(120, 200, 255, 0.85)";
+      }
       drawSparkleEyes(0, fy, eyeR * 1.30, R * 0.36);
       ctx.fillStyle = "#1a1a22";
       ctx.beginPath();
@@ -18152,7 +18263,7 @@
       else drawAnimeMouth(0, R * 0.32, R * 0.42, R * 0.20, "serious");
     }
 
-    // ── DOS CAÑONES estilo "Rambo" durante el ultimate ──
+    // ── CAÑONES Y caricatura durante ultimate (Plasmocito Rambo) ──
     if (doingUltimate && t.cannonTarget) {
       var aimX = t.cannonTarget.x - x;
       var aimY = t.cannonTarget.y - y;
@@ -18160,47 +18271,76 @@
       var nx = aimX / aimLen, ny = aimY / aimLen;
       var perpX = -ny, perpY = nx;
       var aimAng = Math.atan2(ny, nx);
-      var recoil = (t.cannonRecoil || 0) > 0 ? (t.cannonRecoil / 0.06) : 0;
-      function drawCannon(sign) {
-        var cbX = sign * perpX * R * 0.85;
-        var cbY = sign * perpY * R * 0.85;
-        cbX -= nx * recoil * 3 * U;
-        cbY -= ny * recoil * 3 * U;
+      var recoil = (t.cannonRecoil || 0) > 0 ? (t.cannonRecoil / 0.08) : 0;
+      function drawComicCannon(sign) {
+        var cbX = sign * perpX * R * 0.92 - nx * recoil * 5 * U;
+        var cbY = sign * perpY * R * 0.92 - ny * recoil * 5 * U;
         ctx.save();
         ctx.translate(cbX, cbY);
         ctx.rotate(aimAng);
-        ctx.fillStyle = "#3aa05c";
+        // Soporte caricaturesco (Y de metal).
+        ctx.strokeStyle = "#1a4a2a";
+        ctx.lineWidth = Math.max(2.2, 2.8 * U);
+        ctx.lineCap = "round";
         ctx.beginPath();
-        ctx.arc(0, 0, 6 * U, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.strokeStyle = "#1a4a2a";
-        ctx.lineWidth = 1.4 * U;
+        ctx.moveTo(0, 0);
+        ctx.lineTo(-4 * U, sign * 8 * U);
         ctx.stroke();
-        var barrelLen = 14 * U;
+        // Cañón = Y gigante acostada (boca del cañón).
+        var barrelLen = 22 * U;
         ctx.fillStyle = "#2c8049";
-        ctx.fillRect(0, -3.5 * U, barrelLen, 7 * U);
-        ctx.strokeStyle = "#1a4a2a";
-        ctx.lineWidth = 1.3 * U;
-        ctx.strokeRect(0, -3.5 * U, barrelLen, 7 * U);
-        ctx.fillStyle = "#1a4a2a";
-        ctx.fillRect(barrelLen - 2 * U, -4.5 * U, 4 * U, 9 * U);
-        ctx.fillStyle = "rgba(255, 255, 255, 0.30)";
-        ctx.fillRect(2 * U, -2.5 * U, barrelLen - 4 * U, 1.5 * U);
-        if (recoil > 0) {
-          var fa = recoil * 0.85;
-          ctx.fillStyle = "rgba(255, 255, 200, " + fa + ")";
+        ctx.strokeStyle = "#0f2a18";
+        ctx.lineWidth = Math.max(2, 2.4 * U);
+        ctx.lineJoin = "round";
+        ctx.beginPath();
+        ctx.moveTo(0, -7 * U);
+        ctx.lineTo(barrelLen * 0.55, -7 * U);
+        ctx.lineTo(barrelLen, 0);
+        ctx.lineTo(barrelLen * 0.55, 7 * U);
+        ctx.lineTo(0, 7 * U);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        drawYShape(barrelLen * 0.72, 0, 6 * U, 0, "#fff7c4", "#1a4a2a");
+        // Flash caricaturesco (estrella POP).
+        if (recoil > 0.05) {
+          var fa = recoil;
+          ctx.fillStyle = "rgba(255, 255, 120, " + fa + ")";
+          for (var st = 0; st < 6; st++) {
+            var sa = st * Math.PI / 3;
+            ctx.beginPath();
+            ctx.moveTo(barrelLen + 4 * U, 0);
+            ctx.lineTo(barrelLen + (14 + fa * 10) * U * Math.cos(sa), (8 + fa * 8) * U * Math.sin(sa));
+            ctx.lineTo(barrelLen + (10 + fa * 8) * U * Math.cos(sa + 0.25), (5 + fa * 5) * U * Math.sin(sa + 0.25));
+            ctx.closePath();
+            ctx.fill();
+          }
+          ctx.fillStyle = "rgba(255,255,255," + (fa * 0.85) + ")";
           ctx.beginPath();
-          ctx.arc(barrelLen + 2 * U, 0, (4 + recoil * 5) * U, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.fillStyle = "rgba(170, 255, 170, " + (fa * 0.7) + ")";
-          ctx.beginPath();
-          ctx.arc(barrelLen + 4 * U, 0, (6 + recoil * 6) * U, 0, Math.PI * 2);
+          ctx.arc(barrelLen + 6 * U, 0, (8 + fa * 10) * U, 0, Math.PI * 2);
           ctx.fill();
         }
         ctx.restore();
       }
-      drawCannon(-1);
-      drawCannon( 1);
+      drawComicCannon(-1);
+      drawComicCannon(1);
+      // Haz caricaturesco ondulado hacia el blanco (preview en draw).
+      ctx.save();
+      ctx.globalAlpha = 0.35 + recoil * 0.35;
+      ctx.strokeStyle = "#7CFC9E";
+      ctx.lineWidth = Math.max(5, 7 * U);
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      var beamSteps = 10;
+      for (var bs = 0; bs <= beamSteps; bs++) {
+        var bf = bs / beamSteps;
+        var bx = nx * R * bf * 4.5;
+        var by = ny * R * bf * 4.5;
+        bx += Math.sin(bf * Math.PI * 4 + (t.plasmoPulse || 0)) * R * 0.12;
+        if (bs === 0) ctx.moveTo(bx, by); else ctx.lineTo(bx, by);
+      }
+      ctx.stroke();
+      ctx.restore();
     }
 
     ctx.restore();
@@ -28000,72 +28140,146 @@
       ctx.lineTo(tailX, tailY);
       ctx.stroke();
     } else if (ef.kind === "antibodyHeavy") {
-      // Bala Y GORDA perforante del Linfocito B ultimate.
-      // Visualmente: halo amarillo-verde grande detrás + Y rotando grande
-      // en el centro + estela corta.
+      var gsAge = 1 - ef.life / ef.max;
+      var gsImpact = Math.max(0, (gsAge - 0.55) / 0.45);
+      var gsR = ef.size * (ef.comic ? 1.15 : 1);
       ctx.save();
-      ctx.translate(ef.x, ef.y);
-      // Halo radial gordo (efecto "bala pesada cargada").
-      var ha = ef.size * 1.5;
-      var hg = ctx.createRadialGradient(0, 0, ef.size * 0.30, 0, 0, ha);
-      hg.addColorStop(0,    "rgba(255, 255, 200, 0.85)");
-      hg.addColorStop(0.4,  "rgba(180, 255, 130, 0.65)");
-      hg.addColorStop(1,    "rgba(124, 252, 158, 0)");
-      ctx.fillStyle = hg;
-      ctx.beginPath();
-      ctx.arc(0, 0, ha, 0, Math.PI * 2);
-      ctx.fill();
-      // Y gorda al centro, rotando.
-      ctx.rotate(ef.rot || 0);
-      drawYShape(0, 0, ef.size, 0, "#fff7c4", "#2c8049");
-      // Outline más grueso para que se sienta "bala pesada".
-      ctx.strokeStyle = "#1a4a2a";
-      ctx.lineWidth = 1.6 * U;
-      ctx.beginPath();
-      ctx.arc(0, 0, ef.size * 0.55, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.restore();
-      // Estela corta detrás (estela cometa).
-      var trailLen = ef.size * 1.8;
-      var sp = Math.hypot(ef.vx, ef.vy) || 1;
-      var nx_ = ef.vx / sp, ny_ = ef.vy / sp;
-      var tx1 = ef.x - nx_ * trailLen;
-      var ty1 = ef.y - ny_ * trailLen;
-      var lingrad = ctx.createLinearGradient(ef.x, ef.y, tx1, ty1);
-      lingrad.addColorStop(0, "rgba(180, 255, 130, 0.65)");
-      lingrad.addColorStop(1, "rgba(124, 252, 158, 0)");
-      ctx.strokeStyle = lingrad;
-      ctx.lineWidth = ef.size * 0.95;
+      ctx.globalAlpha = alpha;
+      var gsSpd = Math.hypot(ef.vx, ef.vy) || 1;
+      var gsAng = Math.atan2(ef.vy, ef.vx);
+      var gsTailLen = (ef.comic ? 22 : 14) * U;
+      var gsTx = -ef.vx / gsSpd * gsTailLen, gsTy = -ef.vy / gsSpd * gsTailLen;
+      if (ef.comic) {
+        ctx.strokeStyle = "rgba(26, 74, 42, " + (alpha * 0.35) + ")";
+        ctx.lineWidth = gsR * 1.35;
+        ctx.lineCap = "round";
+        for (var sl = 0; sl < 3; sl++) {
+          var so = (sl - 1) * gsR * 0.35;
+          ctx.beginPath();
+          ctx.moveTo(ef.x + gsTy * so * 0.08, ef.y - gsTx * so * 0.08);
+          ctx.lineTo(ef.x + gsTx + gsTy * so * 0.08, ef.y + gsTy - gsTx * so * 0.08);
+          ctx.stroke();
+        }
+      }
+      var gsTailGrad = ctx.createLinearGradient(ef.x, ef.y, ef.x + gsTx, ef.y + gsTy);
+      gsTailGrad.addColorStop(0, "rgba(255, 247, 196, " + (alpha * 0.75) + ")");
+      gsTailGrad.addColorStop(0.45, "rgba(124, 252, 158, " + (alpha * 0.55) + ")");
+      gsTailGrad.addColorStop(1, "rgba(124, 252, 158, 0)");
+      ctx.strokeStyle = gsTailGrad;
+      ctx.lineWidth = gsR * (ef.comic ? 1.05 : 0.95);
       ctx.lineCap = "round";
       ctx.beginPath();
       ctx.moveTo(ef.x, ef.y);
-      ctx.lineTo(tx1, ty1);
+      ctx.lineTo(ef.x + gsTx, ef.y + gsTy);
       ctx.stroke();
+      ctx.translate(ef.x, ef.y);
+      ctx.rotate(ef.rot || 0);
+      drawYShape(0, 0, gsR, 0, "#fff7c4", "#1a4a2a");
+      ctx.strokeStyle = "#0f2a18";
+      ctx.lineWidth = Math.max(2, 2.6 * U);
+      ctx.beginPath();
+      ctx.arc(0, 0, gsR * 0.62, 0, Math.PI * 2);
+      ctx.stroke();
+      if (ef.comic) {
+        ctx.fillStyle = "rgba(255,255,255," + (alpha * 0.55) + ")";
+        for (var spk = 0; spk < 4; spk++) {
+          var spa = spk * Math.PI / 2 + gsAge * 3;
+          ctx.beginPath();
+          ctx.arc(Math.cos(spa) * gsR * 0.75, Math.sin(spa) * gsR * 0.75, gsR * 0.14, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+      ctx.restore();
+      if (gsImpact > 0.05 && ef.comic) {
+        ctx.fillStyle = "rgba(255, 240, 120, " + (gsImpact * 0.55) + ")";
+        ctx.beginPath();
+        ctx.arc(ef.x, ef.y, gsR * (1.3 + gsImpact * 1.8), 0, Math.PI * 2);
+        ctx.fill();
+      }
     } else if (ef.kind === "antibodyBeam") {
-      // Rayo de cañón del Linfocito B (railgun-style: 3 capas concéntricas).
       ctx.save();
       ctx.lineCap = "round";
-      // Outer glow ancho translúcido
+      ctx.lineJoin = "round";
+      var sx = ef.startX, sy = ef.startY, ex = ef.endX, ey = ef.endY;
+      var bdx = ex - sx, bdy = ey - sy, bl = Math.hypot(bdx, bdy) || 1;
+      var bnx = bdx / bl, bny = bdy / bl, bpx = -bny, bpy = bnx;
+      if (ef.comic) {
+        ctx.strokeStyle = "rgba(15, 42, 24, " + (alpha * 0.45) + ")";
+        ctx.lineWidth = 16 * U;
+        ctx.beginPath();
+        for (var cw = 0; cw <= 8; cw++) {
+          var cf = cw / 8;
+          var cx = sx + bdx * cf + Math.sin(cf * Math.PI * 5) * bpx * 8 * U;
+          var cy = sy + bdy * cf + Math.sin(cf * Math.PI * 5) * bpy * 8 * U;
+          if (cw === 0) ctx.moveTo(cx, cy); else ctx.lineTo(cx, cy);
+        }
+        ctx.stroke();
+        for (var yi = 1; yi <= 4; yi++) {
+          var yf = yi / 5;
+          drawYShape(sx + bdx * yf + bpx * 4 * U, sy + bdy * yf + bpy * 4 * U, 4.5 * U, Math.atan2(bdy, bdx) + Math.PI / 2, "#fff7c4", "#1a4a2a");
+        }
+      }
       ctx.strokeStyle = "rgba(124, 252, 158, " + (alpha * 0.45) + ")";
-      ctx.lineWidth = 11 * U;
+      ctx.lineWidth = 12 * U;
       ctx.beginPath();
-      ctx.moveTo(ef.startX, ef.startY);
-      ctx.lineTo(ef.endX, ef.endY);
+      ctx.moveTo(sx, sy);
+      ctx.lineTo(ex, ey);
       ctx.stroke();
-      // Mid green
       ctx.strokeStyle = "rgba(80, 220, 130, " + (alpha * 0.85) + ")";
-      ctx.lineWidth = 4.5 * U;
+      ctx.lineWidth = 5 * U;
       ctx.beginPath();
-      ctx.moveTo(ef.startX, ef.startY);
-      ctx.lineTo(ef.endX, ef.endY);
+      ctx.moveTo(sx, sy);
+      ctx.lineTo(ex, ey);
       ctx.stroke();
-      // Hot white core
       ctx.strokeStyle = "rgba(255, 255, 255, " + (alpha * 0.95) + ")";
-      ctx.lineWidth = 1.6 * U;
+      ctx.lineWidth = 1.8 * U;
       ctx.beginPath();
-      ctx.moveTo(ef.startX, ef.startY);
-      ctx.lineTo(ef.endX, ef.endY);
+      ctx.moveTo(sx, sy);
+      ctx.lineTo(ex, ey);
       ctx.stroke();
+      ctx.restore();
+    } else if (ef.kind === "igComicBurst") {
+      var igT = 1 - ef.life / ef.max;
+      ctx.save();
+      ctx.translate(ef.x, ef.y);
+      ctx.globalAlpha = (1 - igT) * 0.9;
+      // Estrella cómic de fondo (POP).
+      ctx.fillStyle = "rgba(255, 247, 196, " + ((1 - igT) * 0.55) + ")";
+      ctx.strokeStyle = "#ffd24a";
+      ctx.lineWidth = Math.max(2.8, 3.5 * U);
+      ctx.beginPath();
+      for (var star = 0; star < 12; star++) {
+        var sta = star * Math.PI / 6 - Math.PI / 2;
+        var sr = ef.r * (star % 2 ? 0.42 + igT * 0.55 : 0.22 + igT * 0.35);
+        var sx = Math.cos(sta) * sr, sy = Math.sin(sta) * sr;
+        if (star === 0) ctx.moveTo(sx, sy); else ctx.lineTo(sx, sy);
+      }
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      for (var ig = 0; ig < 10; ig++) {
+        var iga = ig * (Math.PI * 2 / 10) + igT * 0.5;
+        var igr = ef.r * (0.12 + igT * 1.05);
+        ctx.strokeStyle = ig % 2 ? "#ffd24a" : "#7CFC9E";
+        ctx.lineWidth = Math.max(2.2, 2.8 * U) * (1 - igT * 0.35);
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.lineTo(Math.cos(iga) * igr, Math.sin(iga) * igr);
+        ctx.stroke();
+      }
+      ctx.font = "bold " + Math.round(16 * U) + "px Fredoka, sans-serif";
+      ctx.strokeStyle = "#1a4a2a";
+      ctx.lineWidth = Math.max(3, 3.8 * U);
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.strokeText("IgG!", 0, -ef.r * 0.06);
+      ctx.fillStyle = "#ffd24a";
+      ctx.fillText("IgG!", 0, -ef.r * 0.06);
+      for (var miniY = 0; miniY < 6; miniY++) {
+        var myA = miniY * (Math.PI * 2 / 6) + igT * 2.2;
+        drawYShape(Math.cos(myA) * ef.r * (0.35 + igT * 0.4), Math.sin(myA) * ef.r * (0.35 + igT * 0.4),
+          5 * U, myA, "#fff7c4", "#2c8049");
+      }
       ctx.restore();
     } else if (ef.kind === "antibodyDart") {
       // Anticuerpo Y del ultimate del Linfocito B (vuela en arco).

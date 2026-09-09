@@ -1,4 +1,4 @@
-/** Captura Linfocito B — Plasmocito ultimate. DISPLAY=:1 node scripts/playtest-linfocitoB.mjs */
+/** Captura Linfocito B v2 — Plasmocito caricaturesco. DISPLAY=:1 node scripts/playtest-linfocitoB.mjs */
 import { chromium } from "playwright";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
@@ -29,7 +29,6 @@ const info = await page.evaluate(() => {
   st.waveCountdownActive = false;
   st.germIntroSeen = st.germIntroSeen || {};
   st.germIntroSeen.saureus = true;
-  st.germIntroSeen.neisseria = true;
   st.germIntroQueue = [];
   st.effects = [];
   st.towers = [];
@@ -41,15 +40,14 @@ const info = await page.evaluate(() => {
   const cy = (F.top + F.bottom) * 0.52;
   const U = g.metrics.U;
 
-  g.place("linfocitoB", 0.36, 0.52);
+  g.place("linfocitoB", 0.34, 0.52);
   const lb = st.towers[0];
   if (!lb) return { ok: false, reason: "no lb placed" };
   lb.level = 2;
 
-  const germDef = window.ImmunoDefenseData.enemyDefs.saureus
-    || window.ImmunoDefenseData.enemyDefs.neisseria;
-  const tx = cx + 100;
-  const ty = cy - 20;
+  const germDef = window.ImmunoDefenseData.enemyDefs.saureus;
+  const tx = cx + 105;
+  const ty = cy - 25;
   if (germDef) {
     st.enemies = [{
       def: germDef,
@@ -58,7 +56,7 @@ const info = await page.evaluate(() => {
       x: tx,
       y: ty,
       progress: 0.42,
-      radiusScale: 1.6,
+      radiusScale: 1.65,
       hp: germDef.hp,
       maxHp: germDef.hp,
       hitFlash: 0,
@@ -76,45 +74,78 @@ const info = await page.evaluate(() => {
   g.tapTower(0);
 
   lb.cannonTarget = { x: tx, y: ty };
-  lb.cannonRecoil = 0.05;
-  lb.specialAnim = 0.85;
+  lb.cannonRecoil = 0.07;
+  lb.plasmoPulse = 2.4;
+  lb.specialAnim = 0.92;
 
   const aimAng = Math.atan2(ty - lb.y, tx - lb.x);
-  const barrelLen = 14 * U;
-  const R = 18 * U * 1.45;
   const nx = Math.cos(aimAng);
   const ny = Math.sin(aimAng);
   const perpX = -ny;
   const perpY = nx;
+  const R = 18 * U * 1.72;
+  const barrelLen = 22 * U;
+
+  st.effects.push({
+    kind: "igComicBurst",
+    x: lb.x,
+    y: lb.y,
+    r: 130 * U,
+    life: 0.42,
+    max: 0.55,
+  });
+
+  st.effects.push({
+    kind: "atpText",
+    x: lb.x,
+    y: lb.y - R * 1.35,
+    vy: -18 * U,
+    text: "¡PLASMA!",
+    life: 0.65,
+    max: 0.65,
+    color: "#ffd24a",
+  });
+
   for (const sign of [-1, 1]) {
-    const cbX = lb.x + sign * perpX * R * 0.85;
-    const cbY = lb.y + sign * perpY * R * 0.85;
-    const endX = cbX + nx * (barrelLen + 120 * U);
-    const endY = cbY + ny * (barrelLen + 120 * U);
+    const cbX = lb.x + sign * perpX * R * 0.92;
+    const cbY = lb.y + sign * perpY * R * 0.92;
+    const mX = cbX + nx * barrelLen;
+    const mY = cbY + ny * barrelLen;
     st.effects.push({
       kind: "antibodyBeam",
-      startX: cbX + nx * barrelLen,
-      startY: cbY + ny * barrelLen,
-      endX,
-      endY,
-      life: 0.12,
-      max: 0.12,
+      startX: mX,
+      startY: mY,
+      endX: mX + nx * 130 * U,
+      endY: mY + ny * 130 * U,
+      life: 0.10,
+      max: 0.10,
+      comic: true,
     });
-    for (let b = 0; b < 3; b++) {
-      const bx = cbX + nx * (barrelLen + 30 * U + b * 28 * U);
-      const by = cbY + ny * (barrelLen + 30 * U + b * 28 * U);
+    for (let b = 0; b < 4; b++) {
       st.effects.push({
         kind: "antibodyHeavy",
-        x: bx,
-        y: by,
-        vx: nx * 520 * U,
-        vy: ny * 520 * U,
-        size: 7 * U,
-        rot: aimAng,
-        life: 0.35,
-        max: 0.35,
+        x: mX + nx * (20 + b * 32) * U,
+        y: mY + ny * (20 + b * 32) * U,
+        vx: nx * 680 * U + (Math.random() - 0.5) * 40 * U,
+        vy: ny * 680 * U + (Math.random() - 0.5) * 40 * U,
+        rot: aimAng + Math.PI / 2,
+        rotSpd: 14,
+        size: (b % 2 ? 9 : 14) * U,
+        life: 0.4,
+        max: 0.4,
+        comic: true,
       });
     }
+    st.effects.push({
+      kind: "atpText",
+      x: mX,
+      y: mY - 12 * U,
+      vy: -24 * U,
+      text: "IgG!",
+      life: 0.45,
+      max: 0.45,
+      color: "#ffd24a",
+    });
   }
 
   g.hold(true);
@@ -124,17 +155,16 @@ const info = await page.evaluate(() => {
   const sy = rect.top + (lb.y / g.metrics.VH) * rect.height;
   return {
     ok: true,
-    germ: germDef ? germDef.id : null,
-    clip: { x: Math.round(sx - 320), y: Math.round(sy - 240), width: 760, height: 500 },
+    clip: { x: Math.round(sx - 340), y: Math.round(sy - 260), width: 820, height: 540 },
   };
 });
 
-console.log("Linfocito B Plasmocito:", info);
+console.log("Linfocito B v2:", info);
 await sleep(500);
-await page.screenshot({ path: join(ART, "linfocitoB_plasmocito_field.png") });
+await page.screenshot({ path: join(ART, "linfocitoB_v2_plasmocito_field.png") });
 if (info.ok) {
-  await page.screenshot({ path: join(ART, "linfocitoB_plasmocito_ultimate.png"), clip: info.clip });
+  await page.screenshot({ path: join(ART, "linfocitoB_v2_plasmocito_ultimate.png"), clip: info.clip });
 }
 await page.evaluate(() => window.__game.hold(false));
 await browser.close();
-console.log("OK: linfocitoB ultimate in", ART);
+console.log("OK:", ART);

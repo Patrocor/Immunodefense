@@ -4255,6 +4255,7 @@
       cannonNets: [],                   // mallas fosforescentes del cañón MAC
       seekers: [],                      // esporas buscadoras (Pseudomonas)
       necroticPatches: [],              // parches necróticos de bossPyogenes
+      piocianinaPools: [],              // charcos de piocianina (bossPseudomonas)
       pendingBombs: [],                 // {x,y,dmg,radius,timer,max} — death-bomb del Trombo
       medCharge: 0,
       medApplying: false,
@@ -5167,6 +5168,7 @@
     state.antigens = { count: 0, drops: [] };
     state.nets = [];
     state.necroticPatches = [];
+    state.piocianinaPools = [];
     state.megakaryocyte = {
       x: 0, y: 0,
       maturing: 0.5,    // arranca medio cargado
@@ -5402,6 +5404,7 @@
     state.antigens = { count: 0, drops: [] };
     state.nets = [];
     state.necroticPatches = [];
+    state.piocianinaPools = [];
     state.dsScrollX = 0;
     state.dsScrollY = 0;
     state.dsScrollDrag = null;
@@ -6985,7 +6988,11 @@
         }
         if (e.def.id === "bossPseudomonas") e.enrageSeekerAt = state.time + 1.5;
         if (e.def.id === "bossClostridium") e.gasAuraT = 10.0;
-        if (e.def.id === "bossMRSA") e.mrsaResist = true;
+        if (e.def.id === "bossMRSA") {
+          e.mrsaResist = true;
+          e.speedMultLevel = (e.speedMultLevel || 1) * 1.15;
+          pushDamageNumber(e.x, e.y - e.def.radius * U - 22, "mecA", "#888888");
+        }
       }
       if (e.def.id === "bossPseudomonas" && e.enraged && e.enrageSeekerAt && state.time >= e.enrageSeekerAt) {
         e.enrageSeekerAt = state.time + 8;
@@ -7001,40 +7008,20 @@
           var gt = state.towers[gi];
           if (gt.devouredBy) continue;
           if (Math.hypot(gt.x - e.x, gt.y - e.y) <= gasR) {
-            gt.hp -= 2.5 * dt;
+            var gasDmg = 2.5 * dt;
+            if (gt.def.id === "neutrofilo") gasDmg *= 0.70;
+            gt.hp -= gasDmg;
             gt.hitFlash = Math.max(gt.hitFlash || 0, 0.08);
           }
         }
       }
-      // BOSS TOXIN PULSE: cada 12s emite una onda púrpura que ralentiza la
-      // cadencia (50%) de todas las torres en rango durante 4s. Primer pulso
-      // 5s después de aparecer, para que el jugador no sea aplastado al spawn.
-      if (e.def.isBoss) {
-        if (e.toxinNextAt == null) e.toxinNextAt = state.time + 5;
-        if (state.time >= e.toxinNextAt) {
-          e.toxinNextAt = state.time + 12;
-          var pulseR = (80 + (e.enraged ? 30 : 0)) * U;
-          pushEffect({
-            kind: "toxinPulse", x: e.x, y: e.y, r: pulseR,
-            life: 0.7, max: 0.7, color: "#9430b8"
-          });
-          for (var bi = 0; bi < state.towers.length; bi++) {
-            var bt = state.towers[bi];
-            if (bt.devouredBy) continue;
-            var bdx = bt.x - e.x, bdy = bt.y - e.y;
-            if (bdx * bdx + bdy * bdy <= pulseR * pulseR) {
-              bt.slowFireTimer = Math.max(bt.slowFireTimer || 0, 4.0);
-            }
-          }
-          triggerShake(0.10, 3);
-          sfx("playerHurt");
-        }
-      }
-      // bossMRSA — COAGULASA: regenera escudo completo cada 12s.
+      // Pulso signature por jefe (reemplaza Toxin Pulse genérico púrpura).
+      if (e.def.isBoss) fireBossSignaturePulse(e);
+      // bossMRSA — COAGULASA: +4 HP de escudo cada 12s (no restauración total).
       if (e.def.id === "bossMRSA" && e.def.shield) {
         if (e.coagulasaNextAt == null) e.coagulasaNextAt = state.time + 6;
-        if (state.time >= e.coagulasaNextAt && e.shieldHP < e.def.shield.maxHP) {
-          e.shieldHP = e.def.shield.maxHP;
+        if (state.time >= e.coagulasaNextAt && e.shieldHP < e.def.shield.maxHP && !e.enraged) {
+          e.shieldHP = Math.min(e.def.shield.maxHP, (e.shieldHP || 0) + 4);
           e.shieldHitTimer = 0.3;
           e.coagulasaNextAt = state.time + 12;
           pushEffect({ kind: "shock", x: e.x, y: e.y, r: e.def.radius * U * 2.0, life: 0.5, max: 0.5, color: "#ffd24a" });
@@ -7619,6 +7606,9 @@
         } else if (e.powerCharge > 0) {
           // Telégrafo: el germen "carga" antes de soltar el poder.
           if (e.powerTarget) e.powerTarget.beingLured = true;   // Centinela: glow real mientras lo cargan
+          if (e.def.id === "bossClostridium") {
+            e.mawOpen = Math.max(e.mawOpen || 0, 1 - e.powerCharge / 0.55);
+          }
           e.powerCharge -= dt;
           if (e.powerCharge <= 0) {
             var pt = e.powerTarget;
@@ -9348,6 +9338,46 @@
     }
   }
 
+  function updatePiocianinaPools(dt) {
+    if (!state.piocianinaPools) return;
+    var arr = state.piocianinaPools;
+    for (var i = arr.length - 1; i >= 0; i--) {
+      var p = arr[i];
+      p.age += dt;
+      if (p.age >= p.ttl) { arr.splice(i, 1); continue; }
+      for (var ti = 0; ti < state.towers.length; ti++) {
+        var t = state.towers[ti];
+        if (t.devouredBy) continue;
+        if (Math.hypot(t.x - p.x, t.y - p.y) <= p.r) {
+          t.hp -= p.dot * dt;
+          t.hitFlash = Math.max(t.hitFlash || 0, 0.06);
+        }
+      }
+    }
+  }
+
+  function drawPiocianinaPools() {
+    if (!state.piocianinaPools) return;
+    var arr = state.piocianinaPools;
+    for (var i = 0; i < arr.length; i++) {
+      var p = arr[i];
+      var fadeIn = Math.min(1, p.age / 0.35);
+      var fadeOut = p.age > p.ttl - 1 ? Math.max(0, 1 - (p.age - (p.ttl - 1))) : 1;
+      var alpha = fadeIn * fadeOut;
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      var grd = ctx.createRadialGradient(p.x, p.y, p.r * 0.15, p.x, p.y, p.r);
+      grd.addColorStop(0, "rgba(0, 172, 193, 0.55)");
+      grd.addColorStop(0.55, "rgba(0, 120, 130, 0.35)");
+      grd.addColorStop(1, "rgba(0, 60, 70, 0)");
+      ctx.fillStyle = grd;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+  }
+
   function drawNecroticPatches() {
     if (!state.necroticPatches) return;
     var arr = state.necroticPatches;
@@ -10691,7 +10721,7 @@
       var affected = false;
       if (id === "antibiotico") {
         // MRSA es METICILINO-RESISTENTE: solo recibe el 50% del antibiótico.
-        var antibioticMult = (e.def.id === "bossMRSA") ? 0.50 : 1.0;
+        var antibioticMult = (e.def.id === "bossMRSA") ? (e.enraged ? 0.25 : 0.50) : 1.0;
         e.hp -= e.maxHp * 0.4 * antibioticMult;          // químico: ignora escudo
         e.hitFlash = 0.40; e.hurtTimer = 0.35;
         affected = true;
@@ -12330,6 +12360,85 @@
   // ============ FIN BODY-MAP ==============================================
 
   // -------- PODERES DE GÉRMENES (ataques especiales a torres) -------------
+  function pickSecondPowerTarget(e, exclude) {
+    var pr = e.def.power.range * U, tgt = null, bd = Infinity;
+    for (var pi = 0; pi < state.towers.length; pi++) {
+      var tw2 = state.towers[pi];
+      if (tw2 === exclude || tw2.devouredBy) continue;
+      var dd2 = Math.hypot(tw2.x - e.x, tw2.y - e.y);
+      if (dd2 >= pr) continue;
+      var weighted = tw2.def.decoyAttraction ? dd2 / tw2.def.decoyAttraction : dd2;
+      if (weighted < bd) { bd = weighted; tgt = tw2; }
+    }
+    return tgt;
+  }
+
+  // Pulso signature por jefe (sustituye el toxinPulse genérico).
+  function fireBossSignaturePulse(e) {
+    if (e.toxinNextAt == null) e.toxinNextAt = state.time + 5;
+    if (state.time < e.toxinNextAt) return;
+    e.toxinNextAt = state.time + 12;
+    var pulseR = (80 + (e.enraged ? 30 : 0)) * U;
+    var bid = e.def.id;
+
+    if (bid === "bossPyogenes") {
+      pushEffect({ kind: "hemolysisPulse", x: e.x, y: e.y, r: pulseR, life: 0.75, max: 0.75, color: "#C62828" });
+      for (var py = 0; py < state.towers.length; py++) {
+        var pt = state.towers[py];
+        if (pt.devouredBy) continue;
+        if (Math.hypot(pt.x - e.x, pt.y - e.y) <= pulseR) {
+          pt.slowFireTimer = Math.max(pt.slowFireTimer || 0, 3.0);
+          pt.lisisTimer = Math.max(pt.lisisTimer || 0, 4.0);
+          pt.lisisDps = Math.max(pt.lisisDps || 0, 2);
+        }
+      }
+      pushDamageNumber(e.x, e.y - e.def.radius * U - 4, "ESTREPTOLISINA", "#ff5252");
+    } else if (bid === "bossPseudomonas") {
+      if (!state.piocianinaPools) state.piocianinaPools = [];
+      state.piocianinaPools.push({
+        x: e.x, y: e.y, r: pulseR * 0.75,
+        ttl: 5.0, age: 0, dot: 6
+      });
+      pushEffect({ kind: "piocianinaPulse", x: e.x, y: e.y, r: pulseR, life: 0.7, max: 0.7, color: "#00ACC1" });
+      pushDamageNumber(e.x, e.y - e.def.radius * U - 4, "Piocianina", "#26C6DA");
+    } else if (bid === "bossClostridium") {
+      pushEffect({ kind: "gasPulse", x: e.x, y: e.y, r: pulseR, life: 0.8, max: 0.8, color: "#7CB342" });
+      var nearT = null, nearD = Infinity;
+      for (var ci = 0; ci < state.towers.length; ci++) {
+        var ct = state.towers[ci];
+        if (ct.devouredBy) continue;
+        var cd = Math.hypot(ct.x - e.x, ct.y - e.y);
+        if (cd <= pulseR && cd < nearD) { nearD = cd; nearT = ct; }
+      }
+      if (nearT) nearT.stunTimer = Math.max(nearT.stunTimer || 0, 0.8);
+      for (var gi = 0; gi < state.towers.length; gi++) {
+        var gt = state.towers[gi];
+        if (gt.devouredBy) continue;
+        if (Math.hypot(gt.x - e.x, gt.y - e.y) <= pulseR) {
+          gt.hp -= 4 * U;
+          gt.hitFlash = 0.15;
+        }
+      }
+      pushDamageNumber(e.x, e.y - e.def.radius * U - 4, "ESPASMO", "#AED581");
+    } else if (bid === "bossMRSA") {
+      pushEffect({ kind: "enterotoxinPulse", x: e.x, y: e.y, r: pulseR, life: 0.7, max: 0.7, color: "#FFD24A" });
+      for (var mi = 0; mi < state.towers.length; mi++) {
+        var mt = state.towers[mi];
+        if (mt.devouredBy) continue;
+        if (Math.hypot(mt.x - e.x, mt.y - e.y) <= pulseR) {
+          mt.slowFireTimer = Math.max(mt.slowFireTimer || 0, 2.0);
+          var etDmg = Math.round(mt.maxHp * 0.05);
+          mt.hp -= etDmg;
+          mt.hitFlash = 0.2;
+          mt.dmgAccum = (mt.dmgAccum || 0) + etDmg;
+        }
+      }
+      pushDamageNumber(e.x, e.y - e.def.radius * U - 4, "TSST-1", "#FFD24A");
+    }
+    triggerShake(0.10, 3);
+    sfx("playerHurt");
+  }
+
   function fireGermPower(e, tw) {
     var p = e.def.power;
     if (p.type === "devour") {
@@ -12337,25 +12446,55 @@
       e.devourT = 0; e.devourStartX = tw.x; e.devourStartY = tw.y;
       showMsg("¡" + (e.def.shortName || e.def.name) + " atrapó una célula!");
       sfx("playerHurt");
+    } else if (p.type === "type3") {
+      state.germShots.push({
+        type: "type3", x: e.x, y: e.y, tx: tw.x, ty: tw.y, target: tw,
+        color: e.def.colorLight || e.def.color, t: 0, dead: false,
+        dmg: p.dmg || 0, stun: p.stun || 0, drainCharge: p.drainCharge || 0.5
+      });
+      pushDamageNumber(e.x, e.y - e.def.radius * U - 4, "TIPO III", "#4DD0E1");
+    } else if (p.type === "alphabite") {
+      state.germShots.push({
+        type: "alphabite", x: e.x, y: e.y, tx: tw.x, ty: tw.y, target: tw,
+        color: e.def.color, t: 0, dead: false,
+        dmg: p.dmg || 0, hpFrac: p.hpFrac || 0.4, devourBelow: p.devourBelow || 0.15,
+        pull: p.pull || 1.8, boss: e
+      });
     } else {
-      // Poderes extra de bosses:
-      // - bossPyogenes: el burst aplica ESTREPTOLISINA O — DoT 4/s × 6s.
-      // - bossMRSA:    el spray aplica PVL — daño extra a fagocitos cercanos.
       var extraDot = 0, extraDotDur = 0;
       var extraPvlRange = 0;
+      var hemolysisR = 0;
       if (e.def.id === "bossPyogenes" && p.type === "burst") {
         extraDot = 4; extraDotDur = 6;
+        hemolysisR = 60 * U;
       }
       if (e.def.id === "bossMRSA" && p.type === "spray") {
-        extraPvlRange = 90 * U;
+        var pvlCount = 0;
+        for (var pn = 0; pn < state.towers.length; pn++) {
+          if (state.towers[pn].def.id !== "neutrofilo") continue;
+          if (Math.hypot(state.towers[pn].x - tw.x, state.towers[pn].y - tw.y) <= 90 * U) pvlCount++;
+        }
+        if (pvlCount >= 2) extraPvlRange = 90 * U;
       }
       state.germShots.push({
         type: p.type, x: e.x, y: e.y, tx: tw.x, ty: tw.y, target: tw,
         color: e.def.color, t: 0,
         dmg: p.dmg || 0, stun: p.stun || 0, slowFire: p.slowFire || 0, dead: false,
         extraDot: extraDot, extraDotDur: extraDotDur,
-        pvlRange: extraPvlRange
+        pvlRange: extraPvlRange, hemolysisR: hemolysisR
       });
+      if (e.def.id === "bossPyogenes" && e.enraged && p.type === "burst") {
+        var tw2 = pickSecondPowerTarget(e, tw);
+        if (tw2) {
+          state.germShots.push({
+            type: "burst", x: e.x, y: e.y, tx: tw2.x, ty: tw2.y, target: tw2,
+            color: e.def.color, t: 0,
+            dmg: p.dmg || 0, stun: 0, slowFire: p.slowFire || 0, dead: false,
+            extraDot: extraDot, extraDotDur: extraDotDur,
+            hemolysisR: hemolysisR
+          });
+        }
+      }
     }
   }
 
@@ -12392,8 +12531,10 @@
 
   function shotDur(type) {
     if (type === "burst") return 0.4;
+    if (type === "type3") return 0.45;
+    if (type === "alphabite") return 0.35;
     if (type === "catapult") return 0.9;
-    if (type === "modulin") return 0.8;   // serpenteo visible
+    if (type === "modulin") return 0.8;
     return 0.6;
   }
 
@@ -12404,41 +12545,70 @@
       if (s.t >= shotDur(s.type)) {
         var tw = s.target;
         if (tw && state.towers.indexOf(tw) !== -1 && !tw.devouredBy) {
-          if (s.dmg) { tw.hp -= s.dmg; tw.hitFlash = 0.22; tw.dmgAccum = (tw.dmgAccum || 0) + s.dmg; }
-          if (s.stun) tw.stunTimer = Math.max(tw.stunTimer || 0, s.stun);
-          if (s.slowFire) tw.slowFireTimer = Math.max(tw.slowFireTimer || 0, s.slowFire);
-          // Estreptolisina O de pyogenes: DoT mientras dura.
-          if (s.extraDot && s.extraDotDur) {
-            tw.lisisTimer = Math.max(tw.lisisTimer || 0, s.extraDotDur);
-            tw.lisisDps = Math.max(tw.lisisDps || 0, s.extraDot);
-          }
-          // PVL del MRSA: golpea adicional a fagocitos en el área (Neutrofilo)
-          // y al Macrófago Libre. Daño masivo, 25% del maxHp.
-          if (s.pvlRange) {
-            for (var pi = 0; pi < state.towers.length; pi++) {
-              var pt = state.towers[pi];
-              if (pt.def.id !== "neutrofilo") continue;
-              var dxP = pt.x - tw.x, dyP = pt.y - tw.y;
-              if (dxP * dxP + dyP * dyP <= s.pvlRange * s.pvlRange) {
-                var pvlDmg = Math.round(pt.maxHp * 0.25);
-                pt.hp -= pvlDmg; pt.hitFlash = 0.30;
-                pt.dmgAccum = (pt.dmgAccum || 0) + pvlDmg;
-                pushDamageNumber(pt.x, pt.y - 24 * U, "PVL -" + pvlDmg, "#ff5252");
+          if (s.type === "alphabite") {
+            if (s.dmg) { tw.hp -= s.dmg; tw.dmgAccum = (tw.dmgAccum || 0) + s.dmg; }
+            var biteCut = Math.round(tw.maxHp * (s.hpFrac || 0.4));
+            tw.hp -= biteCut;
+            tw.hitFlash = 0.28;
+            tw.dmgAccum = (tw.dmgAccum || 0) + biteCut;
+            pushDamageNumber(tw.x, tw.y - 24 * U, "α-TOXINA -" + biteCut, "#AED581");
+            var bossE = s.boss;
+            if (bossE && tw.hp > 0 && tw.hp / tw.maxHp < (s.devourBelow || 0.15)) {
+              bossE.devourTarget = tw; tw.devouredBy = bossE;
+              bossE.devourT = 0; bossE.devourStartX = tw.x; bossE.devourStartY = tw.y;
+              showMsg("¡Clostridium devora la célula moribunda!");
+              sfx("playerHurt");
+            }
+          } else if (s.type === "type3") {
+            if (s.dmg) { tw.hp -= s.dmg; tw.hitFlash = 0.22; tw.dmgAccum = (tw.dmgAccum || 0) + s.dmg; }
+            if (s.stun) tw.stunTimer = Math.max(tw.stunTimer || 0, s.stun);
+            if (tw.specialCharge != null) {
+              tw.specialCharge = Math.max(0, (tw.specialCharge || 0) * (1 - (s.drainCharge || 0.5)));
+              if (tw.specialCharge < 0.5) tw.specialReady = false;
+            }
+          } else {
+            if (s.dmg) { tw.hp -= s.dmg; tw.hitFlash = 0.22; tw.dmgAccum = (tw.dmgAccum || 0) + s.dmg; }
+            if (s.stun) tw.stunTimer = Math.max(tw.stunTimer || 0, s.stun);
+            if (s.slowFire) tw.slowFireTimer = Math.max(tw.slowFireTimer || 0, s.slowFire);
+            if (s.extraDot && s.extraDotDur) {
+              tw.lisisTimer = Math.max(tw.lisisTimer || 0, s.extraDotDur);
+              tw.lisisDps = Math.max(tw.lisisDps || 0, s.extraDot);
+            }
+            if (s.hemolysisR) {
+              pushEffect({ kind: "hemolysisPulse", x: tw.x, y: tw.y, r: s.hemolysisR, life: 0.55, max: 0.55, color: "#C62828" });
+              for (var hi = 0; hi < state.towers.length; hi++) {
+                var ht = state.towers[hi];
+                if (ht.devouredBy) continue;
+                if (Math.hypot(ht.x - tw.x, ht.y - tw.y) <= s.hemolysisR) {
+                  ht.lisisTimer = Math.max(ht.lisisTimer || 0, 4.0);
+                  ht.lisisDps = Math.max(ht.lisisDps || 0, 3);
+                }
               }
             }
-            // También daña al Macrófago Libre cercano.
-            if (state.guardians) {
-              for (var gi = 0; gi < state.guardians.length; gi++) {
-                var g = state.guardians[gi];
-                if (g.kind === "dendriticT") continue;
-                var dxG = g.x - tw.x, dyG = g.y - tw.y;
-                if (dxG * dxG + dyG * dyG <= s.pvlRange * s.pvlRange) {
-                  g.hp -= 20; g.hitFlash = 0.25;
+            if (s.pvlRange) {
+              for (var pi = 0; pi < state.towers.length; pi++) {
+                var pt = state.towers[pi];
+                if (pt.def.id !== "neutrofilo") continue;
+                var dxP = pt.x - tw.x, dyP = pt.y - tw.y;
+                if (dxP * dxP + dyP * dyP <= s.pvlRange * s.pvlRange) {
+                  var pvlDmg = Math.round(pt.maxHp * 0.15);
+                  pt.hp -= pvlDmg; pt.hitFlash = 0.30;
+                  pt.dmgAccum = (pt.dmgAccum || 0) + pvlDmg;
+                  pushDamageNumber(pt.x, pt.y - 24 * U, "PVL -" + pvlDmg, "#8CE65A");
+                }
+              }
+              if (state.guardians) {
+                for (var gi = 0; gi < state.guardians.length; gi++) {
+                  var g = state.guardians[gi];
+                  if (g.kind === "dendriticT") continue;
+                  var dxG = g.x - tw.x, dyG = g.y - tw.y;
+                  if (dxG * dxG + dyG * dyG <= s.pvlRange * s.pvlRange) {
+                    g.hp -= 20; g.hitFlash = 0.25;
+                  }
                 }
               }
             }
           }
-          // Impacto bien visible: anillo + salpicaduras del color del germen.
           pushEffect({ kind: "placeFlash", x: tw.x, y: tw.y, life: 0.25, max: 0.25 });
           for (var ip = 0; ip < 8; ip++) {
             var ia = Math.PI * 2 * ip / 8, isp = (40 + Math.random() * 40) * U;
@@ -12509,6 +12679,33 @@
         ctx.shadowBlur = 0;
         ctx.fillStyle = "#f0ffd0";
         ctx.beginPath(); ctx.arc(wx, wy, 2.5 * U, 0, Math.PI * 2); ctx.fill();
+      } else if (s.type === "type3") {
+        var k0t = Math.max(0, k - 0.35);
+        var x0t = s.x + (s.tx - s.x) * k0t, y0t = s.y + (s.ty - s.y) * k0t;
+        ctx.strokeStyle = colorAlpha("#26C6DA", 0.65);
+        ctx.lineWidth = 3 * U;
+        ctx.lineCap = "round";
+        ctx.beginPath(); ctx.moveTo(x0t, y0t); ctx.lineTo(x, y); ctx.stroke();
+        ctx.strokeStyle = colorAlpha("#006064", 0.85);
+        ctx.lineWidth = 1.5 * U;
+        ctx.beginPath(); ctx.moveTo(x0t, y0t); ctx.lineTo(x, y); ctx.stroke();
+        ctx.fillStyle = "#E0F7FA";
+        ctx.beginPath(); ctx.arc(x, y, 4 * U, 0, Math.PI * 2); ctx.fill();
+      } else if (s.type === "alphabite") {
+        var ang = Math.atan2(s.ty - s.y, s.tx - s.x);
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.rotate(ang);
+        ctx.strokeStyle = colorAlpha("#AED581", 0.85);
+        ctx.lineWidth = 5 * U;
+        ctx.lineCap = "round";
+        ctx.beginPath();
+        ctx.arc(0, 0, 18 * U * k, -0.9, 0.4);
+        ctx.stroke();
+        ctx.strokeStyle = colorAlpha("#33691E", 0.7);
+        ctx.lineWidth = 2 * U;
+        ctx.stroke();
+        ctx.restore();
       } else { // spray: nube de gas que se expande hacia la torre
         var puffs = 5;
         for (var d = 0; d < puffs; d++) {
@@ -20643,6 +20840,75 @@
     ctx.restore();
   }
 
+  function drawBossPowerTelegraph(e, rad, def) {
+    var ch = 1 - e.powerCharge / 0.55;
+    var tw = e.powerTarget;
+    if (!tw) return;
+    ctx.save();
+    var bid = def.id;
+    if (bid === "bossPyogenes") {
+      ctx.strokeStyle = colorAlpha("#C62828", 0.35 + 0.45 * ch);
+      ctx.lineWidth = 2 * U;
+      ctx.setLineDash([3 * U, 5 * U]);
+      ctx.beginPath(); ctx.moveTo(e.x, e.y); ctx.lineTo(tw.x, tw.y); ctx.stroke();
+      ctx.setLineDash([]);
+      for (var sp = 0; sp < 5; sp++) {
+        var sf = sp / 4;
+        var sx = e.x + (tw.x - e.x) * sf + Math.sin(state.time * 14 + sp * 2) * 4 * U;
+        var sy = e.y + (tw.y - e.y) * sf + Math.cos(state.time * 12 + sp * 1.7) * 4 * U;
+        ctx.fillStyle = colorAlpha("#ff5252", 0.35 + 0.4 * ch);
+        ctx.beginPath(); ctx.arc(sx, sy, (2 + ch * 2) * U, 0, Math.PI * 2); ctx.fill();
+      }
+    } else if (bid === "bossPseudomonas") {
+      var dvx = tw.x - e.x, dvy = tw.y - e.y;
+      var dl = Math.hypot(dvx, dvy) || 1;
+      ctx.strokeStyle = colorAlpha("#26C6DA", 0.5 + 0.4 * ch);
+      ctx.lineWidth = 3 * U;
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.moveTo(e.x, e.y);
+      ctx.quadraticCurveTo(
+        e.x + dvx * 0.5 + (-dvy / dl) * 12 * U * Math.sin(state.time * 10),
+        e.y + dvy * 0.5 + (dvx / dl) * 12 * U * Math.cos(state.time * 10),
+        tw.x, tw.y
+      );
+      ctx.stroke();
+    } else if (bid === "bossClostridium") {
+      ctx.strokeStyle = colorAlpha("#AED581", 0.45 + 0.45 * ch);
+      ctx.lineWidth = 2 * U;
+      ctx.setLineDash([4 * U, 4 * U]);
+      ctx.beginPath(); ctx.moveTo(e.x, e.y); ctx.lineTo(tw.x, tw.y); ctx.stroke();
+      ctx.setLineDash([]);
+      for (var gb = 0; gb < 4; gb++) {
+        var ga = state.time * 3 + gb * 1.4;
+        var gx = e.x + Math.cos(ga) * rad * (0.6 + ch * 0.4);
+        var gy = e.y + Math.sin(ga) * rad * (0.4 + ch * 0.3) - rad * 0.5;
+        ctx.fillStyle = colorAlpha("#C5E1A5", 0.25 + 0.35 * ch);
+        ctx.beginPath(); ctx.arc(gx, gy, (3 + gb) * U, 0, Math.PI * 2); ctx.fill();
+      }
+    } else if (bid === "bossMRSA") {
+      ctx.strokeStyle = colorAlpha("#FFD24A", 0.35 + 0.45 * ch);
+      ctx.lineWidth = 2 * U;
+      ctx.beginPath(); ctx.moveTo(e.x, e.y); ctx.lineTo(tw.x, tw.y); ctx.stroke();
+      var puffs = 4;
+      for (var mp = 0; mp < puffs; mp++) {
+        var mf = (mp + 1) / (puffs + 1);
+        var mx = e.x + (tw.x - e.x) * mf;
+        var my = e.y + (tw.y - e.y) * mf;
+        ctx.fillStyle = colorAlpha(ch > 0.5 ? "#8CE65A" : "#E0A820", 0.35 + 0.35 * ch);
+        ctx.beginPath(); ctx.arc(mx, my, (5 + ch * 4) * U, 0, Math.PI * 2); ctx.fill();
+      }
+    } else {
+      var pcol = def.color || "#fff";
+      ctx.strokeStyle = colorAlpha(pcol, 0.4 + 0.4 * ch);
+      ctx.lineWidth = 1.5 * U;
+      ctx.setLineDash([4 * U, 4 * U]);
+      ctx.beginPath(); ctx.moveTo(e.x, e.y); ctx.lineTo(tw.x, tw.y); ctx.stroke();
+      ctx.setLineDash([]);
+    }
+    ctx.restore();
+  }
+
   function drawEnemy(e) {
     var def = e.def;
     var rad = def.radius * U * (e.radiusScale || 1);
@@ -20717,6 +20983,9 @@
     }
     // Telégrafo de poder: el germen carga (brillo creciente) y apunta a la torre.
     if ((e.powerCharge || 0) > 0 && e.powerTarget) {
+      if (def.isBoss) {
+        drawBossPowerTelegraph(e, rad * scale, def);
+      } else {
       var ch = 1 - e.powerCharge / 0.55;          // 0->1
       var pcol = def.color || "#fff";
       ctx.save();
@@ -20735,6 +21004,7 @@
       ctx.lineWidth = 2 * U;
       ctx.beginPath(); ctx.arc(e.x, e.y, cr, 0, Math.PI * 2); ctx.stroke();
       ctx.restore();
+      }
     }
     // Devorar: seudópodo grueso (cónico) que agarra la torre + fauce abierta.
     if (e.devourTarget) {
@@ -26872,9 +27142,10 @@
 
   function drawEffect(ef) {
     var alpha = Math.max(0, ef.life / ef.max);
-    if (ef.kind === "toxinPulse") {
-      // Anillo púrpura tóxico expandiéndose desde el boss.
-      var t01 = 1 - (ef.life / ef.max);            // 0 → 1
+    if (ef.kind === "toxinPulse" || ef.kind === "hemolysisPulse" || ef.kind === "piocianinaPulse" ||
+        ef.kind === "gasPulse" || ef.kind === "enterotoxinPulse") {
+      // Anillo expandiéndose desde el boss (color por tipo).
+      var t01 = 1 - (ef.life / ef.max);
       var rr = ef.r * (0.20 + 0.80 * t01);
       ctx.save();
       ctx.globalAlpha = alpha * 0.85;
@@ -26883,11 +27154,10 @@
       ctx.beginPath();
       ctx.arc(ef.x, ef.y, rr, 0, Math.PI * 2);
       ctx.stroke();
-      // Halo interno
       var grd = ctx.createRadialGradient(ef.x, ef.y, rr * 0.5, ef.x, ef.y, rr);
-      grd.addColorStop(0, "rgba(148, 48, 184, 0)");
-      grd.addColorStop(0.8, "rgba(148, 48, 184, " + (0.30 * alpha) + ")");
-      grd.addColorStop(1, "rgba(148, 48, 184, 0)");
+      grd.addColorStop(0, "rgba(0,0,0,0)");
+      grd.addColorStop(0.8, colorAlpha(ef.color, 0.30 * alpha));
+      grd.addColorStop(1, "rgba(0,0,0,0)");
       ctx.fillStyle = grd;
       ctx.beginPath();
       ctx.arc(ef.x, ef.y, rr, 0, Math.PI * 2);
@@ -30548,6 +30818,7 @@
     safeDraw("Slicks", drawSlicks);
     safeDraw("SebumPuddles", drawSebumPuddles);
     safeDraw("NecroticPatches", drawNecroticPatches);
+    safeDraw("PiocianinaPools", drawPiocianinaPools);
     safeDraw("PendingBombs", drawPendingBombs);
     safeDraw("AcidSplats", drawAcidSplats);
     safeDraw("MacPlacing", drawMacPlacing);
@@ -32837,6 +33108,7 @@
       updateCannonNets(dt);
       updateSeekers(dt);
       updateNecroticPatches(dt);
+      updatePiocianinaPools(dt);
       updatePendingBombs(dt);
       updateF2(dt);
       updateMegakaryocyte(dt);

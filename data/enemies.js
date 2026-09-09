@@ -147,17 +147,17 @@ var ENEMY_DEFS = {
   bossPseudomonas: {
     id: "bossPseudomonas", name: "Pseudomonas aeruginosa", baseKind: "bacteria",
     color: "#00ACC1", colorDark: "#00606e", colorLight: "#4DD0E1", radius: 38,
-    speedMult: 0.9, hp: 1540, reward: 65, viralAdd: 18, attack: 22,     power: { type: "devour", range: 130, cooldown: 11, pull: 1.5 }, isBoss: true,
+    speedMult: 0.9, hp: 1540, reward: 65, viralAdd: 18, attack: 22,     power: { type: "type3", range: 130, cooldown: 11, dmg: 22, stun: 2, drainCharge: 0.5 }, isBoss: true,
     seekers: { interval: 8, hp: 10, speed: 82, dmg: 26 },
     shield: { type: "wall", maxHP: 6, regenRate: 6 / 8, regenDelay: 0 },
-    tooltip: "Pseudomonas aeruginosa hipervirulenta usa su sistema de secreción tipo III para inyectar exoenzimas directamente en las células huésped, mientras la piocianina bloquea la fagocitosis y su biofilm regenera el escudo continuamente. JEFE de ectima gangrenoso — atrae y devora torres cercanas con su campo de captación."
+    tooltip: "Pseudomonas aeruginosa hipervirulenta inyecta exotoxinas vía sistema de secreción tipo III (stun + drena carga de ultimate), mientras la piocianina envenena el carril y sus esporas buscan torres disparadoras. JEFE de ectima gangrenoso."
   },
   bossClostridium: {
     id: "bossClostridium", name: "Clostridium perfringens", baseKind: "bacteria",
     color: "#546E7A", colorDark: "#263238", radius: 40,
-    speedMult: 0.55, hp: 1815, reward: 80, viralAdd: 22, attack: 28, power: { type: "devour", range: 120, cooldown: 13, pull: 1.8 }, isBoss: true,
+    speedMult: 0.55, hp: 1815, reward: 80, viralAdd: 22, attack: 28, power: { type: "alphabite", range: 120, cooldown: 13, dmg: 28, hpFrac: 0.40, devourBelow: 0.15, pull: 1.8 }, isBoss: true,
     shield: { type: "wall", maxHP: 5, regenRate: 0, regenDelay: 0 },
-    tooltip: "Clostridium perfringens produce la letal α-toxina fosfolipasa C que destruye membranas celulares, causando gangrena gaseosa al producir gas en los tejidos. Avanza lento e implacable — los neutrófilos son los candidatos más eficaces para combatir a este formidable jefe."
+    tooltip: "Clostridium perfringens libera α-toxina fosfolipasa C que mutila torres (40% HP); solo devora células moribundas. Su gangrena gaseosa paraliza y daña en área — los neutrófilos resisten mejor el gas."
   },
   // ==== FASE 2 · ENDOCARDITIS (corazón / válvula mitral) ================
   // Patógenos de la triada clásica de endocarditis infecciosa. Su rasgo

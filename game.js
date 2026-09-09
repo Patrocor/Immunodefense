@@ -22717,7 +22717,7 @@
     //  · Cuerpo irregular polarizado (cabeza hinchada + cola), no cápsula plana
     //  · Pili tipo IV en polo anterior, aguja T3SS dorsal, flagelo monotrico
     //  · Piocianina (venas + goteos), biofilm alginate con burbujas (escudo EPS)
-    // v2 — upgrade visual frente a torres (NK/MAC).
+    // LOCKED v2 — Piocianina+T3SS+esporas (user OK "Queda").
     var hit = e.hitFlash > 0;
     var t = state.time;
     var def = e.def;

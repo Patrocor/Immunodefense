@@ -8191,25 +8191,33 @@
       return;
     }
     if (def.id === "linfocitogd") {
-      // CASCADA IL-17: señal proinflamatoria — todas las torres en rango
-      // hacen +45% de daño durante 8s.
+      // CASCADA IL-17: señal proinflamatoria — todas las torres en rango +45% daño (8s).
       var gdStats = towerStats(t);
       var gdR = gdStats.range * U * 1.2;
+      t.gdPulse = 0;
+      t.specialAnim = 1.45;
+      t.specialReady = false;
+      t.specialCharge = 0;
       for (var gdi = 0; gdi < state.towers.length; gdi++) {
         var gdt = state.towers[gdi];
         if (gdt === t) continue;
         if (Math.hypot(gdt.x - t.x, gdt.y - t.y) > gdR) continue;
         gdt.il17BuffT = 8.0;
+        pushEffect({
+          kind: "il17Bolt", x: t.x, y: t.y, tx: gdt.x, ty: gdt.y,
+          life: 0.62, max: 0.62
+        });
         pushEffect({ kind: "particle", x: gdt.x, y: gdt.y,
           vx: 0, vy: -35 * U, life: 0.7, max: 0.7, color: "#8bc34a" });
       }
-      t.il17BuffT = 8.0;  // el propio linfocitogd también se bufa
-      pushEffect({ kind: "novaRing", x: t.x, y: t.y, r: gdR, color: "#8bc34a", life: 0.7, max: 0.7 });
-      t.specialAnim = 1.2;
-      t.specialReady = false;
-      t.specialCharge = 0;
+      t.il17BuffT = 8.0;
+      pushEffect({ kind: "il17Cascade", x: t.x, y: t.y, r: gdR, life: 1.1, max: 1.1 });
+      pushEffect({ kind: "novaRing", x: t.x, y: t.y, r: gdR, color: "#8bc34a", life: 0.85, max: 0.85 });
+      pushEffect({ kind: "atpText", x: t.x, y: t.y - 38 * U, vy: -26 * U,
+        text: "IL-17!", life: 0.75, max: 0.75, color: "#d4ff70" });
+      showMsg("¡Cascada IL-17!");
       sfx("upgrade");
-      triggerShake(0.12, 3);
+      triggerShake(0.14, 4);
       return;
     }
     // Fallback: si la torre no tiene ultimate implementado, no hace nada.
@@ -9202,6 +9210,9 @@
       if (t.def.id === "pdc" && (t.specialAnim || 0) > 0) {
         t.ifnPulse = (t.ifnPulse || 0) + dt * 12;
       }
+      if (t.def.id === "linfocitogd" && (t.specialAnim || 0) > 0) {
+        t.gdPulse = (t.gdPulse || 0) + dt * 10;
+      }
       // Linfocito T ultimate: tras el retraso de carga (1.8s, specialAnim
       // arrancó en 2.1), ejecuta a todos los marcados juntos, una sola vez.
       if (t.def.id === "linfocitoT" && (t.specialAnim || 0) > 0 && t.apoptosisTargets && !t.apoptosisBurst) {
@@ -9585,7 +9596,9 @@
         fireTower(t, target);
         t.cooldown = (1 / stats.fireRate) * (t.slowFireTimer > 0 ? 2 : 1);
         t.muzzleFlash = 0.08;
-        t.attackAnim = t.def.id === "sebocito" ? 0.42 : (t.def.id === "pdc" ? 0.48 : 0.20);
+        t.attackAnim = t.def.id === "sebocito" ? 0.42
+          : (t.def.id === "pdc" ? 0.48
+          : (t.def.id === "linfocitogd" ? 0.38 : 0.20));
         if (t.def.id === "neutrofilo") sfx("macroAttack");
         else if (t.def.id === "linfocitoB") sfx("linfBAttack");
         else sfx("linfTAttack");
@@ -9690,6 +9703,10 @@
     if (t.def.id === "linfocitogd") {
       var gdFrac = target.hp / (target.maxHp || target.def.hp || 1);
       dmg *= (1 + (1 - gdFrac) * 0.6);      // hasta +60% contra los más heridos
+      pushEffect({
+        kind: "gdChain", x: t.x, y: t.y, tx: target.x, ty: target.y,
+        life: 0.28, max: 0.28
+      });
       damageEnemy(target, dmg, "linfocitogd");
       pushEffect({ kind: "melee", x1: t.x, y1: t.y, x2: target.x, y2: target.y, life: 0.24, max: 0.24, color: t.def.color, towerId: t.def.id });
       var jumps = 0, lastX = target.x, lastY = target.y;
@@ -9698,6 +9715,10 @@
         if (gje === target || gje.dead || gje.dying || gje.absorbing) continue;
         if (gje.burrowed && !gje.revealed) continue;
         if (Math.hypot(gje.x - lastX, gje.y - lastY) > 80 * U) continue;
+        pushEffect({
+          kind: "gdChain", x: lastX, y: lastY, tx: gje.x, ty: gje.y,
+          life: 0.22, max: 0.22, secondary: true
+        });
         damageEnemy(gje, dmg * 0.5, "linfocitogd");
         pushEffect({ kind: "melee", x1: lastX, y1: lastY, x2: gje.x, y2: gje.y, life: 0.22, max: 0.22, color: "#c8f078", towerId: t.def.id });
         lastX = gje.x; lastY = gje.y; jumps++;
@@ -20326,55 +20347,199 @@
   }
 
   function drawLinfocitoGD(t, pulse, expression, blink) {
-    // Linfocito γδ — linfocito tisular con receptor γδ (TCR) distintivo.
-    // Núcleo grande con fino reborde de citoplasma, receptores γδ en "Y" en
-    // la superficie, y gránulos de IL-17.
-    var R = 15 * U * pulse, time = state.time, w = (t.idlePhase || 0);
-    var il17Active = (t.il17BuffT || 0) > 0;
+    // Linfocito γδ v1 — CAZADOR δ: ameba cazadora asimétrica + receptor δ gigante.
+    // Ataque: embestida + cadena IL entre heridos. Ultimate: Cascada IL-17.
+    var doingUlt = (t.specialAnim || 0) > 0;
+    var chargeFrac = doingUlt ? 1 : Math.max(0, Math.min(1, t.specialCharge || 0));
+    var ultAnim = t.specialAnim || 0;
+    var ultMax = 1.45;
+    var atkMax = 0.38;
+    var atk = t.attackAnim || 0;
+    var coilAtk = atk > 0 ? Math.min(1, atk / (atkMax * 0.58)) : 0;
+    var strikeAtk = atk > 0 && atk < atkMax * 0.52
+      ? Math.min(1, (atkMax * 0.52 - atk) / (atkMax * 0.52)) : 0;
+    var il17Active = (t.il17BuffT || 0) > 0 || doingUlt;
+    var R = 16 * U * pulse;
+    var time = state.time, w = (t.idlePhase || 0);
+    var aim = (t.lastTargetX != null)
+      ? Math.atan2(t.lastTargetY - t.y, t.lastTargetX - t.x)
+      : (-Math.PI / 2 + w * 0.05);
+    var swell = 1 + chargeFrac * 0.06;
+    if (doingUlt) {
+      if (ultAnim > 0.95) swell = 1 + ((ultMax - ultAnim) / (ultMax - 0.95)) * 0.18;
+      else swell = 1.14 + Math.sin((t.gdPulse || 0) * 0.8) * 0.06;
+    } else if (coilAtk > 0.05) swell = 1 + coilAtk * 0.12;
+    R *= swell;
+    var lurch = strikeAtk > 0.1 ? strikeAtk * R * 0.28 : (coilAtk > 0.1 ? -coilAtk * R * 0.08 : 0);
+    var frontExt = coilAtk * 0.22 + strikeAtk * 0.08 + chargeFrac * 0.1;
+    if (doingUlt && ultAnim <= 0.95) frontExt += (1 - ultAnim / 0.95) * 0.35;
+    var rearExt = Math.sin(time * 2.1 + w) * 0.06 + coilAtk * 0.1;
     ctx.save();
     ctx.translate(t.x, t.y);
+    ctx.rotate(aim);
+    ctx.translate(lurch, 0);
 
-    // Halo IL-17.
-    if (il17Active) {
-      var ilA = 0.3 + 0.18 * Math.sin(time * 5);
-      var ilg = ctx.createRadialGradient(0, 0, R, 0, 0, R * 1.9);
-      ilg.addColorStop(0, "rgba(139,195,74," + ilA + ")"); ilg.addColorStop(1, "rgba(139,195,74,0)");
-      ctx.fillStyle = ilg; ctx.beginPath(); ctx.arc(0, 0, R * 1.9, 0, Math.PI * 2); ctx.fill();
+    if (doingUlt) {
+      var uf = 1 - ultAnim / ultMax;
+      for (var cr = 0; cr < 3; cr++) {
+        var crp = ((time * 1.5 + cr * 0.28 + uf * 0.4) % 1);
+        ctx.strokeStyle = "rgba(139,195,74," + ((1 - crp) * 0.55 * uf) + ")";
+        ctx.lineWidth = Math.max(2, 2.8 * U) * (1 - crp * 0.35);
+        ctx.beginPath();
+        ctx.ellipse(-R * 0.15, 0, R * (0.9 + crp * (2.2 + cr * 0.3)), R * (0.7 + crp * (1.8 + cr * 0.25)), 0, 0, Math.PI * 2);
+        ctx.stroke();
+      }
     }
 
-    // Receptores γδ (TCR): horquillas en "Y" en la superficie, meciéndose.
-    ctx.strokeStyle = il17Active ? "#d4ff70" : "#9ad848"; ctx.lineWidth = Math.max(1.6, 2.2 * U); ctx.lineCap = "round";
-    for (var ri = 0; ri < 5; ri++) {
-      var ra = (ri / 5) * Math.PI * 2 + w + Math.sin(time * 2 + ri) * 0.08;
-      var bx = Math.cos(ra) * R * 0.95, by = Math.sin(ra) * R * 0.95;
-      var tx2 = Math.cos(ra) * R * 1.35, ty2 = Math.sin(ra) * R * 1.35;
-      ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(tx2, ty2); ctx.stroke();
+    if (il17Active) {
+      var ilA = 0.28 + 0.16 * Math.sin(time * 4.5 + (t.gdPulse || 0));
+      var ilg = ctx.createRadialGradient(-R * 0.1, 0, R * 0.4, -R * 0.1, 0, R * 2.0);
+      ilg.addColorStop(0, "rgba(139,195,74," + ilA + ")");
+      ilg.addColorStop(1, "rgba(139,195,74,0)");
+      ctx.fillStyle = ilg;
       ctx.beginPath();
-      ctx.moveTo(tx2, ty2); ctx.lineTo(tx2 + Math.cos(ra + 0.5) * R * 0.2, ty2 + Math.sin(ra + 0.5) * R * 0.2);
-      ctx.moveTo(tx2, ty2); ctx.lineTo(tx2 + Math.cos(ra - 0.5) * R * 0.2, ty2 + Math.sin(ra - 0.5) * R * 0.2);
+      ctx.ellipse(-R * 0.1, 0, R * 2.0, R * 1.5, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    ctx.fillStyle = "rgba(0,0,0,0.22)";
+    ctx.beginPath();
+    ctx.ellipse(-R * 0.05, R * 0.55, R * 1.15, R * 0.26, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = "rgba(58,86,16,0.45)";
+    ctx.beginPath();
+    ctx.moveTo(-R * 0.85, 0);
+    ctx.quadraticCurveTo(-R * 1.35, -R * 0.35, -R * (1.15 + rearExt), -R * 0.55);
+    ctx.quadraticCurveTo(-R * (1.45 + rearExt), 0, -R * (1.15 + rearExt), R * 0.55);
+    ctx.quadraticCurveTo(-R * 1.35, R * 0.35, -R * 0.85, 0);
+    ctx.fill();
+
+    var bg = ctx.createRadialGradient(R * 0.15, -R * 0.2, R * 0.1, -R * 0.1, 0, R * 1.05);
+    bg.addColorStop(0, "#d4f28c");
+    bg.addColorStop(0.5, "#8bc34a");
+    bg.addColorStop(1, "#3a5610");
+    ctx.fillStyle = bg;
+    ctx.beginPath();
+    ctx.moveTo(R * (0.98 + frontExt), 0);
+    ctx.quadraticCurveTo(R * 0.55, -R * 0.88, -R * 0.42, -R * 0.78);
+    ctx.quadraticCurveTo(-R * (1.02 + rearExt), -R * 0.08, -R * 0.42, R * 0.78);
+    ctx.quadraticCurveTo(R * 0.55, R * 0.88, R * (0.98 + frontExt), 0);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = "#26380a";
+    ctx.lineWidth = Math.max(2, 2.6 * U);
+    ctx.stroke();
+
+    ctx.fillStyle = "rgba(52, 82, 20, 0.82)";
+    ctx.beginPath();
+    ctx.ellipse(-R * 0.22, 0, R * 0.52, R * 0.44, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "rgba(26,40,8,0.6)";
+    ctx.lineWidth = Math.max(1, 1.3 * U);
+    ctx.stroke();
+
+    var granN = doingUlt ? 8 : 5;
+    ctx.fillStyle = il17Active ? "rgba(212,255,112,0.95)" : "rgba(200,240,100,0.82)";
+    for (var gr = 0; gr < granN; gr++) {
+      var gra = w + gr * (Math.PI * 2 / granN) + time * (il17Active ? 1.4 : 0.8);
+      var gdr = R * (0.38 + chargeFrac * 0.15
+        + (doingUlt && ultAnim <= 0.95 ? (1 - ultAnim / 0.95) * 0.35 : 0));
+      ctx.beginPath();
+      ctx.arc(-R * 0.22 + Math.cos(gra) * gdr, Math.sin(gra) * gdr * 0.82, R * 0.11, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    var tcrLen = R * (0.55 + coilAtk * 0.35 + frontExt * 0.4
+      + (doingUlt && ultAnim > 0.95 ? 0.25 : 0));
+    var tcrStemX = R * 0.72, tcrTipX = tcrStemX + tcrLen;
+    var armSpread = R * (0.38 + coilAtk * 0.18 + strikeAtk * 0.12);
+    ctx.lineCap = "round";
+    ctx.strokeStyle = "#26380a";
+    ctx.lineWidth = Math.max(3.5, 4.5 * U);
+    ctx.beginPath();
+    ctx.moveTo(tcrStemX, 0);
+    ctx.lineTo(tcrTipX, 0);
+    ctx.moveTo(tcrTipX, 0);
+    ctx.lineTo(tcrTipX + armSpread * 0.35, -armSpread);
+    ctx.moveTo(tcrTipX, 0);
+    ctx.lineTo(tcrTipX + armSpread * 0.35, armSpread);
+    ctx.stroke();
+    ctx.strokeStyle = il17Active ? "#d4ff70" : "#9ad848";
+    ctx.lineWidth = Math.max(2, 2.6 * U);
+    ctx.beginPath();
+    ctx.moveTo(tcrStemX, 0);
+    ctx.lineTo(tcrTipX, 0);
+    ctx.moveTo(tcrTipX, 0);
+    ctx.lineTo(tcrTipX + armSpread * 0.35, -armSpread);
+    ctx.moveTo(tcrTipX, 0);
+    ctx.lineTo(tcrTipX + armSpread * 0.35, armSpread);
+    ctx.stroke();
+    ctx.fillStyle = il17Active ? "#e8ffb0" : "#c8f078";
+    ctx.beginPath();
+    ctx.moveTo(tcrTipX, 0);
+    ctx.lineTo(tcrTipX + armSpread * 0.42, -armSpread * 0.95);
+    ctx.lineTo(tcrTipX + armSpread * 0.55, 0);
+    ctx.lineTo(tcrTipX + armSpread * 0.42, armSpread * 0.95);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.strokeStyle = il17Active ? "#b8e860" : "#7aaa38";
+    ctx.lineWidth = Math.max(1.2, 1.6 * U);
+    for (var sr = 0; sr < 4; sr++) {
+      var sSide = (sr % 2 === 0) ? -1 : 1;
+      var sRow = Math.floor(sr / 2);
+      var sAng = sSide * (0.48 + sRow * 0.32);
+      var sbx = Math.cos(sAng) * R * 0.62, sby = Math.sin(sAng) * R * 0.62;
+      var stx = Math.cos(sAng) * R * 0.92, sty = Math.sin(sAng) * R * 0.92;
+      ctx.beginPath();
+      ctx.moveTo(sbx, sby);
+      ctx.lineTo(stx, sty);
+      ctx.stroke();
+      var perp = sAng + Math.PI / 2;
+      ctx.beginPath();
+      ctx.moveTo(stx, sty);
+      ctx.lineTo(stx + Math.cos(perp + 0.4) * R * 0.16, sty + Math.sin(perp + 0.4) * R * 0.16);
+      ctx.moveTo(stx, sty);
+      ctx.lineTo(stx + Math.cos(perp - 0.4) * R * 0.16, sty + Math.sin(perp - 0.4) * R * 0.16);
       ctx.stroke();
     }
     ctx.lineCap = "butt";
 
-    // Cuerpo con BORDE GRUESO.
-    var gg = ctx.createRadialGradient(-R * 0.28, -R * 0.28, R * 0.08, 0, 0, R);
-    gg.addColorStop(0, "#d4f28c"); gg.addColorStop(0.55, "#8bc34a"); gg.addColorStop(1, "#3a5610");
-    ctx.fillStyle = gg; ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = "#26380a"; ctx.lineWidth = Math.max(1.8, 2.4 * U); ctx.stroke();
-
-    // Núcleo grande (el linfocito es casi todo núcleo) con fino reborde.
-    ctx.save();
-    ctx.beginPath(); ctx.arc(0, 0, R * 0.92, 0, Math.PI * 2); ctx.clip();
-    ctx.fillStyle = "rgba(52, 82, 20, 0.7)";
-    ctx.beginPath(); ctx.arc(-R * 0.1, R * 0.12, R * 0.64, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = "rgba(225,255,150,0.85)";   // gránulos IL-17 en el reborde
-    for (var gr = 0; gr < 3; gr++) {
-      var gra = w + gr * 2.1 - 1;
-      ctx.beginPath(); ctx.arc(Math.cos(gra) * R * 0.6, Math.sin(gra) * R * 0.6, R * 0.1, 0, Math.PI * 2); ctx.fill();
+    if (strikeAtk > 0.12 && t.lastTargetX != null) {
+      var ldx = t.lastTargetX - t.x, ldy = t.lastTargetY - t.y;
+      var ld = Math.hypot(ldx, ldy) || 1;
+      var localAng = Math.atan2(ldy, ldx) - aim;
+      var chainLen = Math.min(ld, R * 3.5) * strikeAtk;
+      var lx = Math.cos(localAng) * chainLen, ly = Math.sin(localAng) * chainLen;
+      ctx.save();
+      ctx.lineCap = "round";
+      ctx.strokeStyle = "rgba(139,195,74," + (strikeAtk * 0.72) + ")";
+      ctx.lineWidth = Math.max(2.5, 3.5 * U) * strikeAtk;
+      ctx.setLineDash([R * 0.12, R * 0.08]);
+      ctx.beginPath();
+      ctx.moveTo(tcrTipX + armSpread * 0.3, 0);
+      ctx.lineTo(lx, ly);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = "rgba(212,255,112," + strikeAtk + ")";
+      ctx.beginPath();
+      ctx.arc(lx, ly, R * 0.14 * strikeAtk, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    } else if (coilAtk > 0.12) {
+      ctx.strokeStyle = "rgba(139,195,74," + (coilAtk * 0.35) + ")";
+      ctx.lineWidth = Math.max(1.4, 1.8 * U);
+      ctx.beginPath();
+      ctx.ellipse(-R * 0.1, 0, R * (0.72 + coilAtk * 0.18), R * (0.58 + coilAtk * 0.14), 0, 0, Math.PI * 2);
+      ctx.stroke();
     }
-    ctx.restore();
 
-    towerFace(R, expression, blink, "angry", "angry");
+    var faceMood = doingUlt ? "angry" : (coilAtk > 0.15 ? "serious" : "angry");
+    ctx.save();
+    ctx.translate(-R * 0.18, 0);
+    towerFace(R * 0.58, expression, blink, faceMood, faceMood);
+    ctx.restore();
     ctx.restore();
   }
 
@@ -29386,6 +29551,91 @@
         ctx.lineTo(Math.cos(igHa) * 9 * U * (1 + igT * 0.4), Math.sin(igHa) * 9 * U * (1 + igT * 0.4));
         ctx.stroke();
       }
+      ctx.restore();
+    } else if (ef.kind === "gdChain") {
+      // Cadena IL-17 entre blancos heridos (ataque γδ).
+      var gcT = 1 - ef.life / ef.max;
+      var gcDx = (ef.tx || ef.x) - ef.x, gcDy = (ef.ty || ef.y) - ef.y;
+      var gcLen = Math.hypot(gcDx, gcDy) || 1;
+      var gcNx = gcDx / gcLen, gcNy = gcDy / gcLen;
+      var gcArc = Math.min(gcLen, 120 * U) * Math.sin(gcT * Math.PI);
+      var gcMx = ef.x + gcNx * gcArc * 0.5 + gcNy * 12 * U * (ef.secondary ? -1 : 1);
+      var gcMy = ef.y + gcNy * gcArc * 0.5 - gcNx * 12 * U * (ef.secondary ? -1 : 1);
+      var gcEx = ef.x + gcNx * gcArc, gcEy = ef.y + gcNy * gcArc;
+      ctx.save();
+      ctx.globalAlpha = (1 - gcT) * 0.92;
+      ctx.lineCap = "round";
+      ctx.strokeStyle = ef.secondary ? "rgba(200,240,100,0.75)" : "rgba(139,195,74,0.88)";
+      ctx.lineWidth = Math.max(2.2, (ef.secondary ? 2.4 : 3.2) * U) * (1 - gcT * 0.3);
+      ctx.setLineDash([5 * U, 4 * U]);
+      ctx.beginPath();
+      ctx.moveTo(ef.x, ef.y);
+      ctx.quadraticCurveTo(gcMx, gcMy, gcEx, gcEy);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = "rgba(212,255,112," + ((1 - gcT) * 0.9) + ")";
+      ctx.beginPath();
+      ctx.arc(gcEx, gcEy, (ef.secondary ? 4 : 5.5) * U, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    } else if (ef.kind === "il17Cascade") {
+      // Cascada IL-17 — ondas proinflamatorias en espiral.
+      var icT = 1 - ef.life / ef.max;
+      ctx.save();
+      ctx.translate(ef.x, ef.y);
+      ctx.globalAlpha = (1 - icT) * 0.88;
+      for (var icr = 0; icr < 4; icr++) {
+        var icrr = ef.r * (0.12 + icT * (0.88 + icr * 0.07));
+        ctx.strokeStyle = "rgba(139,195,74," + ((1 - icT) * (0.75 - icr * 0.12)) + ")";
+        ctx.lineWidth = Math.max(2, 3.2 * U) * (1 - icr * 0.15);
+        ctx.beginPath(); ctx.arc(0, 0, icrr, 0, Math.PI * 2); ctx.stroke();
+      }
+      for (var icp = 0; icp < 18; icp++) {
+        var icpa = icp * (Math.PI * 2 / 18) + icT * 2.8 + state.time * 0.9;
+        var icR0 = ef.r * (0.18 + icT * 0.28);
+        var icR1 = ef.r * (0.52 + icT * 0.42);
+        ctx.strokeStyle = "rgba(212,255,112," + ((1 - icT) * 0.72) + ")";
+        ctx.lineWidth = Math.max(1.2, 1.6 * U);
+        ctx.lineCap = "round";
+        ctx.beginPath();
+        ctx.moveTo(Math.cos(icpa) * icR0, Math.sin(icpa) * icR0);
+        ctx.lineTo(Math.cos(icpa + 0.28) * icR1, Math.sin(icpa + 0.28) * icR1);
+        ctx.stroke();
+      }
+      var icFog = ctx.createRadialGradient(0, 0, ef.r * 0.05, 0, 0, ef.r * 0.62);
+      icFog.addColorStop(0, "rgba(139,195,74," + ((1 - icT) * 0.32) + ")");
+      icFog.addColorStop(1, "rgba(139,195,74,0)");
+      ctx.fillStyle = icFog;
+      ctx.beginPath(); ctx.arc(0, 0, ef.r * 0.62, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    } else if (ef.kind === "il17Bolt") {
+      // Rayo IL-17 hacia torre aliada (ultimate).
+      var ibT = 1 - ef.life / ef.max;
+      var ibDx = (ef.tx || ef.x) - ef.x, ibDy = (ef.ty || ef.y) - ef.y;
+      var ibLen = Math.hypot(ibDx, ibDy) || 1;
+      var ibNx = ibDx / ibLen, ibNy = ibDy / ibLen;
+      var ibProg = Math.sin(ibT * Math.PI);
+      var ibX = ef.x + ibNx * ibLen * ibProg;
+      var ibY = ef.y + ibNy * ibLen * ibProg;
+      ctx.save();
+      ctx.globalAlpha = (1 - ibT) * 0.9;
+      ctx.lineCap = "round";
+      ctx.strokeStyle = "rgba(139,195,74,0.55)";
+      ctx.lineWidth = Math.max(3, 4.5 * U);
+      ctx.beginPath();
+      ctx.moveTo(ef.x, ef.y);
+      ctx.lineTo(ibX, ibY);
+      ctx.stroke();
+      ctx.strokeStyle = "rgba(212,255,112,0.92)";
+      ctx.lineWidth = Math.max(1.6, 2.2 * U);
+      ctx.beginPath();
+      ctx.moveTo(ef.x, ef.y);
+      ctx.lineTo(ibX, ibY);
+      ctx.stroke();
+      ctx.fillStyle = "rgba(212,255,112," + ((1 - ibT) * 0.95) + ")";
+      ctx.beginPath();
+      ctx.arc(ibX, ibY, 5 * U, 0, Math.PI * 2);
+      ctx.fill();
       ctx.restore();
     } else if (ef.kind === "sebumRain") {
       // Lluvia grasienta omnidireccional (ultimate) — cae en todo el rango.

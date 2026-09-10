@@ -20347,8 +20347,7 @@
   }
 
   function drawLinfocitoGD(t, pulse, expression, blink) {
-    // Linfocito γδ v2 — TRIδA CAZADORA: silueta Δ ancha + vértice δ integrado.
-    // Ataque: embestida + cadena IL. Ultimate: Cascada IL-17.
+    // Linfocito γδ v3 — ALAS δ: bilobulado orgánico (2 lóbulos + istmo + δ frontal).
     var doingUlt = (t.specialAnim || 0) > 0;
     var chargeFrac = doingUlt ? 1 : Math.max(0, Math.min(1, t.specialCharge || 0));
     var ultAnim = t.specialAnim || 0;
@@ -20359,8 +20358,8 @@
     var strikeAtk = atk > 0 && atk < atkMax * 0.52
       ? Math.min(1, (atkMax * 0.52 - atk) / (atkMax * 0.52)) : 0;
     var il17Active = (t.il17BuffT || 0) > 0 || doingUlt;
-    var R = 16.5 * U * pulse;
-    var bodyW = 1.32;
+    var R = 16 * U * pulse;
+    var bodyW = 1.28;
     var time = state.time, w = (t.idlePhase || 0);
     var aim = (t.lastTargetX != null)
       ? Math.atan2(t.lastTargetY - t.y, t.lastTargetX - t.x)
@@ -20371,22 +20370,46 @@
       else swell = 1.14 + Math.sin((t.gdPulse || 0) * 0.8) * 0.06;
     } else if (coilAtk > 0.05) swell = 1 + coilAtk * 0.12;
     R *= swell;
-    var lurch = strikeAtk > 0.1 ? strikeAtk * R * 0.28 : (coilAtk > 0.1 ? -coilAtk * R * 0.08 : 0);
-    var tipExt = coilAtk * 0.18 + strikeAtk * 0.1 + chargeFrac * 0.12;
-    if (doingUlt && ultAnim <= 0.95) tipExt += (1 - ultAnim / 0.95) * 0.32;
-    var breathe = Math.sin(time * 2.2 + w) * R * 0.025;
+    var lurch = strikeAtk > 0.1 ? strikeAtk * R * 0.26 : (coilAtk > 0.1 ? -coilAtk * R * 0.07 : 0);
+    var probeExt = coilAtk * 0.2 + strikeAtk * 0.1 + chargeFrac * 0.1;
+    if (doingUlt && ultAnim <= 0.95) probeExt += (1 - ultAnim / 0.95) * 0.3;
+    var lobeSpread = R * 0.62 * bodyW * (1 + coilAtk * 0.06);
 
-    function deltaBody(ext, scale) {
-      var sc = scale || 1;
-      var tipX = R * (1.02 + ext) * sc;
-      var baseX = -R * 0.88 * sc;
-      var halfW = R * 0.95 * bodyW * sc;
+    function smoothBlob(pts) {
       ctx.beginPath();
-      ctx.moveTo(tipX, 0);
-      ctx.quadraticCurveTo(R * 0.28 * sc, -halfW * 1.02, baseX, -halfW);
-      ctx.quadraticCurveTo(baseX - R * 0.14 * sc, breathe, baseX, halfW);
-      ctx.quadraticCurveTo(R * 0.28 * sc, halfW * 1.02, tipX, 0);
+      var n = pts.length;
+      ctx.moveTo((pts[n - 1].x + pts[0].x) / 2, (pts[n - 1].y + pts[0].y) / 2);
+      for (var bi = 0; bi < n; bi++) {
+        var p = pts[bi], q = pts[(bi + 1) % n];
+        ctx.quadraticCurveTo(p.x, p.y, (p.x + q.x) / 2, (p.y + q.y) / 2);
+      }
       ctx.closePath();
+    }
+    function lobePts(cx, cy, rx, ry, seed) {
+      var pts = [];
+      for (var li = 0; li < 12; li++) {
+        var la = (li / 12) * Math.PI * 2;
+        var lump = 1 + 0.1 * Math.sin(la * 3 + time * 1.4 + seed + w)
+          + 0.06 * Math.sin(la * 5 + time * 0.85 + seed * 1.2);
+        pts.push({ x: cx + Math.cos(la) * rx * lump, y: cy + Math.sin(la) * ry * lump });
+      }
+      return pts;
+    }
+    function fillLobe(cx, cy, seed, inner) {
+      var rx = R * (inner ? 0.46 : 0.58) * bodyW;
+      var ry = R * (inner ? 0.38 : 0.5);
+      var g = ctx.createRadialGradient(cx - rx * 0.2, cy - ry * 0.25, rx * 0.08, cx, cy, rx * 1.05);
+      g.addColorStop(0, inner ? "rgba(58,86,16,0.55)" : "#d4f28c");
+      g.addColorStop(0.55, inner ? "rgba(52,82,20,0.45)" : "#8bc34a");
+      g.addColorStop(1, inner ? "rgba(58,86,16,0.2)" : "#3a5610");
+      ctx.fillStyle = g;
+      smoothBlob(lobePts(cx, cy, rx, ry, seed));
+      ctx.fill();
+      if (!inner) {
+        ctx.strokeStyle = "#26380a";
+        ctx.lineWidth = Math.max(2, 2.5 * U);
+        ctx.stroke();
+      }
     }
 
     ctx.save();
@@ -20401,123 +20424,108 @@
         ctx.strokeStyle = "rgba(139,195,74," + ((1 - crp) * 0.55 * uf) + ")";
         ctx.lineWidth = Math.max(2, 2.8 * U) * (1 - crp * 0.35);
         ctx.beginPath();
-        ctx.ellipse(-R * 0.12, 0, R * (0.95 + crp * (2.2 + cr * 0.3)), R * (0.75 + crp * (1.9 + cr * 0.25)), 0, 0, Math.PI * 2);
+        ctx.ellipse(-R * 0.05, 0, R * (1.0 + crp * (2.1 + cr * 0.28)), R * (0.85 + crp * (2.0 + cr * 0.22)), 0, 0, Math.PI * 2);
         ctx.stroke();
       }
     }
 
     if (il17Active) {
       var ilA = 0.28 + 0.16 * Math.sin(time * 4.5 + (t.gdPulse || 0));
-      var ilg = ctx.createRadialGradient(-R * 0.15, 0, R * 0.35, -R * 0.15, 0, R * 2.05);
+      var ilg = ctx.createRadialGradient(0, 0, R * 0.35, 0, 0, R * 2.0);
       ilg.addColorStop(0, "rgba(139,195,74," + ilA + ")");
       ilg.addColorStop(1, "rgba(139,195,74,0)");
       ctx.fillStyle = ilg;
       ctx.beginPath();
-      ctx.ellipse(-R * 0.12, 0, R * 2.05 * bodyW, R * 1.55, 0, 0, Math.PI * 2);
+      ctx.ellipse(0, 0, R * 1.95 * bodyW, R * 1.65, 0, 0, Math.PI * 2);
       ctx.fill();
     }
 
     ctx.fillStyle = "rgba(0,0,0,0.22)";
     ctx.beginPath();
-    ctx.ellipse(-R * 0.08, R * 0.62, R * 1.05 * bodyW, R * 0.28, 0, 0, Math.PI * 2);
+    ctx.ellipse(-R * 0.04, R * 0.58, R * 1.1 * bodyW, R * 0.27, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    var bg = ctx.createLinearGradient(-R * 0.9, 0, R * 1.05, 0);
-    bg.addColorStop(0, "#3a5610");
-    bg.addColorStop(0.45, "#8bc34a");
-    bg.addColorStop(1, "#d4f28c");
-    ctx.fillStyle = bg;
-    deltaBody(tipExt, 1);
+    fillLobe(-R * 0.06, -lobeSpread, 0.4, false);
+    fillLobe(-R * 0.06, lobeSpread, 1.7, false);
+    ctx.fillStyle = "#8bc34a";
+    ctx.beginPath();
+    ctx.ellipse(R * 0.18, 0, R * 0.42 * bodyW, R * (0.34 + lobeSpread * 0.08), 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.strokeStyle = "#26380a";
-    ctx.lineWidth = Math.max(2.2, 2.8 * U);
+    ctx.lineWidth = Math.max(2, 2.4 * U);
     ctx.stroke();
-
-    ctx.fillStyle = "rgba(58,86,16,0.35)";
-    deltaBody(tipExt * 0.55, 0.82);
-    ctx.fill();
-
-    var nucX = -R * 0.28, nucY = 0;
-    ctx.fillStyle = "rgba(52, 82, 20, 0.88)";
+    fillLobe(-R * 0.06, -lobeSpread * 0.55, 2.2, true);
+    fillLobe(-R * 0.06, lobeSpread * 0.55, 3.5, true);
+    ctx.fillStyle = "rgba(52, 82, 20, 0.86)";
     ctx.beginPath();
-    ctx.ellipse(nucX, nucY, R * 0.48 * bodyW, R * 0.42, 0, 0, Math.PI * 2);
+    ctx.ellipse(-R * 0.02, 0, R * 0.34 * bodyW, R * 0.28, 0, 0, Math.PI * 2);
     ctx.fill();
-    ctx.strokeStyle = "rgba(26,40,8,0.65)";
-    ctx.lineWidth = Math.max(1.1, 1.4 * U);
-    ctx.stroke();
-    ctx.strokeStyle = "rgba(200,240,100,0.35)";
-    ctx.lineWidth = Math.max(0.9, 1.1 * U);
-    ctx.beginPath();
-    ctx.ellipse(nucX, nucY, R * 0.32 * bodyW, R * 0.26, 0, 0, Math.PI * 2);
-    ctx.stroke();
 
     var granN = doingUlt ? 8 : 6;
     ctx.fillStyle = il17Active ? "rgba(212,255,112,0.95)" : "rgba(200,240,100,0.82)";
-    var granSpots = [
-      [-0.62, -0.52], [-0.68, 0.48], [-0.38, 0.62], [-0.38, -0.62], [0.02, 0.45], [0.02, -0.45]
-    ];
     for (var gr = 0; gr < granN; gr++) {
-      var gs = granSpots[gr % granSpots.length];
-      var gOff = (doingUlt && ultAnim <= 0.95 ? (1 - ultAnim / 0.95) * R * 0.22 : 0);
-      var gx = R * (gs[0] - gOff * 0.08);
-      var gy = R * gs[1] + Math.sin(time * 2.5 + gr) * R * 0.03;
+      var gLobe = gr < granN / 2 ? -1 : 1;
+      var gRow = gr % 3;
+      var gx = R * (-0.28 + gRow * 0.14);
+      var gy = gLobe * (lobeSpread * 0.62 + Math.sin(time * 2.2 + gr) * R * 0.03);
+      var gBurst = (doingUlt && ultAnim <= 0.95 ? (1 - ultAnim / 0.95) * R * 0.18 : 0);
       ctx.beginPath();
-      ctx.arc(gx, gy, R * (0.1 + (gr % 2) * 0.02), 0, Math.PI * 2);
+      ctx.arc(gx, gy + gLobe * gBurst * 0.15, R * 0.1, 0, Math.PI * 2);
       ctx.fill();
     }
 
-    var tipX = R * (1.02 + tipExt);
-    var armSpread = R * (0.34 + coilAtk * 0.16 + strikeAtk * 0.1);
-    var forkX = tipX + armSpread * 0.38;
+    var prowX = R * (0.52 + probeExt);
+    var armSpread = R * (0.36 + coilAtk * 0.17 + strikeAtk * 0.11);
+    var forkX = prowX + armSpread * 0.42;
     ctx.lineCap = "round";
     ctx.strokeStyle = "#26380a";
     ctx.lineWidth = Math.max(3.2, 4.2 * U);
     ctx.beginPath();
-    ctx.moveTo(tipX - R * 0.18, 0);
+    ctx.moveTo(R * 0.28, 0);
     ctx.lineTo(forkX, 0);
     ctx.moveTo(forkX, 0);
-    ctx.lineTo(forkX + armSpread * 0.32, -armSpread);
+    ctx.lineTo(forkX + armSpread * 0.3, -armSpread);
     ctx.moveTo(forkX, 0);
-    ctx.lineTo(forkX + armSpread * 0.32, armSpread);
+    ctx.lineTo(forkX + armSpread * 0.3, armSpread);
     ctx.stroke();
     ctx.strokeStyle = il17Active ? "#d4ff70" : "#9ad848";
     ctx.lineWidth = Math.max(2, 2.5 * U);
     ctx.beginPath();
-    ctx.moveTo(tipX - R * 0.18, 0);
+    ctx.moveTo(R * 0.28, 0);
     ctx.lineTo(forkX, 0);
     ctx.moveTo(forkX, 0);
-    ctx.lineTo(forkX + armSpread * 0.32, -armSpread);
+    ctx.lineTo(forkX + armSpread * 0.3, -armSpread);
     ctx.moveTo(forkX, 0);
-    ctx.lineTo(forkX + armSpread * 0.32, armSpread);
+    ctx.lineTo(forkX + armSpread * 0.3, armSpread);
     ctx.stroke();
     ctx.fillStyle = il17Active ? "#e8ffb0" : "#c8f078";
     ctx.beginPath();
-    ctx.moveTo(tipX - R * 0.06, 0);
-    ctx.lineTo(forkX + armSpread * 0.38, -armSpread * 0.92);
-    ctx.lineTo(forkX + armSpread * 0.48, 0);
-    ctx.lineTo(forkX + armSpread * 0.38, armSpread * 0.92);
+    ctx.moveTo(prowX, 0);
+    ctx.lineTo(forkX + armSpread * 0.36, -armSpread * 0.92);
+    ctx.lineTo(forkX + armSpread * 0.46, 0);
+    ctx.lineTo(forkX + armSpread * 0.36, armSpread * 0.92);
     ctx.closePath();
     ctx.fill();
 
     ctx.strokeStyle = il17Active ? "#b8e860" : "#7aaa38";
     ctx.lineWidth = Math.max(1.2, 1.5 * U);
     for (var sr = 0; sr < 4; sr++) {
-      var edgeT = 0.22 + sr * 0.18;
-      var edgeSide = (sr % 2 === 0) ? -1 : 1;
-      var ebx = R * (0.05 - edgeT * 0.95);
-      var eby = edgeSide * R * edgeT * bodyW * 0.95;
-      var etx = ebx + R * 0.22;
-      var ety = eby + edgeSide * R * 0.14;
+      var sLobe = (sr % 2 === 0) ? -1 : 1;
+      var sRow = Math.floor(sr / 2);
+      var sbx = R * (0.02 - sRow * 0.18);
+      var sby = sLobe * (lobeSpread * 0.82 + sRow * R * 0.06);
+      var stx = sbx + R * 0.24;
+      var sty = sby + sLobe * R * 0.08;
       ctx.beginPath();
-      ctx.moveTo(ebx, eby);
-      ctx.lineTo(etx, ety);
+      ctx.moveTo(sbx, sby);
+      ctx.lineTo(stx, sty);
       ctx.stroke();
-      var perp = Math.atan2(ety - eby, etx - ebx) + Math.PI / 2;
+      var perp = Math.atan2(sty - sby, stx - sbx) + Math.PI / 2;
       ctx.beginPath();
-      ctx.moveTo(etx, ety);
-      ctx.lineTo(etx + Math.cos(perp + 0.45) * R * 0.14, ety + Math.sin(perp + 0.45) * R * 0.14);
-      ctx.moveTo(etx, ety);
-      ctx.lineTo(etx + Math.cos(perp - 0.45) * R * 0.14, ety + Math.sin(perp - 0.45) * R * 0.14);
+      ctx.moveTo(stx, sty);
+      ctx.lineTo(stx + Math.cos(perp + 0.45) * R * 0.14, sty + Math.sin(perp + 0.45) * R * 0.14);
+      ctx.moveTo(stx, sty);
+      ctx.lineTo(stx + Math.cos(perp - 0.45) * R * 0.14, sty + Math.sin(perp - 0.45) * R * 0.14);
       ctx.stroke();
     }
     ctx.lineCap = "butt";
@@ -20526,7 +20534,7 @@
       var ldx = t.lastTargetX - t.x, ldy = t.lastTargetY - t.y;
       var ld = Math.hypot(ldx, ldy) || 1;
       var localAng = Math.atan2(ldy, ldx) - aim;
-      var chainLen = Math.min(ld, R * 3.5) * strikeAtk;
+      var chainLen = Math.min(ld, R * 3.4) * strikeAtk;
       var lx = Math.cos(localAng) * chainLen, ly = Math.sin(localAng) * chainLen;
       ctx.save();
       ctx.lineCap = "round";
@@ -20534,7 +20542,7 @@
       ctx.lineWidth = Math.max(2.5, 3.5 * U) * strikeAtk;
       ctx.setLineDash([R * 0.12, R * 0.08]);
       ctx.beginPath();
-      ctx.moveTo(forkX + armSpread * 0.25, 0);
+      ctx.moveTo(forkX + armSpread * 0.22, 0);
       ctx.lineTo(lx, ly);
       ctx.stroke();
       ctx.setLineDash([]);
@@ -20544,17 +20552,15 @@
       ctx.fill();
       ctx.restore();
     } else if (coilAtk > 0.12) {
-      ctx.strokeStyle = "rgba(139,195,74," + (coilAtk * 0.38) + ")";
+      ctx.strokeStyle = "rgba(139,195,74," + (coilAtk * 0.35) + ")";
       ctx.lineWidth = Math.max(1.4, 1.8 * U);
-      deltaBody(tipExt * 0.35, 0.88);
+      ctx.beginPath();
+      ctx.ellipse(R * 0.12, 0, R * (0.55 + coilAtk * 0.15) * bodyW, R * (0.42 + coilAtk * 0.1), 0, 0, Math.PI * 2);
       ctx.stroke();
     }
 
     var faceMood = doingUlt ? "angry" : (coilAtk > 0.15 ? "serious" : "angry");
-    ctx.save();
-    ctx.translate(nucX, nucY);
-    towerFace(R * 0.52 * bodyW, expression, blink, faceMood, faceMood);
-    ctx.restore();
+    towerFace(R * 0.55 * bodyW, expression, blink, faceMood, faceMood);
     ctx.restore();
   }
 

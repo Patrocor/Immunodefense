@@ -20347,7 +20347,8 @@
   }
 
   function drawLinfocitoGD(t, pulse, expression, blink) {
-    // Linfocito γδ v4 — CÉLULA CLÁSICA: núcleo grande, reborde IL-17, bordes irregulares, altura 1.1×.
+    // Linfocito γδ v4+ — CÉLULA CLÁSICA: núcleo grande, reborde IL-17, bordes irregulares.
+    // LOCKED v4+ — δ+Cadena+Cascada @1.1× altura (user OK "Apúntale a 1.1x").
     var doingUlt = (t.specialAnim || 0) > 0;
     var chargeFrac = doingUlt ? 1 : Math.max(0, Math.min(1, t.specialCharge || 0));
     var ultAnim = t.specialAnim || 0;
@@ -20359,7 +20360,8 @@
       ? Math.min(1, (atkMax * 0.52 - atk) / (atkMax * 0.52)) : 0;
     var il17Active = (t.il17BuffT || 0) > 0 || doingUlt;
     var time = state.time, w = (t.idlePhase || 0);
-    var towerH = 1.1;
+    var gdVis = PHASE1_TOWER_VISUALS.linfocitogd || {};
+    var towerH = gdVis.heightScale || 1.1;
     var swell = 1 + chargeFrac * 0.06;
     if (doingUlt) {
       if (ultAnim > 0.95) swell = 1 + ((ultMax - ultAnim) / (ultMax - 0.95)) * 0.16;

@@ -20348,7 +20348,7 @@
 
   function drawLinfocitoGD(t, pulse, expression, blink) {
     // Linfocito γδ v4+ — CÉLULA CLÁSICA: núcleo grande, reborde IL-17, bordes irregulares.
-    // LOCKED v4+ — δ+Cadena+Cascada @1.1× altura (user OK "Apúntale a 1.1x").
+    // LOCKED v4+ — δ+Cadena+Cascada @1.1× cuerpo (user OK "Apúntale a 1.1x").
     var doingUlt = (t.specialAnim || 0) > 0;
     var chargeFrac = doingUlt ? 1 : Math.max(0, Math.min(1, t.specialCharge || 0));
     var ultAnim = t.specialAnim || 0;
@@ -20361,15 +20361,15 @@
     var il17Active = (t.il17BuffT || 0) > 0 || doingUlt;
     var time = state.time, w = (t.idlePhase || 0);
     var gdVis = PHASE1_TOWER_VISUALS.linfocitogd || {};
-    var towerH = gdVis.heightScale || 1.1;
+    var bodyScale = gdVis.bodyScale || 1.1;
     var swell = 1 + chargeFrac * 0.06;
     if (doingUlt) {
       if (ultAnim > 0.95) swell = 1 + ((ultMax - ultAnim) / (ultMax - 0.95)) * 0.16;
       else swell = 1.12 + Math.sin((t.gdPulse || 0) * 0.8) * 0.05;
     } else if (coilAtk > 0.05) swell = 1 + coilAtk * 0.1;
-    var R = 17 * U * pulse * swell;
+    var R = 17 * U * pulse * swell * bodyScale;
     var nucR = R * 0.56;
-    var nucY = R * 0.06 * towerH;
+    var nucY = R * 0.06;
     var huntAng = (t.lastTargetX != null)
       ? Math.atan2(t.lastTargetY - t.y, t.lastTargetX - t.x)
       : (-Math.PI / 2 + w * 0.04);
@@ -20393,7 +20393,7 @@
       var lump = lumpAt(a);
       return {
         x: Math.cos(a) * R * ins * lump,
-        y: Math.sin(a) * R * towerH * ins * lump
+        y: Math.sin(a) * R * ins * lump
       };
     }
     function outlinePts(inset) {
@@ -20425,7 +20425,7 @@
         ctx.strokeStyle = "rgba(139,195,74," + ((1 - crp) * 0.55 * uf) + ")";
         ctx.lineWidth = Math.max(2, 2.8 * U) * (1 - crp * 0.35);
         ctx.beginPath();
-        ctx.ellipse(0, 0, R * (1.0 + crp * (2.0 + cr * 0.25)), R * towerH * (1.0 + crp * (1.7 + cr * 0.2)), 0, 0, Math.PI * 2);
+        ctx.ellipse(0, 0, R * (1.0 + crp * (2.0 + cr * 0.25)), R * (1.0 + crp * (1.7 + cr * 0.2)), 0, 0, Math.PI * 2);
         ctx.stroke();
       }
     }
@@ -20437,15 +20437,15 @@
     auraG.addColorStop(1, "rgba(139,195,74,0)");
     ctx.fillStyle = auraG;
     ctx.beginPath();
-    ctx.ellipse(0, 0, R * 2.0, R * towerH * 2.0, 0, 0, Math.PI * 2);
+    ctx.ellipse(0, 0, R * 2.0, R * 2.0, 0, 0, Math.PI * 2);
     ctx.fill();
 
     ctx.fillStyle = "rgba(0,0,0,0.22)";
     ctx.beginPath();
-    ctx.ellipse(0, R * 0.72 * towerH, R * 1.05, R * 0.26 * towerH, 0, 0, Math.PI * 2);
+    ctx.ellipse(0, R * 0.72, R * 1.05, R * 0.26, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    var memG = ctx.createRadialGradient(-R * 0.28, -R * 0.28 * towerH, R * 0.12, 0, 0, R * 1.05);
+    var memG = ctx.createRadialGradient(-R * 0.28, -R * 0.28, R * 0.12, 0, 0, R * 1.05);
     memG.addColorStop(0, "#d4f28c");
     memG.addColorStop(0.55, "#8bc34a");
     memG.addColorStop(1, "#3a5610");
@@ -20459,7 +20459,7 @@
     ctx.save();
     traceBlob(outlinePts(0.98));
     ctx.beginPath();
-    ctx.ellipse(0, nucY, nucR * 1.02, nucR * 1.02 * towerH, 0, 0, Math.PI * 2, true);
+    ctx.ellipse(0, nucY, nucR * 1.02, nucR * 1.02, 0, 0, Math.PI * 2, true);
     ctx.clip("evenodd");
     ctx.fillStyle = il17Active ? "rgba(212,255,112,0.88)" : "rgba(200,240,100,0.75)";
     var granN = doingUlt ? 8 : 6;
@@ -20481,19 +20481,19 @@
       ctx.stroke();
     }
 
-    var nucG = ctx.createRadialGradient(-nucR * 0.28, nucY - nucR * 0.32 * towerH, nucR * 0.1, 0, nucY, nucR);
+    var nucG = ctx.createRadialGradient(-nucR * 0.28, nucY - nucR * 0.32, nucR * 0.1, 0, nucY, nucR);
     nucG.addColorStop(0, "rgba(72, 118, 38, 0.96)");
     nucG.addColorStop(1, "rgba(38, 68, 18, 0.96)");
     ctx.fillStyle = nucG;
     ctx.beginPath();
-    ctx.ellipse(0, nucY, nucR, nucR * towerH, 0, 0, Math.PI * 2);
+    ctx.ellipse(0, nucY, nucR, nucR, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.strokeStyle = "rgba(26,40,8,0.62)";
     ctx.lineWidth = Math.max(1, 1.2 * U);
     ctx.stroke();
     ctx.fillStyle = "rgba(200,240,100,0.45)";
     ctx.beginPath();
-    ctx.arc(-nucR * 0.22, nucY - nucR * 0.18 * towerH, nucR * 0.14, 0, Math.PI * 2);
+    ctx.arc(-nucR * 0.22, nucY - nucR * 0.18, nucR * 0.14, 0, Math.PI * 2);
     ctx.fill();
 
     for (var ri = 0; ri < 5; ri++) {
@@ -20506,7 +20506,7 @@
     var mp = membranePt(huntAng, 0.93);
     var memX = mp.x, memY = mp.y;
     var tipX = memX + Math.cos(huntAng) * deltaExt;
-    var tipY = memY + Math.sin(huntAng) * deltaExt * towerH;
+    var tipY = memY + Math.sin(huntAng) * deltaExt;
     ctx.lineCap = "round";
     ctx.strokeStyle = "#26380a";
     ctx.lineWidth = Math.max(2.8, 3.6 * U);
@@ -20541,7 +20541,6 @@
     var faceMood = doingUlt ? "angry" : (coilAtk > 0.15 ? "serious" : "angry");
     ctx.save();
     ctx.translate(0, nucY);
-    ctx.scale(1, towerH);
     towerFace(nucR * 0.82, expression, blink, faceMood, faceMood);
     ctx.restore();
     ctx.restore();

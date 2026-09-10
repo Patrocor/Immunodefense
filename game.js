@@ -20347,7 +20347,8 @@
   }
 
   function drawLinfocitoGD(t, pulse, expression, blink) {
-    // Linfocito γδ v3 — ALAS δ: bilobulado orgánico (2 lóbulos + istmo + δ frontal).
+    // Linfocito γδ v4 — CÉLULA CLÁSICA: redonda, núcleo grande, fino reborde + γδ TCR.
+    // Gránulos IL-17 en citoplasma perinuclear. Ataque/cascada sin cambios mecánicos.
     var doingUlt = (t.specialAnim || 0) > 0;
     var chargeFrac = doingUlt ? 1 : Math.max(0, Math.min(1, t.specialCharge || 0));
     var ultAnim = t.specialAnim || 0;
@@ -20358,64 +20359,31 @@
     var strikeAtk = atk > 0 && atk < atkMax * 0.52
       ? Math.min(1, (atkMax * 0.52 - atk) / (atkMax * 0.52)) : 0;
     var il17Active = (t.il17BuffT || 0) > 0 || doingUlt;
-    var R = 16 * U * pulse;
-    var bodyW = 1.28;
     var time = state.time, w = (t.idlePhase || 0);
-    var aim = (t.lastTargetX != null)
-      ? Math.atan2(t.lastTargetY - t.y, t.lastTargetX - t.x)
-      : (-Math.PI / 2 + w * 0.05);
     var swell = 1 + chargeFrac * 0.06;
     if (doingUlt) {
-      if (ultAnim > 0.95) swell = 1 + ((ultMax - ultAnim) / (ultMax - 0.95)) * 0.18;
-      else swell = 1.14 + Math.sin((t.gdPulse || 0) * 0.8) * 0.06;
-    } else if (coilAtk > 0.05) swell = 1 + coilAtk * 0.12;
-    R *= swell;
-    var lurch = strikeAtk > 0.1 ? strikeAtk * R * 0.26 : (coilAtk > 0.1 ? -coilAtk * R * 0.07 : 0);
-    var probeExt = coilAtk * 0.2 + strikeAtk * 0.1 + chargeFrac * 0.1;
-    if (doingUlt && ultAnim <= 0.95) probeExt += (1 - ultAnim / 0.95) * 0.3;
-    var lobeSpread = R * 0.62 * bodyW * (1 + coilAtk * 0.06);
-
-    function smoothBlob(pts) {
-      ctx.beginPath();
-      var n = pts.length;
-      ctx.moveTo((pts[n - 1].x + pts[0].x) / 2, (pts[n - 1].y + pts[0].y) / 2);
-      for (var bi = 0; bi < n; bi++) {
-        var p = pts[bi], q = pts[(bi + 1) % n];
-        ctx.quadraticCurveTo(p.x, p.y, (p.x + q.x) / 2, (p.y + q.y) / 2);
-      }
-      ctx.closePath();
+      if (ultAnim > 0.95) swell = 1 + ((ultMax - ultAnim) / (ultMax - 0.95)) * 0.16;
+      else swell = 1.12 + Math.sin((t.gdPulse || 0) * 0.8) * 0.05;
+    } else if (coilAtk > 0.05) swell = 1 + coilAtk * 0.1;
+    var R = 17 * U * pulse * swell;
+    var nucR = R * 0.56;
+    var nucY = R * 0.06;
+    var huntAng = (t.lastTargetX != null)
+      ? Math.atan2(t.lastTargetY - t.y, t.lastTargetX - t.x)
+      : (-Math.PI / 2 + w * 0.04);
+    var lurchX = 0, lurchY = 0;
+    if (t.lastTargetX != null) {
+      var ldx = t.lastTargetX - t.x, ldy = t.lastTargetY - t.y;
+      var ldd = Math.hypot(ldx, ldy) || 1;
+      var lAmt = strikeAtk * R * 0.2 - coilAtk * R * 0.06;
+      lurchX = (ldx / ldd) * lAmt;
+      lurchY = (ldy / ldd) * lAmt;
     }
-    function lobePts(cx, cy, rx, ry, seed) {
-      var pts = [];
-      for (var li = 0; li < 12; li++) {
-        var la = (li / 12) * Math.PI * 2;
-        var lump = 1 + 0.1 * Math.sin(la * 3 + time * 1.4 + seed + w)
-          + 0.06 * Math.sin(la * 5 + time * 0.85 + seed * 1.2);
-        pts.push({ x: cx + Math.cos(la) * rx * lump, y: cy + Math.sin(la) * ry * lump });
-      }
-      return pts;
-    }
-    function fillLobe(cx, cy, seed, inner) {
-      var rx = R * (inner ? 0.46 : 0.58) * bodyW;
-      var ry = R * (inner ? 0.38 : 0.5);
-      var g = ctx.createRadialGradient(cx - rx * 0.2, cy - ry * 0.25, rx * 0.08, cx, cy, rx * 1.05);
-      g.addColorStop(0, inner ? "rgba(58,86,16,0.55)" : "#d4f28c");
-      g.addColorStop(0.55, inner ? "rgba(52,82,20,0.45)" : "#8bc34a");
-      g.addColorStop(1, inner ? "rgba(58,86,16,0.2)" : "#3a5610");
-      ctx.fillStyle = g;
-      smoothBlob(lobePts(cx, cy, rx, ry, seed));
-      ctx.fill();
-      if (!inner) {
-        ctx.strokeStyle = "#26380a";
-        ctx.lineWidth = Math.max(2, 2.5 * U);
-        ctx.stroke();
-      }
-    }
+    var deltaExt = R * (0.12 + coilAtk * 0.26 + strikeAtk * 0.1 + chargeFrac * 0.08);
+    if (doingUlt && ultAnim <= 0.95) deltaExt += (1 - ultAnim / 0.95) * R * 0.22;
 
     ctx.save();
-    ctx.translate(t.x, t.y);
-    ctx.rotate(aim);
-    ctx.translate(lurch, 0);
+    ctx.translate(t.x + lurchX, t.y + lurchY);
 
     if (doingUlt) {
       var uf = 1 - ultAnim / ultMax;
@@ -20424,143 +20392,126 @@
         ctx.strokeStyle = "rgba(139,195,74," + ((1 - crp) * 0.55 * uf) + ")";
         ctx.lineWidth = Math.max(2, 2.8 * U) * (1 - crp * 0.35);
         ctx.beginPath();
-        ctx.ellipse(-R * 0.05, 0, R * (1.0 + crp * (2.1 + cr * 0.28)), R * (0.85 + crp * (2.0 + cr * 0.22)), 0, 0, Math.PI * 2);
+        ctx.arc(0, 0, R * (1.0 + crp * (2.0 + cr * 0.25)), 0, Math.PI * 2);
         ctx.stroke();
       }
     }
 
-    if (il17Active) {
-      var ilA = 0.28 + 0.16 * Math.sin(time * 4.5 + (t.gdPulse || 0));
-      var ilg = ctx.createRadialGradient(0, 0, R * 0.35, 0, 0, R * 2.0);
-      ilg.addColorStop(0, "rgba(139,195,74," + ilA + ")");
-      ilg.addColorStop(1, "rgba(139,195,74,0)");
-      ctx.fillStyle = ilg;
-      ctx.beginPath();
-      ctx.ellipse(0, 0, R * 1.95 * bodyW, R * 1.65, 0, 0, Math.PI * 2);
-      ctx.fill();
-    }
+    var auraA = il17Active ? (0.28 + 0.16 * Math.sin(time * 4.5 + (t.gdPulse || 0)))
+      : (0.14 + chargeFrac * 0.14 + coilAtk * 0.08);
+    var auraG = ctx.createRadialGradient(0, 0, R * 0.45, 0, 0, R * 2.0);
+    auraG.addColorStop(0, "rgba(139,195,74," + auraA + ")");
+    auraG.addColorStop(1, "rgba(139,195,74,0)");
+    ctx.fillStyle = auraG;
+    ctx.beginPath();
+    ctx.arc(0, 0, R * 2.0, 0, Math.PI * 2);
+    ctx.fill();
 
     ctx.fillStyle = "rgba(0,0,0,0.22)";
     ctx.beginPath();
-    ctx.ellipse(-R * 0.04, R * 0.58, R * 1.1 * bodyW, R * 0.27, 0, 0, Math.PI * 2);
+    ctx.ellipse(0, R * 0.72, R * 1.05, R * 0.26, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    fillLobe(-R * 0.06, -lobeSpread, 0.4, false);
-    fillLobe(-R * 0.06, lobeSpread, 1.7, false);
-    ctx.fillStyle = "#8bc34a";
+    var memG = ctx.createRadialGradient(-R * 0.28, -R * 0.28, R * 0.12, 0, 0, R);
+    memG.addColorStop(0, "#d4f28c");
+    memG.addColorStop(0.55, "#8bc34a");
+    memG.addColorStop(1, "#3a5610");
+    ctx.fillStyle = memG;
     ctx.beginPath();
-    ctx.ellipse(R * 0.18, 0, R * 0.42 * bodyW, R * (0.34 + lobeSpread * 0.08), 0, 0, Math.PI * 2);
+    ctx.arc(0, 0, R, 0, Math.PI * 2);
     ctx.fill();
     ctx.strokeStyle = "#26380a";
-    ctx.lineWidth = Math.max(2, 2.4 * U);
+    ctx.lineWidth = Math.max(1.8, 2.3 * U);
     ctx.stroke();
-    fillLobe(-R * 0.06, -lobeSpread * 0.55, 2.2, true);
-    fillLobe(-R * 0.06, lobeSpread * 0.55, 3.5, true);
-    ctx.fillStyle = "rgba(52, 82, 20, 0.86)";
-    ctx.beginPath();
-    ctx.ellipse(-R * 0.02, 0, R * 0.34 * bodyW, R * 0.28, 0, 0, Math.PI * 2);
-    ctx.fill();
 
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(0, 0, R * 0.98, 0, Math.PI * 2);
+    ctx.arc(0, nucY, nucR * 1.02, 0, Math.PI * 2, true);
+    ctx.clip("evenodd");
+    ctx.fillStyle = il17Active ? "rgba(212,255,112,0.88)" : "rgba(200,240,100,0.75)";
     var granN = doingUlt ? 8 : 6;
-    ctx.fillStyle = il17Active ? "rgba(212,255,112,0.95)" : "rgba(200,240,100,0.82)";
     for (var gr = 0; gr < granN; gr++) {
-      var gLobe = gr < granN / 2 ? -1 : 1;
-      var gRow = gr % 3;
-      var gx = R * (-0.28 + gRow * 0.14);
-      var gy = gLobe * (lobeSpread * 0.62 + Math.sin(time * 2.2 + gr) * R * 0.03);
-      var gBurst = (doingUlt && ultAnim <= 0.95 ? (1 - ultAnim / 0.95) * R * 0.18 : 0);
+      var gra = gr * (Math.PI * 2 / granN) + w * 0.5 + time * (il17Active ? 0.5 : 0.25);
+      var gRad = nucR + R * (0.14 + (gr % 2) * 0.06 + chargeFrac * 0.05);
+      var gBurst = (doingUlt && ultAnim <= 0.95 ? (1 - ultAnim / 0.95) * R * 0.12 : 0);
       ctx.beginPath();
-      ctx.arc(gx, gy + gLobe * gBurst * 0.15, R * 0.1, 0, Math.PI * 2);
+      ctx.arc(Math.cos(gra) * gRad, nucY + Math.sin(gra) * gRad + gBurst * 0.2, R * 0.085, 0, Math.PI * 2);
       ctx.fill();
     }
+    ctx.restore();
 
-    var prowX = R * (0.52 + probeExt);
-    var armSpread = R * (0.36 + coilAtk * 0.17 + strikeAtk * 0.11);
-    var forkX = prowX + armSpread * 0.42;
-    ctx.lineCap = "round";
-    ctx.strokeStyle = "#26380a";
-    ctx.lineWidth = Math.max(3.2, 4.2 * U);
-    ctx.beginPath();
-    ctx.moveTo(R * 0.28, 0);
-    ctx.lineTo(forkX, 0);
-    ctx.moveTo(forkX, 0);
-    ctx.lineTo(forkX + armSpread * 0.3, -armSpread);
-    ctx.moveTo(forkX, 0);
-    ctx.lineTo(forkX + armSpread * 0.3, armSpread);
-    ctx.stroke();
-    ctx.strokeStyle = il17Active ? "#d4ff70" : "#9ad848";
-    ctx.lineWidth = Math.max(2, 2.5 * U);
-    ctx.beginPath();
-    ctx.moveTo(R * 0.28, 0);
-    ctx.lineTo(forkX, 0);
-    ctx.moveTo(forkX, 0);
-    ctx.lineTo(forkX + armSpread * 0.3, -armSpread);
-    ctx.moveTo(forkX, 0);
-    ctx.lineTo(forkX + armSpread * 0.3, armSpread);
-    ctx.stroke();
-    ctx.fillStyle = il17Active ? "#e8ffb0" : "#c8f078";
-    ctx.beginPath();
-    ctx.moveTo(prowX, 0);
-    ctx.lineTo(forkX + armSpread * 0.36, -armSpread * 0.92);
-    ctx.lineTo(forkX + armSpread * 0.46, 0);
-    ctx.lineTo(forkX + armSpread * 0.36, armSpread * 0.92);
-    ctx.closePath();
-    ctx.fill();
-
-    ctx.strokeStyle = il17Active ? "#b8e860" : "#7aaa38";
-    ctx.lineWidth = Math.max(1.2, 1.5 * U);
-    for (var sr = 0; sr < 4; sr++) {
-      var sLobe = (sr % 2 === 0) ? -1 : 1;
-      var sRow = Math.floor(sr / 2);
-      var sbx = R * (0.02 - sRow * 0.18);
-      var sby = sLobe * (lobeSpread * 0.82 + sRow * R * 0.06);
-      var stx = sbx + R * 0.24;
-      var sty = sby + sLobe * R * 0.08;
+    if (coilAtk > 0.1) {
+      ctx.strokeStyle = "rgba(139,195,74," + (coilAtk * 0.38) + ")";
+      ctx.lineWidth = Math.max(1.4, 1.8 * U);
       ctx.beginPath();
-      ctx.moveTo(sbx, sby);
-      ctx.lineTo(stx, sty);
-      ctx.stroke();
-      var perp = Math.atan2(sty - sby, stx - sbx) + Math.PI / 2;
-      ctx.beginPath();
-      ctx.moveTo(stx, sty);
-      ctx.lineTo(stx + Math.cos(perp + 0.45) * R * 0.14, sty + Math.sin(perp + 0.45) * R * 0.14);
-      ctx.moveTo(stx, sty);
-      ctx.lineTo(stx + Math.cos(perp - 0.45) * R * 0.14, sty + Math.sin(perp - 0.45) * R * 0.14);
+      ctx.arc(0, 0, R * (0.92 + coilAtk * 0.06), 0, Math.PI * 2);
       ctx.stroke();
     }
-    ctx.lineCap = "butt";
+
+    var nucG = ctx.createRadialGradient(-nucR * 0.28, nucY - nucR * 0.32, nucR * 0.1, 0, nucY, nucR);
+    nucG.addColorStop(0, "rgba(72, 118, 38, 0.96)");
+    nucG.addColorStop(1, "rgba(38, 68, 18, 0.96)");
+    ctx.fillStyle = nucG;
+    ctx.beginPath();
+    ctx.arc(0, nucY, nucR, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "rgba(26,40,8,0.62)";
+    ctx.lineWidth = Math.max(1, 1.2 * U);
+    ctx.stroke();
+    ctx.fillStyle = "rgba(200,240,100,0.45)";
+    ctx.beginPath();
+    ctx.arc(-nucR * 0.22, nucY - nucR * 0.18, nucR * 0.14, 0, Math.PI * 2);
+    ctx.fill();
+
+    for (var ri = 0; ri < 5; ri++) {
+      var ra = ri * (Math.PI * 2 / 5) + w + time * 0.08;
+      if (Math.abs(ra - huntAng) < 0.45 || Math.abs(ra - huntAng + Math.PI * 2) < 0.45) continue;
+      var bx = Math.cos(ra) * R * 0.92, by = Math.sin(ra) * R * 0.92;
+      var ySz = 3.2 * U;
+      drawYShape(bx, by, ySz, ra - Math.PI / 2, il17Active ? "#e8ffb0" : "#c8f078", "#26380a");
+    }
+
+    var memX = Math.cos(huntAng) * R * 0.93;
+    var memY = Math.sin(huntAng) * R * 0.93;
+    var tipX = memX + Math.cos(huntAng) * deltaExt;
+    var tipY = memY + Math.sin(huntAng) * deltaExt;
+    ctx.lineCap = "round";
+    ctx.strokeStyle = "#26380a";
+    ctx.lineWidth = Math.max(2.8, 3.6 * U);
+    ctx.beginPath();
+    ctx.moveTo(memX, memY);
+    ctx.lineTo(tipX, tipY);
+    ctx.stroke();
+    drawYShape(tipX, tipY, (4.8 + coilAtk * 1.2) * U, huntAng - Math.PI / 2,
+      il17Active ? "#e8ffb0" : "#c8f078", "#26380a");
 
     if (strikeAtk > 0.12 && t.lastTargetX != null) {
-      var ldx = t.lastTargetX - t.x, ldy = t.lastTargetY - t.y;
-      var ld = Math.hypot(ldx, ldy) || 1;
-      var localAng = Math.atan2(ldy, ldx) - aim;
-      var chainLen = Math.min(ld, R * 3.4) * strikeAtk;
-      var lx = Math.cos(localAng) * chainLen, ly = Math.sin(localAng) * chainLen;
+      var cdx = t.lastTargetX - (t.x + lurchX), cdy = t.lastTargetY - (t.y + lurchY);
+      var cdLen = Math.min(Math.hypot(cdx, cdy) || 1, R * 3.2) * strikeAtk;
+      var cnx = cdx / (Math.hypot(cdx, cdy) || 1), cny = cdy / (Math.hypot(cdx, cdy) || 1);
       ctx.save();
       ctx.lineCap = "round";
       ctx.strokeStyle = "rgba(139,195,74," + (strikeAtk * 0.72) + ")";
-      ctx.lineWidth = Math.max(2.5, 3.5 * U) * strikeAtk;
-      ctx.setLineDash([R * 0.12, R * 0.08]);
+      ctx.lineWidth = Math.max(2.5, 3.2 * U) * strikeAtk;
+      ctx.setLineDash([R * 0.1, R * 0.08]);
       ctx.beginPath();
-      ctx.moveTo(forkX + armSpread * 0.22, 0);
-      ctx.lineTo(lx, ly);
+      ctx.moveTo(tipX, tipY);
+      ctx.lineTo(tipX + cnx * cdLen, tipY + cny * cdLen);
       ctx.stroke();
       ctx.setLineDash([]);
       ctx.fillStyle = "rgba(212,255,112," + strikeAtk + ")";
       ctx.beginPath();
-      ctx.arc(lx, ly, R * 0.14 * strikeAtk, 0, Math.PI * 2);
+      ctx.arc(tipX + cnx * cdLen, tipY + cny * cdLen, R * 0.12 * strikeAtk, 0, Math.PI * 2);
       ctx.fill();
       ctx.restore();
-    } else if (coilAtk > 0.12) {
-      ctx.strokeStyle = "rgba(139,195,74," + (coilAtk * 0.35) + ")";
-      ctx.lineWidth = Math.max(1.4, 1.8 * U);
-      ctx.beginPath();
-      ctx.ellipse(R * 0.12, 0, R * (0.55 + coilAtk * 0.15) * bodyW, R * (0.42 + coilAtk * 0.1), 0, 0, Math.PI * 2);
-      ctx.stroke();
     }
 
     var faceMood = doingUlt ? "angry" : (coilAtk > 0.15 ? "serious" : "angry");
-    towerFace(R * 0.55 * bodyW, expression, blink, faceMood, faceMood);
+    ctx.save();
+    ctx.translate(0, nucY);
+    towerFace(nucR * 0.82, expression, blink, faceMood, faceMood);
+    ctx.restore();
     ctx.restore();
   }
 

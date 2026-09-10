@@ -1,4 +1,4 @@
-/** Captura Linfocito γδ v3 — Alas δ bilobulado + Cascada IL-17. DISPLAY=:1 node scripts/playtest-linfocitogd.mjs */
+/** Captura Linfocito γδ v4 — célula clásica + Cascada IL-17. DISPLAY=:1 node scripts/playtest-linfocitogd.mjs */
 import { chromium } from "playwright";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
@@ -158,11 +158,11 @@ const info = await page.evaluate(() => {
   };
 });
 
-console.log("Linfocito γδ v3 alas:", info);
+console.log("Linfocito γδ v4 clásica:", info);
 await sleep(500);
 await page.screenshot({ path: join(ART, "linfocitogd_v1_hunter_field.png") });
 if (info.ok) {
-  await page.screenshot({ path: join(ART, "linfocitogd_v3_wings_ultimate.png"), clip: info.clip });
+  await page.screenshot({ path: join(ART, "linfocitogd_v4_classic_ultimate.png"), clip: info.clip });
 }
 await page.evaluate(() => window.__game.hold(false));
 await browser.close();

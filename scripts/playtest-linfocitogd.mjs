@@ -162,7 +162,7 @@ console.log("Linfocito γδ v4 clásica:", info);
 await sleep(500);
 await page.screenshot({ path: join(ART, "linfocitogd_v1_hunter_field.png") });
 if (info.ok) {
-  await page.screenshot({ path: join(ART, "linfocitogd_v4_classic_ultimate.png"), clip: info.clip });
+  await page.screenshot({ path: join(ART, "linfocitogd_v4_classic_irregular_ultimate.png"), clip: info.clip });
 }
 await page.evaluate(() => window.__game.hold(false));
 await browser.close();

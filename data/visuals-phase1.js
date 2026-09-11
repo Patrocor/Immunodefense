@@ -3,7 +3,7 @@
   // Consumido por game.js (drawTowerRoleFrame, drawGermKindFrame, drawGermCounterGlyphs).
 
   root.phase1TowerVisuals = {
-    neutrofilo:   { role: "fagocito",   label: "PMN",    glyph: "star",     arc: "#B79CE0", silhouette: "polarized" },
+    neutrofilo:   { role: "fagocito",   label: "PMN",    glyph: "star",     arc: "#B79CE0", silhouette: "polarized", labelKit: "Polarizado+ÑAM" },
     queratinocito:{ role: "productor",  label: "Barrera", glyph: "gear",     arc: "#d4a855", silhouette: "mosaic" },
     mastocito:    { role: "control",    label: "Ralent.",glyph: "snowflake",arc: "#4F8FE0", silhouette: "horseshoe", labelKit: "Herradura+Desgranulación", bodyScale: 1.1 },
     langerhans:   { role: "marca",      label: "APC",    glyph: "target",   arc: "#3FC1C9", silhouette: "dendrite", labelKit: "Birbeck+Latigazo" },

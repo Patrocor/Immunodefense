@@ -38,5 +38,16 @@ await page.evaluate(() => {
 });
 await sleep(600);
 await page.screenshot({ path: join(ART, "queratinocito_secreting.png") });
+await page.evaluate(() => {
+  const t = window.__game.state.towers[0];
+  t.keraCornifyPending = true;
+  t.specialReady = true;
+  t.specialCharge = 1;
+});
+await page.evaluate(() => {
+  window.__game.tapTower(0);
+});
+await sleep(450);
+await page.screenshot({ path: join(ART, "queratinocito_cornify.png") });
 await browser.close();
 console.log("OK: queratinocito screenshots");

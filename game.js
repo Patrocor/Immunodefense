@@ -17862,6 +17862,7 @@
     //  · Membrana ameboideo ondulada (no perfectamente esférica)
     //  · Capaz de fagocitosis + NETosis
     // Caricatura: célula polarizada (uropodo + pseudópodo frontal).
+    // LOCKED v2 — Polarizado+ÑAM, cuerpo opaco (user OK "Listo").
     var x = t.x, y = t.y;
     // Huella visual anclada al Queratinocito (R=18): silueta 1.1× en ancho y alto.
     var kcR = 18 * U * pulse;

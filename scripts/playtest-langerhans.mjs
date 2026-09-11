@@ -48,9 +48,9 @@ await page.evaluate(() => {
 await sleep(200);
 await page.screenshot({ path: join(ART, "langerhans_impale.png") });
 await page.evaluate(() => {
-  window.__game.step(0.45, 0.04);
+  window.__game.step(0.38, 0.03);
 });
-await sleep(200);
+await sleep(180);
 await page.screenshot({ path: join(ART, "langerhans_mhc_storm.png") });
 await browser.close();
 console.log("OK: langerhans screenshots");

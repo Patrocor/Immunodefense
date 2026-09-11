@@ -18963,15 +18963,15 @@
       var tipX = Math.cos(restA) * restLen, tipY = Math.sin(restA) * restLen;
       if (stormTgt) {
         var aimA = Math.atan2(stormTgt.y - t.y, stormTgt.x - t.x);
-        var spread = (i - (dn - 1) / 2) * 0.16;
+        var spread = (i - (dn - 1) / 2) * 0.22;
         var germR = (stormTgt.def.radius || 18) * U * (stormTgt.radiusScale || 1);
-        var tx = stormTgt.x - t.x + Math.cos(aimA + spread) * germR * 0.35;
-        var ty = stormTgt.y - t.y + Math.sin(aimA + spread) * germR * 0.35;
-        var k = 0.22 + embedK * 0.78;
+        var tx = stormTgt.x - t.x + Math.cos(aimA + Math.PI / 2) * germR * spread * 1.8
+          + Math.cos(aimA) * germR * 0.25;
+        var ty = stormTgt.y - t.y + Math.sin(aimA + Math.PI / 2) * germR * spread * 1.8
+          + Math.sin(aimA) * germR * 0.25;
+        var k = 0.15 + embedK * 0.85;
         tipX = tipX + (tx - tipX) * k;
         tipY = tipY + (ty - tipY) * k;
-        startX = Math.cos(aimA + spread * 0.35) * R * 0.55;
-        startY = Math.sin(aimA + spread * 0.35) * R * 0.55;
       }
       ctx.strokeStyle = t.def.colorDark;
       ctx.lineWidth = Math.max(2.2, (stormTgt ? 3.4 : 3) * U);

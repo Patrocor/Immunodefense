@@ -21562,7 +21562,10 @@
   function drawMastocito(t, pulse, expression, blink) {
     // Mastocito — gránulos en arco ASIMÉTRICO (herradura abierta arriba-izq).
     // Silueta ameboide, NO circular: distinta del hex KC y cápsula Neutrófilo.
-    var kcR = 18 * U * pulse;
+    // bodyScale uniforme (X+Y), no solo altura — igual que γδ.
+    var maVis = PHASE1_TOWER_VISUALS.mastocito || {};
+    var bodyScale = maVis.bodyScale || 1.1;
+    var kcR = 18 * U * pulse * bodyScale;
     var R = kcR;
     var time = state.time;
     var phase = t.idlePhase || 0;

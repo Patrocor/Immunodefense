@@ -7964,9 +7964,11 @@
       return;
     }
     if (def.id === "langerhans") {
-      // TORMENTA MHC-II — poder PROPIO: oleada de antígeno + procesamiento masivo.
+      // TORMENTA MHC-II — espículas de las dendritas se incrustan en el
+      // germen más cercano, lo parten en dos y se desvanece.
       var lStats = towerStats(t);
       var lR = lStats.range * U * 1.3;
+      var nearest = langerPickNearest(t, lR);
       for (var i = 0; i < state.enemies.length; i++) {
         var e = state.enemies[i];
         if (e.dead || e.dying) continue;
@@ -7975,25 +7977,38 @@
         e.markBonus = 0.80;
         e.revealed = true;
         if (e.def.cloaked || e.burrowed) e.revealFlashT = 0.85;
-        damageEnemy(e, lStats.damage * 3.2, "langerhans");
-        langerApplyProcess(e, lStats.damage * 0.58, 5.5);
-        pushEffect({
-          kind: "atpText",
-          x: e.x, y: e.y - e.def.radius * U - 8 * U,
-          vy: -28 * U,
-          text: "MHC-II",
-          life: 1.2, max: 1.2,
-          color: "#ffd24a"
-        });
+        if (e !== nearest) {
+          damageEnemy(e, lStats.damage * 3.2, "langerhans");
+          langerApplyProcess(e, lStats.damage * 0.58, 5.5);
+        }
       }
-      t.langerStorm = { spikesLeft: 7, nextSpike: 0.06 };
-      pushEffect({ kind: "novaRing", x: t.x, y: t.y, r: lR, color: "#3FC1C9", life: 0.8, max: 0.8 });
-      t.specialAnim = 1.7;
+      if (nearest) {
+        nearest.stunTimer = Math.max(nearest.stunTimer || 0, 2.0);
+        nearest.slowTimer = Math.max(nearest.slowTimer || 0, 2.0);
+        nearest.revealed = true;
+        langerApplyMark(t, nearest, lStats, 0.35);
+        var impA = Math.atan2(nearest.y - t.y, nearest.x - t.x);
+        t.langerStorm = {
+          enemy: nearest,
+          t: 0,
+          ang: impA,
+          embedK: 0,
+          splitDone: false,
+          killed: false
+        };
+        t.lastTargetX = nearest.x;
+        t.lastTargetY = nearest.y;
+      } else {
+        t.langerStorm = null;
+      }
+      pushEffect({ kind: "novaRing", x: t.x, y: t.y, r: lR * 0.45, color: "#3FC1C9", life: 0.55, max: 0.55 });
+      t.specialAnim = 1.9;
       t.specialReady = false;
       t.specialCharge = 0;
       showMsg("¡Tormenta MHC-II!");
       sfx("upgrade");
       triggerShake(0.18, 5);
+      triggerUltimateHitstop();
       return;
     }
     if (def.id === "linfocitoT") {
@@ -9023,6 +9038,18 @@
     }
     return hidden || best;
   }
+  function langerPickNearest(t, rangePx) {
+    var best = null, bestD = rangePx + 1;
+    for (var i = 0; i < state.enemies.length; i++) {
+      var e = state.enemies[i];
+      if (!langerEnemyOk(e)) continue;
+      if (e.state === "falling" || e.state === "entering") continue;
+      var d = Math.hypot(e.x - t.x, e.y - t.y);
+      if (d > rangePx) continue;
+      if (d < bestD) { bestD = d; best = e; }
+    }
+    return best;
+  }
   function langerMarkPulse(t, stats, rangePx) {
     for (var i = 0; i < state.enemies.length; i++) {
       var se = state.enemies[i];
@@ -9089,31 +9116,62 @@
   }
   function langerUpdatePassives(t, dt, stats, rangePx) {
     t.langerMarkT = (t.langerMarkT || 0) - dt;
-    if (t.langerMarkT <= 0) {
+    if (t.langerMarkT <= 0 && !t.langerStorm) {
       t.langerMarkT = t.def.markPulseSec || 1.0;
       langerMarkPulse(t, stats, rangePx);
     }
     t.langerWhipT = (t.langerWhipT || 0) - dt;
-    if (t.langerWhipT <= 0) {
+    if (t.langerWhipT <= 0 && !t.langerStorm) {
       t.langerWhipT = t.def.whipInterval || 5.0;
       langerDendriticWhip(t, stats, rangePx);
     }
-    if (t.langerStorm && (t.langerStorm.spikesLeft || 0) > 0) {
-      t.langerStorm.nextSpike = (t.langerStorm.nextSpike || 0) - dt;
-      if (t.langerStorm.nextSpike <= 0) {
-        t.langerStorm.nextSpike = 0.11;
-        var st = langerPickTarget(t, rangePx * 1.15);
-        if (st) {
-          damageEnemy(st, stats.damage * 2.4, "langerhans");
-          langerApplyMark(t, st, stats, 0.15);
-          langerApplyProcess(st, stats.damage * 0.5, 3.0);
-          pushEffect({
-            kind: "markDart", x: t.x, y: t.y, tx: st.x, ty: st.y,
-            life: 0.2, max: 0.2, color: "#ffd24a"
-          });
+    if (t.langerStorm) {
+      var st = t.langerStorm;
+      st.t = (st.t || 0) + dt;
+      var tgt = st.enemy;
+      if (!tgt || tgt.dead) {
+        t.langerStorm = null;
+      } else {
+        st.ang = Math.atan2(tgt.y - t.y, tgt.x - t.x);
+        t.lastTargetX = tgt.x;
+        t.lastTargetY = tgt.y;
+        tgt.stunTimer = Math.max(tgt.stunTimer || 0, 0.2);
+        if (st.t < 0.42) {
+          st.embedK = Math.min(1, st.t / 0.42);
+        } else {
+          st.embedK = 1;
         }
-        t.langerStorm.spikesLeft--;
-        if (t.langerStorm.spikesLeft <= 0) t.langerStorm = null;
+        if (st.t >= 0.78 && !st.splitDone) {
+          st.splitDone = true;
+          if (!tgt.def.isBoss) {
+            tgt.langerBisect = { ang: st.ang + Math.PI / 2, sep: 0, fade: 1 };
+            pushEffect({
+              kind: "atpText",
+              x: tgt.x, y: tgt.y - tgt.def.radius * U - 8 * U,
+              vy: -36 * U, text: "CRACK", life: 0.85, max: 0.85, color: "#7cf0e8"
+            });
+            triggerShake(0.16, 6);
+            sfx("macroAttack");
+          }
+        }
+        if (tgt.langerBisect) {
+          var splitAge = st.t - 0.78;
+          tgt.langerBisect.sep = Math.min(1, splitAge / 0.38);
+          if (splitAge > 0.42) tgt.langerBisect.fade = Math.max(0, 1 - (splitAge - 0.42) / 0.55);
+          else tgt.langerBisect.fade = 1;
+        }
+        if (st.t >= 1.22 && !st.killed) {
+          st.killed = true;
+          if (!tgt.def.isBoss) {
+            tgt.hp = 0;
+            if (!tgt.dying) {
+              damageEnemy(tgt, 9999, "langerhans");
+            }
+          } else {
+            damageEnemy(tgt, stats.damage * 4.2, "langerhans");
+          }
+        }
+        if (st.t >= 1.88) t.langerStorm = null;
       }
     }
     if (t.def.amplifies) {
@@ -9478,6 +9536,7 @@
         continue;
       }
       if (t.def.id === "langerhans") {
+        if (t.langerStorm) { t.cooldown = 0.2; continue; }
         var lgTarget = langerPickTarget(t, rangePx);
         if (lgTarget) {
           fireTower(t, lgTarget);
@@ -10248,7 +10307,7 @@
     if (e.hp <= 0) {
       e.hp = 0;
       e.dying = true;
-      e.dyingTimer = 0.30;
+      e.dyingTimer = e.langerBisect ? 0.72 : 0.30;
       state.atp += def.reward;
       // Médula: Prima de Eliminación — +2 ATP extra por germen derrotado.
       if ((state.medPrimaTimer || 0) > 0) {
@@ -10265,11 +10324,11 @@
       // S. epidermidis al morir libera una "modulina" (PSM real de su biofilm)
       // que busca la torre potenciadora más cercana y le hace 5% maxHP de daño.
       if (def.id === "sepidermidis") releaseSepidermidisToxin(e);
-      germExplode(e);   // estalla y daña a los personajes cercanos
+      if (!e.langerBisect) germExplode(e);   // el split MHC no explota en splash
       // #8 Hitstop al matar un jefe: micro-freeze para que el golpe pese.
       if (def.isBoss) triggerHitstop(HITSTOP_BOSS);
       // Molluscum: al morir se DIVIDE en mini-molluscum (salvo que ya sea hijo).
-      if (def.deathSplit && !e.noSplit && !e.absorbing) {
+      if (def.deathSplit && !e.noSplit && !e.absorbing && !e.langerBisect) {
         for (var ds = 0; ds < (def.deathSplit.count || 2); ds++) {
           spawnSplit(e, def.deathSplit.hpFrac || 0.35);
         }
@@ -18892,39 +18951,59 @@
         ctx.stroke();
       }
     }
-    // 9 DENDRITAS con flag MHC-II al final (signature del APC)
+    // 9 DENDRITAS. En ultimate las espículas MHC-II se clavan en el germen.
+    var storm = t.langerStorm;
+    var stormTgt = storm && storm.enemy && !storm.enemy.dead ? storm.enemy : null;
+    var embedK = storm ? Math.max(0, Math.min(1, storm.embedK || 0)) : 0;
     var dn = 9;
     for (var i = 0; i < dn; i++) {
-      var a = i * Math.PI * 2 / dn + time * 0.3;
-      var len = R * (1.35 + 0.16 * Math.sin(time * 2 + i)) * ultExt * preExt;
-      var startX = Math.cos(a) * R * 0.6, startY = Math.sin(a) * R * 0.6;
-      var tipX = Math.cos(a) * len, tipY = Math.sin(a) * len;
-      // Línea principal de la dendrita
+      var restA = i * Math.PI * 2 / dn + time * 0.3;
+      var restLen = R * (1.35 + 0.16 * Math.sin(time * 2 + i)) * ultExt * preExt;
+      var startX = Math.cos(restA) * R * 0.55, startY = Math.sin(restA) * R * 0.55;
+      var tipX = Math.cos(restA) * restLen, tipY = Math.sin(restA) * restLen;
+      if (stormTgt) {
+        var aimA = Math.atan2(stormTgt.y - t.y, stormTgt.x - t.x);
+        var spread = (i - (dn - 1) / 2) * 0.16;
+        var germR = (stormTgt.def.radius || 18) * U * (stormTgt.radiusScale || 1);
+        var tx = stormTgt.x - t.x + Math.cos(aimA + spread) * germR * 0.35;
+        var ty = stormTgt.y - t.y + Math.sin(aimA + spread) * germR * 0.35;
+        var k = 0.22 + embedK * 0.78;
+        tipX = tipX + (tx - tipX) * k;
+        tipY = tipY + (ty - tipY) * k;
+        startX = Math.cos(aimA + spread * 0.35) * R * 0.55;
+        startY = Math.sin(aimA + spread * 0.35) * R * 0.55;
+      }
       ctx.strokeStyle = t.def.colorDark;
-      ctx.lineWidth = Math.max(2, 3 * U);
+      ctx.lineWidth = Math.max(2.2, (stormTgt ? 3.4 : 3) * U);
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
       ctx.beginPath();
       ctx.moveTo(startX, startY);
       ctx.lineTo(tipX, tipY);
-      ctx.lineTo(Math.cos(a + 0.24) * (len - R * 0.24), Math.sin(a + 0.24) * (len - R * 0.24));
+      if (!stormTgt) {
+        ctx.lineTo(Math.cos(restA + 0.24) * (restLen - R * 0.24), Math.sin(restA + 0.24) * (restLen - R * 0.24));
+      }
       ctx.stroke();
-      // MHC-II flag al final (signature del APC) — pequeño cuadrado amarillo
-      // con punto rojo en el centro (antígeno cargado). Brilla y crece con
-      // la carga real del ultimate (va "acumulando" antígenos presentados).
-      var flagR = R * 0.13 * (1 + chargeFrac * 0.55);
-      if (chargeFrac > 0.1) {
+      if (stormTgt && embedK > 0.35) {
+        ctx.strokeStyle = "rgba(255, 230, 120, " + (0.45 + embedK * 0.45) + ")";
+        ctx.lineWidth = Math.max(1.2, 1.6 * U);
+        ctx.beginPath();
+        ctx.moveTo(startX, startY);
+        ctx.lineTo(tipX, tipY);
+        ctx.stroke();
+      }
+      var flagR = R * 0.13 * (1 + chargeFrac * 0.55) * (stormTgt ? 0.82 : 1);
+      if (chargeFrac > 0.1 && !stormTgt) {
         ctx.fillStyle = "rgba(255, 230, 120, " + (chargeFrac * 0.55) + ")";
         ctx.beginPath();
         ctx.arc(tipX, tipY, flagR * 2.0, 0, Math.PI * 2);
         ctx.fill();
       }
-      ctx.fillStyle = chargeFrac > 0.1 ? "#ffe27a" : "#ffd24a";
+      ctx.fillStyle = embedK > 0.5 ? "#ffe27a" : (chargeFrac > 0.1 ? "#ffe27a" : "#ffd24a");
       ctx.fillRect(tipX - flagR, tipY - flagR, flagR * 2, flagR * 2);
       ctx.strokeStyle = "rgba(120, 80, 30, 0.85)";
       ctx.lineWidth = 0.9 * U;
       ctx.strokeRect(tipX - flagR, tipY - flagR, flagR * 2, flagR * 2);
-      // Punto rojo (antígeno cargado)
       ctx.fillStyle = "#d61f1f";
       ctx.beginPath();
       ctx.arc(tipX, tipY, flagR * 0.45, 0, Math.PI * 2);
@@ -22699,7 +22778,7 @@
     var savedDrawTime = state.time;
     if (!fullIdle) state.time = (e.wobble || 0) * 0.001;
     try {
-    var dyingScale = e.dying ? Math.max(0.4, e.dyingTimer / 0.30) : 1;
+    var dyingScale = (e.dying && !e.langerBisect) ? Math.max(0.4, e.dyingTimer / 0.30) : 1;
     var absorbScale = e.absorbing ? (e.absorbScale != null ? e.absorbScale : 1) : 1;
     // Falling state: small entry scale to suggest "falling from above".
     var fallScale = (e.state === "falling") ? 0.85 : 1;
@@ -22792,6 +22871,7 @@
     // regulares con morfología microbiológica). Fallback al baseKind
     // antiguo para bosses y aliases legacy.
     var kind = def.baseKind || def.bossKind || def.id;
+    function drawEnemySpriteDispatch() {
     if      (def.id === "saureus")      drawSaureus(e, rad * scale, expression, blink);
     else if (def.id === "sepidermidis") drawSepidermidis(e, rad * scale, expression, blink);
     else if (def.id === "hsv")          drawHsv(e, rad * scale, expression, blink);
@@ -22803,18 +22883,15 @@
     else if (def.id === "hpv")          drawHPV(e, rad * scale, expression, blink);
     else if (def.id === "molluscum")    drawMolluscum(e, rad * scale, expression, blink);
     else if (def.id === "malassezia")   drawMalassezia(e, rad * scale, expression, blink);
-    // Fase 1 piel: bacilos cutáneos reusan drawEcoli (recoloreado por def).
     else if (def.id === "cacnes")       drawCacnes(e, rad * scale, expression, blink);
     else if (def.id === "pseudomonas")  drawPseudomonas(e, rad * scale, expression, blink);
     else if (def.id === "bossPseudomonas") drawBossPseudomonas(e, rad * scale, expression, blink);
-    // Sprint 8C-2: bosses con morfología real, antes del fallback genérico.
     else if (def.id === "demodex")           drawDemodex(e, rad * scale, expression, blink);
     else if (def.id === "neisseria")         drawNeisseria(e, rad * scale, expression, blink);
     else if (def.id === "leishmania")        drawLeishmania(e, rad * scale, expression, blink);
     else if (def.id === "bossPyogenes")      drawBossPyogenes(e, rad * scale, expression, blink);
     else if (def.id === "bossMRSA")          drawBossMRSA(e, rad * scale, expression, blink);
     else if (def.id === "bossClostridium")   drawBossClostridium(e, rad * scale, expression, blink);
-    // --- Fase 2: gérmenes de órgano ---
     else if (def.id === "viridans")          drawViridans(e, rad * scale, expression, blink);
     else if (def.id === "enterococo")        drawEnterococo(e, rad * scale, expression, blink);
     else if (def.id === "hacek")             drawHacek(e, rad * scale, expression, blink);
@@ -22834,6 +22911,39 @@
     else if (kind === "virus")          drawVirus(e, rad * scale, expression, blink);
     else if (kind === "hongo")          drawHongo(e, rad * scale, expression, blink);
     else if (kind === "primordial" || def.id === "boss") drawBoss(e, rad * scale, expression, blink);
+    }
+    if (e.langerBisect) {
+      var ba = e.langerBisect.ang || 0;
+      var sep = (e.langerBisect.sep || 0) * 22 * U;
+      var bf = e.langerBisect.fade != null ? e.langerBisect.fade : 1;
+      ctx.save();
+      ctx.globalAlpha = alpha * bf;
+      for (var side = 0; side < 2; side++) {
+        var sgn = side === 0 ? -1 : 1;
+        ctx.save();
+        ctx.translate(Math.cos(ba) * sep * sgn, Math.sin(ba) * sep * sgn);
+        ctx.beginPath();
+        ctx.translate(e.x, e.y);
+        ctx.rotate(ba);
+        ctx.rect(-900 * U, sgn > 0 ? 0 : -900 * U, 1800 * U, 900 * U);
+        ctx.clip();
+        ctx.rotate(-ba);
+        ctx.translate(-e.x, -e.y);
+        drawEnemySpriteDispatch();
+        ctx.restore();
+      }
+      ctx.strokeStyle = "rgba(255, 250, 230, " + (0.9 * bf) + ")";
+      ctx.lineWidth = Math.max(2.2, 2.8 * U);
+      ctx.lineCap = "round";
+      var crack = rad * scale * 1.15;
+      ctx.beginPath();
+      ctx.moveTo(e.x - Math.cos(ba) * crack, e.y - Math.sin(ba) * crack);
+      ctx.lineTo(e.x + Math.cos(ba) * crack, e.y + Math.sin(ba) * crack);
+      ctx.stroke();
+      ctx.restore();
+    } else {
+      drawEnemySpriteDispatch();
+    }
     ctx.restore();
     // Splat de Langerhans: manchita cian SOBRE el cuerpo (después del
     // dispatch del sprite del germen). Antes se dibujaba al inicio y

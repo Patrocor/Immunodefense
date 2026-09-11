@@ -22,56 +22,35 @@ await page.evaluate(() => {
   st.atp = 300;
   st.nextWaveAt = 0.08;
 });
-await sleep(1200);
+await sleep(1100);
 await page.evaluate(() => {
   const g = window.__game;
-  g.place("langerhans", 0.48, 0.50);
-  g.place("neutrofilo", 0.62, 0.46);
+  g.place("langerhans", 0.42, 0.28);
   const l = g.state.towers.find((t) => t.def.id === "langerhans");
-  if (l) { l.specialCharge = 0.72; l.level = 1; }
+  if (l) { l.specialCharge = 0.55; l.level = 1; }
 });
-await sleep(700);
+await sleep(600);
 await page.screenshot({ path: join(ART, "langerhans_idle.png") });
 await page.evaluate(() => {
-  const g = window.__game;
-  const l = g.state.towers.find((t) => t.def.id === "langerhans");
-  if (!l) return;
-  l.attackAnim = 0.22;
-  const U = g.metrics.U;
-  g.state.effects.push({
-    kind: "dendriteWhip",
-    x1: l.x,
-    y1: l.y,
-    x2: l.x + 90 * U,
-    y2: l.y - 40 * U,
-    life: 0.28,
-    max: 0.38,
-    color: l.def.color,
-  });
+  window.__game.step(6.5, 0.05);
 });
-await sleep(350);
-await page.screenshot({ path: join(ART, "langerhans_whip.png") });
 await page.evaluate(() => {
   const g = window.__game;
   const l = g.state.towers.find((t) => t.def.id === "langerhans");
   if (!l) return;
   l.specialReady = true;
   l.specialCharge = 1;
-  l.specialAnim = 0.75;
-  l.attackAnim = 0;
-  const U = g.metrics.U;
-  const lR = 155 * U * 1.3;
-  g.state.effects.push({
-    kind: "novaRing",
-    x: l.x,
-    y: l.y,
-    r: lR,
-    color: "#3FC1C9",
-    life: 0.45,
-    max: 0.8,
-  });
+  g.ults();
 });
-await sleep(350);
+await page.evaluate(() => {
+  window.__game.step(0.5, 0.04);
+});
+await sleep(200);
+await page.screenshot({ path: join(ART, "langerhans_impale.png") });
+await page.evaluate(() => {
+  window.__game.step(0.45, 0.04);
+});
+await sleep(200);
 await page.screenshot({ path: join(ART, "langerhans_mhc_storm.png") });
 await browser.close();
 console.log("OK: langerhans screenshots");

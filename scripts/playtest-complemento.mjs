@@ -1,4 +1,4 @@
-/** Captura Cañón MAC v1 — poro C5b–C9 + Cascada C9. DISPLAY=:1 node scripts/playtest-complemento.mjs */
+/** Captura Cañón MAC v2 — tanque + catapulta + Cascada C9. DISPLAY=:1 node scripts/playtest-complemento.mjs */
 import { chromium } from "playwright";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
@@ -86,11 +86,11 @@ const info = await page.evaluate(() => {
   mac.specialReady = true;
   mac.specialCharge = 1;
   mac.macPulse = 2.2;
-  mac.specialAnim = 0.78;
+  mac.specialAnim = 0.58;
   mac.lastTargetX = germSpots[0].x;
   mac.lastTargetY = germSpots[0].y;
   mac.muzzleFlash = 0.12;
-  mac.attackAnim = 0.16;
+  mac.attackAnim = 0.14;
 
   const splash = 50 * U;
   st.cannonNets.push({
@@ -133,11 +133,11 @@ const info = await page.evaluate(() => {
   };
 });
 
-console.log("Cañón MAC v1 poro:", info);
+console.log("Cañón MAC v2 catapulta:", info);
 await sleep(500);
 await page.screenshot({ path: join(ART, "complemento_v1_pore_field.png") });
 if (info.ok) {
-  await page.screenshot({ path: join(ART, "complemento_v1_pore_ultimate.png"), clip: info.clip });
+  await page.screenshot({ path: join(ART, "complemento_v2_catapult_ultimate.png"), clip: info.clip });
 }
 await page.evaluate(() => window.__game.hold(false));
 await browser.close();

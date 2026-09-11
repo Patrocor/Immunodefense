@@ -17922,6 +17922,49 @@
     var cupLen = R * (0.50 + biteClose * 0.48 + chompWave * 0.06);
     var cupSpread = Math.max(R * 0.025, R * (0.30 + polarExt * 0.08) * (1 - biteClose * 0.97));
     var jawSlam = biteClose * R * 0.11;
+    var shellPad = R * 0.07;
+    var backX = -capRx * 0.78 - R * 0.17 - shellPad;
+    var frontX = Math.max(R * 0.04 + capRx, faceDist + rTop * 0.48) + shellPad;
+    if (grotesqueBite) frontX = Math.max(frontX, baseX + capRx * 0.18 + cupLen + shellPad * 0.65);
+    else if (attacking) frontX = Math.max(frontX, baseX + R * 0.55 + shellPad * 0.4);
+    else if (polarExt > 0.02) frontX = Math.max(frontX, baseX + podLen + shellPad * 0.6);
+    var topY = capRy + R * 0.15 + shellPad + (grotesqueBite ? biteClose * R * 0.08 : 0);
+
+    function neutMembranePath() {
+      ctx.beginPath();
+      ctx.moveTo(backX, uroWobble);
+      ctx.bezierCurveTo(
+        backX - shellPad * 0.8, topY * 0.62,
+        -capRx * 0.55, topY,
+        R * 0.04 + capRx * 0.35, topY
+      );
+      ctx.bezierCurveTo(
+        frontX * 0.72, topY * 0.92,
+        frontX, topY * 0.38,
+        frontX, 0
+      );
+      if (attacking || polarExt > 0.02) {
+        var biteFrontH = grotesqueBite ? Math.max(R * 0.06, cupSpread + jawSlam + shellPad)
+          : (attacking ? R * 0.12 + shellPad : (podW * 0.55 + shellPad));
+        ctx.bezierCurveTo(
+          frontX, -biteFrontH,
+          frontX * 0.72, -topY * 0.92,
+          R * 0.04 + capRx * 0.35, -topY
+        );
+      } else {
+        ctx.bezierCurveTo(
+          frontX, -topY * 0.38,
+          frontX * 0.72, -topY * 0.92,
+          R * 0.04 + capRx * 0.35, -topY
+        );
+      }
+      ctx.bezierCurveTo(
+        -capRx * 0.55, -topY,
+        backX - shellPad * 0.8, -topY * 0.62,
+        backX, uroWobble
+      );
+      ctx.closePath();
+    }
 
     ctx.save();
     ctx.rotate(faceAng);
@@ -17932,13 +17975,23 @@
       ctx.translate(Math.min(1, (t.attackAnim || 0) / 0.12) * R * 0.06, 0);
     }
 
-    // Citoplasma: cápsula alargada (frente redondo + cola de uropodo).
+    // Cuerpo OPACO: rellena toda la silueta (antes el borde oval se veía hueco).
+    var shellGrad = ctx.createRadialGradient(-R * 0.16, -R * 0.14, R * 0.04, R * 0.08, R * 0.04, R * 1.28);
+    shellGrad.addColorStop(0, "#f4ecff");
+    shellGrad.addColorStop(0.34, "#c9a0e6");
+    shellGrad.addColorStop(0.72, "#8d58b8");
+    shellGrad.addColorStop(1, "#542e78");
+    neutMembranePath();
+    ctx.fillStyle = shellGrad;
+    ctx.fill();
+
+    // Núcleo de volumen (también opaco) sobre el relleno.
     var bodyGrad = ctx.createRadialGradient(-R * 0.12, -R * 0.08, R * 0.08, R * 0.04, 0, capRx * 1.05);
-    bodyGrad.addColorStop(0, "#fffaf2");
-    bodyGrad.addColorStop(0.5, "#eddcd2");
-    bodyGrad.addColorStop(1, "#b8846a");
+    bodyGrad.addColorStop(0, "#efe4ff");
+    bodyGrad.addColorStop(0.5, "#b888d6");
+    bodyGrad.addColorStop(1, "#7a4aa8");
     ctx.fillStyle = bodyGrad;
-    ctx.strokeStyle = "rgba(92, 50, 36, 0.45)";
+    ctx.strokeStyle = "rgba(58, 28, 86, 0.55)";
     ctx.lineWidth = Math.max(1.2, 1.5 * U);
     ctx.beginPath();
     ctx.ellipse(R * 0.04, 0, capRx, capRy, 0, 0, Math.PI * 2);
@@ -17946,8 +17999,8 @@
     ctx.stroke();
 
     // Uropodo (cola): dos lóbulos pequeños en la parte posterior.
-    ctx.fillStyle = "#e8cfc4";
-    ctx.strokeStyle = "rgba(92, 50, 36, 0.4)";
+    ctx.fillStyle = "#d2b0e8";
+    ctx.strokeStyle = "rgba(58, 28, 86, 0.5)";
     ctx.lineWidth = Math.max(1, 1.3 * U);
     for (var ub = 0; ub < 2; ub++) {
       var us = ub === 0 ? 1 : -1;
@@ -17961,7 +18014,7 @@
     if (grotesqueBite) {
       var jawBase = baseX + capRx * 0.18;
       var cupTip = jawBase + cupLen;
-      var cupFill = "rgba(245, 228, 218, " + (0.78 + biteClose * 0.2) + ")";
+      var cupFill = "#ead6f8";
       ctx.fillStyle = cupFill;
       ctx.strokeStyle = "rgba(60, 28, 18, 0.55)";
       ctx.lineWidth = Math.max(1.3, 1.7 * U);
@@ -18030,7 +18083,7 @@
       var quickExt = Math.min(1, (t.attackAnim || 0) / 0.12);
       var qLen = R * (0.18 + quickExt * 0.38);
       var qW = R * (0.14 + quickExt * 0.05);
-      ctx.fillStyle = "rgba(245, 228, 218, " + (0.6 + quickExt * 0.25) + ")";
+      ctx.fillStyle = "#e8d4f6";
       ctx.beginPath();
       ctx.moveTo(baseX, -qW * 0.48);
       ctx.quadraticCurveTo(baseX + qLen * 0.45, -qW * 0.72, baseX + qLen, 0);
@@ -18039,7 +18092,7 @@
       ctx.closePath();
       ctx.fill();
     } else if (polarExt > 0.02) {
-      ctx.fillStyle = "rgba(245, 228, 218, " + (0.65 + polarExt * 0.3) + ")";
+      ctx.fillStyle = "#e8d4f6";
       ctx.beginPath();
       ctx.moveTo(baseX, -podW * 0.52);
       ctx.quadraticCurveTo(baseX + podLen * 0.42, -podW * 0.82, baseX + podLen, 0);
@@ -18120,53 +18173,14 @@
       ctx.stroke();
     }
 
-    // Membrana plasmática — borde único que encierra citoplasma, gránulos y núcleo.
-    var shellPad = R * 0.07;
-    var backX = -capRx * 0.78 - R * 0.17 - shellPad;
-    var frontX = Math.max(R * 0.04 + capRx, faceDist + rTop * 0.48) + shellPad;
-    if (grotesqueBite) frontX = Math.max(frontX, baseX + capRx * 0.18 + cupLen + shellPad * 0.65);
-    else if (attacking) frontX = Math.max(frontX, baseX + R * 0.55 + shellPad * 0.4);
-    else if (polarExt > 0.02) frontX = Math.max(frontX, baseX + podLen + shellPad * 0.6);
-    var topY = capRy + R * 0.15 + shellPad + (grotesqueBite ? biteClose * R * 0.08 : 0);
-    ctx.beginPath();
-    ctx.moveTo(backX, uroWobble);
-    ctx.bezierCurveTo(
-      backX - shellPad * 0.8, topY * 0.62,
-      -capRx * 0.55, topY,
-      R * 0.04 + capRx * 0.35, topY
-    );
-    ctx.bezierCurveTo(
-      frontX * 0.72, topY * 0.92,
-      frontX, topY * 0.38,
-      frontX, 0
-    );
-    if (attacking || polarExt > 0.02) {
-      var biteFrontH = grotesqueBite ? Math.max(R * 0.06, cupSpread + jawSlam + shellPad)
-        : (attacking ? R * 0.12 + shellPad : (podW * 0.55 + shellPad));
-      ctx.bezierCurveTo(
-        frontX, -biteFrontH,
-        frontX * 0.72, -topY * 0.92,
-        R * 0.04 + capRx * 0.35, -topY
-      );
-    } else {
-      ctx.bezierCurveTo(
-        frontX, -topY * 0.38,
-        frontX * 0.72, -topY * 0.92,
-        R * 0.04 + capRx * 0.35, -topY
-      );
-    }
-    ctx.bezierCurveTo(
-      -capRx * 0.55, -topY,
-      backX - shellPad * 0.8, -topY * 0.62,
-      backX, uroWobble
-    );
-    ctx.closePath();
-    ctx.strokeStyle = "#2e140c";
+    // Contorno sobre el cuerpo ya relleno (sin hueco).
+    neutMembranePath();
+    ctx.strokeStyle = "#2a1040";
     ctx.lineWidth = Math.max(3, 3.6 * U);
     ctx.lineJoin = "round";
     ctx.lineCap = "round";
     ctx.stroke();
-    ctx.strokeStyle = "rgba(255, 236, 210, 0.42)";
+    ctx.strokeStyle = "rgba(240, 220, 255, 0.55)";
     ctx.lineWidth = Math.max(1.1, 1.4 * U);
     ctx.stroke();
     ctx.restore();

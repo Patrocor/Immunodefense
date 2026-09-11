@@ -181,7 +181,7 @@ var TOWER_DEFS = {
   centinela: {
     id: "centinela", name: "Centinela de Alarma", shortName: "Centinela",
     color: "#E8A33D", colorDark: "#8A5A12", cost: 35,
-    desc: "Receptor PRR/TLR que detecta moléculas asociadas a patógenos y emite alarmas. Actúa como señuelo atrayendo los poderes especiales de los gérmenes hacia sí.",
+    desc: "Receptor PRR/TLR: dispara PINGS de reconocimiento que revelan gérmenes ocultos. Señuelo que atrae poderes enemigos. Ultimate: Alarma PRR — sirena, revelación masiva y cadencia extra a aliadas.",
     decoyAttraction: 2.5,
     specialChargeSec: 22,
     specialName: "Alarma PRR",

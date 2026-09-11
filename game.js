@@ -8070,34 +8070,47 @@
       return;
     }
     if (def.id === "centinela") {
-      // ALARMA PRR: señal masiva — señuelo ×4, buffea aliadas y revela gérmenes.
+      // ALARMA PRR: sirena — señuelo ×4, buffea aliadas, revela y pega ping a todos en rango.
       var ceStats = towerStats(t);
       var ceR = ceStats.range * U * 1.5;
+      t.prrPulse = 0;
       t.prrAlarmT = 8.0;
       t.prrAlarmDecoy = (def.decoyAttraction || 2.5) * 4;
+      t.specialAnim = 1.55;
+      t.specialReady = false;
+      t.specialCharge = 0;
+      triggerUltimateHitstop();
       for (var cai = 0; cai < state.towers.length; cai++) {
         var cal2 = state.towers[cai];
         if (cal2 === t) continue;
-        if (Math.hypot(cal2.x - t.x, cal2.y - t.y) <= ceR) cal2.alarmBuffT = 8.0;
+        if (Math.hypot(cal2.x - t.x, cal2.y - t.y) <= ceR) {
+          cal2.alarmBuffT = 8.0;
+          pushEffect({
+            kind: "prrBolt", x: t.x, y: t.y - 18 * U, tx: cal2.x, ty: cal2.y,
+            life: 0.55, max: 0.55
+          });
+        }
       }
       for (var cei = 0; cei < state.enemies.length; cei++) {
         var cee = state.enemies[cei];
         if (cee.dead || cee.dying || cee.absorbing) continue;
         if (Math.hypot(cee.x - t.x, cee.y - t.y) > ceR) continue;
         cee.revealed = true;
-        if (cee.def.cloaked || cee.burrowed) cee.revealFlashT = 0.6;
+        if (cee.def.cloaked || cee.burrowed) cee.revealFlashT = 0.8;
+        damageEnemy(cee, ceStats.damage * 1.6, "centinela");
+        pushEffect({
+          kind: "prrHit", x: cee.x, y: cee.y, r: 22 * U, life: 0.4, max: 0.4
+        });
       }
+      pushEffect({ kind: "prrAlarm", x: t.x, y: t.y, r: ceR, life: 1.2, max: 1.2 });
       pushEffect({ kind: "novaRing", x: t.x, y: t.y, r: ceR, color: "#E8A33D", life: 0.75, max: 0.75 });
       pushEffect({
-        kind: "atpText", x: t.x, y: t.y - 32 * U, vy: -24 * U,
-        text: "PRR", life: 1.2, max: 1.2, color: "#FFE9B0", big: true
+        kind: "atpText", x: t.x, y: t.y - 36 * U, vy: -24 * U,
+        text: "PRR!", life: 0.85, max: 0.85, color: "#FFE9B0"
       });
-      t.specialAnim = 1.4;
-      t.specialReady = false;
-      t.specialCharge = 0;
       showMsg("¡Alarma PRR!");
       sfx("upgrade");
-      triggerShake(0.14, 4);
+      triggerShake(0.16, 5);
       return;
     }
     if (def.id === "sebocito") {
@@ -9265,6 +9278,9 @@
       if (t.def.id === "complemento" && (t.specialAnim || 0) > 0) {
         t.macPulse = (t.macPulse || 0) + dt * 11;
       }
+      if (t.def.id === "centinela" && (t.specialAnim || 0) > 0) {
+        t.prrPulse = (t.prrPulse || 0) + dt * 12;
+      }
       // Linfocito T ultimate: tras el retraso de carga (1.8s, specialAnim
       // arrancó en 2.1), ejecuta a todos los marcados juntos, una sola vez.
       if (t.def.id === "linfocitoT" && (t.specialAnim || 0) > 0 && t.apoptosisTargets && !t.apoptosisBurst) {
@@ -9518,6 +9534,28 @@
           t.attackAnim = 0.2;
         }
       }
+      // CENTINELA — PING PRR: dispara a ocultos primero (cloaked/burrowed).
+      if (t.def.id === "centinela") {
+        var prrHidden = null, prrHidP = -1, prrBest = null, prrBestP = -1;
+        for (var prj = 0; prj < state.enemies.length; prj++) {
+          var pre = state.enemies[prj];
+          if (pre.dead || pre.dying || pre.absorbing || pre.beingEngulfed || pre.beingDropped) continue;
+          if (pre.state === "falling" || pre.state === "entering") continue;
+          if (Math.hypot(pre.x - t.x, pre.y - t.y) > rangePx) continue;
+          var prHidden = (pre.def.cloaked && !pre.revealed) || (pre.burrowed && !pre.revealed);
+          if (prHidden && pre.progress > prrHidP) { prrHidP = pre.progress; prrHidden = pre; }
+          else if (!prHidden && pre.progress > prrBestP) { prrBestP = pre.progress; prrBest = pre; }
+        }
+        var prrTgt = prrHidden || prrBest;
+        if (prrTgt) {
+          fireTower(t, prrTgt);
+          t.cooldown = (1 / stats.fireRate) * (t.slowFireTimer > 0 ? 2 : 1);
+          t.muzzleFlash = 0.12;
+          t.attackAnim = 0.36;
+          sfx("linfTAttack");
+        }
+        continue;
+      }
       // MASTOCITO — HISTAMINA: acelera la carga de ultimates de las torres
       // vecinas (vasodilatación: llegan más rápido los refuerzos).
       if (t.def.id === "mastocito") {
@@ -9706,6 +9744,28 @@
       // Estela del arco (visual del hachazo).
       pushEffect({ kind: "novaRing", x: t.x, y: t.y, r: nkReach, color: "#ffd0e6", life: 0.22, max: 0.22 });
       pushEffect({ kind: "melee", x1: t.x, y1: t.y, x2: target.x, y2: target.y, life: 0.22, max: 0.22, color: "#ffe6f2", towerId: "nk" });
+      return;
+    }
+
+    // ══ CENTINELA — PING PRR ══
+    // Radar de reconocimiento: revela ocultos y pega más si estaban cloaked/burrowed.
+    if (t.def.id === "centinela") {
+      var prrWasHidden = (target.def.cloaked && !target.revealed) || (target.burrowed && !target.revealed);
+      if (prrWasHidden) dmg *= 1.8;
+      target.revealed = true;
+      if (target.def.cloaked || target.burrowed) {
+        target.revealFlashT = Math.max(target.revealFlashT || 0, 0.75);
+      }
+      var pingY = t.y - 18 * U;
+      pushEffect({
+        kind: "prrPing", x: t.x, y: pingY, tx: target.x, ty: target.y,
+        life: 0.32, max: 0.32
+      });
+      damageEnemy(target, dmg, "centinela");
+      pushEffect({
+        kind: "prrHit", x: target.x, y: target.y,
+        r: 24 * U, life: 0.28, max: 0.28
+      });
       return;
     }
 
@@ -19624,104 +19684,153 @@
   }
 
   function drawCentinela(t, pulse, expression, blink) {
-    // Centinela de Alarma — célula centinela con baliza de alarma sobre
-    // un mástil. Atrae los poderes especiales de los gérmenes hacia sí
-    // (decoyAttraction, ver updateEnemies) — el glow/parpadeo de la
-    // baliza reacciona a t.beingLured REAL (un germen está cargando su
-    // poder contra esta torre en este instante), no a un timer decorativo.
-    var R = 16 * U * pulse;
+    // Centinela — torre de vigilancia PRR/TLR: plato radar + ping de reconocimiento.
+    // Disparo: ping sonar que revela ocultos. Ultimate: Alarma PRR (sirena).
+    var doingUlt = (t.specialAnim || 0) > 0;
+    var chargeFrac = doingUlt ? 1 : Math.max(0, Math.min(1, t.specialCharge || 0));
+    var ultAnim = t.specialAnim || 0;
+    var ultMax = 1.55;
+    var atkMax = 0.36;
+    var atk = t.attackAnim || 0;
+    var coilAtk = atk > 0 ? Math.min(1, atk / (atkMax * 0.55)) : 0;
+    var strikeAtk = atk > 0 && atk < atkMax * 0.5
+      ? Math.min(1, (atkMax * 0.5 - atk) / (atkMax * 0.5)) : 0;
     var time = state.time;
     var lured = !!t.beingLured;
-    var prrAlarm = (t.prrAlarmT || 0) > 0;
-    var beamPulse = (lured || prrAlarm)
-      ? (0.6 + 0.4 * Math.sin(time * (prrAlarm ? 12 : 16)))
-      : (0.4 + 0.3 * Math.sin(time * 1.6));
+    var prrAlarm = (t.prrAlarmT || 0) > 0 || doingUlt;
+    var swell = 1 + chargeFrac * 0.05 + coilAtk * 0.06;
+    if (doingUlt) {
+      if (ultAnim > 0.95) swell = 1 + ((ultMax - ultAnim) / (ultMax - 0.95)) * 0.14;
+      else swell = 1.1 + Math.sin((t.prrPulse || 0) * 0.9) * 0.05;
+    }
+    var R = 17 * U * pulse * swell;
+
+    var aimAng = -Math.PI / 2;
+    if (t.lastTargetX != null) aimAng = Math.atan2(t.lastTargetY - t.y, t.lastTargetX - t.x);
+    var dishAng = aimAng;
+    if (doingUlt) dishAng = time * 8 + (t.prrPulse || 0);
+    else if (lured || prrAlarm) dishAng += Math.sin(time * 6) * 0.25;
 
     ctx.save();
     ctx.translate(t.x, t.y);
 
-    // Cuerpo celular redondo.
-    var grad = ctx.createRadialGradient(-R * 0.3, -R * 0.3, R * 0.2, 0, 0, R * 1.05);
-    grad.addColorStop(0, "#F2C879");
-    grad.addColorStop(0.6, t.def.color);
-    grad.addColorStop(1, t.def.colorDark);
-    ctx.fillStyle = grad;
-    ctx.beginPath();
-    ctx.arc(0, 0, R, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = t.def.colorDark;
-    ctx.lineWidth = Math.max(1.3, 1.6 * U);
-    ctx.stroke();
+    if (doingUlt) {
+      var uf = 1 - ultAnim / ultMax;
+      for (var cr = 0; cr < 3; cr++) {
+        var crp = ((time * 1.8 + cr * 0.28 + uf * 0.3) % 1);
+        ctx.strokeStyle = "rgba(232,163,61," + ((1 - crp) * 0.55 * uf) + ")";
+        ctx.lineWidth = Math.max(2, 2.6 * U) * (1 - crp * 0.3);
+        ctx.beginPath();
+        ctx.arc(0, 0, R * (1.1 + crp * (2.0 + cr * 0.2)), 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    }
 
-    // Cilios sensoriales — bob sutil en reposo, vibran cuando atrae de verdad.
+    var auraA = (lured || prrAlarm) ? (0.22 + 0.14 * Math.sin(time * 8))
+      : (0.12 + chargeFrac * 0.12 + coilAtk * 0.08);
+    var auraG = ctx.createRadialGradient(0, 0, R * 0.4, 0, 0, R * 2.05);
+    auraG.addColorStop(0, "rgba(232,163,61," + auraA + ")");
+    auraG.addColorStop(1, "rgba(232,163,61,0)");
+    ctx.fillStyle = auraG;
+    ctx.beginPath(); ctx.arc(0, 0, R * 2.05, 0, Math.PI * 2); ctx.fill();
+
+    ctx.fillStyle = "rgba(0,0,0,0.24)";
+    ctx.beginPath(); ctx.ellipse(0, R * 0.78, R * 1.05, R * 0.26, 0, 0, Math.PI * 2); ctx.fill();
+
     var nCilia = 8;
     for (var c = 0; c < nCilia; c++) {
       var ca = (c / nCilia) * Math.PI * 2;
-      var bob = Math.sin(time * 2 + c * 0.7) * 0.08;
-      var jitter = lured ? (Math.random() - 0.5) * 0.15 : 0;
-      var cLen = R * (0.45 + bob + jitter);
-      var baseX = Math.cos(ca) * R * 0.92, baseY = Math.sin(ca) * R * 0.92;
-      var tipX = Math.cos(ca) * (R + cLen), tipY = Math.sin(ca) * (R + cLen);
-      ctx.strokeStyle = lured ? "rgba(232,163,61,0.85)" : "rgba(138,90,18,0.55)";
-      ctx.lineWidth = Math.max(0.8, 1.0 * U);
+      var bob = Math.sin(time * 2.2 + c * 0.7) * 0.08 + coilAtk * 0.12;
+      var jitter = (lured || strikeAtk > 0.1) ? Math.sin(time * 18 + c) * 0.1 : 0;
+      var cLen = R * (0.42 + bob + jitter);
+      ctx.strokeStyle = (lured || prrAlarm) ? "rgba(232,163,61,0.88)" : "rgba(138,90,18,0.55)";
+      ctx.lineWidth = Math.max(1.1, 1.4 * U);
       ctx.beginPath();
-      ctx.moveTo(baseX, baseY);
-      ctx.lineTo(tipX, tipY);
+      ctx.moveTo(Math.cos(ca) * R * 0.9, Math.sin(ca) * R * 0.9);
+      ctx.lineTo(Math.cos(ca) * (R + cLen), Math.sin(ca) * (R + cLen));
       ctx.stroke();
+      ctx.fillStyle = "#FFE9B0";
+      ctx.beginPath();
+      ctx.arc(Math.cos(ca) * (R + cLen), Math.sin(ca) * (R + cLen), R * 0.07, 0, Math.PI * 2);
+      ctx.fill();
     }
 
-    // Mástil del faro.
-    var mastH = R * 0.85;
+    var memG = ctx.createRadialGradient(-R * 0.28, -R * 0.28, R * 0.12, 0, 0, R * 1.05);
+    memG.addColorStop(0, "#ffe9b0");
+    memG.addColorStop(0.5, t.def.color);
+    memG.addColorStop(1, t.def.colorDark);
+    ctx.fillStyle = memG;
+    ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = t.def.colorDark;
+    ctx.lineWidth = Math.max(1.6, 2.0 * U);
+    ctx.stroke();
+
+    var mastH = R * (0.92 + coilAtk * 0.08 + (doingUlt ? 0.18 : 0));
+    var lean = 0;
+    if (t.lastTargetX != null && (coilAtk > 0.05 || strikeAtk > 0.05)) {
+      lean = Math.cos(aimAng) * R * 0.12 * (strikeAtk - coilAtk * 0.4);
+    }
     ctx.fillStyle = t.def.colorDark;
     ctx.beginPath();
-    ctx.moveTo(-R * 0.16, 0);
-    ctx.lineTo(-R * 0.10, -mastH);
-    ctx.lineTo(R * 0.10, -mastH);
-    ctx.lineTo(R * 0.16, 0);
+    ctx.moveTo(-R * 0.14 + lean * 0.2, R * 0.08);
+    ctx.lineTo(-R * 0.09 + lean, -mastH);
+    ctx.lineTo(R * 0.09 + lean, -mastH);
+    ctx.lineTo(R * 0.14 + lean * 0.2, R * 0.08);
     ctx.closePath();
     ctx.fill();
 
-    // Baliza — el corazón visual de la mecánica de señuelo.
-    var beaconY = -mastH - R * 0.12;
-    var beaconR = R * (0.30 + beamPulse * 0.18);
-    var bg = ctx.createRadialGradient(0, beaconY, 0, 0, beaconY, beaconR * 2.2);
-    bg.addColorStop(0, "rgba(255, 224, 140, " + (0.55 + beamPulse * 0.4) + ")");
-    bg.addColorStop(0.5, "rgba(232, 163, 61, " + (0.30 + beamPulse * 0.2) + ")");
-    bg.addColorStop(1, "rgba(232, 163, 61, 0)");
-    ctx.fillStyle = bg;
+    var beaconY = -mastH - R * 0.08;
+    var beamPulse = (lured || prrAlarm)
+      ? (0.6 + 0.4 * Math.sin(time * (prrAlarm ? 12 : 16)))
+      : (0.4 + 0.3 * Math.sin(time * 1.6) + strikeAtk * 0.4);
+    var beaconR = R * (0.28 + beamPulse * 0.16);
+    ctx.save();
+    ctx.translate(lean, beaconY);
+    ctx.rotate(dishAng);
+    var dishG = ctx.createRadialGradient(0, 0, 1, 0, 0, beaconR * 2.4);
+    dishG.addColorStop(0, "rgba(255, 224, 140, " + (0.55 + beamPulse * 0.4) + ")");
+    dishG.addColorStop(0.55, "rgba(232, 163, 61, " + (0.28 + beamPulse * 0.2) + ")");
+    dishG.addColorStop(1, "rgba(232, 163, 61, 0)");
+    ctx.fillStyle = dishG;
+    ctx.beginPath(); ctx.arc(0, 0, beaconR * 2.4, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "#3a280c";
     ctx.beginPath();
-    ctx.arc(0, beaconY, beaconR * 2.2, 0, Math.PI * 2);
+    ctx.ellipse(0, 0, R * 0.42, R * 0.16, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.fillStyle = "#FFE9B0";
+    ctx.beginPath(); ctx.arc(0, 0, beaconR * 0.72, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = "#8A5A12";
+    ctx.lineWidth = Math.max(1.2, 1.5 * U);
     ctx.beginPath();
-    ctx.arc(0, beaconY, beaconR, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Haz rotatorio + anillo de alarma — mientras atrae o durante Alarma PRR.
-    if (lured || prrAlarm) {
-      ctx.save();
-      ctx.translate(0, beaconY);
-      ctx.rotate(time * 5);
-      var sweepGrad = ctx.createLinearGradient(0, 0, R * 2.4, 0);
-      sweepGrad.addColorStop(0, "rgba(255, 220, 140, 0.45)");
-      sweepGrad.addColorStop(1, "rgba(255, 220, 140, 0)");
-      ctx.fillStyle = sweepGrad;
+    ctx.moveTo(R * 0.08, 0);
+    ctx.quadraticCurveTo(R * 0.55, -R * 0.22, R * 0.85, 0);
+    ctx.quadraticCurveTo(R * 0.55, R * 0.22, R * 0.08, 0);
+    ctx.stroke();
+    if (strikeAtk > 0.15 || doingUlt) {
+      var sw = Math.max(strikeAtk, doingUlt ? 0.55 : 0);
+      var sweepG = ctx.createLinearGradient(0, 0, R * 2.6, 0);
+      sweepG.addColorStop(0, "rgba(255, 220, 140, " + (0.5 * sw) + ")");
+      sweepG.addColorStop(1, "rgba(255, 220, 140, 0)");
+      ctx.fillStyle = sweepG;
       ctx.beginPath();
       ctx.moveTo(0, 0);
-      ctx.arc(0, 0, R * 2.4, -0.18, 0.18);
+      ctx.arc(0, 0, R * 2.6, -0.22, 0.22);
       ctx.closePath();
       ctx.fill();
-      ctx.restore();
+    }
+    ctx.restore();
 
-      var ringPhase = (time % 0.6) / 0.6;
+    if (lured || prrAlarm) {
+      var ringPhase = (time % 0.55) / 0.55;
       ctx.strokeStyle = "rgba(255, 200, 100, " + ((1 - ringPhase) * 0.5) + ")";
       ctx.lineWidth = Math.max(1.0, 1.3 * U);
       ctx.beginPath();
-      ctx.arc(0, 0, R * (1.2 + ringPhase * 1.0), 0, Math.PI * 2);
+      ctx.arc(0, 0, R * (1.2 + ringPhase * 1.15), 0, Math.PI * 2);
       ctx.stroke();
     }
 
-    towerFace(R, expression, blink, "neutral", "serious");
+    var faceMood = doingUlt ? "angry" : (coilAtk > 0.12 ? "serious" : "neutral");
+    towerFace(R * 0.92, expression, blink, faceMood, faceMood);
     var cHpFrac = (t.maxHp && t.hp > 0) ? Math.max(0, t.hp / t.maxHp) : 1;
     drawTankHpBar(R, cHpFrac, t.def.color);
     ctx.restore();
@@ -21682,6 +21791,7 @@
 
   // CAÑÓN DEL COMPLEMENTO (MAC) — BAZUCA militar con muzzle dorado del MAC.
   function drawComplementCannon(t, pulse, expression, blink) {
+    // Cañón MAC — tanque de guerra que catapulta mallas C9.
     // LOCKED v2 — Catapulta+Cascada (user OK "bien").
     var doingUlt = (t.specialAnim || 0) > 0;
     var chargeFrac = doingUlt ? 1 : Math.max(0, Math.min(1, t.specialCharge || 0));
@@ -29862,6 +29972,82 @@
       ctx.beginPath(); ctx.arc(mbX, mbY, 7 * U, 0, Math.PI * 2); ctx.stroke();
       ctx.fillStyle = "rgba(40,28,4,0.5)";
       ctx.beginPath(); ctx.arc(mbX, mbY, 3.5 * U, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    } else if (ef.kind === "prrPing") {
+      var ppT = 1 - ef.life / ef.max;
+      var ppDx = (ef.tx || ef.x) - ef.x, ppDy = (ef.ty || ef.y) - ef.y;
+      var ppLen = Math.hypot(ppDx, ppDy) || 1;
+      var ppNx = ppDx / ppLen, ppNy = ppDy / ppLen;
+      var ppProg = Math.min(1, ppT * 1.35);
+      var ppX = ef.x + ppNx * ppLen * ppProg;
+      var ppY = ef.y + ppNy * ppLen * ppProg;
+      ctx.save();
+      ctx.globalAlpha = (1 - ppT) * 0.95;
+      ctx.lineCap = "round";
+      ctx.strokeStyle = "rgba(255,200,100,0.35)";
+      ctx.lineWidth = Math.max(4, 5.5 * U);
+      ctx.setLineDash([5 * U, 4 * U]);
+      ctx.beginPath(); ctx.moveTo(ef.x, ef.y); ctx.lineTo(ppX, ppY); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.strokeStyle = "rgba(255,233,176,0.95)";
+      ctx.lineWidth = Math.max(1.6, 2.1 * U);
+      ctx.beginPath(); ctx.moveTo(ef.x, ef.y); ctx.lineTo(ppX, ppY); ctx.stroke();
+      ctx.strokeStyle = "#E8A33D";
+      ctx.lineWidth = Math.max(1.8, 2.3 * U);
+      ctx.beginPath(); ctx.arc(ppX, ppY, 8 * U * (0.6 + ppT * 0.6), 0, Math.PI * 2); ctx.stroke();
+      ctx.restore();
+    } else if (ef.kind === "prrHit") {
+      var phT = 1 - ef.life / ef.max;
+      ctx.save();
+      ctx.globalAlpha = (1 - phT) * 0.9;
+      ctx.strokeStyle = "rgba(255,233,176," + ((1 - phT) * 0.9) + ")";
+      ctx.lineWidth = Math.max(1.6, 2.2 * U);
+      ctx.beginPath(); ctx.arc(ef.x, ef.y, (ef.r || 22 * U) * (0.35 + phT * 0.9), 0, Math.PI * 2); ctx.stroke();
+      ctx.strokeStyle = "rgba(232,163,61," + ((1 - phT) * 0.55) + ")";
+      ctx.beginPath(); ctx.arc(ef.x, ef.y, (ef.r || 22 * U) * (0.55 + phT * 0.7), 0, Math.PI * 2); ctx.stroke();
+      ctx.restore();
+    } else if (ef.kind === "prrAlarm") {
+      var paT = 1 - ef.life / ef.max;
+      ctx.save();
+      ctx.translate(ef.x, ef.y);
+      ctx.globalAlpha = (1 - paT) * 0.9;
+      ctx.rotate(paT * 4.2);
+      for (var par = 0; par < 4; par++) {
+        var parr = ef.r * (0.12 + paT * (0.88 + par * 0.06));
+        ctx.strokeStyle = "rgba(232,163,61," + ((1 - paT) * (0.72 - par * 0.12)) + ")";
+        ctx.lineWidth = Math.max(2, 3.2 * U) * (1 - par * 0.12);
+        ctx.beginPath(); ctx.arc(0, 0, parr, 0, Math.PI * 2); ctx.stroke();
+      }
+      for (var paw = 0; paw < 8; paw++) {
+        var paa = paw * (Math.PI * 2 / 8);
+        ctx.fillStyle = "rgba(255,233,176," + ((1 - paT) * 0.7) + ")";
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.arc(0, 0, ef.r * (0.28 + paT * 0.55), paa - 0.12, paa + 0.12);
+        ctx.closePath(); ctx.fill();
+      }
+      ctx.restore();
+    } else if (ef.kind === "prrBolt") {
+      var pbT = 1 - ef.life / ef.max;
+      var pbDx = (ef.tx || ef.x) - ef.x, pbDy = (ef.ty || ef.y) - ef.y;
+      var pbLen = Math.hypot(pbDx, pbDy) || 1;
+      var pbNx = pbDx / pbLen, pbNy = pbDy / pbLen;
+      var pbProg = Math.sin(pbT * Math.PI);
+      var pbX = ef.x + pbNx * pbLen * pbProg;
+      var pbY = ef.y + pbNy * pbLen * pbProg;
+      ctx.save();
+      ctx.globalAlpha = (1 - pbT) * 0.9;
+      ctx.lineCap = "round";
+      ctx.setLineDash([4 * U, 3 * U]);
+      ctx.strokeStyle = "rgba(232,163,61,0.7)";
+      ctx.lineWidth = Math.max(2.4, 3.2 * U);
+      ctx.beginPath(); ctx.moveTo(ef.x, ef.y); ctx.lineTo(pbX, pbY); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.strokeStyle = "rgba(255,233,176,0.95)";
+      ctx.lineWidth = Math.max(1.2, 1.6 * U);
+      ctx.beginPath(); ctx.moveTo(ef.x, ef.y); ctx.lineTo(pbX, pbY); ctx.stroke();
+      ctx.fillStyle = "#FFE9B0";
+      ctx.beginPath(); ctx.arc(pbX, pbY, 4.5 * U, 0, Math.PI * 2); ctx.fill();
       ctx.restore();
     } else if (ef.kind === "sebumRain") {
       // Lluvia grasienta omnidireccional (ultimate) — cae en todo el rango.

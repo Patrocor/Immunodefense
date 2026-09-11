@@ -19980,7 +19980,7 @@
     }
 
     var gap = R * 0.34 * clamp;
-    var stackN = 4 + (lvl > 0 ? 1 : 0);
+    var stackN = 4;
     var baseY = R * 0.62;
     for (var si = stackN - 1; si >= 1; si--) {
       var tFrac = si / (stackN - 1);

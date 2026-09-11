@@ -136,6 +136,8 @@ var TOWER_DEFS = {
     mobile: true,                 // tanque: patrulla automática; se coloca en zonas libres
     immuneToAura: true,           // el aura de contacto no le hace daño
     maxShots: 8,                  // vida = 8 disparos de malla, luego se consume
+    specialChargeSec: 30 * 1.15,
+    specialName: "Cascada C9",
     // Carga de 30s por disparo (cooldown = 1/fireRate = 30s). damage = DoT/s de
     // la malla; splash = radio; la malla dura 3s (fija). Sin decaimiento por tiempo.
     levels: [

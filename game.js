@@ -19882,8 +19882,8 @@
   }
 
   function drawQueratinocito(t, pulse, expression, blink) {
-    // Queratinocito — mosaico epitelial de BARRERA (hexágono + escamas vecinas),
-    // capas de estrato córneo, desmosomas y péptidos defensina en Y.
+    // Queratinocito — pila de ESCAMAS (estrato córneo), no hexágono.
+    // Placas aplanadas apiladas como tejas; desmosomas en los bordes.
     // Productor: NO dispara — secreta parches; el pulso IL-8 va a neutrófilos.
     var R = 18 * U * pulse, time = state.time, w = (t.idlePhase || 0);
     var lvl = t.level || 0;
@@ -19891,34 +19891,31 @@
     var secreting = (t.attackAnim || 0) > 0;
     var ready = !!t.specialReady;
     var charge = Math.max(0, Math.min(1, t.specialCharge || 0));
+    var cornifying = working && !t.keraCornifyPending;
     var fieldR = R * (1.72 + lvl * 0.06);
+    var clamp = cornifying ? 0.55 : 1;
+    var swell = 1 + charge * 0.04 + (cornifying ? 0.08 : 0);
 
     ctx.save();
     ctx.translate(t.x, t.y);
 
-    // Campo pasivo de defensinas — hexágono punteado (coincide con aura de juego).
+    // Campo de defensinas — estadio punteado (barrera, no hex).
     var fieldPulse = 0.28 + 0.18 * Math.sin(time * 2.6 + w);
     ctx.save();
-    ctx.rotate(time * 0.04);
     ctx.strokeStyle = "rgba(180, 230, 255, " + fieldPulse + ")";
     ctx.lineWidth = Math.max(1.2, 1.6 * U);
     ctx.setLineDash([4 * U, 5 * U]);
     ctx.beginPath();
-    for (var fh = 0; fh < 6; fh++) {
-      var fha = fh * Math.PI / 3 - Math.PI / 6;
-      var fhx = Math.cos(fha) * fieldR, fhy = Math.sin(fha) * fieldR * 0.88;
-      fh ? ctx.lineTo(fhx, fhy) : ctx.moveTo(fhx, fhy);
-    }
-    ctx.closePath(); ctx.stroke();
+    ctx.ellipse(0, 0, fieldR * 1.02, fieldR * 0.78, 0, 0, Math.PI * 2);
+    ctx.stroke();
     ctx.setLineDash([]);
     ctx.restore();
 
-    // Péptidos defensina orbitando (Y microscópica).
     ctx.lineCap = "round";
     for (var dp = 0; dp < 6 + lvl * 2; dp++) {
       var dpa = (dp / (6 + lvl * 2)) * Math.PI * 2 + time * 0.55 + w;
       var dpr = fieldR * (0.78 + 0.12 * Math.sin(time * 3 + dp));
-      var dpx = Math.cos(dpa) * dpr, dpy = Math.sin(dpa) * dpr * 0.9;
+      var dpx = Math.cos(dpa) * dpr, dpy = Math.sin(dpa) * dpr * 0.78;
       var dpa2 = dpa + 0.55, dpa3 = dpa - 0.55;
       var pepA = 0.35 + 0.45 * Math.sin(time * 4 + dp * 1.3);
       ctx.strokeStyle = "rgba(255, 232, 160, " + pepA + ")";
@@ -19933,7 +19930,6 @@
       ctx.stroke();
     }
 
-    // IL-8: hilos ámbar hacia neutrófilos potenciados en rango.
     for (var qi = 0; qi < state.towers.length; qi++) {
       var qt = state.towers[qi];
       if (qt.def.id !== "neutrofilo" || (qt.kcBuffT || 0) <= 0) continue;
@@ -19947,104 +19943,78 @@
       ctx.setLineDash([]);
     }
 
-    function kHexPath(rr, squash) {
-      squash = squash || 0.86;
-      ctx.beginPath();
-      for (var hi = 0; hi < 6; hi++) {
-        var ha = (hi / 6) * Math.PI * 2;
-        var hx = Math.cos(ha) * rr, hy = Math.sin(ha) * rr * squash;
-        hi ? ctx.lineTo(hx, hy) : ctx.moveTo(hx, hy);
-      }
-      ctx.closePath();
-    }
-
-    function drawKeratinPlate(cx, cy, rr, rot, alpha, rimMul) {
+    function drawSquame(cx, cy, hw, hh, rot, alpha) {
       ctx.save();
       ctx.translate(cx, cy);
       ctx.rotate(rot);
       ctx.globalAlpha = alpha;
-
-      var grad = ctx.createRadialGradient(-rr * 0.2, -rr * 0.25, rr * 0.08, 0, 0, rr);
-      grad.addColorStop(0, "#fff2c8");
-      grad.addColorStop(0.45, "#e8c86a");
-      grad.addColorStop(0.82, "#c8980a");
-      grad.addColorStop(1, "#5a4010");
+      var grad = ctx.createLinearGradient(0, -hh, 0, hh);
+      grad.addColorStop(0, "#fff4c4");
+      grad.addColorStop(0.38, "#e8c86a");
+      grad.addColorStop(0.78, "#c09028");
+      grad.addColorStop(1, "#6a4810");
       ctx.fillStyle = grad;
-      kHexPath(rr);
+      ctx.beginPath();
+      ctx.ellipse(0, 0, hw, hh, 0, 0, Math.PI * 2);
       ctx.fill();
-      ctx.strokeStyle = "#2e2006";
-      ctx.lineWidth = Math.max(1.6, 2.2 * U) * (rimMul || 1);
-      kHexPath(rr);
+      ctx.strokeStyle = "#2a1a06";
+      ctx.lineWidth = Math.max(1.6, 2.2 * U);
       ctx.stroke();
-
-      // Estrato córneo — laminillas concéntricas.
-      ctx.strokeStyle = "rgba(58, 40, 8, 0.62)";
+      ctx.strokeStyle = "rgba(255, 240, 190, 0.45)";
       ctx.lineWidth = Math.max(0.9, 1.2 * U);
-      kHexPath(rr * 0.72); ctx.stroke();
-      kHexPath(rr * 0.44); ctx.stroke();
-
-      // Haz de queratina (trama cruzada, no radial genérico).
-      ctx.strokeStyle = "rgba(48, 34, 6, 0.48)";
-      ctx.lineWidth = Math.max(0.8, 1.1 * U);
-      for (var kx = -1; kx <= 1; kx++) {
-        ctx.beginPath();
-        ctx.moveTo(-rr * 0.62, kx * rr * 0.22);
-        ctx.lineTo(rr * 0.62, kx * rr * 0.22);
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.moveTo(kx * rr * 0.18, -rr * 0.52);
-        ctx.lineTo(kx * rr * 0.18, rr * 0.52);
-        ctx.stroke();
-      }
-
-      // Desmosomas en vértices — remaches oscuros + puente flexible.
-      for (var ds = 0; ds < 6; ds++) {
-        var dsa = (ds / 6) * Math.PI * 2;
-        var flex = Math.sin(time * 2.8 + ds + w) * 0.1;
-        var bx = Math.cos(dsa) * rr, by = Math.sin(dsa) * rr * 0.86;
-        var ox = Math.cos(dsa + flex) * rr * 1.18, oy = Math.sin(dsa + flex) * rr * 0.98;
-        ctx.fillStyle = "#3a2808";
-        ctx.beginPath(); ctx.arc(bx, by, rr * 0.11, 0, Math.PI * 2); ctx.fill();
-        ctx.strokeStyle = "rgba(30, 20, 4, 0.75)";
-        ctx.lineWidth = Math.max(0.9, 1.2 * U);
-        ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(ox, oy); ctx.stroke();
-      }
-      ctx.restore();
-    }
-
-    // Escamas vecinas (mosaico epitelial — signature única vs otras torres).
-    for (var nb = 0; nb < 6; nb++) {
-      var nba = nb * Math.PI / 3 + time * 0.035;
-      var nbx = Math.cos(nba) * R * 0.94, nby = Math.sin(nba) * R * 0.80;
-      drawKeratinPlate(nbx, nby, R * 0.50, nba + 0.2, 0.52 + 0.08 * Math.sin(time + nb), 0.85);
-    }
-    drawKeratinPlate(0, 0, R, time * 0.06, 1, 1);
-
-    // Laminillas córneas extra por nivel (barrera más gruesa al subir).
-    for (var ly = 0; ly <= lvl; ly++) {
-      var lyOff = ly * 1.4 * U;
-      ctx.save();
-      ctx.rotate(time * 0.03 + ly * 0.4);
-      ctx.strokeStyle = "rgba(255, 240, 190, " + (0.22 + ly * 0.08) + ")";
-      ctx.lineWidth = Math.max(1, 1.3 * U);
-      kHexPath(R * (0.92 - ly * 0.04) + lyOff * 0.02);
+      ctx.beginPath();
+      ctx.ellipse(0, -hh * 0.12, hw * 0.72, hh * 0.42, 0, 0, Math.PI * 2);
       ctx.stroke();
+      ctx.strokeStyle = "rgba(48, 32, 8, 0.5)";
+      ctx.lineWidth = Math.max(0.7, 1 * U);
+      for (var gl = -1; gl <= 1; gl++) {
+        ctx.beginPath();
+        ctx.moveTo(-hw * 0.62, gl * hh * 0.28);
+        ctx.lineTo(hw * 0.62, gl * hh * 0.22);
+        ctx.stroke();
+      }
+      ctx.fillStyle = "#3a2808";
+      ctx.beginPath(); ctx.arc(-hw * 0.82, 0, hh * 0.28, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(hw * 0.82, 0, hh * 0.28, 0, Math.PI * 2); ctx.fill();
       ctx.restore();
     }
 
-    // Carga de secreción / turno listo — grietas de queratinización + brillo interno.
+    var gap = R * 0.34 * clamp;
+    var stackN = 4 + (lvl > 0 ? 1 : 0);
+    var baseY = R * 0.62;
+    for (var si = stackN - 1; si >= 1; si--) {
+      var tFrac = si / (stackN - 1);
+      var sway = Math.sin(time * 1.4 + si + w) * R * 0.04;
+      var hw = R * (0.78 + tFrac * 0.42) * swell;
+      var hh = R * (0.28 + tFrac * 0.06) * swell;
+      var sy = baseY - (stackN - 1 - si) * gap;
+      drawSquame(sway * (si % 2 === 0 ? 1 : -0.7), sy, hw, hh, sway * 0.04, 1);
+    }
+
+    var topSway = Math.sin(time * 1.6 + w) * R * 0.03;
+    var topY = baseY - (stackN - 1) * gap - R * 0.02;
+    var topHw = R * 0.72 * swell;
+    var topHh = R * 0.46 * swell;
+    drawSquame(topSway, topY, topHw, topHh, topSway * 0.03, 1);
+
     if (ready || charge > 0.85) {
       var rk = ready ? 0.55 + 0.45 * Math.sin(time * 7) : (charge - 0.85) / 0.15 * 0.45;
       ctx.strokeStyle = "rgba(255, 230, 120, " + rk + ")";
-      ctx.lineWidth = Math.max(1.2, 1.8 * U);
+      ctx.lineWidth = Math.max(1.4, 2 * U);
       ctx.beginPath();
-      ctx.moveTo(-R * 0.15, -R * 0.55); ctx.lineTo(R * 0.08, -R * 0.12); ctx.lineTo(-R * 0.05, R * 0.42);
+      ctx.ellipse(0, R * 0.12, R * 1.05 * swell, R * (0.95 + stackN * 0.08) * swell, 0, 0, Math.PI * 2);
       ctx.stroke();
-      ctx.fillStyle = "rgba(255, 248, 210, " + (rk * 0.35) + ")";
-      ctx.beginPath(); ctx.arc(0, 0, R * 0.35, 0, Math.PI * 2); ctx.fill();
     }
 
-    // Turno de trabajo / auto-parche — ráfaga de péptidos hacia abajo (carril).
+    if (cornifying) {
+      var cf = 1 - Math.min(1, (t.specialAnim || 0) / 1.2);
+      ctx.strokeStyle = "rgba(212, 168, 85, " + (0.85 * (1 - cf * 0.3)) + ")";
+      ctx.lineWidth = Math.max(2.4, 3.2 * U);
+      ctx.beginPath();
+      ctx.ellipse(0, R * 0.1, R * (1.05 + cf * 0.35), R * (0.92 + cf * 0.2), 0, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
     if (working || secreting) {
       var burstK = working ? Math.min(1, (t.specialAnim || 0) / 1.4) : Math.min(1, (t.attackAnim || 0) / 0.2);
       for (var bb = 0; bb < 5; bb++) {
@@ -20053,7 +20023,7 @@
         ctx.strokeStyle = "rgba(200, 240, 255, " + (0.85 * burstK) + ")";
         ctx.lineWidth = Math.max(1.4, 2 * U);
         ctx.beginPath();
-        ctx.moveTo(Math.cos(bba) * R * 0.4, Math.sin(bba) * R * 0.35);
+        ctx.moveTo(Math.cos(bba) * R * 0.4, topY);
         ctx.lineTo(Math.cos(bba) * bbd, Math.sin(bba) * bbd);
         ctx.stroke();
         ctx.fillStyle = "rgba(255,255,255," + (0.7 * burstK) + ")";
@@ -20063,13 +20033,18 @@
       }
     }
 
-    // Núcleo epitelial achatado (no esfera — diferencia de mastocito/sebocito).
-    ctx.fillStyle = "rgba(42, 28, 6, 0.82)";
-    ctx.beginPath(); ctx.ellipse(0, R * 0.08, R * 0.22, R * 0.14, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "#3a2208";
+    ctx.beginPath();
+    ctx.ellipse(topSway * 0.4, topY + topHh * 0.12, R * 0.20, R * 0.12, 0, 0, Math.PI * 2);
+    ctx.fill();
 
-    towerFace(R * 0.52, expression, blink, "neutral", "determined");
+    ctx.save();
+    ctx.translate(topSway * 0.3, topY - topHh * 0.08);
+    towerFace(R * 0.48, expression, blink, cornifying ? "determined" : "neutral", cornifying ? "serious" : "smile");
+    ctx.restore();
     ctx.restore();
   }
+
 
   function drawSebocito(t, pulse, expression, blink) {
     // Sebocito — holocrino: se HINCHA y ESCUPE grasita. Ultimate: mega-hinchazón

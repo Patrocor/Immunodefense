@@ -21682,8 +21682,7 @@
 
   // CAÑÓN DEL COMPLEMENTO (MAC) — BAZUCA militar con muzzle dorado del MAC.
   function drawComplementCannon(t, pulse, expression, blink) {
-    // Cañón MAC v2 — TANQUE DE GUERRA + CATAPULTA: casco, ruedas y brazo que
-    // se carga atrás y lanza la malla MAC en arco. Ultimate: Cascada C9.
+    // LOCKED v2 — Catapulta+Cascada (user OK "bien").
     var doingUlt = (t.specialAnim || 0) > 0;
     var chargeFrac = doingUlt ? 1 : Math.max(0, Math.min(1, t.specialCharge || 0));
     var ultAnim = t.specialAnim || 0;

@@ -1126,6 +1126,8 @@
   }
   function toggleLoadout(typeId) {
     if (!state || !state.loadout) return "noop";
+    var td = TOWER_DEFS[typeId];
+    if (td && td.retired) return "noop";
     var c = loadoutCategory(typeId);
     var arr = c === "tower" ? state.loadout.towers
             : c === "tank"  ? state.loadout.tanks
@@ -1138,6 +1140,30 @@
     if (arr.length >= lim) return "full";
     arr.push(typeId);
     return "added";
+  }
+  function scrubRetiredRoster() {
+    if (!state) return;
+    function keepId(id) {
+      var d = TOWER_DEFS[id];
+      return !(d && d.retired);
+    }
+    if (state.unlockedTowers) {
+      state.unlockedTowers = state.unlockedTowers.filter(keepId);
+    }
+    if (state.loadout) {
+      state.loadout.towers = (state.loadout.towers || []).filter(keepId);
+      state.loadout.tanks = (state.loadout.tanks || []).filter(keepId);
+      state.loadout.barriers = (state.loadout.barriers || []).filter(keepId);
+    }
+    if (state.towers) {
+      for (var ri = state.towers.length - 1; ri >= 0; ri--) {
+        var rd = state.towers[ri].def;
+        if (rd && rd.retired) {
+          if (state.selectedTower === state.towers[ri]) state.selectedTower = null;
+          state.towers.splice(ri, 1);
+        }
+      }
+    }
   }
   function loadoutEmpty() {
     return !state.loadout ||
@@ -1212,7 +1238,7 @@
   //    introducidas cuando aparece su objetivo. Langerhans@W2, Mastocito@W3,
   //    NK@W4 (virus HSV/HPV), Eosinófilo@W5 (parásitos Demodex/Leishmania, que
   //    SÍ están en Fase 1), Nicho Epitelial@W6, γδ T@W8.
-  //  · Fase 1 (boss-kill, ver BOSS_TANK_DROPS): Complemento/Centinela.
+  //  · Fase 1 (boss-kill, ver BOSS_TANK_DROPS): Complemento (MAC).
   //  · Diseminación: la médula ya no da "torre nueva" (todas se obtienen en
   //    Fase 1); solo catch-up de lo perdido + combos permanentes.
   // PRIMERA LÍNEA REAL de la piel (presentes desde el segundo 0): la barrera
@@ -2142,6 +2168,8 @@
     // el boss (BOSS_TANK_DROPS) — el drop se ve donde se ganó de verdad.
     if (originX == null && !state.medulaOsea) return;
     if (!state.unlockPickups) state.unlockPickups = [];
+    var dropDef = TOWER_DEFS[typeId];
+    if (dropDef && dropDef.retired) return;
     // No spawn si ya está desbloqueada o ya hay un pickup pendiente.
     if (state.unlockedTowers && state.unlockedTowers.indexOf(typeId) !== -1) return;
     for (var i = 0; i < state.unlockPickups.length; i++) {
@@ -4848,6 +4876,7 @@
   // -------- UI RECTS (recomputed in layoutUI) ----------------------------
   var UI = {};
   function layoutUI() {
+    scrubRetiredRoster();
     var topY = safeTop + 8;
     var hudInner = HUD_H - safeTop - 16;
     var btnH = Math.min(40, Math.max(32, hudInner));
@@ -4948,6 +4977,7 @@
     function isUnlocked(typeId) {
       if (unlocked.indexOf(typeId) === -1) return false;
       var d = TOWER_DEFS[typeId];
+      if (d && d.retired) return false;
       if (d && d.disseminationOnly && !inDiss) return false;
       // Torres residentes de tejido: solo existen en SU órgano/familia.
       if (d && d.f2Organ && d.f2Organ !== curOrgan && d.f2Organ !== curMech) return false;
@@ -8445,6 +8475,7 @@
 
   function placeTower(x, y, typeId) {
     var def = TOWER_DEFS[typeId];
+    if (!def || def.retired) return;
     state.towers.push({
       x: x, y: y,
       nx: FIELD_W > 0 ? (x - FIELD_LEFT) / FIELD_W : 0,
@@ -19684,8 +19715,7 @@
   }
 
   function drawCentinela(t, pulse, expression, blink) {
-    // Centinela — torre de vigilancia PRR/TLR: plato radar + ping de reconocimiento.
-    // Disparo: ping sonar que revela ocultos. Ultimate: Alarma PRR (sirena).
+    // RETIRADA del roster (user: elemento de más). Def se conserva por saves viejos.
     var doingUlt = (t.specialAnim || 0) > 0;
     var chargeFrac = doingUlt ? 1 : Math.max(0, Math.min(1, t.specialCharge || 0));
     var ultAnim = t.specialAnim || 0;

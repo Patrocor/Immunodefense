@@ -181,6 +181,7 @@ var TOWER_DEFS = {
   centinela: {
     id: "centinela", name: "Centinela de Alarma", shortName: "Centinela",
     color: "#E8A33D", colorDark: "#8A5A12", cost: 35,
+    retired: true,
     desc: "Receptor PRR/TLR: dispara PINGS de reconocimiento que revelan gérmenes ocultos. Señuelo que atrae poderes enemigos. Ultimate: Alarma PRR — sirena, revelación masiva y cadencia extra a aliadas.",
     decoyAttraction: 2.5,
     specialChargeSec: 22,
@@ -477,7 +478,7 @@ var TOWER_DEFS = {
 var MAC_COST = 5;   // fragmentos de complemento para ensamblar el cañón
 var TOWER_LIST = ["neutrofilo", "queratinocito", "mastocito", "langerhans", "nk", "eosinofilo",
   "linfocitoB", "sebocito", "pdc", "linfocitoT", "linfocitogd",
-  "complemento", "centinela",
+  "complemento",
   // Residentes de órgano (Fase 2) — visibles en el Dex siempre, en el dock
   // solo dentro de su órgano (ver isUnlocked/f2Organ).
   "endotelial", "monocito", "macrofagoCardiaco",
@@ -497,7 +498,7 @@ var TOWER_GROUPS = [
   { id: "potenciadores", label: "Potenciadores", towers: ["queratinocito", "mastocito", "langerhans", "pdc",
                                                           "endotelial", "osteocito", "sinoviocitoB", "condrocito",
                                                           "fibroblastoEncap", "tregSepsis"] },
-  { id: "tanques",       label: "Tanques",       towers: ["complemento", "centinela", "osteoblasto"] }
+  { id: "tanques",       label: "Tanques",       towers: ["complemento", "osteoblasto"] }
 ];
 var LOADOUT_LIMITS = { towers: 5, tanks: 2, barriers: 1 };
   root.towerDefs = TOWER_DEFS;

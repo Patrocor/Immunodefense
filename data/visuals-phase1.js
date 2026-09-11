@@ -15,7 +15,6 @@
     pdc:          { role: "interferon", label: "IFN",    glyph: "wave",     arc: "#6a3dd4", silhouette: "beacon", labelKit: "Faro+Tormenta" },
     linfocitogd:  { role: "cazador",    label: "γδ",     glyph: "delta",    arc: "#8bc34a", silhouette: "classic", labelKit: "δ+Cadena+Cascada", bodyScale: 1.1 },
     complemento:  { role: "tanque",     label: "MAC",    glyph: "net",      arc: "#FFD24A", silhouette: "siege", labelKit: "Catapulta+Cascada" },
-    centinela:    { role: "señuelo",    label: "PRR",    glyph: "beacon",   arc: "#E8A33D" }
   };
 
   // Marco exterior por familia biológica (solo Fase 1 piel).

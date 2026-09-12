@@ -1,4 +1,4 @@
-/** Captura NK — idle + Frenesí. DISPLAY=:1 node scripts/playtest-nk.mjs */
+/** Captura NK — idle + Frenesí (sale / corte / vuelve). DISPLAY=:1 node scripts/playtest-nk.mjs */
 import { chromium } from "playwright";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
@@ -42,10 +42,14 @@ await page.evaluate(() => {
   n.specialCharge = 1;
   g.ults();
 });
-await page.evaluate(() => {
-  window.__game.step(0.55, 0.04);
-});
-await sleep(250);
+await page.evaluate(() => { window.__game.step(0.22, 0.03); });
+await sleep(160);
+await page.screenshot({ path: join(ART, "nk_frenesi_launch.png") });
+await page.evaluate(() => { window.__game.step(0.85, 0.03); });
+await sleep(160);
 await page.screenshot({ path: join(ART, "nk_frenesi_ultimate.png") });
+await page.evaluate(() => { window.__game.step(1.55, 0.03); });
+await sleep(160);
+await page.screenshot({ path: join(ART, "nk_frenesi_return.png") });
 await browser.close();
 console.log("OK: nk screenshots");

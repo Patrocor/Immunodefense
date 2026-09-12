@@ -47,7 +47,7 @@ const TOWERS = [
   { id: "linfocitoB",    name: "Linfocito B / Plasmocito",     role: "Produce anticuerpos IgG/IgM que opsonizan bacterias. Ultimate: cañones de anticuerpos penetrantes." },
   { id: "linfocitoT",    name: "Linfocito T citotóxico (CD8+)",role: "Reconoce péptidos en MHC-I; libera granzima B y perforina para apoptosis. Ultimate: Apoptosis en 5 enemigos." },
   { id: "langerhans",    name: "Célula de Langerhans",         role: "CPA de la epidermis; captura antígenos, migra al ganglio, activa Th. Ultimate: Presentación Antigénica Masiva — marca y bufa aliados." },
-  { id: "nk",            name: "Célula NK (Natural Killer)",   role: "Citotóxico innato: rompe escudos y ejecuta virus (×2.3). Sin aura IFN — eso es pDC. Ultimate: Frenesí citotóxico." },
+  { id: "nk",            name: "Célula NK (Natural Killer)",   role: "Citotóxico innato: rompe escudos y ejecuta virus (×2.3). Sin aura IFN — eso es pDC. Ultimate: Frenesí — 8 hachas centrífugas." },
   { id: "eosinofilo",    name: "Eosinófilo",                   role: "Gránulos de MBP, ECP, EDN; ADCC contra parásitos. Interleuquinas IL-4/IL-13. Ultimate: Descarga de gránulos." },
   { id: "mastocito",     name: "Mastocito",                    role: "Desgranulación de histamina, triptasa, leucotrienos. Ralentiza gérmenes en área. Ultimate: Onda de desgranulación." },
   { id: "complemento",   name: "Complemento MAC (C5b-9)",      role: "Complejo de ataque a membrana que perfora bacterias gram-. Ignora escudos. Disparo manual concentrado." },

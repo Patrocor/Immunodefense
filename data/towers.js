@@ -81,7 +81,7 @@ var TOWER_DEFS = {
   },
   nk: {
     id: "nk", name: "Celula NK", shortName: "NK",
-    color: "#E84393", colorDark: "#a82d6a", cost: 95, desc: "Citotóxico innato: detecta ausencia de MHC-I, rompe escudos y ejecuta virus con perforina (×2.3). Ultimate: Frenesí citotóxico — perforinas que ignoran escudos.",
+    color: "#E84393", colorDark: "#a82d6a", cost: 95, desc: "Citotóxico innato: detecta ausencia de MHC-I, rompe escudos y ejecuta virus con perforina (×2.3). Ultimate: Frenesí — 8 hachas salen en torbellino centrífugo y vuelven al armazón.",
     bonusVs: { kind: "virus", mult: 2.3 }, breakShield: true,
     // Ultimate: FRENESÍ CITOTÓXICO — rota como tornado fucsia y
     // dispara una tormenta de perforinas penetrantes que ignoran

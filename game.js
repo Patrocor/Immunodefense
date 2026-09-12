@@ -7951,16 +7951,18 @@
       return;
     }
     if (def.id === "nk") {
-      // FRENESÍ CITOTÓXICO — gira como tornado y dispara perforinas
-      // penetrantes al sector del camino más cercano (o vertical arriba
-      // en diseminación). Las perforinas ignoran escudos.
-      t.frenzyTarget = computeUltimateTarget(t);
-      t.frenzyFireT = 0;
+      // FRENESÍ — 8 hachas de perforina salen en centrifugado, cortan
+      // unos segundos y regresan al armazón (hombros). Ignoran escudos.
       t.frenzySpin = 0;
-      t.specialAnim = 1.8;
+      t.frenzyHitT = 0;
+      t.frenzyDur = 2.95;
+      t.frenzyHitIds = {};
+      t.specialAnim = t.frenzyDur;
       t.specialReady = false;
       t.specialCharge = 0;
+      showMsg("¡Frenesí!");
       sfx("upgrade");
+      triggerShake(0.16, 5);
       return;
     }
     if (def.id === "langerhans") {
@@ -8446,6 +8448,85 @@
         life: 0.2, max: 0.26, color: mf % 2 ? "#fff7c4" : "#7CFC9E" });
     }
     t.cannonRecoil = 0.08;
+  }
+
+  // Frenesí NK: k 0→1 (sale) / 1 (corta) / 1→0 (vuelve al armazón).
+  function nkFrenzyK(t) {
+    var dur = t.frenzyDur || 2.95;
+    var left = Math.max(0, t.specialAnim || 0);
+    var elapsed = Math.max(0, dur - left);
+    var expandT = 0.42;
+    var returnT = 0.62;
+    var holdEnd = dur - returnT;
+    if (elapsed < expandT) {
+      var u = elapsed / expandT;
+      return 1 - Math.pow(1 - u, 3);
+    }
+    if (elapsed >= holdEnd) {
+      var v = Math.min(1, (elapsed - holdEnd) / returnT);
+      return 1 - v * v;
+    }
+    return 1;
+  }
+
+  function nkFrenzyLayout(t) {
+    var k = nkFrenzyK(t);
+    var bodyR = 22 * U * ((t.specialAnim || 0) > 0 ? 1.18 : 1);
+    var maxR = towerStats(t).range * U * 0.82;
+    var inner = bodyR * 0.92;
+    var orbit = inner + (maxR - inner) * k;
+    var spin = t.frenzySpin || 0;
+    var sockets = [
+      { x: t.x - bodyR * 0.80, y: t.y - bodyR * 0.02 },
+      { x: t.x + bodyR * 0.80, y: t.y - bodyR * 0.02 }
+    ];
+    var axes = [];
+    var dock = k < 0.40 ? Math.pow(1 - k / 0.40, 2) : 0;
+    for (var i = 0; i < 8; i++) {
+      var a = spin + i * (Math.PI * 2 / 8);
+      var x = t.x + Math.cos(a) * orbit;
+      var y = t.y + Math.sin(a) * orbit;
+      if (dock > 0) {
+        var s = sockets[i % 2];
+        x = x * (1 - dock) + s.x * dock;
+        y = y * (1 - dock) + s.y * dock;
+      }
+      axes.push({ x: x, y: y, a: a, flip: (i % 2) ? 1 : -1 });
+    }
+    return { k: k, orbit: orbit, axes: axes, bodyR: bodyR };
+  }
+
+  function nkFrenzyCleave(t) {
+    var lay = nkFrenzyLayout(t);
+    if (lay.k < 0.10) return;
+    var stats = towerStats(t);
+    var hitR = lay.bodyR * 1.05;
+    if (!t.frenzyHitIds) t.frenzyHitIds = {};
+    var now = state.time;
+    for (var ai = 0; ai < lay.axes.length; ai++) {
+      var ax = lay.axes[ai];
+      for (var ei = 0; ei < state.enemies.length; ei++) {
+        var e = state.enemies[ei];
+        if (!e || e.dead || e.dying || e.absorbing) continue;
+        if (e.burrowed && !e.revealed) continue;
+        if (e.def.cloaked && !e.revealed) continue;
+        var dx = e.x - ax.x, dy = e.y - ax.y;
+        var er = (e.def.radius || 16) * U * 0.62;
+        if (dx * dx + dy * dy > (hitR + er) * (hitR + er)) continue;
+        var hid = (e.def.id || "e") + "_" + ei + "_" + ai;
+        if ((t.frenzyHitIds[hid] || 0) > now) continue;
+        t.frenzyHitIds[hid] = now + 0.16;
+        if (e.shieldHP) {
+          e.shieldHP = 0;
+          e.shieldShatterTimer = 0.45;
+        }
+        var dmg = stats.damage * 1.15;
+        if (t.def.bonusVs && e.def.baseKind === t.def.bonusVs.kind) dmg *= t.def.bonusVs.mult;
+        var frac = e.hp / (e.maxHp || e.def.hp || 1);
+        if (frac <= 0.15) dmg = Math.max(dmg, e.hp + 1);
+        damageEnemy(e, dmg, "nk");
+      }
+    }
   }
 
   // Dispara UNA perforina durante el frenesí citotóxico del NK.
@@ -9358,14 +9439,14 @@
           t.plasmoLashIdx = (li + 1) % 4;
         }
       }
-      // NK ultimate: frenesí citotóxico — gira rápido y dispara
-      // perforinas en ráfaga (20/s).
-      if (t.def.id === "nk" && (t.specialAnim || 0) > 0 && t.frenzyTarget) {
-        t.frenzySpin = (t.frenzySpin || 0) + dt * 9;     // 9 rad/s tornado
-        t.frenzyFireT = (t.frenzyFireT || 0) - dt;
-        if (t.frenzyFireT <= 0) {
-          t.frenzyFireT = 0.05;             // 20 disparos/s
-          spawnPerforinBolt(t);
+      // NK ultimate: 8 hachas en centrifugado (salen → cortan → vuelven).
+      if (t.def.id === "nk" && (t.specialAnim || 0) > 0) {
+        var nkK = nkFrenzyK(t);
+        t.frenzySpin = (t.frenzySpin || 0) + dt * (5.2 + 7.5 * nkK);
+        t.frenzyHitT = (t.frenzyHitT || 0) - dt;
+        if (t.frenzyHitT <= 0) {
+          t.frenzyHitT = 0.07;
+          nkFrenzyCleave(t);
         }
       }
       if (t.def.id === "sebocito" && (t.specialAnim || 0) > 0) {
@@ -19136,39 +19217,19 @@
     ctx.fillStyle = auraG;
     ctx.beginPath(); ctx.arc(0, 0, auraR, 0, Math.PI * 2); ctx.fill();
 
-    // ── FRENESÍ: tornado spin de fondo (solo en ultimate) ──
-    if (doingUlt) {
-      ctx.strokeStyle = "rgba(255, 130, 200, 0.55)";
-      ctx.lineWidth = 1.6 * U;
-      var spinAng = t.frenzySpin || 0;
-      for (var sw = 0; sw < 8; sw++) {
-        var sa = spinAng + sw * (Math.PI * 2 / 8);
-        ctx.beginPath();
-        ctx.moveTo(Math.cos(sa) * R * 1.30, Math.sin(sa) * R * 1.30);
-        ctx.lineTo(Math.cos(sa) * R * 2.10, Math.sin(sa) * R * 2.10);
-        ctx.stroke();
-      }
-      // Cono de caza hacia el sector bloqueado del ultimate.
-      if (t.frenzyTarget) {
-        var fdx = t.frenzyTarget.x - t.x, fdy = t.frenzyTarget.y - t.y;
-        var fang = Math.atan2(fdy, fdx);
-        var nkStats = towerStats(t);
-        var coneLen = nkStats.range * U * 0.92;
-        var coneSpread = Math.PI / 4.5;
-        var coneA = 0.22 + 0.12 * Math.sin(time * 8);
-        ctx.fillStyle = "rgba(232, 67, 147, " + coneA + ")";
-        ctx.beginPath();
-        ctx.moveTo(0, 0);
-        ctx.arc(0, 0, coneLen, fang - coneSpread, fang + coneSpread);
-        ctx.closePath();
-        ctx.fill();
-        ctx.strokeStyle = "rgba(255, 180, 220, " + (coneA + 0.15) + ")";
-        ctx.lineWidth = 1.4 * U;
-        ctx.beginPath();
-        ctx.moveTo(0, 0);
-        ctx.lineTo(Math.cos(fang) * coneLen, Math.sin(fang) * coneLen);
-        ctx.stroke();
-      }
+    // ── FRENESÍ: anillo de corte (las 8 hachas se dibujan al final) ──
+    var frenzyLay = doingUlt ? nkFrenzyLayout(t) : null;
+    if (doingUlt && frenzyLay) {
+      ctx.strokeStyle = "rgba(255, 130, 200, " + (0.18 + 0.28 * frenzyLay.k) + ")";
+      ctx.lineWidth = Math.max(1.2, 1.8 * U);
+      ctx.beginPath();
+      ctx.arc(0, 0, frenzyLay.orbit, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.strokeStyle = "rgba(255, 240, 252, " + (0.10 + 0.16 * frenzyLay.k) + ")";
+      ctx.lineWidth = Math.max(0.8, 1.1 * U);
+      ctx.beginPath();
+      ctx.arc(0, 0, frenzyLay.orbit * 0.86, 0, Math.PI * 2);
+      ctx.stroke();
     }
 
     // ── Anillo crosshair rotando (mira de cazadora) — gira más rápido y
@@ -19191,40 +19252,40 @@
       ctx.stroke();
     }
 
-    // ── BRAZOS CON HACHAS DE PERFORINA (se dibujan DETRÁS del cuerpo para
-    // que el hombro quede tapado y el hacha sobresalga) ──
-    var chop = attackingNK ? Math.sin(time * 22) * 0.55 : Math.sin(time * 1.5 + phase) * 0.12;
-    for (var sgn = -1; sgn <= 1; sgn += 2) {
-      ctx.save();
-      ctx.translate(sgn * R * 0.80, -R * 0.02);
-      ctx.rotate(sgn * (0.62 + chop));
-      // mango (más largo y grueso)
+    // ── BRAZOS CON HACHAS DE PERFORINA (detrás del cuerpo; se ocultan
+    // durante el Frenesí porque las 8 hojas vuelan en centrifugado) ──
+    function paintNKAxe(axR, flip) {
       ctx.strokeStyle = "#5a2a18"; ctx.lineWidth = Math.max(2.5, 3.6 * U); ctx.lineCap = "round";
-      ctx.beginPath(); ctx.moveTo(0, R * 0.20); ctx.lineTo(0, -R * 1.20); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, axR * 0.20); ctx.lineTo(0, -axR * 1.20); ctx.stroke();
       ctx.strokeStyle = "#8a4a2c"; ctx.lineWidth = Math.max(1, 1.5 * U);
-      ctx.beginPath(); ctx.moveTo(0, R * 0.10); ctx.lineTo(0, -R * 1.05); ctx.stroke();
-      // cabeza del hacha (hoja metálica con filo claro) — MÁS GRANDE
-      var hy = -R * 1.18, hw = R * 0.78, hh = R * 0.56;
+      ctx.beginPath(); ctx.moveTo(0, axR * 0.10); ctx.lineTo(0, -axR * 1.05); ctx.stroke();
+      var hy = -axR * 1.18, hw = axR * 0.78, hh = axR * 0.56;
       var axeG = ctx.createLinearGradient(-hw, hy - hh, hw, hy + hh);
       axeG.addColorStop(0, "#ffe9f4"); axeG.addColorStop(0.45, "#d8b8c8"); axeG.addColorStop(1, "#7a5668");
       ctx.fillStyle = axeG; ctx.strokeStyle = "#2b1420"; ctx.lineWidth = Math.max(1.8, 2.4 * U);
       ctx.lineJoin = "round";
-      // Hoja de HACHA real: cuello angosto en el mango que se abre en un filo
-      // ancho y curvo (media luna), con talón recto arriba y abajo.
       ctx.beginPath();
-      ctx.moveTo(-sgn * hw * 0.10, hy - hh * 0.70);              // talón superior (cruza el mango)
-      ctx.lineTo(sgn * hw * 0.42, hy - hh * 1.05);               // hombro superior de la hoja
-      ctx.quadraticCurveTo(sgn * hw * 1.30, hy, sgn * hw * 0.42, hy + hh * 1.05);  // FILO curvo
-      ctx.lineTo(-sgn * hw * 0.10, hy + hh * 0.70);              // talón inferior
-      ctx.quadraticCurveTo(sgn * hw * 0.05, hy, -sgn * hw * 0.10, hy - hh * 0.70);
+      ctx.moveTo(-flip * hw * 0.10, hy - hh * 0.70);
+      ctx.lineTo(flip * hw * 0.42, hy - hh * 1.05);
+      ctx.quadraticCurveTo(flip * hw * 1.30, hy, flip * hw * 0.42, hy + hh * 1.05);
+      ctx.lineTo(-flip * hw * 0.10, hy + hh * 0.70);
+      ctx.quadraticCurveTo(flip * hw * 0.05, hy, -flip * hw * 0.10, hy - hh * 0.70);
       ctx.closePath(); ctx.fill(); ctx.stroke();
-      // filo brillante (perforina)
       ctx.strokeStyle = "rgba(255,240,252,0.95)"; ctx.lineWidth = Math.max(1.2, 1.8 * U);
       ctx.beginPath();
-      ctx.moveTo(sgn * hw * 0.40, hy - hh * 0.95);
-      ctx.quadraticCurveTo(sgn * hw * 1.18, hy, sgn * hw * 0.40, hy + hh * 0.95);
+      ctx.moveTo(flip * hw * 0.40, hy - hh * 0.95);
+      ctx.quadraticCurveTo(flip * hw * 1.18, hy, flip * hw * 0.40, hy + hh * 0.95);
       ctx.stroke();
-      ctx.restore();
+    }
+    var chop = attackingNK ? Math.sin(time * 22) * 0.55 : Math.sin(time * 1.5 + phase) * 0.12;
+    if (!doingUlt) {
+      for (var sgn = -1; sgn <= 1; sgn += 2) {
+        ctx.save();
+        ctx.translate(sgn * R * 0.80, -R * 0.02);
+        ctx.rotate(sgn * (0.62 + chop));
+        paintNKAxe(R, sgn);
+        ctx.restore();
+      }
     }
 
     // ── CUERPO ANGULAR (no circular): silueta de escudo/punta de flecha,
@@ -19316,25 +19377,27 @@
       ctx.fill();
     }
 
-    // ── GRÁNULOS ORBITANDO durante el frenesí (perforinas liberadas) ──
-    if (doingUlt) {
-      var spinG = t.frenzySpin || 0;
-      var gOrbitR = R * 1.44;
-      for (var g = 0; g < 6; g++) {
-        var oa = spinG + g * (Math.PI * 2 / 6);
-        var ox = Math.cos(oa) * gOrbitR;
-        var oy = Math.sin(oa) * gOrbitR;
-        ctx.fillStyle = "rgba(255, 130, 200, 0.55)";
-        ctx.beginPath(); ctx.arc(ox, oy, 5.5 * U, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = "#fff";
-        ctx.beginPath(); ctx.arc(ox, oy, 3.0 * U, 0, Math.PI * 2); ctx.fill();
-        ctx.strokeStyle = "#E84393"; ctx.lineWidth = 1.2 * U;
-        ctx.beginPath(); ctx.arc(ox, oy, 3.0 * U, 0, Math.PI * 2); ctx.stroke();
-      }
-    }
-
     // Cara cazadora feroz (mantiene la actual).
     towerFace(R, expression, blink, "angry", "fanged");
+
+    // ── 8 HACHAS DEL FRENESÍ (encima del cuerpo: salen, orbitan, vuelven) ──
+    if (doingUlt && frenzyLay) {
+      for (var fx = 0; fx < frenzyLay.axes.length; fx++) {
+        var fxa = frenzyLay.axes[fx];
+        ctx.save();
+        ctx.strokeStyle = "rgba(255, 160, 210, " + (0.22 + 0.40 * frenzyLay.k) + ")";
+        ctx.lineWidth = Math.max(1.6, 2.4 * U);
+        ctx.lineCap = "round";
+        ctx.beginPath();
+        ctx.arc(0, 0, frenzyLay.orbit, fxa.a - 0.46, fxa.a + 0.04);
+        ctx.stroke();
+        ctx.translate(fxa.x - t.x, fxa.y - t.y);
+        ctx.rotate(fxa.a + Math.PI / 2 + 0.18 * fxa.flip);
+        ctx.globalAlpha = 0.55 + 0.45 * frenzyLay.k;
+        paintNKAxe(R * (0.78 + 0.18 * frenzyLay.k), fxa.flip);
+        ctx.restore();
+      }
+    }
     ctx.restore();
   }
 

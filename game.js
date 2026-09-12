@@ -18999,30 +18999,41 @@
         var tipY = cockedY + (hitY - cockedY) * over;
         var midX = kneeX + (hitX - kneeX) * slam * 0.35;
         var midY = kneeY + (hitY - kneeY) * slam * 0.35;
+        var tipAng = Math.atan2(tipY - midY, tipX - midX);
         ctx.lineCap = "round";
         ctx.lineJoin = "round";
-        ctx.strokeStyle = t.def.colorDark;
-        ctx.lineWidth = Math.max(2.6, 3.4 * U);
+        ctx.strokeStyle = "#061014";
+        ctx.lineWidth = Math.max(3.4, 4.2 * U);
         ctx.beginPath();
         ctx.moveTo(hipX, hipY);
         ctx.quadraticCurveTo(midX, midY, tipX, tipY);
         ctx.stroke();
-        ctx.strokeStyle = slam > 0.4 ? "rgba(255, 230, 120, " + (0.35 + slam * 0.5) + ")" : t.def.color;
-        ctx.lineWidth = Math.max(1.3, 1.7 * U);
+        ctx.strokeStyle = "#163038";
+        ctx.lineWidth = Math.max(1.8, 2.2 * U);
         ctx.beginPath();
         ctx.moveTo(hipX, hipY);
         ctx.quadraticCurveTo(midX, midY, tipX, tipY);
         ctx.stroke();
-        var flagR = R * 0.11;
-        ctx.fillStyle = "#ffe27a";
-        ctx.fillRect(tipX - flagR, tipY - flagR, flagR * 2, flagR * 2);
-        ctx.strokeStyle = "rgba(120, 80, 30, 0.9)";
-        ctx.lineWidth = 0.9 * U;
-        ctx.strokeRect(tipX - flagR, tipY - flagR, flagR * 2, flagR * 2);
-        ctx.fillStyle = "#d61f1f";
+        var spLen = R * (0.34 + slam * 0.08);
+        var spW = R * 0.09;
+        ctx.fillStyle = "#1c2428";
         ctx.beginPath();
-        ctx.arc(tipX, tipY, flagR * 0.42, 0, Math.PI * 2);
+        ctx.moveTo(tipX + Math.cos(tipAng) * spLen, tipY + Math.sin(tipAng) * spLen);
+        ctx.lineTo(tipX + Math.cos(tipAng + Math.PI / 2) * spW - Math.cos(tipAng) * R * 0.04,
+          tipY + Math.sin(tipAng + Math.PI / 2) * spW - Math.sin(tipAng) * R * 0.04);
+        ctx.lineTo(tipX + Math.cos(tipAng - Math.PI / 2) * spW - Math.cos(tipAng) * R * 0.04,
+          tipY + Math.sin(tipAng - Math.PI / 2) * spW - Math.sin(tipAng) * R * 0.04);
+        ctx.closePath();
         ctx.fill();
+        ctx.strokeStyle = "#0a1014";
+        ctx.lineWidth = Math.max(0.9, 1.1 * U);
+        ctx.stroke();
+        ctx.strokeStyle = "rgba(190, 210, 220, " + (0.45 + slam * 0.4) + ")";
+        ctx.lineWidth = Math.max(0.8, 1 * U);
+        ctx.beginPath();
+        ctx.moveTo(tipX, tipY);
+        ctx.lineTo(tipX + Math.cos(tipAng) * spLen * 0.92, tipY + Math.sin(tipAng) * spLen * 0.92);
+        ctx.stroke();
       }
     } else {
     var dn = 9;

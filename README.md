@@ -78,8 +78,7 @@ Sepsis y final de Shock/MODS.
 ## Branches
 
 - **`main`** → juego HTML5 actual.
-- **`godot-prototype`** → prototipo inicial en Godot 4 (preservado como
-  backup, no se usa para el deploy de GitHub Pages).
+- **`godot-prototype`** → prototipo inicial en Godot 4 (backup; no se publica).
 
 ## Stack
 
@@ -88,7 +87,9 @@ Sepsis y final de Shock/MODS.
 - Sin framework ni bundler: `index.html` carga `data/*.js` (tablas estáticas)
   y después el motor monolítico `game.js`.
 - `npm run build` copia `index.html`, `game.js`, `data/` y `assets/` a `www/`.
-- Vercel (producto) y Capacitor consumen `www/`. GitHub Pages, si está activo, sirve los mismos fuentes de `main`.
+- El producto web es solo https://immunodefense.vercel.app (`www/` vía Vercel).
+  Capacitor consume el mismo `www/`. Cualquier visita a GitHub Pages redirige
+  a esa URL para no partir el guardado entre orígenes.
 - `npm run sync`, `npm run android` y `npm run ios` sincronizan o abren los
   proyectos nativos.
 

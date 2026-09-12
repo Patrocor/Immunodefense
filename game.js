@@ -17322,22 +17322,51 @@
     return "rgb(" + r + "," + g + "," + b + ")";
   }
 
-  function drawPath() {
-    // En diseminación dibujamos líneas finas y discretas (no la espiral rosada).
-    if (state.dissemination) {
-      drawDisseminationPathStroke();
-      return;
+  function walkPathSamples(fn, stride) {
+    stride = stride || 1;
+    function walk(beziers) {
+      if (!beziers) return;
+      for (var i = 0; i < beziers.length; i++) {
+        var sm = beziers[i].samples;
+        if (!sm || sm.length < 2) continue;
+        for (var k = 0; k < sm.length; k += stride) {
+          var a = sm[k];
+          var nxt = sm[Math.min(k + 1, sm.length - 1)];
+          var prv = sm[Math.max(k - 1, 0)];
+          var dx = nxt.x - prv.x, dy = nxt.y - prv.y;
+          var len = Math.hypot(dx, dy) || 1;
+          fn(a.x, a.y, -dy / len, dx / len, i * 73 + k);
+        }
+      }
     }
-    // Inflammation halos under the path strokes.
+    if (PATH.branches) {
+      for (var b = 0; b < PATH.branches.length; b++) walk(PATH.branches[b].beziers);
+    }
+    if (PATH.main) walk(PATH.main.beziers);
+  }
+
+  function computeWoundLipTint() {
+    var marks = state.pathInflammation;
+    var k = 0;
+    if (marks && marks.length) {
+      var sum = 0;
+      for (var i = 0; i < marks.length; i++) sum += marks[i].intensity;
+      k = Math.min(1, sum / 12);
+    }
+    var r = Math.round(0xb0 + (0xc0 - 0xb0) * k);
+    var g = Math.round(0x6c + (0x39 - 0x6c) * k);
+    var b = Math.round(0x62 + (0x2b - 0x62) * k);
+    return "rgb(" + r + "," + g + "," + b + ")";
+  }
+
+  function drawPathHighway() {
     drawPathInflammation();
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
-    // Outer (rosy) borders: tint redder when inflammation accumulates.
     ctx.strokeStyle = computeBorderTint();
     ctx.lineWidth = 38 * U; strokeAllPaths();
     ctx.strokeStyle = "#d8978b"; ctx.lineWidth = 30 * U; strokeAllPaths();
     ctx.strokeStyle = "#c47a6e"; ctx.lineWidth = 22 * U; strokeAllPaths();
-    // Confluence "blob" — slightly larger pad where the 3 branches merge.
     if (PATH.confluence) {
       ctx.fillStyle = "#c47a6e";
       ctx.beginPath();
@@ -17355,6 +17384,85 @@
     strokeAllPaths();
     ctx.setLineDash([]);
     ctx.lineCap = "butt";
+  }
+
+  function drawPathWoundChannel() {
+    // Carril-herida: lumen de exudado + labio de granulación/fibrina.
+    // Misma geometría y anchos (~38/30/22 U) para no cambiar colocación.
+    drawPathInflammation();
+    ctx.save();
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.strokeStyle = "rgba(150, 58, 54, 0.20)";
+    ctx.lineWidth = 44 * U;
+    strokeAllPaths();
+    ctx.strokeStyle = computeWoundLipTint();
+    ctx.lineWidth = 36 * U;
+    strokeAllPaths();
+    ctx.strokeStyle = "#c9897a";
+    ctx.lineWidth = 30 * U;
+    strokeAllPaths();
+    ctx.strokeStyle = "#6e322e";
+    ctx.lineWidth = 22 * U;
+    strokeAllPaths();
+    ctx.strokeStyle = "rgba(36, 12, 14, 0.42)";
+    ctx.lineWidth = 12 * U;
+    strokeAllPaths();
+    ctx.strokeStyle = "rgba(255, 206, 184, 0.14)";
+    ctx.lineWidth = 5 * U;
+    strokeAllPaths();
+
+    if (PATH.confluence) {
+      var cx = PATH.confluence.x, cy = PATH.confluence.y;
+      var pr = 20 * U;
+      var pg = ctx.createRadialGradient(cx - pr * 0.2, cy - pr * 0.25, pr * 0.12, cx, cy, pr);
+      pg.addColorStop(0, "rgba(56, 18, 18, 0.88)");
+      pg.addColorStop(0.62, "rgba(110, 50, 46, 0.72)");
+      pg.addColorStop(1, "rgba(176, 104, 96, 0)");
+      ctx.fillStyle = pg;
+      ctx.beginPath();
+      for (var pi = 0; pi < 12; pi++) {
+        var pa = (pi / 12) * Math.PI * 2;
+        var rr = pr * (0.80 + 0.20 * Math.sin(pi * 2.4 + 0.4));
+        var px = cx + Math.cos(pa) * rr, py = cy + Math.sin(pa) * rr;
+        if (pi === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+      }
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    if (!QUALITY.low) {
+      var half = 16.4 * U;
+      ctx.strokeStyle = "rgba(236, 214, 188, 0.52)";
+      ctx.lineWidth = Math.max(1.05, 1.3 * U);
+      walkPathSamples(function (x, y, nx, ny, seed) {
+        var j = ((seed * 9301 + 49297) % 233280) / 233280;
+        if (j < 0.30) return;
+        var side = (seed % 2) ? 1 : -1;
+        var wob = (j - 0.5) * 3.6 * U;
+        var x0 = x + nx * (half + wob) * side;
+        var y0 = y + ny * (half + wob) * side;
+        var flen = (3.2 + j * 4.8) * U;
+        var tx = -ny, ty = nx;
+        ctx.beginPath();
+        ctx.moveTo(x0 - tx * flen * 0.5, y0 - ty * flen * 0.5);
+        ctx.lineTo(x0 + tx * flen * 0.5, y0 + ty * flen * 0.5);
+        ctx.stroke();
+      }, 2);
+    }
+    ctx.restore();
+  }
+
+  function drawPath() {
+    if (state.dissemination) {
+      drawDisseminationPathStroke();
+      return;
+    }
+    if (state.f2) {
+      drawPathHighway();
+      return;
+    }
+    drawPathWoundChannel();
   }
   // Legacy alias kept for any straggler refs.
   function strokePathLine() { strokeAllPaths(); }
@@ -31323,13 +31431,21 @@
   function drawPlasmaFlow() {
     if (!PATH.main || !PATH.main.length) return;
     var total = PATH.main.length, n = 10, speed = 85 * U;
+    var wound = !state.f2 && !state.dissemination;
     ctx.save();
     for (var i = 0; i < n; i++) {
       var d = (state.time * speed + i * (total / n)) % total;
       var p = sampleBeziers(PATH.main.beziers, d);
       var tw = 0.5 + 0.5 * Math.sin(state.time * 2 + i * 1.3);
-      ctx.fillStyle = "rgba(255, 244, 228, " + (0.08 + 0.12 * tw) + ")";
-      ctx.beginPath(); ctx.arc(p.x, p.y, (2.5 + tw * 2.5) * U, 0, Math.PI * 2); ctx.fill();
+      if (wound) {
+        ctx.fillStyle = "rgba(255, 214, 186, " + (0.16 + 0.20 * tw) + ")";
+        ctx.beginPath();
+        ctx.ellipse(p.x, p.y, (4.2 + tw * 2.2) * U, (2.0 + tw * 1.1) * U, p.angle || 0, 0, Math.PI * 2);
+        ctx.fill();
+      } else {
+        ctx.fillStyle = "rgba(255, 244, 228, " + (0.08 + 0.12 * tw) + ")";
+        ctx.beginPath(); ctx.arc(p.x, p.y, (2.5 + tw * 2.5) * U, 0, Math.PI * 2); ctx.fill();
+      }
     }
     ctx.restore();
   }

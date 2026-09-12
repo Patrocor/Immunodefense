@@ -476,13 +476,11 @@
     // que el campo use TODO el alto. Portrait: dock angosto (~27% del ancho);
     // landscape: dock fijo cómodo. Incluye safeRight para no quedar bajo el
     // notch/esquina redondeada del lado derecho.
-    // Dock compacto pero LEGIBLE — el ancho permite cards de ~52-65px
-    // con contenido contenido (nombre + ícono + costo).
-    // Dock un poco más amplio para mostrar más torres y dar espacio
-    // al card strip hasta tocar (apenas) la cartilla de NETosis.
+    // El dock tiene que entrar nombre + preview + costo. Portrait ~26% del
+    // ancho; landscape ~12%, con piso para que el ícono no quede en 16 px.
     SIDE_INNER = isPortrait
-      ? Math.round(0.85 * Math.max(78, Math.min(96, VW * 0.21)))
-      : Math.round(0.85 * Math.max(72, Math.min(98, VW * 0.10)));
+      ? Math.round(Math.max(92, Math.min(120, VW * 0.26)))
+      : Math.round(Math.max(88, Math.min(124, VW * 0.12)));
     SIDE_W = SIDE_INNER + safeRight;
     HUD_H = Math.round(hudBase + safeTop);
     PANEL_H = 0;  // legacy: ya no hay franja inferior
@@ -2870,11 +2868,12 @@
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     // Layout VERTICAL: ícono arriba, "Dex" debajo.
-    var iconSize = Math.max(13, Math.min(18, b.h * 0.50));
+    var iconSize = Math.max(14, Math.min(22, Math.min(b.h * 0.46, b.w * 0.38)));
     ctx.font = iconSize + "px Fredoka, sans-serif";
     ctx.fillText("📖", b.x + b.w / 2, b.y + b.h * 0.32);
-    ctx.font = "bold " + Math.max(10, Math.min(12, b.h * 0.32)) + "px Fredoka, sans-serif";
-    ctx.fillText("Dex", b.x + b.w / 2, b.y + b.h * 0.74);
+    var dexPx = Math.max(10, Math.min(14, Math.min(b.h * 0.30, b.w * 0.28)));
+    ctx.font = "bold " + fitFont("Dex", b.w - 8, dexPx, 8) + "px Fredoka, sans-serif";
+    ctx.fillText(ellipsizeToWidth("Dex", b.w - 8), b.x + b.w / 2, b.y + b.h * 0.74);
     // Badge rojo en la esquina superior derecha si hay items nuevos.
     if (hasDexNew()) {
       var dotR = Math.max(3, Math.min(5, b.h * 0.12));
@@ -3645,20 +3644,21 @@
         ctx.textAlign = "left";
         ctx.textBaseline = "middle";
         ctx.fillStyle = "rgba(255,255,255,0.42)";
-        ctx.font = "bold 8px Fredoka, sans-serif";
-        // Espacio real para la etiqueta = ancho menos lo que ocupa el número.
+        var labPx = Math.max(7, Math.min(10, innerW * 0.12));
+        var numPx = (UI.dockType && UI.dockType.infoBody) || 11;
+        ctx.font = "bold " + labPx + "px Fredoka, sans-serif";
         ctx.save();
-        ctx.font = "bold 11px Fredoka, sans-serif";
+        ctx.font = "bold " + numPx + "px Fredoka, sans-serif";
         var numW = ctx.measureText(filas[si][2]).width;
         ctx.restore();
-        ctx.font = "bold 8px Fredoka, sans-serif";
+        ctx.font = "bold " + labPx + "px Fredoka, sans-serif";
         var labMax = innerW - numW - 6;
         var lab = filas[si][0];
         if (ctx.measureText(lab).width > labMax) lab = filas[si][1];
         ctx.fillText(ellipsizeToWidth(lab, labMax), innerX, fy + 6);
         ctx.textAlign = "right";
         ctx.fillStyle = filas[si][3];
-        ctx.font = "bold 11px Fredoka, sans-serif";
+        ctx.font = "bold " + numPx + "px Fredoka, sans-serif";
         ctx.fillText(filas[si][2], box.x + box.w - 5, fy + 6);
       }
       ctx.textBaseline = "top";
@@ -4565,6 +4565,7 @@
       state.cellVignettes.gap = 0;
       return act ? act.kind : null;
     },
+    relayout: function () { layoutUI(); return window.__game.metrics; },
     quality: function () {
       return {
         low: !!QUALITY.low,
@@ -4940,24 +4941,35 @@
     // reubica arriba de la cartilla de NETosis (antes vivía en la fila
     // inferior del campo, donde quedaba pegado/superpuesto con ella).
     // Y arriba del C3b, la tarjeta del ultimate "Arpón" del macrófago.
-    var c3bMeterH = Math.round(34 * U);
-    var c3bMeterGap = Math.round(4 * U);
-    var ultCardH = Math.round(34 * U);
-    var ultCardGap = Math.round(4 * U);
+    var dockScale = Math.max(0.75, Math.min(1.4, contentW / 90));
+    UI.dockScale = dockScale;
+    UI.dockType = {
+      name: Math.round(Math.max(10, Math.min(15, contentW * 0.16))),
+      cost: Math.round(Math.max(9, Math.min(13, contentW * 0.145))),
+      header: Math.round(Math.max(9, Math.min(13, contentW * 0.135))),
+      infoTitle: Math.round(Math.max(10, Math.min(14, contentW * 0.155))),
+      infoBody: Math.round(Math.max(9, Math.min(12, contentW * 0.125)))
+    };
+    var c3bMeterH = Math.round(Math.max(28, Math.min(40, contentW * 0.40)));
+    var c3bMeterGap = Math.round(4 * dockScale);
+    var ultCardH = c3bMeterH;
+    var ultCardGap = c3bMeterGap;
+    UI.dockMeterH = c3bMeterH;
+    UI.dockMeterGap = c3bMeterGap;
     // C3b + Arpón siempre reservan espacio al fondo del dock, en ambas fases.
     var responsesReservedH = c3bMeterH + c3bMeterGap + ultCardH + ultCardGap + dockPad;
     var rpH = 0;
     if (state && state.dissemination) {
-      var rpCardH = Math.round(44 * U);
-      var rpPad = Math.round(5 * U);
+      var rpCardH = Math.round(Math.max(36, Math.min(52, contentW * 0.48)));
+      var rpPad = Math.round(Math.max(4, 5 * dockScale));
       rpH = rpCardH + 2 * rpPad;
       responsesReservedH += rpH;
     }
 
-    var btnH = Math.round(Math.max(32, Math.min(42, contentW * 0.36)));
+    var btnH = Math.round(Math.max(34, Math.min(44, contentW * 0.40)));
 
     // Botón "Dex" arriba del dock (vertical: ícono arriba + nombre).
-    var compBtnH = Math.round(Math.max(38, Math.min(52, contentW * 0.62)));
+    var compBtnH = Math.round(Math.max(42, Math.min(58, contentW * 0.56)));
     UI.compendiumBtn = { x: contentX, y: dockTop, w: contentW, h: compBtnH };
 
     // Cartilla por GRUPOS DESPLEGABLES: cada categoría (cabecera) se abre/cierra
@@ -4967,10 +4979,13 @@
     // de teléfono, 393 px de alto) al strip le quedaban 11 px y NO se veía
     // ninguna torre.
     var stripTop = dockTop + compBtnH + 6;
-    var headerH = 28, groupSpacing = 6;
-    // Cartas verticales: nombre arriba, ícono al medio, costo abajo.
-    // Altura ajustada para que los 3 elementos respiren.
-    var cardH = Math.round(Math.max(64, Math.min(82, contentW * 0.95)));
+    var headerH = Math.round(Math.max(24, Math.min(34, 22 + 10 * dockScale)));
+    var groupSpacing = Math.round(Math.max(4, 6 * dockScale));
+    // Cartas verticales: nombre, preview real y costo escalan con el ancho.
+    var cardH = Math.round(Math.max(76, Math.min(108, contentW * 1.12)));
+    if (!isPortrait && VH < 520) {
+      cardH = Math.round(Math.max(68, Math.min(cardH, contentW * 0.92)));
+    }
     var openMap = (state && state.openGroups) ? state.openGroups : { linea: true };
     UI.cards = [];
     UI.groupHeaders = [];
@@ -5034,10 +5049,21 @@
     // elegida para construir. Sin selección no reserva nada y el alto entero
     // del dock es para las cartas.
     var hasInfo = !!(state && (state.selectedTower || state.selectedToBuild));
-    var infoWant = hasInfo ? Math.min(96 + btnH * 2, Math.round(dockH * 0.52)) : 0;
-    // El piso de la zona de info tiene que dar para el texto + los dos botones.
+    var placingOnly = !!(state && state.selectedToBuild && !state.selectedTower);
+    var infoWant = hasInfo
+      ? Math.min(
+          (placingOnly ? 70 : 96) + (placingOnly ? 0 : btnH * 2),
+          Math.round(dockH * (placingOnly ? 0.28 : 0.52))
+        )
+      : 0;
+    // Colocar no usa Mejorar/Vender: no les reserva alto. Así en landscape
+    // bajo sigue cabiendo al menos una carta.
     var infoFloor = hasInfo
-      ? Math.min(infoWant, Math.round(Math.max(btnH * 2 + 8 + 34, dockH * 0.26))) : 0;
+      ? Math.min(infoWant, Math.round(Math.max(
+          placingOnly ? 62 : btnH * 2 + 8 + 34,
+          dockH * (placingOnly ? 0.16 : 0.26)
+        )))
+      : 0;
     var infoH = Math.max(infoFloor, Math.min(infoWant, freeH - stripFloor));
     // Si ni con el mínimo entra todo, el strip se queda con lo que sobre
     // (scrolleable) en vez de tapar los botones de mejorar/vender.
@@ -5091,8 +5117,13 @@
     // ZONA DE INFO — no del dock. Clavados a dockBottom se montaban encima de
     // la tarjeta del Arpón y del medidor de C3b, y en pantallas bajas el botón
     // de Mejorar se salía por debajo del borde.
-    UI.upgradeBtn = { x: contentX, y: infoY + infoH - btnH, w: contentW, h: btnH };
-    UI.sellBtn = { x: contentX, y: infoY + infoH - btnH * 2 - 8, w: contentW, h: btnH };
+    if (placingOnly) {
+      UI.upgradeBtn = { x: -99, y: -99, w: 0, h: 0 };
+      UI.sellBtn = { x: -99, y: -99, w: 0, h: 0 };
+    } else {
+      UI.upgradeBtn = { x: contentX, y: infoY + infoH - btnH, w: contentW, h: btnH };
+      UI.sellBtn = { x: contentX, y: infoY + infoH - btnH * 2 - 8, w: contentW, h: btnH };
+    }
     var dsz = 22;
     UI.deselectBtn = { x: contentRight - dsz, y: infoY, w: dsz, h: dsz };
 
@@ -11801,16 +11832,16 @@
       anchorW = UI.compendiumBtn.w;
       anchorBottomY = UI.dockBottom - UI.dockPad;
     }
-    var c3bH = Math.round(34 * U);
-    var c3bGap = Math.round(4 * U);
+    var c3bH = UI.dockMeterH || Math.round(Math.max(28, Math.min(40, anchorW * 0.40)));
+    var c3bGap = UI.dockMeterGap || Math.round(4 * (UI.dockScale || 1));
     UI.c3bMeter = {
       x: anchorX,
       y: anchorBottomY - c3bGap - c3bH,
       w: anchorW,
       h: c3bH
     };
-    var ultH = Math.round(34 * U);
-    var ultGap = Math.round(4 * U);
+    var ultH = UI.dockMeterH || c3bH;
+    var ultGap = UI.dockMeterGap || c3bGap;
     UI.macrofagoUltCard = {
       x: UI.c3bMeter.x,
       y: UI.c3bMeter.y - ultGap - ultH,
@@ -12499,11 +12530,13 @@
     ctx.strokeStyle = ready ? "rgba(255,110,40,0.95)" : "rgba(255,255,255,0.45)";
     ctx.lineWidth = ready ? 2 : 1;
     ctx.strokeRect(v.x, v.y, v.w, v.h);
-    ctx.font = "bold " + Math.max(10, Math.min(12, v.h * 0.32)) + "px Fredoka, sans-serif";
+    var arpLabel = ready ? "▸ Arpón" : "Arpón";
+    var arpPx = Math.max(10, Math.min(14, Math.min(v.h * 0.40, v.w * 0.18)));
+    ctx.font = "bold " + fitFont(arpLabel, v.w - 12, arpPx, 8) + "px Fredoka, sans-serif";
     ctx.textBaseline = "middle";
     ctx.textAlign = "left";
     ctx.fillStyle = ready ? "#ffd9c0" : "rgba(255,255,255,0.75)";
-    ctx.fillText(ready ? "▸ Arpón" : "Arpón", v.x + 7, v.y + v.h / 2);
+    ctx.fillText(ellipsizeToWidth(arpLabel, v.w - 12), v.x + 7, v.y + v.h / 2);
     ctx.restore();
   }
 
@@ -12527,13 +12560,14 @@
     ctx.lineWidth = ready ? 2 : 1;
     ctx.strokeRect(v.x, v.y, v.w, v.h);
     // Label "C3b"
-    ctx.font = "bold " + Math.max(10, Math.min(12, v.h * 0.32)) + "px Fredoka, sans-serif";
     ctx.textBaseline = "middle";
     ctx.textAlign = "left";
     ctx.fillStyle = "#aef7c4";
     var label = ready ? "▸ C3b" : "C3b";
     var pad = 7;
-    ctx.fillText(label, v.x + pad, v.y + v.h / 2);
+    var c3bPx = Math.max(10, Math.min(14, Math.min(v.h * 0.40, v.w * 0.20)));
+    ctx.font = "bold " + fitFont(label, v.w * 0.42, c3bPx, 8) + "px Fredoka, sans-serif";
+    ctx.fillText(ellipsizeToWidth(label, v.w * 0.42), v.x + pad, v.y + v.h / 2);
     var lw = ctx.measureText(label).width;
     // Dots a la derecha del label, calculados para NUNCA salirse del rect.
     var dotsStart = v.x + pad + lw + 6;
@@ -16042,6 +16076,7 @@
 
   // -------- VIÑETAS CELULARES (solo visual, Fase 1) ---------------------
   // Una escena a la vez, en bordes/huecos. No tocan path, colocación ni ATP.
+  // Queratina: dos brigadas, de cada borde lateral hasta la herida.
   var VIGNETTE_KINDS = ["platelets", "keratin", "endothelium", "fibroblasts", "sweepers"];
 
   function ensureCellVignettes() {
@@ -16095,40 +16130,52 @@
       if (vignetteZoneBusy(lip.x, lip.y, 42 * U)) return null;
     }
     var depot = {
-      x: lip.x < w.x ? FIELD_LEFT + FIELD_W * 0.18 : FIELD_RIGHT - FIELD_W * 0.18,
-      y: FIELD_TOP + FIELD_H * 0.24
+      x: lip.x < w.x ? FIELD_LEFT + 14 * U : FIELD_RIGHT - 14 * U,
+      y: FIELD_TOP + FIELD_H * 0.22
     };
     if (distPointToPath(depot.x, depot.y) < 38 * U) depot.y += 18 * U;
     if (vignetteZoneBusy(depot.x, depot.y, 36 * U)) return null;
     var ctrl = {
       x: (depot.x + lip.x) * 0.5,
-      y: Math.min(depot.y, lip.y) - 18 * U
+      y: Math.min(depot.y, lip.y) - 22 * U
     };
     return {
-      kind: "platelets", t: 0, max: 5.6,
-      depot: depot, lip: lip, ctrl: ctrl, n: 3
+      kind: "platelets", t: 0, max: 6.2,
+      depot: depot, lip: lip, ctrl: ctrl, n: 4
     };
   }
 
-  function spawnKeratinBrigade() {
-    var w = PATH.wounds && PATH.wounds[0];
-    var y = FIELD_TOP + FIELD_H * 0.105;
-    var left = !w || w.x > FIELD_LEFT + FIELD_W * 0.5;
-    var x0 = FIELD_LEFT + FIELD_W * (left ? 0.20 : 0.62);
+  function spawnKeratinLine(x0, x1, y, n) {
     var cells = [];
-    for (var i = 0; i < 4; i++) {
-      var x = x0 + i * 28 * U * (left ? 1 : -1);
-      if (vignetteZoneBusy(x, y, 26 * U)) return null;
-      cells.push({ x: x, y: y, phase: i * 0.7 });
+    var i, t, x;
+    for (i = 0; i < n; i++) {
+      t = n <= 1 ? 0 : i / (n - 1);
+      x = x0 + (x1 - x0) * t;
+      if (vignetteZoneBusy(x, y, 18 * U)) continue;
+      cells.push({ x: x, y: y, phase: i * 0.55 });
     }
-    return { kind: "keratin", t: 0, max: 4.4, cells: cells, left: left };
+    return cells;
+  }
+
+  function spawnKeratinBrigade() {
+    var w = (PATH.wounds && PATH.wounds[0]) || PATH.confluence;
+    var y = FIELD_TOP + FIELD_H * 0.128;
+    var woundX = w ? w.x : FIELD_LEFT + FIELD_W * 0.5;
+    var gap = 26 * U;
+    var left = spawnKeratinLine(FIELD_LEFT + 10 * U, woundX - gap, y, 7);
+    var right = spawnKeratinLine(FIELD_RIGHT - 10 * U, woundX + gap, y, 7);
+    if (left.length < 3 && right.length < 3) return null;
+    return {
+      kind: "keratin", t: 0, max: 6.6,
+      left: left, right: right, woundX: woundX, y: y
+    };
   }
 
   function spawnEndotheliumPatch() {
     var v = PATH.exit;
     if (!v) return null;
     if (vignetteZoneBusy(v.x, v.y, 52 * U)) return null;
-    return { kind: "endothelium", t: 0, max: 5.2, x: v.x, y: v.y, n: 3 };
+    return { kind: "endothelium", t: 0, max: 5.6, x: v.x, y: v.y, n: 4 };
   }
 
   function spawnFibroblastStitch() {
@@ -16164,9 +16211,9 @@
       home.x = left ? FIELD_LEFT + FIELD_W * 0.16 : FIELD_RIGHT - FIELD_W * 0.16;
       if (vignetteZoneBusy(home.x, home.y, 36 * U)) return null;
     }
-    var dust = { x: home.x + (left ? 26 : -26) * U, y: home.y - 8 * U };
-    var drop = { x: home.x + (left ? 52 : -52) * U, y: home.y - 6 * U };
-    return { kind: "sweepers", t: 0, max: 5.0, home: home, dust: dust, drop: drop, n: 2 };
+    var dust = { x: home.x + (left ? 36 : -36) * U, y: home.y - 10 * U };
+    var drop = { x: home.x + (left ? 78 : -78) * U, y: home.y - 8 * U };
+    return { kind: "sweepers", t: 0, max: 5.6, home: home, dust: dust, drop: drop, n: 3 };
   }
 
   function spawnCellVignette(kind) {
@@ -16208,7 +16255,7 @@
   }
 
   function paintVignettePlatelet(x, y, ang, loaded, alpha) {
-    var R = 8.2 * U;
+    var R = 10 * U;
     ctx.save();
     ctx.globalAlpha = alpha;
     ctx.translate(x, y);
@@ -16253,45 +16300,90 @@
       if (back) p = vignetteBez(act.lip, act.ctrl, act.depot, 1 - gk);
       var ang = Math.atan2(act.lip.y - act.depot.y, act.lip.x - act.depot.x);
       if (back) ang += Math.PI;
-      paintVignettePlatelet(p.x, p.y, ang, out || dump, 0.82);
+      paintVignettePlatelet(p.x, p.y, ang, out || dump, 0.94);
     }
     if (dump) {
       ctx.save();
-      ctx.globalAlpha = 0.55;
-      ctx.fillStyle = "rgba(236, 214, 188, 0.85)";
+      ctx.globalAlpha = 0.72;
+      ctx.fillStyle = "rgba(236, 214, 188, 0.92)";
       ctx.beginPath();
-      ctx.ellipse(act.lip.x, act.lip.y, 7 * U, 3.2 * U, 0.2, 0, Math.PI * 2);
+      ctx.ellipse(act.lip.x, act.lip.y, 10 * U, 4.4 * U, 0.2, 0, Math.PI * 2);
       ctx.fill();
       ctx.restore();
     }
   }
 
-  function drawVignetteKeratin(act, k) {
-    var cells = act.cells;
-    var hop = (k * 3.2) % 1;
-    var pair = Math.min(cells.length - 2, Math.floor(k * 3.2));
-    for (var i = 0; i < cells.length; i++) {
-      var c = cells[i];
-      var bob = Math.sin(state.time * 3 + c.phase) * 1.2 * U;
-      ctx.save();
-      ctx.globalAlpha = 0.80;
-      ctx.translate(c.x, c.y + bob);
-      ctx.fillStyle = "#f0d8c0";
-      ctx.beginPath(); ctx.ellipse(0, 0, 7.4 * U, 6.2 * U, 0, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = "rgba(140, 100, 70, 0.55)";
-      ctx.lineWidth = Math.max(0.7, 0.9 * U); ctx.stroke();
-      ctx.fillStyle = "rgba(90, 55, 35, 0.7)";
-      ctx.beginPath(); ctx.ellipse(0, 0, 1.6 * U, 1.9 * U, 0, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = "#fff";
-      ctx.beginPath(); ctx.arc(-1.4 * U, -0.6 * U, 0.7 * U, 0, Math.PI * 2);
-      ctx.arc(1.4 * U, -0.6 * U, 0.7 * U, 0, Math.PI * 2); ctx.fill();
-      ctx.restore();
-    }
+  function paintVignetteKeratinocyte(c) {
+    var bob = Math.sin(state.time * 3 + c.phase) * 1.6 * U;
+    var rx = 13.2 * U, ry = 10.6 * U;
+    ctx.save();
+    ctx.globalAlpha = 0.98;
+    ctx.translate(c.x, c.y + bob);
+    ctx.fillStyle = "rgba(40, 22, 10, 0.28)";
+    ctx.beginPath(); ctx.ellipse(1.2 * U, ry * 0.72, rx * 0.92, ry * 0.28, 0, 0, Math.PI * 2); ctx.fill();
+    var kg = ctx.createRadialGradient(-rx * 0.25, -ry * 0.3, rx * 0.12, 0, 0, rx);
+    kg.addColorStop(0, "#ffe3a8");
+    kg.addColorStop(0.55, "#e8a85a");
+    kg.addColorStop(1, "#b86a28");
+    ctx.fillStyle = kg;
+    ctx.beginPath(); ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = "#4a2a10";
+    ctx.lineWidth = Math.max(1.6, 2 * U); ctx.stroke();
+    ctx.fillStyle = "rgba(90, 48, 20, 0.9)";
+    ctx.beginPath(); ctx.ellipse(0, 0.4 * U, 2.8 * U, 3.2 * U, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "#fff";
+    ctx.beginPath(); ctx.arc(-2.4 * U, -1.1 * U, 1.15 * U, 0, Math.PI * 2);
+    ctx.arc(2.4 * U, -1.1 * U, 1.15 * U, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "#2a1510";
+    ctx.beginPath(); ctx.arc(-2.4 * U, -1.1 * U, 0.55 * U, 0, Math.PI * 2);
+    ctx.arc(2.4 * U, -1.1 * U, 0.55 * U, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  }
+
+  function paintVignetteKeratinHop(cells, k) {
+    if (!cells || cells.length < 2) return;
+    var span = k * (cells.length - 1);
+    var pair = Math.min(cells.length - 2, Math.floor(span));
+    var hop = span - pair;
     var a = cells[pair], b = cells[pair + 1];
-    if (a && b) {
-      var sx = a.x + (b.x - a.x) * hop;
-      var sy = a.y + (b.y - a.y) * hop - Math.sin(hop * Math.PI) * 8 * U;
-      paintKeratinSquame(sx, sy, 7.2 * U, 3.1 * U, hop * 1.2, 0.90);
+    if (!a || !b) return;
+    var sx = a.x + (b.x - a.x) * hop;
+    var sy = a.y + (b.y - a.y) * hop - Math.sin(hop * Math.PI) * 10 * U;
+    paintKeratinSquame(sx, sy, 10.2 * U, 4.4 * U, hop * 1.2, 1);
+  }
+
+  function drawVignetteKeratin(act, k) {
+    var i;
+    var left = act.left || [];
+    var right = act.right || [];
+    ctx.save();
+    ctx.globalAlpha = 0.55;
+    ctx.strokeStyle = "rgba(180, 110, 40, 0.95)";
+    ctx.lineWidth = Math.max(3.2, 4 * U);
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    if (left.length) {
+      ctx.moveTo(left[0].x, act.y);
+      ctx.lineTo(act.woundX - 10 * U, act.y);
+    }
+    if (right.length) {
+      ctx.moveTo(right[0].x, act.y);
+      ctx.lineTo(act.woundX + 10 * U, act.y);
+    }
+    ctx.stroke();
+    ctx.restore();
+    for (i = 0; i < left.length; i++) paintVignetteKeratinocyte(left[i]);
+    for (i = 0; i < right.length; i++) paintVignetteKeratinocyte(right[i]);
+    paintVignetteKeratinHop(left, k);
+    paintVignetteKeratinHop(right, k);
+    if (k > 0.82) {
+      ctx.save();
+      ctx.globalAlpha = Math.min(1, (k - 0.82) / 0.12) * 0.7;
+      ctx.fillStyle = "rgba(232, 200, 120, 0.9)";
+      ctx.beginPath();
+      ctx.ellipse(act.woundX, act.y + 2 * U, 9 * U, 3.4 * U, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
     }
   }
 
@@ -16304,13 +16396,13 @@
       var x = act.x + Math.cos(ang) * rx;
       var y = act.y + Math.sin(ang) * ry * 0.72;
       ctx.save();
-      ctx.globalAlpha = 0.78;
+      ctx.globalAlpha = 0.96;
       ctx.translate(x, y);
       ctx.rotate(ang + Math.PI / 2);
-      ctx.fillStyle = "#c97880";
-      ctx.beginPath(); ctx.ellipse(0, 0, 8.4 * U, 4.2 * U, 0, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = "rgba(90, 30, 40, 0.5)";
-      ctx.lineWidth = Math.max(0.7, 0.85 * U); ctx.stroke();
+      ctx.fillStyle = "#f098a0";
+      ctx.beginPath(); ctx.ellipse(0, 0, 12.4 * U, 6.2 * U, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = "#5a1824";
+      ctx.lineWidth = Math.max(1.4, 1.7 * U); ctx.stroke();
       ctx.fillStyle = "#fff";
       ctx.beginPath(); ctx.arc(-1.5 * U, -0.4 * U, 0.7 * U, 0, Math.PI * 2);
       ctx.arc(1.5 * U, -0.4 * U, 0.7 * U, 0, Math.PI * 2); ctx.fill();
@@ -16319,9 +16411,9 @@
     if (k > 0.55) {
       var tileA = 0.15;
       ctx.save();
-      ctx.globalAlpha = Math.min(1, (k - 0.55) / 0.25) * 0.55;
-      ctx.strokeStyle = "rgba(220, 150, 150, 0.85)";
-      ctx.lineWidth = Math.max(1.4, 1.8 * U);
+      ctx.globalAlpha = Math.min(1, (k - 0.55) / 0.25) * 0.78;
+      ctx.strokeStyle = "rgba(232, 168, 168, 0.95)";
+      ctx.lineWidth = Math.max(2.2, 2.8 * U);
       ctx.beginPath();
       ctx.ellipse(act.x, act.y, rx * 0.92, ry * 0.68, 0, tileA, tileA + 0.7);
       ctx.stroke();
@@ -16339,10 +16431,10 @@
       ctx.save();
       ctx.translate(x, y);
       ctx.rotate(rot);
-      ctx.fillStyle = "rgba(232, 184, 148, 0.92)";
-      ctx.beginPath(); ctx.ellipse(0, 0, 9 * U, 5.2 * U, 0, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = "rgba(140, 90, 70, 0.6)";
-      ctx.lineWidth = Math.max(0.8, 1 * U); ctx.stroke();
+      ctx.fillStyle = "#e8a060";
+      ctx.beginPath(); ctx.ellipse(0, 0, 13 * U, 7.2 * U, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = "#5a3018";
+      ctx.lineWidth = Math.max(1.5, 1.8 * U); ctx.stroke();
       ctx.fillStyle = "rgba(110, 70, 50, 0.75)";
       ctx.beginPath(); ctx.ellipse(0, 0, 2.6 * U, 2.2 * U, 0, 0, Math.PI * 2); ctx.fill();
       ctx.fillStyle = "#fff";
@@ -16351,9 +16443,9 @@
       ctx.restore();
     }
     ctx.save();
-    ctx.globalAlpha = 0.78;
-    ctx.strokeStyle = "rgba(236, 220, 200, 0.95)";
-    ctx.lineWidth = Math.max(1.6, 2 * U);
+    ctx.globalAlpha = 0.9;
+    ctx.strokeStyle = "rgba(244, 226, 200, 0.98)";
+    ctx.lineWidth = Math.max(2.4, 3 * U);
     ctx.beginPath();
     ctx.moveTo(ax, ay);
     ctx.quadraticCurveTo(cx, cy, ax + (bx - ax) * taut, ay + (by - ay) * taut);
@@ -16383,11 +16475,11 @@
       var tk = Math.max(0, Math.min(1, tGo - lag));
       var x = from.x + (to.x - from.x) * tk;
       var y = from.y + (to.y - from.y) * tk + Math.sin(tk * Math.PI) * -6 * U;
-      var R = 7.4 * U;
+      var R = 11 * U;
       ctx.save();
-      ctx.globalAlpha = 0.78;
+      ctx.globalAlpha = 0.96;
       ctx.translate(x, y);
-      ctx.fillStyle = "#6aa8e0";
+      ctx.fillStyle = "#5cb0f5";
       ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2); ctx.fill();
       ctx.fillStyle = "#3d7ab8";
       ctx.beginPath(); ctx.arc(-R * 0.55, 0, R * 0.38, 0, Math.PI * 2);
@@ -16415,7 +16507,7 @@
     if (!v || !v.act) return;
     var act = v.act;
     var k = Math.max(0, Math.min(1, act.t / act.max));
-    var fade = (k < 0.08) ? k / 0.08 : (k > 0.90 ? (1 - k) / 0.10 : 1);
+    var fade = (k < 0.06) ? k / 0.06 : (k > 0.92 ? (1 - k) / 0.08 : 1);
     ctx.save();
     ctx.globalAlpha = fade;
     if (act.kind === "platelets") drawVignettePlatelets(act, k);
@@ -32286,33 +32378,17 @@
         // invada el espacio de la cuenta.
         ctx.textBaseline = "middle";
         var countStr = String(Hh.count);
-        // Reserva espacio para la cuenta (siempre 11px font).
-        ctx.font = "bold 11px Fredoka, sans-serif";
+        var headPx = (UI.dockType && UI.dockType.header) || Math.max(9, Math.min(13, Hh.w * 0.14));
+        ctx.font = "bold " + headPx + "px Fredoka, sans-serif";
         var countW = ctx.measureText(countStr).width;
         var lblText = (Hh.open ? "▾ " : "▸ ") + Hh.label;
         var lblX = Hh.x + 8;
         var lblMaxW = Hh.w - 16 - countW - 6;
-        // Probar tamaños descendentes hasta que entre, o usar ellipsis.
-        var maxFs = Math.max(10, Math.min(12, Hh.w * 0.105));
-        var fs = maxFs;
-        ctx.font = "bold " + fs + "px Fredoka, sans-serif";
-        while (fs > 8 && ctx.measureText(lblText).width > lblMaxW) {
-          fs -= 0.5;
-          ctx.font = "bold " + fs + "px Fredoka, sans-serif";
-        }
-        // Si aún no entra al mínimo de 8px, recorta con "…"
-        var displayText = lblText;
-        if (ctx.measureText(displayText).width > lblMaxW) {
-          while (displayText.length > 4 && ctx.measureText(displayText + "…").width > lblMaxW) {
-            displayText = displayText.slice(0, -1);
-          }
-          displayText += "…";
-        }
+        fitFont(lblText, lblMaxW, headPx, 8);
         ctx.fillStyle = "#fff";
         ctx.textAlign = "left";
-        ctx.fillText(displayText, lblX, hy + Hh.h / 2);
-        // Cuenta a la derecha.
-        ctx.font = "bold 11px Fredoka, sans-serif";
+        ctx.fillText(ellipsizeToWidth(lblText, lblMaxW), lblX, hy + Hh.h / 2);
+        ctx.font = "bold " + headPx + "px Fredoka, sans-serif";
         ctx.textAlign = "right"; ctx.fillStyle = "rgba(255,255,255,0.45)";
         ctx.fillText(countStr, Hh.x + Hh.w - 8, hy + Hh.h / 2);
       }
@@ -32357,35 +32433,33 @@
         }
         ctx.strokeRect(cardX, cardY, cw, ch);
 
-        // Layout VERTICAL — todo centrado horizontalmente, ícono CONTENIDO
-        // (sin sobresalir): nombre arriba, ícono al medio, costo abajo.
+        // Tres bandas que escalan con la carta: nombre / preview / costo.
         var cardCenterX = cardX + cw / 2;
+        var typo = UI.dockType || {};
+        var nameBand = ch * 0.22;
+        var costBand = ch * 0.22;
+        var iconBand = ch - nameBand - costBand;
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
 
-        // 1. NOMBRE (top) — encoge la fuente y, si aún no entra, recorta con "…"
         ctx.fillStyle = canAfford ? "#fff" : "rgba(255,255,255,0.45)";
-        var fs1 = Math.max(10, Math.min(12, cw * 0.18));
+        var fs1 = typo.name || Math.max(10, Math.min(15, cw * 0.16));
         var nMaxW = cw - 8, nameStr = def.shortName || def.name;
-        fitFont(nameStr, nMaxW, fs1, Math.max(8, fs1 * 0.72));
-        ctx.fillText(ellipsizeToWidth(nameStr, nMaxW), cardCenterX, cardY + ch * 0.18);
+        fitFont(nameStr, nMaxW, fs1, Math.max(8, fs1 * 0.7));
+        ctx.fillText(ellipsizeToWidth(nameStr, nMaxW), cardCenterX, cardY + nameBand * 0.52);
 
-        // 2. ÍCONO (centro) — preview de la TORRE REAL (snowman
-        // neutrofilo, LGL nk, etc) en lugar del ícono simple.
-        var iconCy = cardY + ch * 0.50;
-        var iconR = Math.min(ch * 0.24, cw * 0.28) * (canAfford ? 1 : 0.6);
+        var iconCy = cardY + nameBand + iconBand * 0.5;
+        var iconR = Math.min(iconBand * 0.44, cw * 0.40) * (canAfford ? 1 : 0.6);
         drawTowerPreview(typeId, cardCenterX, iconCy, iconR, canAfford);
 
-        // 3. COSTO ATP (bottom)
         var isComp = def.currency === "complement";
         ctx.fillStyle = canAfford ? (isComp ? "#7CFC9E" : "#f5d76e") : "#d9534f";
-        ctx.font = "bold " + Math.max(9, Math.min(11, cw * 0.16)) + "px Fredoka, sans-serif";
-        if (typeId === "plaqueta") {
-          var rdy = (state.plaquetaPickups || []).length;
-          ctx.fillText("🔶 " + rdy, cardCenterX, cardY + ch * 0.84);
-        } else {
-          ctx.fillText((isComp ? "🧬 " : "⚡ ") + def.cost, cardCenterX, cardY + ch * 0.84);
-        }
+        var costPx = typo.cost || Math.max(9, Math.min(13, cw * 0.145));
+        var costStr = typeId === "plaqueta"
+          ? "🔶 " + ((state.plaquetaPickups || []).length)
+          : ((isComp ? "🧬 " : "⚡ ") + def.cost);
+        ctx.font = "bold " + fitFont(costStr, nMaxW, costPx, 8) + "px Fredoka, sans-serif";
+        ctx.fillText(ellipsizeToWidth(costStr, nMaxW), cardCenterX, cardY + ch - costBand * 0.48);
       }
       ctx.restore();
       // Edge-fade indicators (arriba/abajo) cuando hay contenido oculto.
@@ -32409,7 +32483,13 @@
       }
     }
 
-    var infoX = UI.infoX, infoY = UI.infoY, infoW = UI.infoW;
+    var infoX = UI.infoX, infoY = UI.infoY, infoW = UI.infoW, infoH = UI.infoH;
+    ctx.save();
+    if (infoW > 0 && infoH > 0) {
+      ctx.beginPath();
+      ctx.rect(infoX - 2, infoY - 2, infoW + 4, infoH + 2);
+      ctx.clip();
+    }
     ctx.textAlign = "left";
     ctx.textBaseline = "top";
     if (state.selectedTower) {
@@ -32419,19 +32499,21 @@
       var nm = (t.def.shortName || t.def.name);
       // Deja libre la esquina del botón ✕ de deseleccionar.
       var nmMaxW = Math.max(24, infoW - (UI.deselectBtn ? UI.deselectBtn.w + 6 : 2));
-      fitFont(nm, nmMaxW, 13, 8);
+      var infoTitle = (UI.dockType && UI.dockType.infoTitle) || 13;
+      var infoBody = (UI.dockType && UI.dockType.infoBody) || 11;
+      fitFont(nm, nmMaxW, infoTitle, 8);
       ctx.fillText(ellipsizeToWidth(nm, nmMaxW), infoX, infoY + 2);
       ctx.fillStyle = "rgba(255,255,255,0.7)";
-      ctx.font = "11px Fredoka, sans-serif";
-      ctx.fillText("Nivel " + (t.level + 1) + "/3", infoX, infoY + 18);
+      ctx.font = infoBody + "px Fredoka, sans-serif";
+      ctx.fillText(ellipsizeToWidth("Nivel " + (t.level + 1) + "/3", infoW), infoX, infoY + infoTitle + 6);
 
-      ctx.font = "11px Fredoka, sans-serif";
+      ctx.font = infoBody + "px Fredoka, sans-serif";
       ctx.fillStyle = "rgba(255,255,255,0.85)";
-      // Recortadas al ancho del dock: en teléfonos angostos "Dmg 30 AOE" se
-      // salía por la derecha de la pantalla.
-      ctx.fillText(ellipsizeToWidth("Dmg " + stats.damage + (stats.splash > 0 ? " AOE" : ""), infoW), infoX, infoY + 36);
-      ctx.fillText(ellipsizeToWidth("Rango " + stats.range, infoW), infoX, infoY + 50);
-      ctx.fillText(ellipsizeToWidth("Cad. " + stats.fireRate.toFixed(1) + "/s", infoW), infoX, infoY + 64);
+      var line1 = infoY + infoTitle + infoBody + 12;
+      var lh = infoBody + 3;
+      ctx.fillText(ellipsizeToWidth("Dmg " + stats.damage + (stats.splash > 0 ? " AOE" : ""), infoW), infoX, line1);
+      ctx.fillText(ellipsizeToWidth("Rango " + stats.range, infoW), infoX, line1 + lh);
+      ctx.fillText(ellipsizeToWidth("Cad. " + stats.fireRate.toFixed(1) + "/s", infoW), infoX, line1 + lh * 2);
 
       // X deseleccionar (esquina sup-der de la zona info).
       ctx.fillStyle = "rgba(255,255,255,0.12)";
@@ -32464,16 +32546,19 @@
       var def2 = TOWER_DEFS[state.selectedToBuild];
       ctx.fillStyle = def2.color;
       var sbName = def2.shortName || def2.name;
-      fitFont(sbName, infoW - 2, 12, 8);
+      var infoTitle2 = (UI.dockType && UI.dockType.infoTitle) || 12;
+      var infoBody2 = (UI.dockType && UI.dockType.infoBody) || 11;
+      fitFont(sbName, infoW - 2, infoTitle2, 8);
       ctx.fillText(ellipsizeToWidth(sbName, infoW - 2), infoX, infoY + 2);
-      ctx.font = "11px Fredoka, sans-serif";
+      ctx.font = infoBody2 + "px Fredoka, sans-serif";
       ctx.fillStyle = "rgba(255,255,255,0.8)";
-      ctx.fillText("Toca el campo", infoX, infoY + 20);
-      ctx.fillText("para colocar", infoX, infoY + 34);
+      ctx.fillText(ellipsizeToWidth("Toca el campo", infoW - 2), infoX, infoY + infoTitle2 + 8);
+      ctx.fillText(ellipsizeToWidth("para colocar", infoW - 2), infoX, infoY + infoTitle2 + infoBody2 + 12);
       ctx.fillStyle = "#f5d76e";
-      ctx.font = "bold 12px Fredoka, sans-serif";
-      ctx.fillText("⚡ " + def2.cost, infoX, infoY + 52);
+      ctx.font = "bold " + infoTitle2 + "px Fredoka, sans-serif";
+      ctx.fillText(ellipsizeToWidth("⚡ " + def2.cost, infoW - 2), infoX, infoY + infoTitle2 + infoBody2 * 2 + 18);
     }
+    ctx.restore();
   }
 
   function drawGhost() {

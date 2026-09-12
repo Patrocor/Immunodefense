@@ -9,7 +9,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const KINDS = [
   ["platelets", 2.4],
-  ["keratin", 1.8],
+  ["keratin", 3.2],
   ["endothelium", 2.6],
   ["fibroblasts", 2.0],
   ["sweepers", 2.4],
@@ -58,6 +58,20 @@ for (const [kind, t] of KINDS) {
   console.log(kind, info);
   await sleep(80);
   await page.screenshot({ path: join(ART, "vignette_" + kind + ".png") });
+  await page.evaluate(() => window.__game.hold(false));
+}
+
+for (const [tag, dur] of [["start", 0.7], ["mid", 3.2], ["end", 5.6]]) {
+  await page.evaluate((t) => {
+    const g = window.__game;
+    g.state.towers = [];
+    g.state.enemies = [];
+    g.vignettePlay("keratin");
+    g.step(t, 0.04);
+    g.hold(true);
+  }, dur);
+  await sleep(80);
+  await page.screenshot({ path: join(ART, "vignette_keratin_" + tag + ".png") });
   await page.evaluate(() => window.__game.hold(false));
 }
 

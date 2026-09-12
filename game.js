@@ -16125,11 +16125,11 @@
 
   function spawnKeratinBrigade() {
     var w = (PATH.wounds && PATH.wounds[0]) || PATH.confluence;
-    var y = FIELD_TOP + FIELD_H * 0.105;
+    var y = FIELD_TOP + FIELD_H * 0.128;
     var woundX = w ? w.x : FIELD_LEFT + FIELD_W * 0.5;
-    var gap = 24 * U;
-    var left = spawnKeratinLine(FIELD_LEFT + 8 * U, woundX - gap, y, 6);
-    var right = spawnKeratinLine(FIELD_RIGHT - 8 * U, woundX + gap, y, 6);
+    var gap = 26 * U;
+    var left = spawnKeratinLine(FIELD_LEFT + 10 * U, woundX - gap, y, 7);
+    var right = spawnKeratinLine(FIELD_RIGHT - 10 * U, woundX + gap, y, 7);
     if (left.length < 3 && right.length < 3) return null;
     return {
       kind: "keratin", t: 0, max: 6.6,
@@ -16280,21 +16280,29 @@
   }
 
   function paintVignetteKeratinocyte(c) {
-    var bob = Math.sin(state.time * 3 + c.phase) * 1.4 * U;
+    var bob = Math.sin(state.time * 3 + c.phase) * 1.6 * U;
+    var rx = 13.2 * U, ry = 10.6 * U;
     ctx.save();
-    ctx.globalAlpha = 0.94;
+    ctx.globalAlpha = 0.98;
     ctx.translate(c.x, c.y + bob);
-    ctx.fillStyle = "rgba(255, 236, 210, 0.55)";
-    ctx.beginPath(); ctx.ellipse(0, 0, 12.4 * U, 9.6 * U, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = "#f6e0c6";
-    ctx.beginPath(); ctx.ellipse(0, 0, 9.4 * U, 7.8 * U, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = "rgba(110, 72, 42, 0.78)";
-    ctx.lineWidth = Math.max(1.1, 1.35 * U); ctx.stroke();
-    ctx.fillStyle = "rgba(90, 55, 35, 0.82)";
-    ctx.beginPath(); ctx.ellipse(0, 0, 2.1 * U, 2.5 * U, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "rgba(40, 22, 10, 0.28)";
+    ctx.beginPath(); ctx.ellipse(1.2 * U, ry * 0.72, rx * 0.92, ry * 0.28, 0, 0, Math.PI * 2); ctx.fill();
+    var kg = ctx.createRadialGradient(-rx * 0.25, -ry * 0.3, rx * 0.12, 0, 0, rx);
+    kg.addColorStop(0, "#ffe3a8");
+    kg.addColorStop(0.55, "#e8a85a");
+    kg.addColorStop(1, "#b86a28");
+    ctx.fillStyle = kg;
+    ctx.beginPath(); ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = "#4a2a10";
+    ctx.lineWidth = Math.max(1.6, 2 * U); ctx.stroke();
+    ctx.fillStyle = "rgba(90, 48, 20, 0.9)";
+    ctx.beginPath(); ctx.ellipse(0, 0.4 * U, 2.8 * U, 3.2 * U, 0, 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = "#fff";
-    ctx.beginPath(); ctx.arc(-1.8 * U, -0.7 * U, 0.9 * U, 0, Math.PI * 2);
-    ctx.arc(1.8 * U, -0.7 * U, 0.9 * U, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(-2.4 * U, -1.1 * U, 1.15 * U, 0, Math.PI * 2);
+    ctx.arc(2.4 * U, -1.1 * U, 1.15 * U, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "#2a1510";
+    ctx.beginPath(); ctx.arc(-2.4 * U, -1.1 * U, 0.55 * U, 0, Math.PI * 2);
+    ctx.arc(2.4 * U, -1.1 * U, 0.55 * U, 0, Math.PI * 2); ctx.fill();
     ctx.restore();
   }
 
@@ -16307,7 +16315,7 @@
     if (!a || !b) return;
     var sx = a.x + (b.x - a.x) * hop;
     var sy = a.y + (b.y - a.y) * hop - Math.sin(hop * Math.PI) * 10 * U;
-    paintKeratinSquame(sx, sy, 8.6 * U, 3.7 * U, hop * 1.2, 0.96);
+    paintKeratinSquame(sx, sy, 10.2 * U, 4.4 * U, hop * 1.2, 1);
   }
 
   function drawVignetteKeratin(act, k) {
@@ -16315,9 +16323,9 @@
     var left = act.left || [];
     var right = act.right || [];
     ctx.save();
-    ctx.globalAlpha = 0.28;
-    ctx.strokeStyle = "rgba(232, 196, 140, 0.95)";
-    ctx.lineWidth = Math.max(2.2, 2.8 * U);
+    ctx.globalAlpha = 0.55;
+    ctx.strokeStyle = "rgba(180, 110, 40, 0.95)";
+    ctx.lineWidth = Math.max(3.2, 4 * U);
     ctx.lineCap = "round";
     ctx.beginPath();
     if (left.length) {
@@ -16354,13 +16362,13 @@
       var x = act.x + Math.cos(ang) * rx;
       var y = act.y + Math.sin(ang) * ry * 0.72;
       ctx.save();
-      ctx.globalAlpha = 0.92;
+      ctx.globalAlpha = 0.96;
       ctx.translate(x, y);
       ctx.rotate(ang + Math.PI / 2);
-      ctx.fillStyle = "#d4848c";
-      ctx.beginPath(); ctx.ellipse(0, 0, 10.2 * U, 5.1 * U, 0, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = "rgba(90, 30, 40, 0.62)";
-      ctx.lineWidth = Math.max(0.95, 1.15 * U); ctx.stroke();
+      ctx.fillStyle = "#f098a0";
+      ctx.beginPath(); ctx.ellipse(0, 0, 12.4 * U, 6.2 * U, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = "#5a1824";
+      ctx.lineWidth = Math.max(1.4, 1.7 * U); ctx.stroke();
       ctx.fillStyle = "#fff";
       ctx.beginPath(); ctx.arc(-1.5 * U, -0.4 * U, 0.7 * U, 0, Math.PI * 2);
       ctx.arc(1.5 * U, -0.4 * U, 0.7 * U, 0, Math.PI * 2); ctx.fill();
@@ -16389,10 +16397,10 @@
       ctx.save();
       ctx.translate(x, y);
       ctx.rotate(rot);
-      ctx.fillStyle = "rgba(236, 188, 150, 0.96)";
-      ctx.beginPath(); ctx.ellipse(0, 0, 11 * U, 6.2 * U, 0, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = "rgba(140, 90, 70, 0.72)";
-      ctx.lineWidth = Math.max(1.05, 1.3 * U); ctx.stroke();
+      ctx.fillStyle = "#e8a060";
+      ctx.beginPath(); ctx.ellipse(0, 0, 13 * U, 7.2 * U, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = "#5a3018";
+      ctx.lineWidth = Math.max(1.5, 1.8 * U); ctx.stroke();
       ctx.fillStyle = "rgba(110, 70, 50, 0.75)";
       ctx.beginPath(); ctx.ellipse(0, 0, 2.6 * U, 2.2 * U, 0, 0, Math.PI * 2); ctx.fill();
       ctx.fillStyle = "#fff";
@@ -16433,11 +16441,11 @@
       var tk = Math.max(0, Math.min(1, tGo - lag));
       var x = from.x + (to.x - from.x) * tk;
       var y = from.y + (to.y - from.y) * tk + Math.sin(tk * Math.PI) * -6 * U;
-      var R = 9 * U;
+      var R = 11 * U;
       ctx.save();
-      ctx.globalAlpha = 0.92;
+      ctx.globalAlpha = 0.96;
       ctx.translate(x, y);
-      ctx.fillStyle = "#6eb0ea";
+      ctx.fillStyle = "#5cb0f5";
       ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2); ctx.fill();
       ctx.fillStyle = "#3d7ab8";
       ctx.beginPath(); ctx.arc(-R * 0.55, 0, R * 0.38, 0, Math.PI * 2);

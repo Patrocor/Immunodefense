@@ -74,10 +74,12 @@ class FakeImage {
 }
 
 export function createTestGame(localStorage = createStorage(), options = {}) {
+  const W = options.width || 1280;
+  const H = options.height || 720;
   const context2d = makeContext2D();
   const canvas = {
-    width: 1280,
-    height: 720,
+    width: W,
+    height: H,
     style: {},
     getContext: () => context2d,
     getBoundingClientRect: () => ({
@@ -85,10 +87,10 @@ export function createTestGame(localStorage = createStorage(), options = {}) {
       y: 0,
       left: 0,
       top: 0,
-      right: 1280,
-      bottom: 720,
-      width: 1280,
-      height: 720,
+      right: W,
+      bottom: H,
+      width: W,
+      height: H,
     }),
     addEventListener() {},
     setPointerCapture() {},
@@ -117,8 +119,8 @@ export function createTestGame(localStorage = createStorage(), options = {}) {
     navigator: { hardwareConcurrency: 8, deviceMemory: 8 },
     location: { hash: options.hash || "" },
     performance: { now: () => 0 },
-    innerWidth: 1280,
-    innerHeight: 720,
+    innerWidth: W,
+    innerHeight: H,
     devicePixelRatio: 1,
     getComputedStyle: () => ({
       paddingTop: "0",

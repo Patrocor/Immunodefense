@@ -476,13 +476,11 @@
     // que el campo use TODO el alto. Portrait: dock angosto (~27% del ancho);
     // landscape: dock fijo cómodo. Incluye safeRight para no quedar bajo el
     // notch/esquina redondeada del lado derecho.
-    // Dock compacto pero LEGIBLE — el ancho permite cards de ~52-65px
-    // con contenido contenido (nombre + ícono + costo).
-    // Dock un poco más amplio para mostrar más torres y dar espacio
-    // al card strip hasta tocar (apenas) la cartilla de NETosis.
+    // El dock tiene que entrar nombre + preview + costo. Portrait ~26% del
+    // ancho; landscape ~12%, con piso para que el ícono no quede en 16 px.
     SIDE_INNER = isPortrait
-      ? Math.round(0.85 * Math.max(78, Math.min(96, VW * 0.21)))
-      : Math.round(0.85 * Math.max(72, Math.min(98, VW * 0.10)));
+      ? Math.round(Math.max(92, Math.min(120, VW * 0.26)))
+      : Math.round(Math.max(88, Math.min(124, VW * 0.12)));
     SIDE_W = SIDE_INNER + safeRight;
     HUD_H = Math.round(hudBase + safeTop);
     PANEL_H = 0;  // legacy: ya no hay franja inferior
@@ -2870,11 +2868,12 @@
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     // Layout VERTICAL: ícono arriba, "Dex" debajo.
-    var iconSize = Math.max(13, Math.min(18, b.h * 0.50));
+    var iconSize = Math.max(14, Math.min(22, Math.min(b.h * 0.46, b.w * 0.38)));
     ctx.font = iconSize + "px Fredoka, sans-serif";
     ctx.fillText("📖", b.x + b.w / 2, b.y + b.h * 0.32);
-    ctx.font = "bold " + Math.max(10, Math.min(12, b.h * 0.32)) + "px Fredoka, sans-serif";
-    ctx.fillText("Dex", b.x + b.w / 2, b.y + b.h * 0.74);
+    var dexPx = Math.max(10, Math.min(14, Math.min(b.h * 0.30, b.w * 0.28)));
+    ctx.font = "bold " + fitFont("Dex", b.w - 8, dexPx, 8) + "px Fredoka, sans-serif";
+    ctx.fillText(ellipsizeToWidth("Dex", b.w - 8), b.x + b.w / 2, b.y + b.h * 0.74);
     // Badge rojo en la esquina superior derecha si hay items nuevos.
     if (hasDexNew()) {
       var dotR = Math.max(3, Math.min(5, b.h * 0.12));
@@ -3645,20 +3644,21 @@
         ctx.textAlign = "left";
         ctx.textBaseline = "middle";
         ctx.fillStyle = "rgba(255,255,255,0.42)";
-        ctx.font = "bold 8px Fredoka, sans-serif";
-        // Espacio real para la etiqueta = ancho menos lo que ocupa el número.
+        var labPx = Math.max(7, Math.min(10, innerW * 0.12));
+        var numPx = (UI.dockType && UI.dockType.infoBody) || 11;
+        ctx.font = "bold " + labPx + "px Fredoka, sans-serif";
         ctx.save();
-        ctx.font = "bold 11px Fredoka, sans-serif";
+        ctx.font = "bold " + numPx + "px Fredoka, sans-serif";
         var numW = ctx.measureText(filas[si][2]).width;
         ctx.restore();
-        ctx.font = "bold 8px Fredoka, sans-serif";
+        ctx.font = "bold " + labPx + "px Fredoka, sans-serif";
         var labMax = innerW - numW - 6;
         var lab = filas[si][0];
         if (ctx.measureText(lab).width > labMax) lab = filas[si][1];
         ctx.fillText(ellipsizeToWidth(lab, labMax), innerX, fy + 6);
         ctx.textAlign = "right";
         ctx.fillStyle = filas[si][3];
-        ctx.font = "bold 11px Fredoka, sans-serif";
+        ctx.font = "bold " + numPx + "px Fredoka, sans-serif";
         ctx.fillText(filas[si][2], box.x + box.w - 5, fy + 6);
       }
       ctx.textBaseline = "top";
@@ -4565,6 +4565,7 @@
       state.cellVignettes.gap = 0;
       return act ? act.kind : null;
     },
+    relayout: function () { layoutUI(); return window.__game.metrics; },
     quality: function () {
       return {
         low: !!QUALITY.low,
@@ -4940,24 +4941,35 @@
     // reubica arriba de la cartilla de NETosis (antes vivía en la fila
     // inferior del campo, donde quedaba pegado/superpuesto con ella).
     // Y arriba del C3b, la tarjeta del ultimate "Arpón" del macrófago.
-    var c3bMeterH = Math.round(34 * U);
-    var c3bMeterGap = Math.round(4 * U);
-    var ultCardH = Math.round(34 * U);
-    var ultCardGap = Math.round(4 * U);
+    var dockScale = Math.max(0.75, Math.min(1.4, contentW / 90));
+    UI.dockScale = dockScale;
+    UI.dockType = {
+      name: Math.round(Math.max(10, Math.min(15, contentW * 0.16))),
+      cost: Math.round(Math.max(9, Math.min(13, contentW * 0.145))),
+      header: Math.round(Math.max(9, Math.min(13, contentW * 0.135))),
+      infoTitle: Math.round(Math.max(10, Math.min(14, contentW * 0.155))),
+      infoBody: Math.round(Math.max(9, Math.min(12, contentW * 0.125)))
+    };
+    var c3bMeterH = Math.round(Math.max(28, Math.min(40, contentW * 0.40)));
+    var c3bMeterGap = Math.round(4 * dockScale);
+    var ultCardH = c3bMeterH;
+    var ultCardGap = c3bMeterGap;
+    UI.dockMeterH = c3bMeterH;
+    UI.dockMeterGap = c3bMeterGap;
     // C3b + Arpón siempre reservan espacio al fondo del dock, en ambas fases.
     var responsesReservedH = c3bMeterH + c3bMeterGap + ultCardH + ultCardGap + dockPad;
     var rpH = 0;
     if (state && state.dissemination) {
-      var rpCardH = Math.round(44 * U);
-      var rpPad = Math.round(5 * U);
+      var rpCardH = Math.round(Math.max(36, Math.min(52, contentW * 0.48)));
+      var rpPad = Math.round(Math.max(4, 5 * dockScale));
       rpH = rpCardH + 2 * rpPad;
       responsesReservedH += rpH;
     }
 
-    var btnH = Math.round(Math.max(32, Math.min(42, contentW * 0.36)));
+    var btnH = Math.round(Math.max(34, Math.min(44, contentW * 0.40)));
 
     // Botón "Dex" arriba del dock (vertical: ícono arriba + nombre).
-    var compBtnH = Math.round(Math.max(38, Math.min(52, contentW * 0.62)));
+    var compBtnH = Math.round(Math.max(42, Math.min(58, contentW * 0.56)));
     UI.compendiumBtn = { x: contentX, y: dockTop, w: contentW, h: compBtnH };
 
     // Cartilla por GRUPOS DESPLEGABLES: cada categoría (cabecera) se abre/cierra
@@ -4967,10 +4979,10 @@
     // de teléfono, 393 px de alto) al strip le quedaban 11 px y NO se veía
     // ninguna torre.
     var stripTop = dockTop + compBtnH + 6;
-    var headerH = 28, groupSpacing = 6;
-    // Cartas verticales: nombre arriba, ícono al medio, costo abajo.
-    // Altura ajustada para que los 3 elementos respiren.
-    var cardH = Math.round(Math.max(64, Math.min(82, contentW * 0.95)));
+    var headerH = Math.round(Math.max(24, Math.min(34, 22 + 10 * dockScale)));
+    var groupSpacing = Math.round(Math.max(4, 6 * dockScale));
+    // Cartas verticales: nombre, preview real y costo escalan con el ancho.
+    var cardH = Math.round(Math.max(76, Math.min(108, contentW * 1.12)));
     var openMap = (state && state.openGroups) ? state.openGroups : { linea: true };
     UI.cards = [];
     UI.groupHeaders = [];
@@ -11801,16 +11813,16 @@
       anchorW = UI.compendiumBtn.w;
       anchorBottomY = UI.dockBottom - UI.dockPad;
     }
-    var c3bH = Math.round(34 * U);
-    var c3bGap = Math.round(4 * U);
+    var c3bH = UI.dockMeterH || Math.round(Math.max(28, Math.min(40, anchorW * 0.40)));
+    var c3bGap = UI.dockMeterGap || Math.round(4 * (UI.dockScale || 1));
     UI.c3bMeter = {
       x: anchorX,
       y: anchorBottomY - c3bGap - c3bH,
       w: anchorW,
       h: c3bH
     };
-    var ultH = Math.round(34 * U);
-    var ultGap = Math.round(4 * U);
+    var ultH = UI.dockMeterH || c3bH;
+    var ultGap = UI.dockMeterGap || c3bGap;
     UI.macrofagoUltCard = {
       x: UI.c3bMeter.x,
       y: UI.c3bMeter.y - ultGap - ultH,
@@ -12499,11 +12511,13 @@
     ctx.strokeStyle = ready ? "rgba(255,110,40,0.95)" : "rgba(255,255,255,0.45)";
     ctx.lineWidth = ready ? 2 : 1;
     ctx.strokeRect(v.x, v.y, v.w, v.h);
-    ctx.font = "bold " + Math.max(10, Math.min(12, v.h * 0.32)) + "px Fredoka, sans-serif";
+    var arpLabel = ready ? "▸ Arpón" : "Arpón";
+    var arpPx = Math.max(10, Math.min(14, Math.min(v.h * 0.40, v.w * 0.18)));
+    ctx.font = "bold " + fitFont(arpLabel, v.w - 12, arpPx, 8) + "px Fredoka, sans-serif";
     ctx.textBaseline = "middle";
     ctx.textAlign = "left";
     ctx.fillStyle = ready ? "#ffd9c0" : "rgba(255,255,255,0.75)";
-    ctx.fillText(ready ? "▸ Arpón" : "Arpón", v.x + 7, v.y + v.h / 2);
+    ctx.fillText(ellipsizeToWidth(arpLabel, v.w - 12), v.x + 7, v.y + v.h / 2);
     ctx.restore();
   }
 
@@ -12527,13 +12541,14 @@
     ctx.lineWidth = ready ? 2 : 1;
     ctx.strokeRect(v.x, v.y, v.w, v.h);
     // Label "C3b"
-    ctx.font = "bold " + Math.max(10, Math.min(12, v.h * 0.32)) + "px Fredoka, sans-serif";
     ctx.textBaseline = "middle";
     ctx.textAlign = "left";
     ctx.fillStyle = "#aef7c4";
     var label = ready ? "▸ C3b" : "C3b";
     var pad = 7;
-    ctx.fillText(label, v.x + pad, v.y + v.h / 2);
+    var c3bPx = Math.max(10, Math.min(14, Math.min(v.h * 0.40, v.w * 0.20)));
+    ctx.font = "bold " + fitFont(label, v.w * 0.42, c3bPx, 8) + "px Fredoka, sans-serif";
+    ctx.fillText(ellipsizeToWidth(label, v.w * 0.42), v.x + pad, v.y + v.h / 2);
     var lw = ctx.measureText(label).width;
     // Dots a la derecha del label, calculados para NUNCA salirse del rect.
     var dotsStart = v.x + pad + lw + 6;
@@ -32344,33 +32359,17 @@
         // invada el espacio de la cuenta.
         ctx.textBaseline = "middle";
         var countStr = String(Hh.count);
-        // Reserva espacio para la cuenta (siempre 11px font).
-        ctx.font = "bold 11px Fredoka, sans-serif";
+        var headPx = (UI.dockType && UI.dockType.header) || Math.max(9, Math.min(13, Hh.w * 0.14));
+        ctx.font = "bold " + headPx + "px Fredoka, sans-serif";
         var countW = ctx.measureText(countStr).width;
         var lblText = (Hh.open ? "▾ " : "▸ ") + Hh.label;
         var lblX = Hh.x + 8;
         var lblMaxW = Hh.w - 16 - countW - 6;
-        // Probar tamaños descendentes hasta que entre, o usar ellipsis.
-        var maxFs = Math.max(10, Math.min(12, Hh.w * 0.105));
-        var fs = maxFs;
-        ctx.font = "bold " + fs + "px Fredoka, sans-serif";
-        while (fs > 8 && ctx.measureText(lblText).width > lblMaxW) {
-          fs -= 0.5;
-          ctx.font = "bold " + fs + "px Fredoka, sans-serif";
-        }
-        // Si aún no entra al mínimo de 8px, recorta con "…"
-        var displayText = lblText;
-        if (ctx.measureText(displayText).width > lblMaxW) {
-          while (displayText.length > 4 && ctx.measureText(displayText + "…").width > lblMaxW) {
-            displayText = displayText.slice(0, -1);
-          }
-          displayText += "…";
-        }
+        fitFont(lblText, lblMaxW, headPx, 8);
         ctx.fillStyle = "#fff";
         ctx.textAlign = "left";
-        ctx.fillText(displayText, lblX, hy + Hh.h / 2);
-        // Cuenta a la derecha.
-        ctx.font = "bold 11px Fredoka, sans-serif";
+        ctx.fillText(ellipsizeToWidth(lblText, lblMaxW), lblX, hy + Hh.h / 2);
+        ctx.font = "bold " + headPx + "px Fredoka, sans-serif";
         ctx.textAlign = "right"; ctx.fillStyle = "rgba(255,255,255,0.45)";
         ctx.fillText(countStr, Hh.x + Hh.w - 8, hy + Hh.h / 2);
       }
@@ -32415,35 +32414,33 @@
         }
         ctx.strokeRect(cardX, cardY, cw, ch);
 
-        // Layout VERTICAL — todo centrado horizontalmente, ícono CONTENIDO
-        // (sin sobresalir): nombre arriba, ícono al medio, costo abajo.
+        // Tres bandas que escalan con la carta: nombre / preview / costo.
         var cardCenterX = cardX + cw / 2;
+        var typo = UI.dockType || {};
+        var nameBand = ch * 0.22;
+        var costBand = ch * 0.22;
+        var iconBand = ch - nameBand - costBand;
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
 
-        // 1. NOMBRE (top) — encoge la fuente y, si aún no entra, recorta con "…"
         ctx.fillStyle = canAfford ? "#fff" : "rgba(255,255,255,0.45)";
-        var fs1 = Math.max(10, Math.min(12, cw * 0.18));
+        var fs1 = typo.name || Math.max(10, Math.min(15, cw * 0.16));
         var nMaxW = cw - 8, nameStr = def.shortName || def.name;
-        fitFont(nameStr, nMaxW, fs1, Math.max(8, fs1 * 0.72));
-        ctx.fillText(ellipsizeToWidth(nameStr, nMaxW), cardCenterX, cardY + ch * 0.18);
+        fitFont(nameStr, nMaxW, fs1, Math.max(8, fs1 * 0.7));
+        ctx.fillText(ellipsizeToWidth(nameStr, nMaxW), cardCenterX, cardY + nameBand * 0.52);
 
-        // 2. ÍCONO (centro) — preview de la TORRE REAL (snowman
-        // neutrofilo, LGL nk, etc) en lugar del ícono simple.
-        var iconCy = cardY + ch * 0.50;
-        var iconR = Math.min(ch * 0.24, cw * 0.28) * (canAfford ? 1 : 0.6);
+        var iconCy = cardY + nameBand + iconBand * 0.5;
+        var iconR = Math.min(iconBand * 0.44, cw * 0.40) * (canAfford ? 1 : 0.6);
         drawTowerPreview(typeId, cardCenterX, iconCy, iconR, canAfford);
 
-        // 3. COSTO ATP (bottom)
         var isComp = def.currency === "complement";
         ctx.fillStyle = canAfford ? (isComp ? "#7CFC9E" : "#f5d76e") : "#d9534f";
-        ctx.font = "bold " + Math.max(9, Math.min(11, cw * 0.16)) + "px Fredoka, sans-serif";
-        if (typeId === "plaqueta") {
-          var rdy = (state.plaquetaPickups || []).length;
-          ctx.fillText("🔶 " + rdy, cardCenterX, cardY + ch * 0.84);
-        } else {
-          ctx.fillText((isComp ? "🧬 " : "⚡ ") + def.cost, cardCenterX, cardY + ch * 0.84);
-        }
+        var costPx = typo.cost || Math.max(9, Math.min(13, cw * 0.145));
+        var costStr = typeId === "plaqueta"
+          ? "🔶 " + ((state.plaquetaPickups || []).length)
+          : ((isComp ? "🧬 " : "⚡ ") + def.cost);
+        ctx.font = "bold " + fitFont(costStr, nMaxW, costPx, 8) + "px Fredoka, sans-serif";
+        ctx.fillText(ellipsizeToWidth(costStr, nMaxW), cardCenterX, cardY + ch - costBand * 0.48);
       }
       ctx.restore();
       // Edge-fade indicators (arriba/abajo) cuando hay contenido oculto.
@@ -32477,19 +32474,21 @@
       var nm = (t.def.shortName || t.def.name);
       // Deja libre la esquina del botón ✕ de deseleccionar.
       var nmMaxW = Math.max(24, infoW - (UI.deselectBtn ? UI.deselectBtn.w + 6 : 2));
-      fitFont(nm, nmMaxW, 13, 8);
+      var infoTitle = (UI.dockType && UI.dockType.infoTitle) || 13;
+      var infoBody = (UI.dockType && UI.dockType.infoBody) || 11;
+      fitFont(nm, nmMaxW, infoTitle, 8);
       ctx.fillText(ellipsizeToWidth(nm, nmMaxW), infoX, infoY + 2);
       ctx.fillStyle = "rgba(255,255,255,0.7)";
-      ctx.font = "11px Fredoka, sans-serif";
-      ctx.fillText("Nivel " + (t.level + 1) + "/3", infoX, infoY + 18);
+      ctx.font = infoBody + "px Fredoka, sans-serif";
+      ctx.fillText(ellipsizeToWidth("Nivel " + (t.level + 1) + "/3", infoW), infoX, infoY + infoTitle + 6);
 
-      ctx.font = "11px Fredoka, sans-serif";
+      ctx.font = infoBody + "px Fredoka, sans-serif";
       ctx.fillStyle = "rgba(255,255,255,0.85)";
-      // Recortadas al ancho del dock: en teléfonos angostos "Dmg 30 AOE" se
-      // salía por la derecha de la pantalla.
-      ctx.fillText(ellipsizeToWidth("Dmg " + stats.damage + (stats.splash > 0 ? " AOE" : ""), infoW), infoX, infoY + 36);
-      ctx.fillText(ellipsizeToWidth("Rango " + stats.range, infoW), infoX, infoY + 50);
-      ctx.fillText(ellipsizeToWidth("Cad. " + stats.fireRate.toFixed(1) + "/s", infoW), infoX, infoY + 64);
+      var line1 = infoY + infoTitle + infoBody + 12;
+      var lh = infoBody + 3;
+      ctx.fillText(ellipsizeToWidth("Dmg " + stats.damage + (stats.splash > 0 ? " AOE" : ""), infoW), infoX, line1);
+      ctx.fillText(ellipsizeToWidth("Rango " + stats.range, infoW), infoX, line1 + lh);
+      ctx.fillText(ellipsizeToWidth("Cad. " + stats.fireRate.toFixed(1) + "/s", infoW), infoX, line1 + lh * 2);
 
       // X deseleccionar (esquina sup-der de la zona info).
       ctx.fillStyle = "rgba(255,255,255,0.12)";
@@ -32522,15 +32521,17 @@
       var def2 = TOWER_DEFS[state.selectedToBuild];
       ctx.fillStyle = def2.color;
       var sbName = def2.shortName || def2.name;
-      fitFont(sbName, infoW - 2, 12, 8);
+      var infoTitle2 = (UI.dockType && UI.dockType.infoTitle) || 12;
+      var infoBody2 = (UI.dockType && UI.dockType.infoBody) || 11;
+      fitFont(sbName, infoW - 2, infoTitle2, 8);
       ctx.fillText(ellipsizeToWidth(sbName, infoW - 2), infoX, infoY + 2);
-      ctx.font = "11px Fredoka, sans-serif";
+      ctx.font = infoBody2 + "px Fredoka, sans-serif";
       ctx.fillStyle = "rgba(255,255,255,0.8)";
-      ctx.fillText("Toca el campo", infoX, infoY + 20);
-      ctx.fillText("para colocar", infoX, infoY + 34);
+      ctx.fillText(ellipsizeToWidth("Toca el campo", infoW - 2), infoX, infoY + infoTitle2 + 8);
+      ctx.fillText(ellipsizeToWidth("para colocar", infoW - 2), infoX, infoY + infoTitle2 + infoBody2 + 12);
       ctx.fillStyle = "#f5d76e";
-      ctx.font = "bold 12px Fredoka, sans-serif";
-      ctx.fillText("⚡ " + def2.cost, infoX, infoY + 52);
+      ctx.font = "bold " + infoTitle2 + "px Fredoka, sans-serif";
+      ctx.fillText(ellipsizeToWidth("⚡ " + def2.cost, infoW - 2), infoX, infoY + infoTitle2 + infoBody2 * 2 + 18);
     }
   }
 

@@ -17954,6 +17954,59 @@
     return "rgb(" + r + "," + g + "," + b + ")";
   }
 
+  var WOUND_COVER = { key: "", data: null, w: 0, h: 0 };
+
+  function ensureWoundCoverSample() {
+    var bg = ASSETS.get("assets/fase1/bg-skin-field.webp");
+    if (!bg || !bg.naturalWidth) return null;
+    var key = Math.round(FIELD_W) + "x" + Math.round(FIELD_H) + ":" + bg.naturalWidth;
+    if (WOUND_COVER.key === key && WOUND_COVER.data) return WOUND_COVER;
+    var off;
+    try { off = document.createElement("canvas"); } catch (e0) { return null; }
+    if (!off) return null;
+    off.width = Math.max(2, Math.round(FIELD_W));
+    off.height = Math.max(2, Math.round(FIELD_H));
+    var octx = off.getContext && off.getContext("2d");
+    if (!octx || !octx.drawImage || !octx.getImageData) return null;
+    try {
+      octx.drawImage(bg, 0, 0, off.width, off.height);
+      var id = octx.getImageData(0, 0, off.width, off.height);
+      if (!id || !id.data) return null;
+      WOUND_COVER.data = id.data;
+      WOUND_COVER.w = off.width;
+      WOUND_COVER.h = off.height;
+      WOUND_COVER.key = key;
+      return WOUND_COVER;
+    } catch (e1) {
+      return null;
+    }
+  }
+
+  function sampleTissueAt(x, y, nx, ny) {
+    var fy = (y - FIELD_TOP) / Math.max(1, FIELD_H);
+    var fb = fy < 0.50 ? { r: 200, g: 108, b: 100 } : { r: 208, g: 164, b: 86 };
+    var cover = ensureWoundCoverSample();
+    if (!cover) return fb;
+    var offs = [36 * U, 50 * U, 24 * U];
+    var best = null, bestLuma = 999;
+    var oi, side, ix, iy, idx, r, g, b, luma;
+    for (oi = 0; oi < offs.length; oi++) {
+      for (side = -1; side <= 1; side += 2) {
+        ix = Math.round(x + nx * offs[oi] * side - FIELD_LEFT);
+        iy = Math.round(y + ny * offs[oi] * side - FIELD_TOP);
+        if (ix < 1 || iy < 1 || ix >= cover.w - 1 || iy >= cover.h - 1) continue;
+        idx = (iy * cover.w + ix) * 4;
+        r = cover.data[idx]; g = cover.data[idx + 1]; b = cover.data[idx + 2];
+        luma = 0.299 * r + 0.587 * g + 0.114 * b;
+        if (luma < 208 && luma < bestLuma) {
+          bestLuma = luma;
+          best = { r: r, g: g, b: b };
+        }
+      }
+    }
+    return best || fb;
+  }
+
   function drawPathHighway() {
     drawPathInflammation();
     ctx.lineCap = "round";
@@ -17989,24 +18042,27 @@
       if (!beziers || !beziers.length) return;
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
-      /* Tapa opaca del carril blanco del PNG (~44 U, dermis). */
-      ctx.strokeStyle = "#d4a090";
-      ctx.lineWidth = 44 * U;
-      strokeBeziers(beziers);
       ctx.strokeStyle = computeWoundLipTint();
-      ctx.lineWidth = 16 * U;
+      ctx.lineWidth = 15 * U;
       strokeBeziers(beziers);
       var load = Math.min(1, (state.viralLoad || 0) / Math.max(1, state.viralThreshold || 1));
       var lr = Math.round(96 + load * 48);
       var lg = Math.round(32 + load * 10);
       var lb = Math.round(36 + load * 8);
       ctx.strokeStyle = "rgb(" + lr + "," + lg + "," + lb + ")";
-      ctx.lineWidth = 9 * U;
+      ctx.lineWidth = 8 * U;
       strokeBeziers(beziers);
-      ctx.strokeStyle = "rgba(255, 176, 160, " + (0.12 + load * 0.10).toFixed(2) + ")";
-      ctx.lineWidth = Math.max(1.2, 1.6 * U);
+      ctx.strokeStyle = "rgba(255, 176, 160, " + (0.16 + load * 0.12).toFixed(2) + ")";
+      ctx.lineWidth = Math.max(1.1, 1.5 * U);
       strokeBeziers(beziers);
     }
+    walkPathSamples(function (x, y, nx, ny) {
+      var c = sampleTissueAt(x, y, nx, ny);
+      ctx.fillStyle = "rgb(" + c.r + "," + c.g + "," + c.b + ")";
+      ctx.beginPath();
+      ctx.arc(x, y, 26 * U, 0, Math.PI * 2);
+      ctx.fill();
+    }, QUALITY.low ? 2 : 1);
     if (PATH.branches) {
       for (var br = 0; br < PATH.branches.length; br++) {
         if (PATH.branches[br].length > 10) paintChannel(PATH.branches[br].beziers);
@@ -18037,11 +18093,11 @@
     if (!QUALITY.low) {
       walkPathSamples(function (x, y, nx, ny, seed) {
         var j = ((seed * 9301 + 49297) % 233280) / 233280;
-        if (j < 0.14) return;
+        if (j < 0.08) return;
         var side = (seed % 2) ? 1 : -1;
         var jig = ((seed * 17) % 7) - 3;
-        var wob = (j - 0.5) * 4.2 * U + jig * 0.35 * U;
-        var lip = 8.2 * U + wob;
+        var wob = (j - 0.5) * 3.6 * U + jig * 0.4 * U;
+        var lip = 7.6 * U + wob;
         var x0 = x + nx * lip * side;
         var y0 = y + ny * lip * side;
         var tx = -ny, ty = nx;

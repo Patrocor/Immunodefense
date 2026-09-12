@@ -27,8 +27,8 @@ function assertNoFillText(label) {
   "🧴",
 ].forEach(assertNoFillText);
 
-assert.ok(src.includes("ctx.lineWidth = 44 * U"), "el carril tapa el PNG con stroke opaco de 44 U");
-assert.ok(src.includes("#d4a090"), "tapa del carril usa color dermis");
+assert.ok(src.includes("function sampleTissueAt"), "el carril toma el color del tejido");
+assert.ok(src.includes("function ensureWoundCoverSample"), "muestrea el PNG del campo");
 assert.ok(src.includes("function drawTissueDepth"), "hay profundidad de tejido");
 assert.ok(src.includes("Cuerda viva: seudópodo"), "el Arpón es seudópodo, no cadena");
 assert.ok(src.includes("Copa fagocítica"), "el Arpón cierra en copa");

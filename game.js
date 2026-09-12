@@ -4983,6 +4983,9 @@
     var groupSpacing = Math.round(Math.max(4, 6 * dockScale));
     // Cartas verticales: nombre, preview real y costo escalan con el ancho.
     var cardH = Math.round(Math.max(76, Math.min(108, contentW * 1.12)));
+    if (!isPortrait && VH < 520) {
+      cardH = Math.round(Math.max(68, Math.min(cardH, contentW * 0.92)));
+    }
     var openMap = (state && state.openGroups) ? state.openGroups : { linea: true };
     UI.cards = [];
     UI.groupHeaders = [];
@@ -5046,10 +5049,21 @@
     // elegida para construir. Sin selección no reserva nada y el alto entero
     // del dock es para las cartas.
     var hasInfo = !!(state && (state.selectedTower || state.selectedToBuild));
-    var infoWant = hasInfo ? Math.min(96 + btnH * 2, Math.round(dockH * 0.52)) : 0;
-    // El piso de la zona de info tiene que dar para el texto + los dos botones.
+    var placingOnly = !!(state && state.selectedToBuild && !state.selectedTower);
+    var infoWant = hasInfo
+      ? Math.min(
+          (placingOnly ? 70 : 96) + (placingOnly ? 0 : btnH * 2),
+          Math.round(dockH * (placingOnly ? 0.28 : 0.52))
+        )
+      : 0;
+    // Colocar no usa Mejorar/Vender: no les reserva alto. Así en landscape
+    // bajo sigue cabiendo al menos una carta.
     var infoFloor = hasInfo
-      ? Math.min(infoWant, Math.round(Math.max(btnH * 2 + 8 + 34, dockH * 0.26))) : 0;
+      ? Math.min(infoWant, Math.round(Math.max(
+          placingOnly ? 62 : btnH * 2 + 8 + 34,
+          dockH * (placingOnly ? 0.16 : 0.26)
+        )))
+      : 0;
     var infoH = Math.max(infoFloor, Math.min(infoWant, freeH - stripFloor));
     // Si ni con el mínimo entra todo, el strip se queda con lo que sobre
     // (scrolleable) en vez de tapar los botones de mejorar/vender.
@@ -5103,8 +5117,13 @@
     // ZONA DE INFO — no del dock. Clavados a dockBottom se montaban encima de
     // la tarjeta del Arpón y del medidor de C3b, y en pantallas bajas el botón
     // de Mejorar se salía por debajo del borde.
-    UI.upgradeBtn = { x: contentX, y: infoY + infoH - btnH, w: contentW, h: btnH };
-    UI.sellBtn = { x: contentX, y: infoY + infoH - btnH * 2 - 8, w: contentW, h: btnH };
+    if (placingOnly) {
+      UI.upgradeBtn = { x: -99, y: -99, w: 0, h: 0 };
+      UI.sellBtn = { x: -99, y: -99, w: 0, h: 0 };
+    } else {
+      UI.upgradeBtn = { x: contentX, y: infoY + infoH - btnH, w: contentW, h: btnH };
+      UI.sellBtn = { x: contentX, y: infoY + infoH - btnH * 2 - 8, w: contentW, h: btnH };
+    }
     var dsz = 22;
     UI.deselectBtn = { x: contentRight - dsz, y: infoY, w: dsz, h: dsz };
 
@@ -32464,7 +32483,13 @@
       }
     }
 
-    var infoX = UI.infoX, infoY = UI.infoY, infoW = UI.infoW;
+    var infoX = UI.infoX, infoY = UI.infoY, infoW = UI.infoW, infoH = UI.infoH;
+    ctx.save();
+    if (infoW > 0 && infoH > 0) {
+      ctx.beginPath();
+      ctx.rect(infoX - 2, infoY - 2, infoW + 4, infoH + 2);
+      ctx.clip();
+    }
     ctx.textAlign = "left";
     ctx.textBaseline = "top";
     if (state.selectedTower) {
@@ -32533,6 +32558,7 @@
       ctx.font = "bold " + infoTitle2 + "px Fredoka, sans-serif";
       ctx.fillText(ellipsizeToWidth("⚡ " + def2.cost, infoW - 2), infoX, infoY + infoTitle2 + infoBody2 * 2 + 18);
     }
+    ctx.restore();
   }
 
   function drawGhost() {

@@ -43,13 +43,20 @@ await page.evaluate(() => {
   g.ults();
 });
 await page.evaluate(() => { window.__game.step(0.22, 0.03); });
-await sleep(160);
+await page.evaluate(() => { window.__game.hold(true); });
+await sleep(80);
 await page.screenshot({ path: join(ART, "nk_frenesi_launch.png") });
-await page.evaluate(() => { window.__game.step(0.85, 0.03); });
-await sleep(160);
+await page.evaluate(() => { window.__game.hold(false); window.__game.step(0.90, 0.03); window.__game.hold(true); });
+await sleep(80);
 await page.screenshot({ path: join(ART, "nk_frenesi_ultimate.png") });
-await page.evaluate(() => { window.__game.step(1.55, 0.03); });
-await sleep(160);
+await page.evaluate(() => {
+  window.__game.hold(false);
+  const n = window.__game.state.towers.find((t) => t.def.id === "nk");
+  if (n) { n.frenzyDur = 2.95; n.specialAnim = 0.12; n.frenzySpin = 14; }
+  window.__game.step(0.04, 0.02);
+  window.__game.hold(true);
+});
+await sleep(80);
 await page.screenshot({ path: join(ART, "nk_frenesi_return.png") });
 await browser.close();
 console.log("OK: nk screenshots");

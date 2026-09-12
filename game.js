@@ -4451,7 +4451,7 @@
   state = newState();
   state.vistos = loadVistos();
   // Dev hook: permite inspeccionar y mutar state desde DevTools en producción.
-  // Es inofensivo — el código del juego ya es público (GitHub Pages + Vercel).
+  // Es inofensivo — el código del juego ya es público.
   var devAutoUlt = false;
   var devShowcaseHold = false;
   window.__game = {

@@ -20311,7 +20311,7 @@
   function drawQueratinocito(t, pulse, expression, blink) {
     // Queratinocito — pila de ESCAMAS (estrato córneo), no hexágono.
     // Placas aplanadas apiladas como tejas; desmosomas en los bordes.
-    // LOCKED v2 — Escamas+Cornificación (user OK "Si me gusta").
+    // LOCKED v3 — Escamas+Muro córneo (user OK "Queda").
     var R = 18 * U * pulse, time = state.time, w = (t.idlePhase || 0);
     var lvl = t.level || 0;
     var working = (t.specialAnim || 0) > 0;

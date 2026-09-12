@@ -48,19 +48,18 @@ const info = await page.evaluate(() => {
   const cx = (F.left + F.right) / 2;
   const cy = (F.top + F.bottom) * 0.52;
   const U = g.metrics.U;
-  const paraDef = window.ImmunoDefenseData.enemyDefs.demodex
-    || window.ImmunoDefenseData.enemyDefs.leishmania;
+  const paraDef = window.ImmunoDefenseData.enemyDefs.leishmania;
   const eo = st.towers[0];
   const spots = [
-    { x: eo.x + 110 * U, y: eo.y - 18 * U },
-    { x: eo.x + 145 * U, y: eo.y + 22 * U },
-    { x: eo.x + 95 * U, y: eo.y + 48 * U },
+    { x: eo.x + 120 * U, y: eo.y - 12 * U },
+    { x: eo.x + 155 * U, y: eo.y + 28 * U },
+    { x: eo.x + 100 * U, y: eo.y + 40 * U },
   ];
   st.enemies = spots.map((p, i) => ({
     def: paraDef, state: "walking", enteringTimer: 0,
-    x: p.x, y: p.y, progress: 0.42 + i * 0.04, radiusScale: 1.5,
+    x: p.x, y: p.y, progress: 0.42 + i * 0.04, radiusScale: 1.45,
     hp: paraDef.hp, maxHp: paraDef.hp, hitFlash: 0, dying: false, dead: false,
-    wobble: 0.4, _heading: -0.1, _lastPosX: p.x - 10, _lastPosY: p.y,
+    revealed: true, wobble: 0.4, _heading: -0.1, _lastPosX: p.x - 10, _lastPosY: p.y,
   }));
   eo.specialReady = true;
   eo.specialCharge = 1;

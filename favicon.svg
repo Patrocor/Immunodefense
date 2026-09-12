@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="ImmunoDefense">
+  <rect width="64" height="64" rx="14" fill="#1a0e12"/>
+  <circle cx="32" cy="32" r="18" fill="#ff6a55"/>
+  <circle cx="32" cy="32" r="10" fill="#ffd6c4" opacity="0.85"/>
+  <circle cx="24" cy="24" r="4" fill="#ffb19a"/>
+  <circle cx="40" cy="26" r="3" fill="#ffb19a"/>
+  <circle cx="30" cy="40" r="3.5" fill="#ffb19a"/>
+</svg>

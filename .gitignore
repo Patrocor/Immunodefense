@@ -18,6 +18,10 @@ dist/
 build/
 .vercel
 .superpowers/
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
 
 # Build web (generado por: npm run build). Los fuentes son index.html/game.js/assets.
 www/

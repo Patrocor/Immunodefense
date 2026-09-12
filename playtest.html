@@ -6,6 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#1a0e12">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
 <title>ImmunoDefense · banco de pruebas</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -116,10 +117,31 @@
 // con una marca de tiempo, así cada recarga trae el código recién guardado.
 // index.html NO hace esto — en producción el cache es deseable.
 (function () {
-  var sc = document.createElement("script");
-  sc.src = "game.js?t=" + Date.now();
-  sc.async = false;          // preserva el orden y dispara load después
-  document.head.appendChild(sc);
+  var ts = Date.now();
+  var files = [
+    "data/bootstrap.js",
+    "data/achievements.js",
+    "data/towers.js",
+    "data/enemies.js",
+    "data/visuals-phase1.js",
+    "data/waves-phase1.js",
+    "data/dissemination.js",
+    "data/f2-levels.js",
+    "data/persistence.js",
+    "data/map-world.js",
+    "game.js"
+  ];
+  var i = 0;
+  function next() {
+    if (i >= files.length) return;
+    var sc = document.createElement("script");
+    sc.src = files[i++] + "?t=" + ts;
+    sc.async = false;
+    sc.onload = next;
+    sc.onerror = function () { console.error("fallo al cargar " + sc.src); };
+    document.head.appendChild(sc);
+  }
+  next();
 })();
 </script>
 <script>

@@ -1669,15 +1669,7 @@
       ctx.setLineDash([6 * U, 5 * U]);
       ctx.beginPath(); ctx.arc(f.x, f.y, 40 * U, 0, Math.PI * 2); ctx.stroke();
       ctx.setLineDash([]);
-      ctx.fillStyle = "rgba(232,200,150," + (0.6 + dp * 0.3) + ")";
-      ctx.font = "bold " + Math.floor(9 * U) + "px Fredoka, sans-serif";
-      ctx.textAlign = "center"; ctx.textBaseline = "bottom";
-      ctx.fillText("TOCA PARA ARMAR", f.x, f.y - 40 * U);
     }
-    ctx.fillStyle = "rgba(60,30,20,0.85)";
-    ctx.font = "bold " + Math.floor(8 * U) + "px Fredoka, sans-serif";
-    ctx.textAlign = "center"; ctx.textBaseline = "top";
-    ctx.fillText("ENSAMBLAJE", f.x, f.y + 30 * U);
     ctx.restore();
   }
 
@@ -1981,15 +1973,7 @@
       ctx.setLineDash([6 * U, 5 * U]);
       ctx.beginPath(); ctx.arc(g.x, g.y, 40 * U, 0, Math.PI * 2); ctx.stroke();
       ctx.setLineDash([]);
-      ctx.fillStyle = "rgba(180,230,235," + (0.6 + dp * 0.3) + ")";
-      ctx.font = "bold " + Math.floor(9 * U) + "px Fredoka, sans-serif";
-      ctx.textAlign = "center"; ctx.textBaseline = "bottom";
-      ctx.fillText("TOCA PARA ARMAR", g.x, g.y - 40 * U);
     }
-    ctx.fillStyle = "rgba(20,60,70,0.9)";
-    ctx.font = "bold " + Math.floor(8 * U) + "px Fredoka, sans-serif";
-    ctx.textAlign = "center"; ctx.textBaseline = "top";
-    ctx.fillText("GANGLIO", g.x, g.y + 30 * U);
     ctx.restore();
   }
 
@@ -2309,12 +2293,6 @@
       ctx.ellipse(0, 0, 18 * s, 8 * s, 0, 0, Math.PI * 2);
       ctx.fill();
     }
-    // Etiqueta — siempre.
-    ctx.fillStyle = "rgba(80, 50, 30, 0.8)";
-    ctx.font = "bold " + Math.floor(9 * s) + "px Fredoka, sans-serif";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "top";
-    ctx.fillText("MÉDULA", 0, 20 * s);
     // Badges de bonuses activos
     var activeBonuses = [];
     if ((state.medRegenTimer   || 0) > 0) activeBonuses.push({ icon: "♻", color: "#4caf50" });
@@ -2855,6 +2833,41 @@
     return arr.map(function (m) { return MEDIUM_LABELS[m] || m; }).join(" · ");
   }
 
+  function drawDexBookIcon(cx, cy, s, color) {
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.fillStyle = color;
+    ctx.strokeStyle = color;
+    ctx.lineWidth = Math.max(1.2, s * 0.14);
+    ctx.lineJoin = "round";
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(-s * 0.72, -s * 0.78);
+    ctx.lineTo(-s * 0.08, -s * 0.58);
+    ctx.lineTo(-s * 0.08, s * 0.78);
+    ctx.lineTo(-s * 0.72, s * 0.58);
+    ctx.closePath();
+    ctx.stroke();
+    ctx.globalAlpha = 0.28;
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.beginPath();
+    ctx.moveTo(s * 0.72, -s * 0.78);
+    ctx.lineTo(s * 0.08, -s * 0.58);
+    ctx.lineTo(s * 0.08, s * 0.78);
+    ctx.lineTo(s * 0.72, s * 0.58);
+    ctx.closePath();
+    ctx.stroke();
+    ctx.globalAlpha = 0.18;
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, -s * 0.58);
+    ctx.lineTo(0, s * 0.78);
+    ctx.stroke();
+    ctx.restore();
+  }
+
   function drawCompendiumButton() {
     var b = UI.compendiumBtn;
     if (!b) return;
@@ -2867,10 +2880,9 @@
     ctx.fillStyle = pulse ? "#5a3a08" : "#ffd24a";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    // Layout VERTICAL: ícono arriba, "Dex" debajo.
+    // Layout VERTICAL: libro canvas arriba, "Dex" debajo.
     var iconSize = Math.max(14, Math.min(22, Math.min(b.h * 0.46, b.w * 0.38)));
-    ctx.font = iconSize + "px Fredoka, sans-serif";
-    ctx.fillText("📖", b.x + b.w / 2, b.y + b.h * 0.32);
+    drawDexBookIcon(b.x + b.w / 2, b.y + b.h * 0.32, iconSize * 0.52, pulse ? "#5a3a08" : "#ffd24a");
     var dexPx = Math.max(10, Math.min(14, Math.min(b.h * 0.30, b.w * 0.28)));
     ctx.font = "bold " + fitFont("Dex", b.w - 8, dexPx, 8) + "px Fredoka, sans-serif";
     ctx.fillText(ellipsizeToWidth("Dex", b.w - 8), b.x + b.w / 2, b.y + b.h * 0.74);
@@ -2921,7 +2933,7 @@
     ctx.font = "bold 15px Fredoka, sans-serif";
     ctx.textAlign = "left";
     ctx.textBaseline = "middle";
-    var headerLabel = state.loadoutEditing ? "🎯 Elegí tu loadout" : "📖 Dex";
+    var headerLabel = state.loadoutEditing ? "Elegí tu loadout" : "Dex";
     ctx.fillText(headerLabel, modalX + 12, modalY + headerH / 2);
     // Counters en modo loadout
     if (state.loadoutEditing && state.loadout) {
@@ -3185,15 +3197,14 @@
         drawTooltipSprite(def2, detailX + 30, detailY + 30, 14);
         ctx.restore();
       } else if (sel === "macrofagoLibre") {
-        ctx.fillStyle = def2.color;
-        ctx.beginPath();
-        ctx.arc(detailX + 30, detailY + 30, 18, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.strokeStyle = def2.colorDark; ctx.lineWidth = 2; ctx.stroke();
-        ctx.fillStyle = "#fff";
-        ctx.font = "bold 10px Fredoka, sans-serif";
-        ctx.textAlign = "center"; ctx.textBaseline = "middle";
-        ctx.fillText("M", detailX + 30, detailY + 31);
+        var dexG = {
+          x: detailX + 30, y: detailY + 30,
+          scale: 18 / (24 * U),
+          wobble: (state.time || 0) * 4, shape: 0, alpha: 1,
+          mouthOpen: 0, swallow: 0, attackAnim: 0, hitFlash: 0, tongueExtend: 0,
+          blinkTimer: 0, nextBlink: (state.time || 0) + 999, state: "roaming"
+        };
+        drawGuardian(dexG);
       } else {
         // Detail panel del dex: preview grande de la torre real.
         drawTowerPreview(sel, detailX + 30, detailY + 30, 18, true);
@@ -3204,7 +3215,7 @@
       if (def2.free) {
         line2 = "Gratis (autónomo)";
       } else if (def2.cost != null) {
-        line2 = (def2.currency === "complement" ? "🧬 C3b: " : "⚡ ATP: ") + def2.cost;
+        line2 = (def2.currency === "complement" ? "C3b: " : "ATP: ") + def2.cost;
       }
       ctx.fillStyle = (def2.currency === "complement") ? "#7CFC9E" : "#f5d76e";
       ctx.font = "bold 11px Fredoka, sans-serif";
@@ -4566,6 +4577,22 @@
       return act ? act.kind : null;
     },
     relayout: function () { layoutUI(); return window.__game.metrics; },
+    tryMacroUlt: function () { return tryActivateMacrofagoUltimate(); },
+    spawnGuardianAt: function (wnx, wny) {
+      var x = FIELD_LEFT + wnx * dsWorldW();
+      var y = FIELD_TOP + wny * dsWorldH();
+      state.guardians.push({
+        x: x, y: y, vx: 0, vy: 0,
+        hp: GUARDIAN_HP, maxHp: GUARDIAN_HP,
+        state: "roaming", alpha: 1, scale: 1,
+        biteCd: 0, wobble: Math.random() * Math.PI * 2,
+        blinkTimer: 0, nextBlink: state.time + 2,
+        tearTimer: 0, hitFlash: 0, attackAnim: 0,
+        mouthOpen: 0, swallow: 0, engulfTarget: null, engulfT: 0,
+        shape: Math.random() * Math.PI * 2
+      });
+      return state.guardians[state.guardians.length - 1];
+    },
     quality: function () {
       return {
         low: !!QUALITY.low,
@@ -10834,7 +10861,7 @@
   var HARPOON_FLAME_TIME = HARPOON_THROW_TIME + HARPOON_PULL_TIME + 0.3;
   var HARPOON_SHOUT_TIME = 0.9;
   var GUARDIAN_COL = "#E8923A", GUARDIAN_COLD = "#A8581A";   // ámbar macrófago
-  var HARPOON_COLOR = "#5C300E";    // un poco más oscuro que GUARDIAN_COLD, para el arpón/cadena
+  var HARPOON_COLOR = "#C86820";    // citoplasma del seudópodo-arpón (no cadena metálica)
   var ENGULF_TIME = 0.9;          // s que tarda la fagocitosis
 
   // Libera al germen que el macrófago estaba engullendo (al huir/morir).
@@ -11414,8 +11441,8 @@
     ctx.restore();
   }
 
-  // Llamas envolventes (lenguas radiales y flickerantes alrededor del
-  // cuerpo) + cadena/arpón gruesos hacia el objetivo + globo "¡Ven aquí!".
+  // Llamas envolventes + seudópodo-arpón (cuerda viva + copa fagocítica)
+  // hacia el objetivo + globo "¡Ven aquí!".
   // Todo dibujado DESPUÉS del cuerpo para que nunca quede tapado.
   function drawHarpoonOverlay(g) {
     var R = 24 * U * (g.scale || 1);
@@ -11448,34 +11475,80 @@
       var e = g.harpoonTarget;
       var farX = (g.harpoonPhase === "throw") ? g.harpoonTipX : e.x;
       var farY = (g.harpoonPhase === "throw") ? g.harpoonTipY : e.y;
+      var dxH = farX - g.x, dyH = farY - g.y;
+      var lenH = Math.hypot(dxH, dyH) || 1;
+      var nxH = dxH / lenH, nyH = dyH / lenH;
+      var pxH = -nyH, pyH = nxH;
+      var pullK = (g.harpoonPhase === "pull") ? 1 : 0;
+      var segsH = 8;
+      function harpoonWave(t) {
+        var wob = Math.sin((state.time || 0) * 9 + t * 10) * (6.2 - pullK * 3.4) * U;
+        return {
+          x: g.x + dxH * t + pxH * wob,
+          y: g.y + dyH * t + pyH * wob
+        };
+      }
       ctx.save();
-      ctx.strokeStyle = HARPOON_COLOR;
-      ctx.lineWidth = 6 * U;
       ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      // Cuerda viva: seudópodo ondulante, no cadena.
+      ctx.strokeStyle = GUARDIAN_COLD;
+      ctx.lineWidth = (8.2 - pullK * 1.4) * U;
       ctx.beginPath();
       ctx.moveTo(g.x, g.y);
-      ctx.lineTo(farX, farY);
-      ctx.stroke();
-      // Eslabones de la cadena (círculos gruesos a lo largo de la línea).
-      var segs = 6;
-      ctx.fillStyle = HARPOON_COLOR;
-      ctx.strokeStyle = "rgba(0,0,0,0.35)";
-      ctx.lineWidth = 1 * U;
-      for (var i = 1; i < segs; i++) {
-        var t = i / segs;
-        var lx = g.x + (farX - g.x) * t;
-        var ly = g.y + (farY - g.y) * t;
-        ctx.beginPath();
-        ctx.arc(lx, ly, 4.2 * U, 0, Math.PI * 2);
-        ctx.fill(); ctx.stroke();
+      var hi;
+      for (hi = 1; hi <= segsH; hi++) {
+        var midH = harpoonWave((hi - 0.5) / segsH);
+        var endH = harpoonWave(hi / segsH);
+        ctx.quadraticCurveTo(midH.x, midH.y, endH.x, endH.y);
       }
-      // Punta de arpón en el extremo, más grande.
-      ctx.fillStyle = HARPOON_COLOR;
+      ctx.stroke();
+      ctx.strokeStyle = HARPOON_COLOR;
+      ctx.lineWidth = (5.4 - pullK * 0.9) * U;
       ctx.beginPath();
-      ctx.moveTo(farX, farY - 10 * U);
-      ctx.lineTo(farX + 8 * U, farY + 7 * U);
-      ctx.lineTo(farX - 8 * U, farY + 7 * U);
-      ctx.closePath();
+      ctx.moveTo(g.x, g.y);
+      for (hi = 1; hi <= segsH; hi++) {
+        midH = harpoonWave((hi - 0.5) / segsH);
+        endH = harpoonWave(hi / segsH);
+        ctx.quadraticCurveTo(midH.x, midH.y, endH.x, endH.y);
+      }
+      ctx.stroke();
+      ctx.strokeStyle = "rgba(255, 214, 150, 0.55)";
+      ctx.lineWidth = 1.8 * U;
+      ctx.beginPath();
+      ctx.moveTo(g.x, g.y);
+      for (hi = 1; hi <= segsH; hi++) {
+        midH = harpoonWave((hi - 0.5) / segsH);
+        endH = harpoonWave(hi / segsH);
+        ctx.quadraticCurveTo(midH.x, midH.y, endH.x, endH.y);
+      }
+      ctx.stroke();
+      // Copa fagocítica: dos lóbulos que cierran al tirar (el gancho).
+      var cupOpen = 0.95 - pullK * 0.62;
+      var cupR = 12 * U;
+      var baseAng = Math.atan2(nyH, nxH);
+      ctx.fillStyle = GUARDIAN_COL;
+      ctx.strokeStyle = GUARDIAN_COLD;
+      ctx.lineWidth = 1.6 * U;
+      for (var lobe = -1; lobe <= 1; lobe += 2) {
+        var la = baseAng + lobe * (0.55 + cupOpen * 0.70);
+        var lx1 = farX + Math.cos(la) * cupR * 0.15;
+        var ly1 = farY + Math.sin(la) * cupR * 0.15;
+        var lx2 = farX + Math.cos(la) * cupR;
+        var ly2 = farY + Math.sin(la) * cupR;
+        var lpx = -Math.sin(la) * cupR * 0.42;
+        var lpy = Math.cos(la) * cupR * 0.42;
+        ctx.beginPath();
+        ctx.moveTo(farX, farY);
+        ctx.quadraticCurveTo(lx1 + lpx, ly1 + lpy, lx2, ly2);
+        ctx.quadraticCurveTo(lx1 - lpx * 0.35, ly1 - lpy * 0.35, farX, farY);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+      }
+      ctx.fillStyle = "rgba(255, 200, 120, 0.55)";
+      ctx.beginPath();
+      ctx.arc(farX - nxH * 2 * U, farY - nyH * 2 * U, 3.2 * U, 0, Math.PI * 2);
       ctx.fill();
       ctx.restore();
     }
@@ -11614,7 +11687,7 @@
     // ameboide constante. Cada uno se extiende y retrae con un ciclo de
     // pulso INDEPENDIENTE (basado en su seed). Da la sensación de un
     // macrófago tisular vivo que está sintiendo el entorno constantemente.
-    var reach = (maw > 0.05 || g.attackAnim > 0) ? 1.35 : 1.0;
+    var reach = (maw > 0.05 || g.attackAnim > 0 || g.harpoonPhase) ? 1.42 : 1.0;
     ctx.lineCap = "round"; ctx.lineJoin = "round";
     var nF = 11, b0 = R * 0.62;
     for (var f = 0; f < nF; f++) {
@@ -11946,6 +12019,20 @@
     if ((state.medCitoTimer    || 0) > 0) state.medCitoTimer    -= dt;
   }
 
+  function drawSerumShell(x, y, w, h, ready) {
+    var r = Math.min(8, h * 0.28);
+    ctx.fillStyle = "rgba(18, 10, 14, 0.72)";
+    roundRect(x, y, w, h, r);
+    ctx.fill();
+    ctx.fillStyle = "rgba(255, 255, 255, 0.08)";
+    roundRect(x + 1, y + 1, w - 2, Math.max(3, h * 0.34), r * 0.7);
+    ctx.fill();
+    ctx.strokeStyle = ready ? "rgba(255, 230, 180, 0.85)" : "rgba(255,255,255,0.38)";
+    ctx.lineWidth = ready ? 2 : 1;
+    roundRect(x, y, w, h, r);
+    ctx.stroke();
+  }
+
   function drawMedVial() {
     var v = UI.medVial; if (!v) return;
     var perBlock = MED_MAX / MED_BLOCKS;
@@ -11957,8 +12044,7 @@
       ctx.shadowColor = colorAlpha(MED_POWERS[filled - 1].color, 0.9);
       ctx.shadowBlur = 8 + 8 * gp;
     }
-    ctx.fillStyle = "rgba(20,8,12,0.55)";
-    ctx.fillRect(v.x, v.y, v.w, v.h);
+    drawSerumShell(v.x, v.y, v.w, v.h, filled >= 1);
     ctx.shadowBlur = 0;
     // 4 bloques de Nv1 a Nv4. Cada uno muestra su número siempre (faded si
     // está vacío, brillante si está lleno) para que se entienda el progreso.
@@ -11991,9 +12077,9 @@
       ctx.fillStyle = (f >= 1) ? "rgba(255,255,255,0.90)" : "rgba(255,255,255,0.30)";
       ctx.fillText("Nv" + (i + 1), segX + segW - 3, v.y + 2);
     }
-    // Borde exterior fino para enmarcar todo el contenedor.
-    ctx.strokeStyle = "rgba(255,255,255,0.45)"; ctx.lineWidth = 1;
-    ctx.strokeRect(v.x, v.y, v.w, v.h);
+    ctx.strokeStyle = "rgba(255,255,255,0.22)"; ctx.lineWidth = 1;
+    roundRect(v.x, v.y, v.w, v.h, Math.min(8, v.h * 0.28));
+    ctx.stroke();
     // Watermark DINÁMICO en la parte baja del vial: muestra la CLASE del
     // bloque más alto lleno (ej. "Bacteriostático", "β-lactámico"...). Así el
     // jugador sabe qué va a desatar antes de tocar. Si no hay nada cargado,
@@ -12013,28 +12099,25 @@
     var ratio = Math.max(0, Math.min(1, state.topicalCharge / TOPICAL_MAX));
     var ready = state.topicalCharge >= TOPICAL_MAX;
     ctx.save();
-    // Fondo + fondo tenue del color del poder (igual estilo que medvial).
-    ctx.fillStyle = "rgba(20,8,12,0.55)";
-    ctx.fillRect(v.x, v.y, v.w, v.h);
+    drawSerumShell(v.x, v.y, v.w, v.h, ready);
     ctx.fillStyle = "rgba(143, 206, 46, 0.10)";
-    ctx.fillRect(v.x + 1, v.y + 1, v.w - 2, v.h - 2);
-    // Llenado HORIZONTAL.
+    roundRect(v.x + 1, v.y + 1, v.w - 2, v.h - 2, Math.min(7, v.h * 0.24));
+    ctx.fill();
     var lw = (v.w - 4) * ratio;
     ctx.fillStyle = ready ? "#b6ff3a" : "#8fce2e";
-    ctx.fillRect(v.x + 2, v.y + 2, lw, v.h - 4);
-    ctx.strokeStyle = ready ? "#b6ff3a" : "rgba(255,255,255,0.45)";
-    ctx.lineWidth = ready ? 2 : 1;
-    ctx.strokeRect(v.x, v.y, v.w, v.h);
+    if (lw > 1) {
+      roundRect(v.x + 2, v.y + 2, lw, v.h - 4, Math.min(6, v.h * 0.22));
+      ctx.fill();
+    }
     ctx.restore();
-    // Texto centrado dentro del rect (igual tamaño y estilo que el resto).
     ctx.save();
     ctx.textAlign = "center"; ctx.textBaseline = "middle";
     ctx.font = "bold " + Math.max(10, Math.min(12, v.h * 0.32)) + "px Fredoka, sans-serif";
     ctx.fillStyle = ready
       ? "rgba(20,30,8," + (0.90 + 0.10 * (0.5 + 0.5 * Math.sin(state.time * 6))) + ")"
       : "rgba(255,255,255,0.85)";
-    var lbl = ready ? "▸ Antiséptico" : "🧴 " + Math.round(ratio * 100) + "%";
-    ctx.fillText(lbl, v.x + v.w / 2, v.y + v.h / 2);
+    var lbl = ready ? "▸ Antiséptico" : "Antiséptico " + Math.round(ratio * 100) + "%";
+    ctx.fillText(ellipsizeToWidth(lbl, v.w - 8), v.x + v.w / 2, v.y + v.h / 2);
     ctx.restore();
   }
 
@@ -12046,26 +12129,28 @@
     var max = (state.guardians && state.guardians.length >= GUARDIAN_MAX);
     var enabled = canAfford && !max;
     ctx.save();
-    // Fondo + tinte amber
-    ctx.fillStyle = armed ? "rgba(232, 146, 58, 0.40)" : "rgba(20,8,12,0.55)";
-    ctx.fillRect(v.x, v.y, v.w, v.h);
-    if (!armed) {
+    drawSerumShell(v.x, v.y, v.w, v.h, armed || enabled);
+    if (armed) {
+      ctx.fillStyle = "rgba(232, 146, 58, 0.38)";
+      roundRect(v.x + 1, v.y + 1, v.w - 2, v.h - 2, Math.min(7, v.h * 0.24));
+      ctx.fill();
+    } else {
       ctx.fillStyle = "rgba(232, 146, 58, 0.12)";
-      ctx.fillRect(v.x + 1, v.y + 1, v.w - 2, v.h - 2);
+      roundRect(v.x + 1, v.y + 1, v.w - 2, v.h - 2, Math.min(7, v.h * 0.24));
+      ctx.fill();
     }
-    // Borde: pulsa dorado si armado, blanco si listo, rojo tenue si bloqueado
     if (armed) {
       var pp = 0.5 + 0.5 * Math.sin(state.time * 5);
       ctx.strokeStyle = "rgba(255, 210, 100, " + (0.7 + pp * 0.30) + ")";
       ctx.lineWidth = 2.5;
-    } else if (enabled) {
-      ctx.strokeStyle = "rgba(232, 146, 58, 0.85)";
-      ctx.lineWidth = 1.5;
-    } else {
+      roundRect(v.x, v.y, v.w, v.h, Math.min(8, v.h * 0.28));
+      ctx.stroke();
+    } else if (!enabled) {
       ctx.strokeStyle = "rgba(200, 100, 100, 0.45)";
       ctx.lineWidth = 1;
+      roundRect(v.x, v.y, v.w, v.h, Math.min(8, v.h * 0.28));
+      ctx.stroke();
     }
-    ctx.strokeRect(v.x, v.y, v.w, v.h);
     // Mini macrófago en el centro
     ctx.globalAlpha = enabled ? 1 : 0.45;
     var cx = v.x + v.w / 2, cy = v.y + v.h * 0.42;
@@ -12083,11 +12168,16 @@
       ctx.fill();
       ctx.stroke();
     }
-    // Costo abajo
-    ctx.fillStyle = canAfford ? "#ffd24a" : "rgba(220, 100, 100, 0.85)";
+    // Costo abajo — gota ATP, no emoji.
+    var costStr = String(MACROFAGO_MANUAL_COST);
     ctx.font = "bold " + Math.max(9, Math.min(11, v.h * 0.26)) + "px Fredoka, sans-serif";
-    ctx.textAlign = "center"; ctx.textBaseline = "bottom";
-    ctx.fillText("⚡" + MACROFAGO_MANUAL_COST, v.x + v.w / 2, v.y + v.h - 2);
+    ctx.textAlign = "left"; ctx.textBaseline = "bottom";
+    var costW = ctx.measureText(costStr).width;
+    var dropR = Math.max(3.5, v.h * 0.10);
+    var costX = v.x + v.w / 2 - (dropR * 2 + 3 + costW) / 2;
+    drawAtpDrop(costX + dropR, v.y + v.h - dropR - 1, dropR, canAfford ? "#ffd24a" : "rgba(220, 100, 100, 0.85)");
+    ctx.fillStyle = canAfford ? "#ffd24a" : "rgba(220, 100, 100, 0.85)";
+    ctx.fillText(costStr, costX + dropR * 2 + 3, v.y + v.h - 2);
     ctx.restore();
   }
 
@@ -15023,11 +15113,6 @@
       ctx.beginPath(); ctx.ellipse(cx - rxp * 0.10, cy - ryp * 0.50, rxp * 0.42, ryp * 0.16, 0, 0, Math.PI * 2); ctx.fill();
     }
 
-    // Etiqueta — siempre.
-    ctx.fillStyle = "rgba(70, 30, 10, 0.75)";
-    ctx.font = "bold 10px Fredoka, sans-serif";
-    ctx.textAlign = "center"; ctx.textBaseline = "top";
-    ctx.fillText("MITOCONDRIA", cx, cy + ryp + 6);
     ctx.restore();
   }
 
@@ -15306,7 +15391,7 @@
 
   // -------- AMBIENT BLOOD CELLS -----------------------------------------
   function ensureAmbient() {
-    var target = Math.max(8, Math.min(20, Math.round(FIELD_W * FIELD_H / 22000)));
+    var target = Math.max(5, Math.min(10, Math.round(FIELD_W * FIELD_H / 40000)));
     while (state.ambient.length < target) {
       state.ambient.push({
         x: FIELD_LEFT + Math.random() * FIELD_W,
@@ -15520,32 +15605,6 @@
       ctx.restore();
     }
     ctx.restore();
-    // Floating "TAPÓN DE FIBRINA" text on spawn.
-    if (b.textTimer > 0) {
-      var alpha = Math.min(1, b.textTimer / 0.4);
-      ctx.save();
-      ctx.globalAlpha = alpha;
-      var fs = Math.max(9, 10 * U);          // más pequeño
-      ctx.font = "bold " + fs + "px Fredoka, sans-serif";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      var label = "TAPÓN DE FIBRINA";
-      var tw = ctx.measureText(label).width;
-      // Clamp dentro del campo para que SIEMPRE se vea (aunque el tapón esté
-      // pegado a un borde del camino).
-      var margin = 6;
-      var tx = Math.max(FIELD_LEFT + margin + tw / 2,
-                Math.min(FIELD_RIGHT - margin - tw / 2, b.x));
-      var ty = b.y - 30 * U - (1.5 - b.textTimer) * 14 * U;
-      ty = Math.max(FIELD_TOP + 10 * U, ty);
-      ctx.lineWidth = 3;
-      ctx.lineJoin = "round";
-      ctx.strokeStyle = "rgba(60, 50, 0, 0.85)";
-      ctx.strokeText(label, tx, ty);
-      ctx.fillStyle = "#FFE680";
-      ctx.fillText(label, tx, ty);
-      ctx.restore();
-    }
   }
 
   // -------- RESTOS (pathogen remnants) ---------------------------------
@@ -17561,15 +17620,61 @@
     var hb = 1 + 0.10 * Math.sin((state.time || 0) * 1.1);
     band(0.15, 0.52, "rgba(228,140,128," + (0.26 * hb).toFixed(3) + ")", "rgba(224,128,116," + (0.16 * hb).toFixed(3) + ")");
     band(0.52, 0.82, "rgba(245,222,138," + (0.30 * hb).toFixed(3) + ")", "rgba(240,206,120," + (0.18 * hb).toFixed(3) + ")");
-    // Etiquetas tenues de capa en el margen izquierdo.
+    /* Las capas se leen por color (rosa / grasa), no por carteles. */
+  }
+
+  // Adipocitos (hipodermis) + capilares (dermis) encima del PNG de campo.
+  // Semilla fija: no parpadean ni se mueven. Se omiten en low / F2 / puente.
+  function drawTissueDepth() {
+    if (QUALITY.low || state.f2 || state.dissemination) return;
     ctx.save();
-    ctx.fillStyle = "rgba(120, 70, 70, 0.30)";
-    ctx.font = "bold " + Math.max(8, Math.min(11, FIELD_W * 0.026)) + "px Fredoka, sans-serif";
-    ctx.textAlign = "left";
-    ctx.textBaseline = "middle";
-    ctx.fillText("EPIDERMIS", x + 6 * U, FIELD_TOP + FIELD_H * 0.11);
-    ctx.fillText("DERMIS",    x + 6 * U, FIELD_TOP + FIELD_H * 0.33);
-    ctx.fillText("HIPODERMIS", x + 6 * U, FIELD_TOP + FIELD_H * 0.67);
+    var seed = 17411;
+    function rnd() {
+      seed = (seed * 9301 + 49297) % 233280;
+      return seed / 233280;
+    }
+    var i, cx, cy, ang, len, ax, ay, rx, ry;
+    ctx.lineCap = "round";
+    for (i = 0; i < 8; i++) {
+      cx = FIELD_LEFT + FIELD_W * (0.08 + rnd() * 0.84);
+      cy = FIELD_TOP + FIELD_H * (0.18 + rnd() * 0.30);
+      if (typeof distPointToPath === "function" && distPointToPath(cx, cy) < 30 * U) continue;
+      ang = rnd() * Math.PI;
+      len = (26 + rnd() * 38) * U;
+      ctx.strokeStyle = "rgba(168, 64, 78, 0.26)";
+      ctx.lineWidth = Math.max(1.15, 1.45 * U);
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.quadraticCurveTo(
+        cx + Math.cos(ang + 0.45) * len * 0.52,
+        cy + Math.sin(ang + 0.45) * len * 0.52,
+        cx + Math.cos(ang) * len,
+        cy + Math.sin(ang) * len
+      );
+      ctx.stroke();
+      ctx.fillStyle = "rgba(196, 72, 86, 0.18)";
+      ctx.beginPath();
+      ctx.arc(cx, cy, 1.6 * U, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    for (i = 0; i < 16; i++) {
+      ax = FIELD_LEFT + FIELD_W * (0.06 + rnd() * 0.88);
+      ay = FIELD_TOP + FIELD_H * (0.55 + rnd() * 0.26);
+      if (typeof distPointToPath === "function" && distPointToPath(ax, ay) < 34 * U) continue;
+      rx = (6.5 + rnd() * 6.5) * U;
+      ry = rx * (0.70 + rnd() * 0.20);
+      ctx.fillStyle = "rgba(248, 222, 148, 0.24)";
+      ctx.strokeStyle = "rgba(196, 150, 72, 0.30)";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.ellipse(ax, ay, rx, ry, rnd() * 0.7, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = "rgba(176, 118, 48, 0.30)";
+      ctx.beginPath();
+      ctx.arc(ax - rx * 0.16, ay - ry * 0.10, rx * 0.22, 0, Math.PI * 2);
+      ctx.fill();
+    }
     ctx.restore();
   }
 
@@ -17771,8 +17876,8 @@
     if (!marks || !marks.length) return;
     for (var i = 0; i < marks.length; i++) {
       var m = marks[i];
-      var R = 25 * U * m.intensity;
-      var alpha = 0.40 * m.intensity;
+      var R = 32 * U * m.intensity;
+      var alpha = 0.64 * m.intensity;
       var grad = ctx.createRadialGradient(m.x, m.y, 0, m.x, m.y, R);
       grad.addColorStop(0, "rgba(192, 57, 43, " + alpha + ")");
       grad.addColorStop(1, "rgba(192, 57, 43, 0)");
@@ -17882,14 +17987,25 @@
       if (!beziers || !beziers.length) return;
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
-      ctx.strokeStyle = "rgba(198, 96, 88, 0.26)";
-      ctx.lineWidth = 40 * U;
+      /* Tapa opaca del carril blanco del PNG (~44 U, color dermis). */
+      ctx.strokeStyle = "#c89888";
+      ctx.lineWidth = 44 * U;
+      strokeBeziers(beziers);
+      ctx.strokeStyle = "#b07a6e";
+      ctx.lineWidth = 38 * U;
       strokeBeziers(beziers);
       ctx.strokeStyle = computeWoundLipTint();
       ctx.lineWidth = 32 * U;
       strokeBeziers(beziers);
-      ctx.strokeStyle = "#8a3c38";
-      ctx.lineWidth = 17 * U;
+      var load = Math.min(1, (state.viralLoad || 0) / Math.max(1, state.viralThreshold || 1));
+      var lr = Math.round(88 + load * 46);
+      var lg = Math.round(36 + load * 8);
+      var lb = Math.round(40 + load * 6);
+      ctx.strokeStyle = "rgb(" + lr + "," + lg + "," + lb + ")";
+      ctx.lineWidth = 18 * U;
+      strokeBeziers(beziers);
+      ctx.strokeStyle = "rgba(255, 196, 180, " + (0.07 + load * 0.06).toFixed(2) + ")";
+      ctx.lineWidth = Math.max(2.2, 3.2 * U);
       strokeBeziers(beziers);
     }
     if (PATH.branches) {
@@ -17919,20 +18035,30 @@
     }
 
     if (!QUALITY.low) {
-      ctx.strokeStyle = "rgba(245, 226, 200, 0.70)";
-      ctx.lineWidth = Math.max(1.15, 1.4 * U);
       walkPathSamples(function (x, y, nx, ny, seed) {
         var j = ((seed * 9301 + 49297) % 233280) / 233280;
-        if (j < 0.22) return;
+        if (j < 0.14) return;
         var side = (seed % 2) ? 1 : -1;
-        var wob = (j - 0.5) * 4.2 * U;
-        var x0 = x + nx * (15.8 * U + wob) * side;
-        var y0 = y + ny * (15.8 * U + wob) * side;
-        var flen = (4.2 + j * 6.2) * U;
+        var jig = ((seed * 17) % 7) - 3;
+        var wob = (j - 0.5) * 5.4 * U + jig * 0.35 * U;
+        var lip = 16.4 * U + wob;
+        var x0 = x + nx * lip * side;
+        var y0 = y + ny * lip * side;
         var tx = -ny, ty = nx;
+        var flen = (5.2 + j * 7.4) * U;
+        var inward = (j > 0.72 ? 3.8 : 1.2) * U;
+        ctx.strokeStyle = "rgba(168, 62, 68, 0.82)";
+        ctx.lineWidth = Math.max(2.2, 2.6 * U);
+        ctx.lineCap = "round";
         ctx.beginPath();
-        ctx.moveTo(x0 - tx * flen * 0.5, y0 - ty * flen * 0.5);
-        ctx.lineTo(x0 + tx * flen * 0.5, y0 + ty * flen * 0.5);
+        ctx.moveTo(x0 - tx * flen * 0.55, y0 - ty * flen * 0.55);
+        ctx.lineTo(x0 + tx * flen * 0.55 - nx * inward * side, y0 + ty * flen * 0.55 - ny * inward * side);
+        ctx.stroke();
+        ctx.strokeStyle = "rgba(255, 176, 162, 0.42)";
+        ctx.lineWidth = Math.max(1.1, 1.35 * U);
+        ctx.beginPath();
+        ctx.moveTo(x0 - tx * flen * 0.35, y0 - ty * flen * 0.35);
+        ctx.lineTo(x0 + tx * flen * 0.25, y0 + ty * flen * 0.25);
         ctx.stroke();
       }, 2);
     }
@@ -19462,29 +19588,48 @@
     var R = 20 * U * pulse;
     ctx.save();
     ctx.translate(x, y);
-    // Pseudópodos: 6 small bumps
+    // Pseudópodos cortos + cuerpo ameboide (misma familia que drawGuardian).
     ctx.fillStyle = t.def.color;
-    var bumps = 6;
+    var bumps = 8;
     for (var i = 0; i < bumps; i++) {
       var a = i * Math.PI * 2 / bumps + state.time * 0.5;
       var bx = Math.cos(a) * R * 0.95;
       var by = Math.sin(a) * R * 0.95;
-      var br = R * (0.32 + Math.sin(state.time * 2 + i) * 0.05);
+      var br = R * (0.28 + Math.sin(state.time * 2 + i) * 0.06);
       ctx.beginPath();
       ctx.arc(bx, by, br, 0, Math.PI * 2);
       ctx.fill();
     }
-    // Body gradient
     var grad = ctx.createRadialGradient(-R * 0.3, -R * 0.3, R * 0.2, 0, 0, R);
-    grad.addColorStop(0, "#a7d0f6");
+    grad.addColorStop(0, "#f7cf95");
     grad.addColorStop(0.6, t.def.color);
     grad.addColorStop(1, t.def.colorDark);
     ctx.fillStyle = grad;
     ctx.beginPath();
-    ctx.arc(0, 0, R, 0, Math.PI * 2);
+    var nWavesM = 12;
+    for (var mw = 0; mw <= nWavesM; mw++) {
+      var mAng = (mw / nWavesM) * Math.PI * 2;
+      var mBump = 1 + Math.sin(mAng * 4 + state.time * 1.2) * 0.05;
+      var mR = R * 0.92 * mBump;
+      if (mw === 0) ctx.moveTo(Math.cos(mAng) * mR, Math.sin(mAng) * mR);
+      else ctx.lineTo(Math.cos(mAng) * mR, Math.sin(mAng) * mR);
+    }
+    ctx.closePath();
     ctx.fill();
     ctx.strokeStyle = t.def.colorDark;
     ctx.lineWidth = Math.max(1.2, 1.5 * U);
+    ctx.stroke();
+    // Núcleo riñón detrás de la cara (no tapa los ojos).
+    ctx.fillStyle = "rgba(110, 60, 140, 0.62)";
+    ctx.strokeStyle = "rgba(60, 30, 90, 0.70)";
+    ctx.lineWidth = 1 * U;
+    ctx.beginPath();
+    ctx.moveTo(-R * 0.22, R * 0.02);
+    ctx.quadraticCurveTo(-R * 0.38, -R * 0.18, -R * 0.10, -R * 0.22);
+    ctx.quadraticCurveTo(R * 0.12, -R * 0.08, R * 0.06, R * 0.16);
+    ctx.quadraticCurveTo(-R * 0.06, R * 0.28, -R * 0.22, R * 0.02);
+    ctx.closePath();
+    ctx.fill();
     ctx.stroke();
     // Face — expression-aware
     var eyeR = R * 0.20;
@@ -32044,11 +32189,33 @@
     if ((state.viralPulse || 0) > 0) state.viralPulse = Math.max(0, state.viralPulse - dt * 2.5);
   }
 
+  function drawAtpDrop(cx, cy, r, color) {
+    ctx.save();
+    ctx.fillStyle = color || "#f5d76e";
+    ctx.strokeStyle = "rgba(80, 50, 10, 0.45)";
+    ctx.lineWidth = Math.max(0.8, r * 0.16);
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - r * 1.15);
+    ctx.quadraticCurveTo(cx + r * 0.95, cy - r * 0.15, cx + r * 0.72, cy + r * 0.45);
+    ctx.quadraticCurveTo(cx, cy + r * 1.15, cx - r * 0.72, cy + r * 0.45);
+    ctx.quadraticCurveTo(cx - r * 0.95, cy - r * 0.15, cx, cy - r * 1.15);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "rgba(255, 255, 230, 0.45)";
+    ctx.beginPath();
+    ctx.ellipse(cx - r * 0.22, cy - r * 0.15, r * 0.22, r * 0.32, -0.4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
   function drawHUD() {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.fillStyle = "#3a2530";
+    ctx.fillStyle = "#34222b";
     ctx.fillRect(0, 0, VW, FIELD_TOP);
-    ctx.fillStyle = "rgba(255,255,255,0.06)";
+    ctx.fillStyle = "rgba(255, 214, 180, 0.10)";
+    ctx.fillRect(0, 0, VW, FIELD_TOP);
+    ctx.fillStyle = "rgba(255,255,255,0.07)";
     ctx.fillRect(0, FIELD_TOP - 2, VW, 2);
 
     var leftX = safeLeft + 12;
@@ -32062,13 +32229,16 @@
       ctx.font = "700 15px Fredoka, sans-serif";
       var atpNumP = Math.round(state.displayAtp != null ? state.displayAtp : state.atp);
       var atpBumpP = state.atpBump || 0;
-      var atpStr = "⚡ " + atpNumP;
+      var atpStr = String(atpNumP);
       ctx.fillStyle = atpBumpP > 0.35 ? "#fff2b8" : "#f5d76e";
-      var atpWp = ctx.measureText(atpStr).width;
+      var dropRP = 6.5;
+      var atpWp = dropRP * 2.1 + 5 + ctx.measureText(atpStr).width;
       ctx.save();
       var abScaleP = 1 + atpBumpP * 0.16;
-      ctx.translate(cx, midY); ctx.scale(abScaleP, abScaleP); ctx.translate(-cx, -midY);
-      ctx.fillText(atpStr, cx, midY);
+      ctx.translate(cx + atpWp * 0.5, midY); ctx.scale(abScaleP, abScaleP); ctx.translate(-(cx + atpWp * 0.5), -midY);
+      drawAtpDrop(cx + dropRP, midY, dropRP, atpBumpP > 0.35 ? "#fff2b8" : "#f5d76e");
+      ctx.fillStyle = atpBumpP > 0.35 ? "#fff2b8" : "#f5d76e";
+      ctx.fillText(atpStr, cx + dropRP * 2.1 + 5, midY);
       ctx.restore();
       state.atpHudPos = { x: cx + atpWp * 0.5, y: midY };
       cx += atpWp + 14;
@@ -32092,7 +32262,8 @@
       ctx.textAlign = "left"; ctx.textBaseline = "top";
       ctx.fillStyle = "rgba(255,255,255,0.55)";
       ctx.font = fontLabel + "px Fredoka, sans-serif";
-      ctx.fillText("⚡ ATP", leftX, statsY);
+      drawAtpDrop(leftX + 6, statsY + fontLabel * 0.45, Math.max(5, fontLabel * 0.42), "#f5d76e");
+      ctx.fillText("ATP", leftX + 16, statsY);
       var atpNumY = statsY + fontLabel + 4;
       ctx.font = "bold " + fontStat + "px Fredoka, sans-serif";
       ctx.fillStyle = atpBumpL > 0.35 ? "#fff2b8" : "#f5d76e";
@@ -34487,9 +34658,11 @@
         safeDraw("Fase1Bg", function () {
           ctx.drawImage(fase1Bg, FIELD_LEFT, FIELD_TOP, FIELD_W, FIELD_H);
         });
+        safeDraw("TissueDepth", drawTissueDepth);
       } else {
         safeDraw("SkinZone", drawSkinZone);
         safeDraw("SkinLayers", drawSkinLayers);
+        safeDraw("TissueDepth", drawTissueDepth);
         safeDraw("CirculatoryZone", drawCirculatoryZone);
       }
     }

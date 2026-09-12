@@ -8197,7 +8197,7 @@
       var maStats = towerStats(t);
       var maLen = maStats.range * U * 1.45;
       var maAng = mastocConeAim(t);
-      var maHalf = 0.52;
+      var maHalf = 0.78;
       t.mastocGeyser = { ang: maAng, len: maLen, half: maHalf, spitT: 0 };
       t.specialAnim = 1.28;
       t.specialReady = false;

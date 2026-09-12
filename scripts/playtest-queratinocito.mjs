@@ -1,4 +1,4 @@
-/** Captura Nicho — secreción + Descamación. DISPLAY=:1 node scripts/playtest-queratinocito.mjs */
+/** Captura Nicho — secreción + Muro córneo. DISPLAY=:1 node scripts/playtest-queratinocito.mjs */
 import { chromium } from "playwright";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
@@ -52,14 +52,14 @@ await page.evaluate(() => {
   t.specialReady = true;
   t.specialCharge = 1;
   window.__game.tapTower(0);
-  window.__game.step(0.38, 0.03);
+  window.__game.step(0.28, 0.03);
   window.__game.hold(true);
 });
 await sleep(80);
-await page.screenshot({ path: join(ART, "queratinocito_descamacion.png") });
+await page.screenshot({ path: join(ART, "queratinocito_muro_launch.png") });
 await page.evaluate(() => {
   window.__game.hold(false);
-  window.__game.step(1.15, 0.03);
+  window.__game.step(0.85, 0.03);
   window.__game.hold(true);
 });
 await sleep(80);

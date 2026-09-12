@@ -196,7 +196,7 @@ var TOWER_DEFS = {
   queratinocito: {
     id: "queratinocito", name: "Nicho Epitelial", shortName: "Epitelio",
     color: "#d4a855", colorDark: "#7a5a18", cost: 70,
-    desc: "Nicho epitelial productor. NO dispara: SECRETA defensinas. Aura pasiva ralentiza y buffea Neutrófilos. Tócalo para un TURNO DE TRABAJO (parches) o, al siguiente, DESCAMACIÓN: escamas que cortan y dejan costra córnea.",
+    desc: "Nicho epitelial productor. NO dispara: SECRETA defensinas. Aura pasiva ralentiza y buffea Neutrófilos. Tócalo para un TURNO DE TRABAJO (parches) o, al siguiente, MURO CÓRNEO: tejas que se clavan en el carril, bloquean y al caer dejan costra.",
     producer: true,
     defensinField: true,
     specialChargeSec: 14,            // ciclo de producción rápido (turno de trabajo)

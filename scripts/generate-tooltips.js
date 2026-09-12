@@ -53,7 +53,7 @@ const TOWERS = [
   { id: "complemento",   name: "Complemento MAC (C5b-9)",      role: "Complejo de ataque a membrana que perfora bacterias gram-. Ignora escudos. Disparo manual concentrado." },
   { id: "plaqueta",      name: "Fibrina / Plaqueta (barrera)", role: "Coágulo de fibrina que obstruye el carril; tromboxano A2 y factor von Willebrand. Barrera pasiva." },
   { id: "trombo",        name: "Trombo de Respuesta",          role: "Plaqueta activada con pseudópodos; empuja gérmenes hacia atrás. Al destruirse libera una bomba de factores de coagulación." },
-  { id: "queratinocito", name: "Queratinocito activado",       role: "Produce defensinas α/β, IL-8, IL-1β; barrera física y química. Campo ralentiza. IL-8 recluta neutrófilos. Ultimate: Descamación (escamas + costra)." },
+  { id: "queratinocito", name: "Queratinocito activado",       role: "Produce defensinas α/β, IL-8, IL-1β; barrera física y química. Campo ralentiza. IL-8 recluta neutrófilos. Ultimate: Muro córneo (tejas en el carril)." },
   { id: "sebocito",      name: "Sebocito",                     role: "Produce sebo (ácidos grasos, escualeno, ceras) con actividad antimicrobiana. Charcos de sebo: DoT continuo, ×3 vs C.acnes y dermatofito." },
   { id: "pdc",           name: "Célula Dendrítica Plasmocitoide (pDC)", role: "Máxima productora de IFN-α/β: detecta ácidos nucleicos virales vía TLR7/9. Ralentiza y debilita virus. Ultimate: Tormenta de Interferón." },
   { id: "linfocitogd",   name: "Linfocito γδ",                role: "No requiere presentación por MHC; reconoce antígenos no peptídicos. Prioriza heridos. Bonus vs bacteria y hongo. IL-17 bufa todas las torres." },

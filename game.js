@@ -4272,6 +4272,7 @@
       guardians: [],
       guardianTimer: 28,
       epiWalls: [],                     // muros de uniones estrechas (2 Nichos enfrentados)
+      keraWalls: [],                    // muros de tejas del ultimate Cornificación
       ganglio: null,                    // Ganglio linfático (base Fase 1): ensambla un T-blast héroe
       tblasts: [],                      // Linfocitos T blast héroes desplegados
       tblastPlacing: false,             // modo "colocar en el camino" activo
@@ -5266,6 +5267,7 @@
     state.seekers.length = 0;
     state.slicks.length = 0;
     if (state.epiWalls) state.epiWalls.length = 0;
+    if (state.keraWalls) state.keraWalls.length = 0;
     state.restos.length = 0;
     state.collectors.length = 0;
     state.pathInflammation.length = 0;
@@ -5468,6 +5470,7 @@
     state.seekers.length = 0;
     state.slicks.length = 0;
     if (state.epiWalls) state.epiWalls.length = 0;
+    if (state.keraWalls) state.keraWalls.length = 0;
     state.restos.length = 0;
     state.collectors.length = 0;
     state.pathInflammation.length = 0;
@@ -7133,6 +7136,30 @@
           }
         }
       }
+      // MURO CÓRNEO (ultimate del Nicho): tejas clavadas a través del carril.
+      if (state.keraWalls && state.keraWalls.length) {
+        for (var kwi = 0; kwi < state.keraWalls.length; kwi++) {
+          var kw = state.keraWalls[kwi];
+          if (!kw.formed || kw.hp <= 0) continue;
+          var kax = kw.x - kw.nx * kw.half, kay = kw.y - kw.ny * kw.half;
+          var kbx = kw.x + kw.nx * kw.half, kby = kw.y + kw.ny * kw.half;
+          var kvx = kbx - kax, kvy = kby - kay;
+          var kseg = kvx * kvx + kvy * kvy;
+          var ktt = kseg > 0 ? ((e.x - kax) * kvx + (e.y - kay) * kvy) / kseg : 0;
+          ktt = Math.max(0, Math.min(1, ktt));
+          var kcx = kax + kvx * ktt, kcy = kay + kvy * ktt;
+          if (Math.hypot(e.x - kcx, e.y - kcy) <= (e.def.radius || 14) * U + 11 * U) {
+            pxSpeed = 0;
+            e.state = "blocked";
+            e.keraWallId = kw.id;
+            var kwdmg = (e.def.attack || 4) * ATTACK_MULT * dt;
+            kw.hp -= kwdmg;
+            kw.flash = 0.18;
+            damageEnemy(e, 7 * dt, "queratinocito");
+            break;
+          }
+        }
+      }
       // Medicamento: paralización / ralentización.
       if (e.stunTimer > 0) e.stunTimer -= dt;
       if (e.slowTimer > 0) e.slowTimer -= dt;
@@ -7819,22 +7846,25 @@
       triggerUltimateHitstop();
       return;
     }
-    // Queratinocito alterna: Turno de secreción ↔ Descamación (cornificación).
+    // Queratinocito alterna: Turno de secreción ↔ Muro córneo.
     if (def.id === "queratinocito") {
       var doCornify = !!t.keraCornifyPending;
       t.keraCornifyPending = !doCornify;
       if (doCornify) {
         triggerUltimateHitstop();
-        t.keraShed = { spawned: 0, total: 9, cd: 0 };
-        t.specialAnim = 1.72;
+        t.keraWallPlan = keraPlanWall(t);
+        if (!state.keraWalls) state.keraWalls = [];
+        state.keraWalls.push(t.keraWallPlan);
+        t.keraShed = { spawned: 0, total: t.keraWallPlan.tiles.length, cd: 0 };
+        t.specialAnim = 1.15;
         t.specialReady = false;
         t.specialCharge = 0;
-        showMsg("¡Descamación!");
+        showMsg("¡Muro córneo!");
         sfx("upgrade");
         triggerShake(0.14, 4);
         keraSpawnSquame(t, 0);
         t.keraShed.spawned = 1;
-        t.keraShed.cd = 0.11;
+        t.keraShed.cd = 0.09;
       } else {
         var stp = towerStats(t);
         var patch = (t.def.levels[t.level] && t.def.levels[t.level].patch) || { count: 2, r: 32, life: 6, dot: 16, slow: true, kind: "defensin" };
@@ -8443,43 +8473,100 @@
   }
 
   // Frenesí NK: k 0→1 (sale) / 1 (corta) / 1→0 (vuelve al armazón).
-  function keraSpawnSquame(t, idx) {
-    var stats = towerStats(t);
-    var range = stats.range * U;
-    var patch = (t.def.levels[t.level] && t.def.levels[t.level].patch) || { r: 30, life: 5, dot: 14 };
-    var total = (t.keraShed && t.keraShed.total) || 9;
-    var spread = (idx - (total - 1) / 2) / Math.max(1, total - 1);
+  function keraPlanWall(t) {
+    var nTiles = 6;
     var arc = nearestPathProgress(t.x, t.y);
-    var lx, ly;
-    if (arc && (idx % 2 === 0)) {
-      var pt = pathPos(arc.progress + spread * 88 * U, arc.heridaIdx);
-      lx = pt.x; ly = pt.y;
-    } else {
-      var baseAng = arc ? Math.atan2(pathPos(arc.progress, arc.heridaIdx).y - t.y, pathPos(arc.progress, arc.heridaIdx).x - t.x) : Math.PI / 2;
-      var ang = baseAng + spread * 1.55;
-      var dist = range * (0.42 + (idx % 3) * 0.18);
-      lx = t.x + Math.cos(ang) * dist;
-      ly = t.y + Math.sin(ang) * dist;
+    var p0 = arc ? pathPos(arc.progress, arc.heridaIdx) : { x: t.x, y: t.y + 48 * U };
+    var p1 = arc ? pathPos(arc.progress + 14 * U, arc.heridaIdx) : { x: t.x + 12 * U, y: t.y + 48 * U };
+    var tx = p1.x - p0.x, ty = p1.y - p0.y;
+    var len = Math.hypot(tx, ty) || 1;
+    var nx = -ty / len, ny = tx / len;
+    var half = 44 * U;
+    var tiles = [];
+    for (var i = 0; i < nTiles; i++) {
+      var u = nTiles === 1 ? 0 : (i / (nTiles - 1)) * 2 - 1;
+      tiles.push({
+        lx: p0.x + nx * u * half,
+        ly: p0.y + ny * u * half,
+        rot: Math.atan2(ny, nx) + (i % 2 ? 0.14 : -0.14),
+        hw: (14 + (i % 2) * 2.4) * U,
+        hh: 6.2 * U,
+        arrived: false
+      });
     }
-    var dur = 0.42 + Math.abs(spread) * 0.12;
-    var sx = t.x + spread * 8 * U;
-    var sy = t.y - 12 * U;
+    var hp = 95 + (t.level || 0) * 40;
+    return {
+      id: "kw" + Math.floor(state.time * 1000) + "_" + Math.floor(Math.random() * 999),
+      x: p0.x, y: p0.y, nx: nx, ny: ny, half: half,
+      tiles: tiles,
+      hp: hp, maxHp: hp,
+      blockT: 2.2,
+      formed: false,
+      flash: 0
+    };
+  }
+
+  function keraSpawnSquame(t, idx) {
+    var wall = t.keraWallPlan;
+    if (!wall || !wall.tiles[idx]) return;
+    var slot = wall.tiles[idx];
+    var total = wall.tiles.length;
+    var spread = (idx - (total - 1) / 2) / Math.max(1, total - 1);
+    var dur = 0.38 + Math.abs(spread) * 0.08;
     pushEffect({
       kind: "keraSquame",
-      sx: sx, sy: sy, lx: lx, ly: ly,
-      x: sx, y: sy,
-      rot: spread * 0.7,
-      rotSpd: (idx % 2 ? 1 : -1) * (5.5 + idx * 0.35),
-      hw: (11 + (idx % 3) * 2.2) * U,
-      hh: (4.6 + (idx % 2) * 0.8) * U,
+      sx: t.x + spread * 6 * U, sy: t.y - 10 * U,
+      lx: slot.lx, ly: slot.ly,
+      x: t.x, y: t.y,
+      rot: spread * 0.5,
+      rotSpd: (idx % 2 ? 1 : -1) * (7 + idx * 0.4),
+      hw: slot.hw, hh: slot.hh,
       life: dur, max: dur,
-      dmg: 24 + (t.level || 0) * 10,
+      dmg: 18 + (t.level || 0) * 8,
       hitIds: {},
       landed: false,
-      crustR: (patch.r || 30) * 0.62 * U,
-      crustLife: 5.4,
-      crustDot: (patch.dot || 14) * 0.9
+      wallId: wall.id,
+      tileIdx: idx
     });
+  }
+
+  function keraCollapseWall(w) {
+    if (!state.sebumPuddles) state.sebumPuddles = [];
+    for (var i = 0; i < w.tiles.length; i++) {
+      var tl = w.tiles[i];
+      state.sebumPuddles.push({
+        x: tl.lx, y: tl.ly, r: 18 * U,
+        life: 4.2, max: 4.2,
+        dot: 10 + (w.maxHp > 120 ? 6 : 0), slow: true, kind: "keratin",
+        srcId: "queratinocito", rot: tl.rot
+      });
+    }
+    for (var ei = 0; ei < state.enemies.length; ei++) {
+      var e = state.enemies[ei];
+      if (e && e.keraWallId === w.id) {
+        e.keraWallId = null;
+        if (e.state === "blocked") e.state = "walking";
+      }
+    }
+  }
+
+  function updateKeraWalls(dt) {
+    if (!state.keraWalls || !state.keraWalls.length) return;
+    for (var i = state.keraWalls.length - 1; i >= 0; i--) {
+      var w = state.keraWalls[i];
+      if (w.flash > 0) w.flash -= dt;
+      if (!w.formed) {
+        var nArr = 0;
+        for (var t = 0; t < w.tiles.length; t++) if (w.tiles[t].arrived) nArr++;
+        if (nArr >= w.tiles.length) w.formed = true;
+        continue;
+      }
+      w.blockT -= dt;
+      if (w.hp <= 0 || w.blockT <= 0) {
+        keraCollapseWall(w);
+        state.keraWalls.splice(i, 1);
+      }
+    }
   }
 
   function nkFrenzyK(t) {
@@ -12317,6 +12404,20 @@
     ctx.restore();
   }
 
+  function drawKeraWalls() {
+    if (!state.keraWalls || !state.keraWalls.length) return;
+    for (var i = 0; i < state.keraWalls.length; i++) {
+      var w = state.keraWalls[i];
+      var frac = Math.max(0.2, w.hp / w.maxHp);
+      var pulse = w.flash > 0 ? 1 : 0.85;
+      for (var t = 0; t < w.tiles.length; t++) {
+        var tl = w.tiles[t];
+        if (!tl.arrived) continue;
+        paintKeratinSquame(tl.lx, tl.ly, tl.hw * (0.96 + 0.06 * pulse), tl.hh * 1.15, tl.rot, 0.55 + 0.45 * frac);
+      }
+    }
+  }
+
   function drawSebumPuddles() {
     if (!state.sebumPuddles || !state.sebumPuddles.length) return;
     ctx.save();
@@ -14246,13 +14347,16 @@
         }
         if (!ef.landed && kAge >= 0.88) {
           ef.landed = true;
-          if (!state.sebumPuddles) state.sebumPuddles = [];
-          state.sebumPuddles.push({
-            x: ef.lx, y: ef.ly, r: ef.crustR || 20 * U,
-            life: ef.crustLife || 5.4, max: ef.crustLife || 5.4,
-            dot: ef.crustDot || 12, slow: true, kind: "keratin",
-            srcId: "queratinocito", rot: ef.rot || 0
-          });
+          ef.life = 0;
+          if (state.keraWalls) {
+            for (var kwi = 0; kwi < state.keraWalls.length; kwi++) {
+              var kw = state.keraWalls[kwi];
+              if (kw.id !== ef.wallId) continue;
+              var slot = kw.tiles[ef.tileIdx];
+              if (slot) slot.arrived = true;
+              break;
+            }
+          }
         }
       } else if (ef.kind === "perforinBolt") {
         // Perforina del frenesí NK — penetra todos los gérmenes
@@ -14998,6 +15102,7 @@
     updateRestos(dt);
     updateCollectors(dt);
     updateBarricada(dt);
+    updateKeraWalls(dt);
   }
 
   // -------- BARRICADA (coagulation barricade on main path) -------------
@@ -33629,6 +33734,7 @@
     safeDraw("MegaPlacing", drawMegaPlacing);
     safeDraw("PlaquetaPickups", drawPlaquetaPickups);
     safeDraw("EpiWalls", drawEpiWalls);
+    safeDraw("KeraWalls", drawKeraWalls);
     safeDraw("RangeHint", drawRangeHint);
     // Loops de entidades: cada una en su propio try.
     for (var j = 0; j < state.enemies.length; j++) {

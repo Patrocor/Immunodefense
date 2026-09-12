@@ -17954,13 +17954,41 @@
     return "rgb(" + r + "," + g + "," + b + ")";
   }
 
-  var WOUND_COVER = { key: "", data: null, w: 0, h: 0 };
+  var WOUND_COVER = { key: "", data: null, w: 0, h: 0, dermis: null, fat: null };
+
+  function tissueLooksLikeSkin(r, g, b) {
+    var luma = 0.299 * r + 0.587 * g + 0.114 * b;
+    if (luma < 118 || luma > 186) return false;
+    if (r < 155 || g < 88 || b < 72) return false;
+    if (r < g) return false;
+    if (r - g > 68) return false;
+    return true;
+  }
+
+  function averageLayerColor(cover, y0n, y1n) {
+    var y0 = Math.max(0, Math.round(y0n * cover.h));
+    var y1 = Math.min(cover.h, Math.round(y1n * cover.h));
+    var rs = 0, gs = 0, bs = 0, n = 0, step = 10;
+    var x, y, idx, r, g, b;
+    for (y = y0; y < y1; y += step) {
+      for (x = 6; x < cover.w; x += step) {
+        var xn = x / cover.w;
+        if (xn > 0.14 && xn < 0.86) continue;
+        idx = (y * cover.w + x) * 4;
+        r = cover.data[idx]; g = cover.data[idx + 1]; b = cover.data[idx + 2];
+        if (!tissueLooksLikeSkin(r, g, b)) continue;
+        rs += r; gs += g; bs += b; n++;
+      }
+    }
+    if (n < 10) return null;
+    return { r: Math.round(rs / n), g: Math.round(gs / n), b: Math.round(bs / n) };
+  }
 
   function ensureWoundCoverSample() {
     var bg = ASSETS.get("assets/fase1/bg-skin-field.webp");
     if (!bg || !bg.naturalWidth) return null;
     var key = Math.round(FIELD_W) + "x" + Math.round(FIELD_H) + ":" + bg.naturalWidth;
-    if (WOUND_COVER.key === key && WOUND_COVER.data) return WOUND_COVER;
+    if (WOUND_COVER.key === key && WOUND_COVER.dermis && WOUND_COVER.fat) return WOUND_COVER;
     var off;
     try { off = document.createElement("canvas"); } catch (e0) { return null; }
     if (!off) return null;
@@ -17975,6 +18003,14 @@
       WOUND_COVER.data = id.data;
       WOUND_COVER.w = off.width;
       WOUND_COVER.h = off.height;
+      WOUND_COVER.dermis = averageLayerColor(WOUND_COVER, 0.16, 0.48) || { r: 200, g: 108, b: 100 };
+      var fatRaw = averageLayerColor(WOUND_COVER, 0.68, 0.82) || { r: 196, g: 152, b: 88 };
+      var der = WOUND_COVER.dermis;
+      WOUND_COVER.fat = {
+        r: Math.round(fatRaw.r * 0.55 + der.r * 0.45),
+        g: Math.round(fatRaw.g * 0.55 + der.g * 0.45),
+        b: Math.round(fatRaw.b * 0.55 + der.b * 0.45)
+      };
       WOUND_COVER.key = key;
       return WOUND_COVER;
     } catch (e1) {
@@ -17982,29 +18018,17 @@
     }
   }
 
-  function sampleTissueAt(x, y, nx, ny) {
+  function sampleTissueAt(x, y) {
     var fy = (y - FIELD_TOP) / Math.max(1, FIELD_H);
-    var fb = fy < 0.50 ? { r: 200, g: 108, b: 100 } : { r: 208, g: 164, b: 86 };
     var cover = ensureWoundCoverSample();
-    if (!cover) return fb;
-    var offs = [36 * U, 50 * U, 24 * U];
-    var best = null, bestLuma = 999;
-    var oi, side, ix, iy, idx, r, g, b, luma;
-    for (oi = 0; oi < offs.length; oi++) {
-      for (side = -1; side <= 1; side += 2) {
-        ix = Math.round(x + nx * offs[oi] * side - FIELD_LEFT);
-        iy = Math.round(y + ny * offs[oi] * side - FIELD_TOP);
-        if (ix < 1 || iy < 1 || ix >= cover.w - 1 || iy >= cover.h - 1) continue;
-        idx = (iy * cover.w + ix) * 4;
-        r = cover.data[idx]; g = cover.data[idx + 1]; b = cover.data[idx + 2];
-        luma = 0.299 * r + 0.587 * g + 0.114 * b;
-        if (luma < 208 && luma < bestLuma) {
-          bestLuma = luma;
-          best = { r: r, g: g, b: b };
-        }
-      }
-    }
-    return best || fb;
+    var a = (cover && cover.dermis) || { r: 200, g: 108, b: 100 };
+    var b = (cover && cover.fat) || { r: 208, g: 164, b: 86 };
+    var t = Math.max(0, Math.min(1, (fy - 0.68) / 0.10));
+    return {
+      r: Math.round(a.r + (b.r - a.r) * t),
+      g: Math.round(a.g + (b.g - a.g) * t),
+      b: Math.round(a.b + (b.b - a.b) * t)
+    };
   }
 
   function drawPathHighway() {
@@ -18056,8 +18080,8 @@
       ctx.lineWidth = Math.max(1.1, 1.5 * U);
       strokeBeziers(beziers);
     }
-    walkPathSamples(function (x, y, nx, ny) {
-      var c = sampleTissueAt(x, y, nx, ny);
+    walkPathSamples(function (x, y) {
+      var c = sampleTissueAt(x, y);
       ctx.fillStyle = "rgb(" + c.r + "," + c.g + "," + c.b + ")";
       ctx.beginPath();
       ctx.arc(x, y, 26 * U, 0, Math.PI * 2);

@@ -9,7 +9,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const KINDS = [
   ["platelets", 2.4],
-  ["keratin", 1.8],
+  ["keratin", 3.2],
   ["endothelium", 2.6],
   ["fibroblasts", 2.0],
   ["sweepers", 2.4],

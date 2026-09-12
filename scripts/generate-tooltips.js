@@ -43,22 +43,20 @@ const GERMS = [
 
 // ── Catálogo completo de torres ──────────────────────────────────────────────
 const TOWERS = [
-  { id: "neutrofilo",    name: "Neutrófilo",                   role: "Primera línea — fagocitosis, NET (trampas extracelulares), degranulación. Ultimate: Bombardeo de Defensinas." },
+  { id: "neutrofilo",    name: "Neutrófilo",                   role: "Primera línea — fagocitosis, NET (trampas extracelulares), degranulación. Ultimate: ÑAM (mordida fagocítica)." },
   { id: "linfocitoB",    name: "Linfocito B / Plasmocito",     role: "Produce anticuerpos IgG/IgM que opsonizan bacterias. Ultimate: cañones de anticuerpos penetrantes." },
   { id: "linfocitoT",    name: "Linfocito T citotóxico (CD8+)",role: "Reconoce péptidos en MHC-I; libera granzima B y perforina para apoptosis. Ultimate: Apoptosis en 5 enemigos." },
   { id: "langerhans",    name: "Célula de Langerhans",         role: "CPA de la epidermis; captura antígenos, migra al ganglio, activa Th. Ultimate: Presentación Antigénica Masiva — marca y bufa aliados." },
-  { id: "nk",            name: "Célula NK (Natural Killer)",   role: "Mata sin MHC; reconoce ausencia de MHC-I (células infectadas/tumorales). Perforina + granzima. Ultimate: Frenesí citotóxico." },
+  { id: "nk",            name: "Célula NK (Natural Killer)",   role: "Citotóxico innato: rompe escudos y ejecuta virus (×2.3). Sin aura IFN — eso es pDC. Ultimate: Frenesí — 8 hachas centrífugas." },
   { id: "eosinofilo",    name: "Eosinófilo",                   role: "Gránulos de MBP, ECP, EDN; ADCC contra parásitos. Interleuquinas IL-4/IL-13. Ultimate: Descarga de gránulos." },
-  { id: "mastocito",     name: "Mastocito",                    role: "Desgranulación de histamina, triptasa, leucotrienos. Ralentiza gérmenes en área. Ultimate: Onda de desgranulación." },
+  { id: "mastocito",     name: "Mastocito",                    role: "Desgranulación de histamina, triptasa, leucotrienos. Ralentiza gérmenes en área. Ultimate: geyser de mediadores (cono + nube)." },
   { id: "complemento",   name: "Complemento MAC (C5b-9)",      role: "Complejo de ataque a membrana que perfora bacterias gram-. Ignora escudos. Disparo manual concentrado." },
   { id: "plaqueta",      name: "Fibrina / Plaqueta (barrera)", role: "Coágulo de fibrina que obstruye el carril; tromboxano A2 y factor von Willebrand. Barrera pasiva." },
   { id: "trombo",        name: "Trombo de Respuesta",          role: "Plaqueta activada con pseudópodos; empuja gérmenes hacia atrás. Al destruirse libera una bomba de factores de coagulación." },
-  { id: "centinela",     name: "Célula Centinela",             role: "Receptor de reconocimiento de patrones (PRR/TLR); emite alarmas. Atrae los ataques especiales de los gérmenes hacia sí (señuelo)." },
-  { id: "queratinocito", name: "Queratinocito activado",       role: "Produce defensinas α/β, IL-8, IL-1β; barrera física y química. Campo de defensinas ralentiza. IL-8 recluta neutrófilos (+fireRate)." },
+  { id: "queratinocito", name: "Queratinocito activado",       role: "Produce defensinas α/β, IL-8, IL-1β; barrera física y química. Campo ralentiza. IL-8 recluta neutrófilos. Ultimate: Muro córneo (tejas en el carril)." },
   { id: "sebocito",      name: "Sebocito",                     role: "Produce sebo (ácidos grasos, escualeno, ceras) con actividad antimicrobiana. Charcos de sebo: DoT continuo, ×3 vs C.acnes y dermatofito." },
   { id: "pdc",           name: "Célula Dendrítica Plasmocitoide (pDC)", role: "Máxima productora de IFN-α/β: detecta ácidos nucleicos virales vía TLR7/9. Ralentiza y debilita virus. Ultimate: Tormenta de Interferón." },
   { id: "linfocitogd",   name: "Linfocito γδ",                role: "No requiere presentación por MHC; reconoce antígenos no peptídicos. Prioriza heridos. Bonus vs bacteria y hongo. IL-17 bufa todas las torres." },
-  { id: "ilc2",          name: "ILC2 (Linfoide Innato tipo 2)",role: "Produce IL-4, IL-5, IL-13; amplifica respuesta de Eosinófilos y Mastocitos. No ataca directo. Ultimate: IL-5 activa ultimates aliados cercanos." },
 ];
 
 // ── Llamada a NVIDIA NIM (Llama 3.1-70B) ─────────────────────────────────────

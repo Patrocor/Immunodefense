@@ -22073,7 +22073,7 @@
   function drawMastocito(t, pulse, expression, blink) {
     // Mastocito — gránulos en arco ASIMÉTRICO (herradura abierta arriba-izq).
     // Silueta ameboide, NO circular: distinta del hex KC y cápsula Neutrófilo.
-    // LOCKED v1 — Herradura+Desgranulación @1.1× (user OK "Bien").
+    // LOCKED v2 — Herradura+Geyser (user OK "Listo": cono ancho, violeta oscuro).
     // bodyScale uniforme (X+Y), no solo altura — igual que γδ.
     var maVis = PHASE1_TOWER_VISUALS.mastocito || {};
     var bodyScale = maVis.bodyScale || 1.1;

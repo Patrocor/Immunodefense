@@ -20,6 +20,7 @@ await sleep(500);
 await page.evaluate(() => {
   const g = window.__game;
   const st = g.state;
+  const f = g.metrics.FIELD;
   st.showTitle = false;
   st.showIntro = false;
   st.atp = 240;
@@ -29,21 +30,9 @@ await page.evaluate(() => {
   st.germIntroQueue = [];
   st.effects = [];
   st.towers = [];
-  st.enemies = [];
   st.pendingSpawns = [];
   st.guardians = [];
   st.viralLoad = 18;
-  st.macrofagoUltimate = { ready: true, charge: 1 };
-  g.spawnGuardianAt(0.40, 0.50);
-  g.hold(true);
-});
-await sleep(180);
-await page.screenshot({ path: join(ART, "macro_idle.png") });
-
-await page.evaluate(() => {
-  const g = window.__game;
-  const st = g.state;
-  const mac = st.guardians[0];
   const ids = Object.keys(window.ImmunoDefenseData.enemyDefs);
   const def = window.ImmunoDefenseData.enemyDefs.saureus
     || window.ImmunoDefenseData.enemyDefs[ids[0]];
@@ -51,10 +40,10 @@ await page.evaluate(() => {
     def,
     state: "walking",
     enteringTimer: 0,
-    x: mac.x + 110,
-    y: mac.y - 10,
-    progress: 0.6,
-    radiusScale: 1,
+    x: f.left + f.w * 0.5,
+    y: f.top + f.h * 0.5,
+    progress: 0.62,
+    radiusScale: 1.2,
     hp: def.hp || 40,
     maxHp: def.hp || 40,
     hitFlash: 0,
@@ -64,7 +53,21 @@ await page.evaluate(() => {
     beingEngulfed: false,
     beingDropped: false,
   }];
+  g.hold(false);
+  g.step(0.05, 0.05);
+  const e = st.enemies[0];
+  g.spawnGuardianAt((e.x - f.left) / f.w - 0.08, (e.y - f.top) / f.h);
+  st.macrofagoUltimate = { ready: true, charge: 1 };
+  g.hold(true);
+});
+await sleep(160);
+await page.screenshot({ path: join(ART, "macro_idle.png") });
+
+await page.evaluate(() => {
+  const g = window.__game;
   g.tryMacroUlt();
+  g.hold(false);
+  g.step(0.12, 0.03);
   g.hold(true);
 });
 await sleep(80);
@@ -73,7 +76,7 @@ await page.screenshot({ path: join(ART, "macro_harpoon_throw.png") });
 await page.evaluate(() => {
   const g = window.__game;
   g.hold(false);
-  g.step(0.28, 0.04);
+  g.step(0.30, 0.03);
   g.hold(true);
 });
 await sleep(80);

@@ -10982,6 +10982,8 @@
     best.harpoonTarget = target;
     best.harpoonPhase = "throw";
     best.harpoonT = 0;
+    best.harpoonTipX = best.x + (target.x - best.x) * 0.18;
+    best.harpoonTipY = best.y + (target.y - best.y) * 0.18;
     best.harpoonFlameT = HARPOON_FLAME_TIME;
     best.harpoonShoutT = HARPOON_SHOUT_TIME;
     best.scale = 1.15;
@@ -11482,7 +11484,8 @@
       var pullK = (g.harpoonPhase === "pull") ? 1 : 0;
       var segsH = 8;
       function harpoonWave(t) {
-        var wob = Math.sin((state.time || 0) * 9 + t * 10) * (6.2 - pullK * 3.4) * U;
+        var taper = 1 - t * 0.35;
+        var wob = Math.sin((state.time || 0) * 8 + t * 8) * (10 - pullK * 4) * U * taper;
         return {
           x: g.x + dxH * t + pxH * wob,
           y: g.y + dyH * t + pyH * wob
@@ -11491,9 +11494,9 @@
       ctx.save();
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
-      // Cuerda viva: seudópodo ondulante, no cadena.
+      // Cuerda viva: seudópodo grueso ondulante, no palo ni cadena.
       ctx.strokeStyle = GUARDIAN_COLD;
-      ctx.lineWidth = (8.2 - pullK * 1.4) * U;
+      ctx.lineWidth = (15 - pullK * 2.2) * U;
       ctx.beginPath();
       ctx.moveTo(g.x, g.y);
       var hi;
@@ -11504,7 +11507,7 @@
       }
       ctx.stroke();
       ctx.strokeStyle = HARPOON_COLOR;
-      ctx.lineWidth = (5.4 - pullK * 0.9) * U;
+      ctx.lineWidth = (11 - pullK * 1.6) * U;
       ctx.beginPath();
       ctx.moveTo(g.x, g.y);
       for (hi = 1; hi <= segsH; hi++) {
@@ -11513,8 +11516,8 @@
         ctx.quadraticCurveTo(midH.x, midH.y, endH.x, endH.y);
       }
       ctx.stroke();
-      ctx.strokeStyle = "rgba(255, 214, 150, 0.55)";
-      ctx.lineWidth = 1.8 * U;
+      ctx.strokeStyle = "rgba(255, 220, 160, 0.62)";
+      ctx.lineWidth = 3.2 * U;
       ctx.beginPath();
       ctx.moveTo(g.x, g.y);
       for (hi = 1; hi <= segsH; hi++) {
@@ -11525,7 +11528,7 @@
       ctx.stroke();
       // Copa fagocítica: dos lóbulos que cierran al tirar (el gancho).
       var cupOpen = 0.95 - pullK * 0.62;
-      var cupR = 12 * U;
+      var cupR = 18 * U;
       var baseAng = Math.atan2(nyH, nxH);
       ctx.fillStyle = GUARDIAN_COL;
       ctx.strokeStyle = GUARDIAN_COLD;
@@ -17945,9 +17948,9 @@
       for (var i = 0; i < marks.length; i++) sum += marks[i].intensity;
       k = Math.min(1, sum / 12);
     }
-    var r = Math.round(0xe4 + (0xc8 - 0xe4) * k);
-    var g = Math.round(0xc0 + (0x6a - 0xc0) * k);
-    var b = Math.round(0xae + (0x58 - 0xae) * k);
+    var r = Math.round(0xb4 + (0xc0 - 0xb4) * k);
+    var g = Math.round(0x58 + (0x3a - 0x58) * k);
+    var b = Math.round(0x56 + (0x32 - 0x56) * k);
     return "rgb(" + r + "," + g + "," + b + ")";
   }
 
@@ -17981,31 +17984,27 @@
   function drawPathWoundChannel() {
     // Carril-herida irregular (exudado + labio), no tubo/carretera.
     // Ancho visual ~36 U — misma holgura de colocación que antes.
-    drawPathInflammation();
     ctx.save();
     function paintChannel(beziers) {
       if (!beziers || !beziers.length) return;
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
-      /* Tapa opaca del carril blanco del PNG (~44 U, color dermis). */
-      ctx.strokeStyle = "#c89888";
+      /* Tapa opaca del carril blanco del PNG (~44 U, dermis). */
+      ctx.strokeStyle = "#d4a090";
       ctx.lineWidth = 44 * U;
       strokeBeziers(beziers);
-      ctx.strokeStyle = "#b07a6e";
-      ctx.lineWidth = 38 * U;
-      strokeBeziers(beziers);
       ctx.strokeStyle = computeWoundLipTint();
-      ctx.lineWidth = 32 * U;
+      ctx.lineWidth = 16 * U;
       strokeBeziers(beziers);
       var load = Math.min(1, (state.viralLoad || 0) / Math.max(1, state.viralThreshold || 1));
-      var lr = Math.round(88 + load * 46);
-      var lg = Math.round(36 + load * 8);
-      var lb = Math.round(40 + load * 6);
+      var lr = Math.round(96 + load * 48);
+      var lg = Math.round(32 + load * 10);
+      var lb = Math.round(36 + load * 8);
       ctx.strokeStyle = "rgb(" + lr + "," + lg + "," + lb + ")";
-      ctx.lineWidth = 18 * U;
+      ctx.lineWidth = 9 * U;
       strokeBeziers(beziers);
-      ctx.strokeStyle = "rgba(255, 196, 180, " + (0.07 + load * 0.06).toFixed(2) + ")";
-      ctx.lineWidth = Math.max(2.2, 3.2 * U);
+      ctx.strokeStyle = "rgba(255, 176, 160, " + (0.12 + load * 0.10).toFixed(2) + ")";
+      ctx.lineWidth = Math.max(1.2, 1.6 * U);
       strokeBeziers(beziers);
     }
     if (PATH.branches) {
@@ -18014,6 +18013,7 @@
       }
     }
     paintChannel(PATH.main && PATH.main.beziers);
+    drawPathInflammation();
 
     if (PATH.confluence) {
       var cx = PATH.confluence.x, cy = PATH.confluence.y;
@@ -18040,8 +18040,8 @@
         if (j < 0.14) return;
         var side = (seed % 2) ? 1 : -1;
         var jig = ((seed * 17) % 7) - 3;
-        var wob = (j - 0.5) * 5.4 * U + jig * 0.35 * U;
-        var lip = 16.4 * U + wob;
+        var wob = (j - 0.5) * 4.2 * U + jig * 0.35 * U;
+        var lip = 8.2 * U + wob;
         var x0 = x + nx * lip * side;
         var y0 = y + ny * lip * side;
         var tx = -ny, ty = nx;
@@ -32262,8 +32262,8 @@
       ctx.textAlign = "left"; ctx.textBaseline = "top";
       ctx.fillStyle = "rgba(255,255,255,0.55)";
       ctx.font = fontLabel + "px Fredoka, sans-serif";
-      drawAtpDrop(leftX + 6, statsY + fontLabel * 0.45, Math.max(5, fontLabel * 0.42), "#f5d76e");
-      ctx.fillText("ATP", leftX + 16, statsY);
+      drawAtpDrop(leftX + 8, statsY + fontLabel * 0.55, Math.max(7, fontLabel * 0.58), "#f5d76e");
+      ctx.fillText("ATP", leftX + 22, statsY);
       var atpNumY = statsY + fontLabel + 4;
       ctx.font = "bold " + fontStat + "px Fredoka, sans-serif";
       ctx.fillStyle = atpBumpL > 0.35 ? "#fff2b8" : "#f5d76e";

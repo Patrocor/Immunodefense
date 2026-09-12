@@ -19093,7 +19093,7 @@
       ctx.beginPath(); ctx.ellipse(R * 0.30, 0, R * 0.13, R * 0.09, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
       ctx.restore();
     }
-    towerFace(R, expression, blink, "happy", "smile");
+    towerFace(R, expression, blink, stormTgt ? "fierce" : "happy", stormTgt ? "open" : "smile");
     ctx.restore();
   }
 

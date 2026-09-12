@@ -16112,12 +16112,12 @@
 
   function spawnKeratinBrigade() {
     var w = PATH.wounds && PATH.wounds[0];
-    var y = FIELD_TOP + FIELD_H * 0.078;
+    var y = FIELD_TOP + FIELD_H * 0.105;
     var left = !w || w.x > FIELD_LEFT + FIELD_W * 0.5;
     var x0 = FIELD_LEFT + FIELD_W * (left ? 0.20 : 0.62);
     var cells = [];
     for (var i = 0; i < 4; i++) {
-      var x = x0 + i * 22 * U * (left ? 1 : -1);
+      var x = x0 + i * 28 * U * (left ? 1 : -1);
       if (vignetteZoneBusy(x, y, 26 * U)) return null;
       cells.push({ x: x, y: y, phase: i * 0.7 });
     }
@@ -16134,38 +16134,38 @@
   function spawnFibroblastStitch() {
     var T = state.tissue;
     var list = (T && T.fibroblasts) ? T.fibroblasts : [];
-    var a = null, b = null, i;
+    var a = null, b = null, best = Infinity, i, j;
     for (i = 0; i < list.length; i++) {
-      var fb = list[i];
-      if (vignetteZoneBusy(fb.x, fb.y, 40 * U)) continue;
-      if (!a) a = fb;
-      else if (!b) { b = fb; break; }
+      if (vignetteZoneBusy(list[i].x, list[i].y, 36 * U)) continue;
+      for (j = i + 1; j < list.length; j++) {
+        if (vignetteZoneBusy(list[j].x, list[j].y, 36 * U)) continue;
+        var d = Math.hypot(list[i].x - list[j].x, list[i].y - list[j].y);
+        if (d < 36 * U || d > 100 * U) continue;
+        if (d < best) { best = d; a = list[i]; b = list[j]; }
+      }
     }
     if (!a || !b) {
-      a = { x: FIELD_LEFT + FIELD_W * 0.20, y: FIELD_TOP + FIELD_H * 0.40 };
-      b = { x: FIELD_LEFT + FIELD_W * 0.28, y: FIELD_TOP + FIELD_H * 0.50 };
+      a = { x: FIELD_LEFT + FIELD_W * 0.20, y: FIELD_TOP + FIELD_H * 0.38 };
+      b = { x: FIELD_LEFT + FIELD_W * 0.27, y: FIELD_TOP + FIELD_H * 0.46 };
       if (distPointToPath(a.x, a.y) < 48 * U || distPointToPath(b.x, b.y) < 48 * U) return null;
       if (vignetteZoneBusy(a.x, a.y, 36 * U) || vignetteZoneBusy(b.x, b.y, 36 * U)) return null;
     }
-    if (Math.hypot(a.x - b.x, a.y - b.y) < 28 * U) return null;
     return { kind: "fibroblasts", t: 0, max: 4.2, a: a, b: b };
   }
 
   function spawnSweeperCrew() {
     var left = Math.random() < 0.5;
     var home = {
-      x: left ? FIELD_LEFT + FIELD_W * 0.12 : FIELD_RIGHT - FIELD_W * 0.12,
-      y: FIELD_TOP + FIELD_H * 0.78
+      x: left ? FIELD_LEFT + FIELD_W * 0.16 : FIELD_RIGHT - FIELD_W * 0.16,
+      y: FIELD_TOP + FIELD_H * 0.84
     };
-    if (vignetteZoneBusy(home.x, home.y, 40 * U)) {
+    if (vignetteZoneBusy(home.x, home.y, 36 * U)) {
       left = !left;
-      home.x = left ? FIELD_LEFT + FIELD_W * 0.12 : FIELD_RIGHT - FIELD_W * 0.12;
-      if (vignetteZoneBusy(home.x, home.y, 40 * U)) return null;
+      home.x = left ? FIELD_LEFT + FIELD_W * 0.16 : FIELD_RIGHT - FIELD_W * 0.16;
+      if (vignetteZoneBusy(home.x, home.y, 36 * U)) return null;
     }
-    var dust = { x: home.x + (left ? 22 : -22) * U, y: home.y - 10 * U };
-    var drop = PATH.exit
-      ? { x: PATH.exit.x + (left ? -48 : 48) * U, y: PATH.exit.y - 10 * U }
-      : { x: home.x, y: home.y - 20 * U };
+    var dust = { x: home.x + (left ? 26 : -26) * U, y: home.y - 8 * U };
+    var drop = { x: home.x + (left ? 52 : -52) * U, y: home.y - 6 * U };
     return { kind: "sweepers", t: 0, max: 5.0, home: home, dust: dust, drop: drop, n: 2 };
   }
 
@@ -16208,7 +16208,7 @@
   }
 
   function paintVignettePlatelet(x, y, ang, loaded, alpha) {
-    var R = 4.4 * U;
+    var R = 8.2 * U;
     ctx.save();
     ctx.globalAlpha = alpha;
     ctx.translate(x, y);
@@ -16277,7 +16277,7 @@
       ctx.globalAlpha = 0.80;
       ctx.translate(c.x, c.y + bob);
       ctx.fillStyle = "#f0d8c0";
-      ctx.beginPath(); ctx.ellipse(0, 0, 5.2 * U, 4.2 * U, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(0, 0, 7.4 * U, 6.2 * U, 0, 0, Math.PI * 2); ctx.fill();
       ctx.strokeStyle = "rgba(140, 100, 70, 0.55)";
       ctx.lineWidth = Math.max(0.7, 0.9 * U); ctx.stroke();
       ctx.fillStyle = "rgba(90, 55, 35, 0.7)";
@@ -16291,15 +16291,15 @@
     if (a && b) {
       var sx = a.x + (b.x - a.x) * hop;
       var sy = a.y + (b.y - a.y) * hop - Math.sin(hop * Math.PI) * 8 * U;
-      paintKeratinSquame(sx, sy, 5.5 * U, 2.4 * U, hop * 1.2, 0.85);
+      paintKeratinSquame(sx, sy, 7.2 * U, 3.1 * U, hop * 1.2, 0.90);
     }
   }
 
   function drawVignetteEndothelium(act, k) {
-    var rx = 26 * U, ry = 16 * U;
+    var rx = 34 * U, ry = 20 * U;
     for (var i = 0; i < act.n; i++) {
-      var a0 = -0.9 + i * 0.55;
-      var a1 = a0 + 1.8;
+      var a0 = 0.55 + i * 0.42;
+      var a1 = a0 + 1.15;
       var ang = a0 + (a1 - a0) * Math.min(1, k / 0.72);
       var x = act.x + Math.cos(ang) * rx;
       var y = act.y + Math.sin(ang) * ry * 0.72;
@@ -16308,7 +16308,7 @@
       ctx.translate(x, y);
       ctx.rotate(ang + Math.PI / 2);
       ctx.fillStyle = "#c97880";
-      ctx.beginPath(); ctx.ellipse(0, 0, 6.2 * U, 3.1 * U, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(0, 0, 8.4 * U, 4.2 * U, 0, 0, Math.PI * 2); ctx.fill();
       ctx.strokeStyle = "rgba(90, 30, 40, 0.5)";
       ctx.lineWidth = Math.max(0.7, 0.85 * U); ctx.stroke();
       ctx.fillStyle = "#fff";
@@ -16334,21 +16334,38 @@
     var ax = act.a.x, ay = act.a.y, bx = act.b.x, by = act.b.y;
     var mx = (ax + bx) / 2, my = (ay + by) / 2;
     var taut = 1 - pull * 0.08;
-    var cx = mx, cy = my - 10 * U * (1 - pull);
+    var cx = mx, cy = my - 12 * U * (1 - pull);
+    function paintFb(x, y, rot) {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(rot);
+      ctx.fillStyle = "rgba(232, 184, 148, 0.92)";
+      ctx.beginPath(); ctx.ellipse(0, 0, 9 * U, 5.2 * U, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = "rgba(140, 90, 70, 0.6)";
+      ctx.lineWidth = Math.max(0.8, 1 * U); ctx.stroke();
+      ctx.fillStyle = "rgba(110, 70, 50, 0.75)";
+      ctx.beginPath(); ctx.ellipse(0, 0, 2.6 * U, 2.2 * U, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = "#fff";
+      ctx.beginPath(); ctx.arc(-2.2 * U, -0.8 * U, 0.85 * U, 0, Math.PI * 2);
+      ctx.arc(2.2 * U, -0.8 * U, 0.85 * U, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    }
     ctx.save();
-    ctx.globalAlpha = 0.70;
-    ctx.strokeStyle = "rgba(236, 220, 200, 0.9)";
-    ctx.lineWidth = Math.max(1.1, 1.3 * U);
+    ctx.globalAlpha = 0.78;
+    ctx.strokeStyle = "rgba(236, 220, 200, 0.95)";
+    ctx.lineWidth = Math.max(1.6, 2 * U);
     ctx.beginPath();
     ctx.moveTo(ax, ay);
     ctx.quadraticCurveTo(cx, cy, ax + (bx - ax) * taut, ay + (by - ay) * taut);
     ctx.stroke();
     ctx.restore();
+    paintFb(ax, ay, Math.atan2(by - ay, bx - ax));
+    paintFb(bx, by, Math.atan2(ay - by, ax - bx));
     if (k > 0.78) {
       ctx.save();
-      ctx.globalAlpha = (k - 0.78) / 0.22 * 0.7;
-      ctx.fillStyle = "rgba(210, 180, 150, 0.85)";
-      ctx.beginPath(); ctx.arc(mx, my, 3.2 * U, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = (k - 0.78) / 0.22 * 0.75;
+      ctx.fillStyle = "rgba(210, 180, 150, 0.9)";
+      ctx.beginPath(); ctx.arc(mx, my, 4 * U, 0, Math.PI * 2); ctx.fill();
       ctx.restore();
     }
   }
@@ -16366,7 +16383,7 @@
       var tk = Math.max(0, Math.min(1, tGo - lag));
       var x = from.x + (to.x - from.x) * tk;
       var y = from.y + (to.y - from.y) * tk + Math.sin(tk * Math.PI) * -6 * U;
-      var R = 5.2 * U;
+      var R = 7.4 * U;
       ctx.save();
       ctx.globalAlpha = 0.78;
       ctx.translate(x, y);
@@ -16394,7 +16411,6 @@
   }
 
   function drawCellVignettes() {
-    if (QUALITY.low) return;
     var v = state.cellVignettes;
     if (!v || !v.act) return;
     var act = v.act;

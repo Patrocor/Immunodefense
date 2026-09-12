@@ -21,7 +21,7 @@ const browser = await chromium.launch({
   args: ["--window-size=1280,800", "--window-position=80,60"],
 });
 const page = await (await browser.newContext({ viewport: { width: 1280, height: 800 } })).newPage();
-await page.goto("http://127.0.0.1:5173/");
+await page.goto("http://127.0.0.1:5173/#hifx");
 await page.waitForFunction(() => window.__game?.state);
 await sleep(700);
 

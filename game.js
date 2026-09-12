@@ -7858,6 +7858,18 @@
   }
 
   function mastocConeAim(t) {
+    var range = towerStats(t).range * U * 1.5;
+    var best = null, bestD = Infinity;
+    for (var i = 0; i < state.enemies.length; i++) {
+      var e = state.enemies[i];
+      if (!e || e.dead || e.dying || e.absorbing) continue;
+      if (e.burrowed && !e.revealed) continue;
+      if (e.def.cloaked && !e.revealed) continue;
+      var d = Math.hypot(e.x - t.x, e.y - t.y);
+      if (d > range || d < 8 * U) continue;
+      if (d < bestD) { bestD = d; best = e; }
+    }
+    if (best) return Math.atan2(best.y - t.y, best.x - t.x);
     var arc = nearestPathProgress(t.x, t.y);
     if (arc && arc.x != null) return Math.atan2(arc.y - t.y, arc.x - t.x);
     if (arc) {

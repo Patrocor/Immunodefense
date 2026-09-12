@@ -1,4 +1,4 @@
-/** Captura Queratinocito en Fase 1 — DISPLAY=:1 node scripts/playtest-queratinocito.mjs */
+/** Captura Nicho — secreción + Descamación. DISPLAY=:1 node scripts/playtest-queratinocito.mjs */
 import { chromium } from "playwright";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
@@ -19,35 +19,50 @@ await page.evaluate(() => {
   const st = window.__game.state;
   st.showTitle = false;
   st.showIntro = false;
-  st.atp = 200;
+  st.atp = 300;
   st.nextWaveAt = 0.08;
 });
-await sleep(1200);
+await sleep(1100);
 await page.evaluate(() => {
   const g = window.__game;
-  g.place("queratinocito", 0.45, 0.52);
+  g.place("queratinocito", 0.46, 0.48);
   const t = g.state.towers[0];
-  t.specialCharge = 1;
-  t.specialReady = true;
-  t.level = 2;
+  t.specialCharge = 0.7;
+  t.level = 1;
 });
-await sleep(800);
-await page.screenshot({ path: join(ART, "queratinocito_ready.png") });
+await sleep(500);
+await page.screenshot({ path: join(ART, "queratinocito_idle.png") });
 await page.evaluate(() => {
+  window.__game.step(5.2, 0.05);
+});
+await page.evaluate(() => {
+  const t = window.__game.state.towers[0];
+  t.specialReady = true;
+  t.specialCharge = 1;
+  t.keraCornifyPending = false;
   window.__game.tapTower(0);
 });
-await sleep(600);
+await page.evaluate(() => { window.__game.step(0.35, 0.03); window.__game.hold(true); });
+await sleep(80);
 await page.screenshot({ path: join(ART, "queratinocito_secreting.png") });
 await page.evaluate(() => {
+  window.__game.hold(false);
   const t = window.__game.state.towers[0];
   t.keraCornifyPending = true;
   t.specialReady = true;
   t.specialCharge = 1;
-});
-await page.evaluate(() => {
   window.__game.tapTower(0);
+  window.__game.step(0.38, 0.03);
+  window.__game.hold(true);
 });
-await sleep(450);
+await sleep(80);
+await page.screenshot({ path: join(ART, "queratinocito_descamacion.png") });
+await page.evaluate(() => {
+  window.__game.hold(false);
+  window.__game.step(1.15, 0.03);
+  window.__game.hold(true);
+});
+await sleep(80);
 await page.screenshot({ path: join(ART, "queratinocito_cornify.png") });
 await browser.close();
 console.log("OK: queratinocito screenshots");

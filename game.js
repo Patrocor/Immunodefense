@@ -7819,30 +7819,22 @@
       triggerUltimateHitstop();
       return;
     }
-    // Queratinocito alterna: Turno de secreción ↔ Cornificación.
+    // Queratinocito alterna: Turno de secreción ↔ Descamación (cornificación).
     if (def.id === "queratinocito") {
       var doCornify = !!t.keraCornifyPending;
       t.keraCornifyPending = !doCornify;
       if (doCornify) {
         triggerUltimateHitstop();
-        var kcStats = towerStats(t);
-        var kcR = kcStats.range * U * 1.2;
-        for (var kci = 0; kci < state.enemies.length; kci++) {
-          var kce = state.enemies[kci];
-          if (kce.dead || kce.dying || kce.absorbing) continue;
-          if (kce.burrowed && !kce.revealed) continue;
-          if (kce.def.cloaked && !kce.revealed) continue;
-          if (Math.hypot(kce.x - t.x, kce.y - t.y) > kcR) continue;
-          kce.slowTimer = Math.max(kce.slowTimer || 0, 4.0);
-          damageEnemy(kce, Math.max(12, kcStats.damage * 3.5), "queratinocito");
-        }
-        pushEffect({ kind: "novaRing", x: t.x, y: t.y, r: kcR, color: "#d4a855", life: 0.65, max: 0.65 });
-        t.specialAnim = 1.2;
+        t.keraShed = { spawned: 0, total: 9, cd: 0 };
+        t.specialAnim = 1.72;
         t.specialReady = false;
         t.specialCharge = 0;
-        showMsg("¡Cornificación!");
+        showMsg("¡Descamación!");
         sfx("upgrade");
-        triggerShake(0.12, 3);
+        triggerShake(0.14, 4);
+        keraSpawnSquame(t, 0);
+        t.keraShed.spawned = 1;
+        t.keraShed.cd = 0.11;
       } else {
         var stp = towerStats(t);
         var patch = (t.def.levels[t.level] && t.def.levels[t.level].patch) || { count: 2, r: 32, life: 6, dot: 16, slow: true, kind: "defensin" };
@@ -8451,6 +8443,45 @@
   }
 
   // Frenesí NK: k 0→1 (sale) / 1 (corta) / 1→0 (vuelve al armazón).
+  function keraSpawnSquame(t, idx) {
+    var stats = towerStats(t);
+    var range = stats.range * U;
+    var patch = (t.def.levels[t.level] && t.def.levels[t.level].patch) || { r: 30, life: 5, dot: 14 };
+    var total = (t.keraShed && t.keraShed.total) || 9;
+    var spread = (idx - (total - 1) / 2) / Math.max(1, total - 1);
+    var arc = nearestPathProgress(t.x, t.y);
+    var lx, ly;
+    if (arc && (idx % 2 === 0)) {
+      var pt = pathPos(arc.progress + spread * 88 * U, arc.heridaIdx);
+      lx = pt.x; ly = pt.y;
+    } else {
+      var baseAng = arc ? Math.atan2(pathPos(arc.progress, arc.heridaIdx).y - t.y, pathPos(arc.progress, arc.heridaIdx).x - t.x) : Math.PI / 2;
+      var ang = baseAng + spread * 1.55;
+      var dist = range * (0.42 + (idx % 3) * 0.18);
+      lx = t.x + Math.cos(ang) * dist;
+      ly = t.y + Math.sin(ang) * dist;
+    }
+    var dur = 0.42 + Math.abs(spread) * 0.12;
+    var sx = t.x + spread * 8 * U;
+    var sy = t.y - 12 * U;
+    pushEffect({
+      kind: "keraSquame",
+      sx: sx, sy: sy, lx: lx, ly: ly,
+      x: sx, y: sy,
+      rot: spread * 0.7,
+      rotSpd: (idx % 2 ? 1 : -1) * (5.5 + idx * 0.35),
+      hw: (11 + (idx % 3) * 2.2) * U,
+      hh: (4.6 + (idx % 2) * 0.8) * U,
+      life: dur, max: dur,
+      dmg: 24 + (t.level || 0) * 10,
+      hitIds: {},
+      landed: false,
+      crustR: (patch.r || 30) * 0.62 * U,
+      crustLife: 5.4,
+      crustDot: (patch.dot || 14) * 0.9
+    });
+  }
+
   function nkFrenzyK(t) {
     var dur = t.frenzyDur || 2.95;
     var left = Math.max(0, t.specialAnim || 0);
@@ -9447,6 +9478,14 @@
         if (t.frenzyHitT <= 0) {
           t.frenzyHitT = 0.07;
           nkFrenzyCleave(t);
+        }
+      }
+      if (t.def.id === "queratinocito" && (t.specialAnim || 0) > 0 && t.keraShed) {
+        t.keraShed.cd = (t.keraShed.cd || 0) - dt;
+        if (t.keraShed.spawned < t.keraShed.total && t.keraShed.cd <= 0) {
+          keraSpawnSquame(t, t.keraShed.spawned);
+          t.keraShed.spawned += 1;
+          t.keraShed.cd = 0.11;
         }
       }
       if (t.def.id === "sebocito" && (t.specialAnim || 0) > 0) {
@@ -12285,6 +12324,13 @@
       var sp = state.sebumPuddles[i];
       var a = Math.min(1, sp.life / sp.max);
       var isDef = sp.kind === "defensin";
+      var isKer = sp.kind === "keratin";
+      if (isKer) {
+        var ka = Math.min(1, sp.life / sp.max);
+        paintKeratinSquame(sp.x, sp.y, sp.r * 0.92, sp.r * 0.38, sp.rot || 0.18, 0.55 + 0.45 * ka);
+        paintKeratinSquame(sp.x + sp.r * 0.18, sp.y + sp.r * 0.10, sp.r * 0.70, sp.r * 0.28, (sp.rot || 0) - 0.35, 0.40 + 0.35 * ka);
+        continue;
+      }
       var g = ctx.createRadialGradient(sp.x, sp.y, sp.r * 0.15, sp.x, sp.y, sp.r);
       if (isDef) {   // defensinas: parche pálido azulado-blanco
         g.addColorStop(0, "rgba(190,225,245," + (0.42 * a) + ")");
@@ -14176,6 +14222,38 @@
         // Gotita estática del slime trail: solo desvanece.
       } else if (ef.kind === "antibodyBeam") {
         // Rayo de cañón del Linfocito B — solo desvanece (deprecated).
+      } else if (ef.kind === "keraSquame") {
+        var kAge = 1 - ef.life / ef.max;
+        var hop = Math.sin(Math.min(1, kAge) * Math.PI) * 38 * U;
+        ef.x = ef.sx + (ef.lx - ef.sx) * kAge;
+        ef.y = ef.sy + (ef.ly - ef.sy) * kAge - hop;
+        ef.rot = (ef.rot || 0) + (ef.rotSpd || 0) * dt;
+        if (!ef.hitIds) ef.hitIds = {};
+        var kHitR = (ef.hw || 12 * U) * 0.95;
+        for (var ksi = 0; ksi < state.enemies.length; ksi++) {
+          var kse = state.enemies[ksi];
+          if (!kse || kse.dead || kse.dying || kse.absorbing) continue;
+          if (kse.burrowed && !kse.revealed) continue;
+          if (kse.def.cloaked && !kse.revealed) continue;
+          var kid = (kse.def.id || "e") + "_" + ksi;
+          if (ef.hitIds[kid]) continue;
+          var kdx = kse.x - ef.x, kdy = kse.y - ef.y;
+          var ker = (kse.def.radius || 16) * U * 0.55;
+          if (kdx * kdx + kdy * kdy <= (kHitR + ker) * (kHitR + ker)) {
+            ef.hitIds[kid] = true;
+            damageEnemy(kse, ef.dmg || 24, "queratinocito");
+          }
+        }
+        if (!ef.landed && kAge >= 0.88) {
+          ef.landed = true;
+          if (!state.sebumPuddles) state.sebumPuddles = [];
+          state.sebumPuddles.push({
+            x: ef.lx, y: ef.ly, r: ef.crustR || 20 * U,
+            life: ef.crustLife || 5.4, max: ef.crustLife || 5.4,
+            dot: ef.crustDot || 12, slow: true, kind: "keratin",
+            srcId: "queratinocito", rot: ef.rot || 0
+          });
+        }
       } else if (ef.kind === "perforinBolt") {
         // Perforina del frenesí NK — penetra todos los gérmenes
         // ignorando escudos. Continúa hasta off-screen.
@@ -20083,6 +20161,42 @@
     ctx.restore();
   }
 
+  function paintKeratinSquame(cx, cy, hw, hh, rot, alpha) {
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(rot || 0);
+    if (alpha != null) ctx.globalAlpha = alpha;
+    var grad = ctx.createLinearGradient(0, -hh, 0, hh);
+    grad.addColorStop(0, "#fff4c4");
+    grad.addColorStop(0.38, "#e8c86a");
+    grad.addColorStop(0.78, "#c09028");
+    grad.addColorStop(1, "#6a4810");
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, hw, hh, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "#2a1a06";
+    ctx.lineWidth = Math.max(1.6, 2.2 * U);
+    ctx.stroke();
+    ctx.strokeStyle = "rgba(255, 240, 190, 0.45)";
+    ctx.lineWidth = Math.max(0.9, 1.2 * U);
+    ctx.beginPath();
+    ctx.ellipse(0, -hh * 0.12, hw * 0.72, hh * 0.42, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.strokeStyle = "rgba(48, 32, 8, 0.5)";
+    ctx.lineWidth = Math.max(0.7, 1 * U);
+    for (var gl = -1; gl <= 1; gl++) {
+      ctx.beginPath();
+      ctx.moveTo(-hw * 0.62, gl * hh * 0.28);
+      ctx.lineTo(hw * 0.62, gl * hh * 0.22);
+      ctx.stroke();
+    }
+    ctx.fillStyle = "#3a2808";
+    ctx.beginPath(); ctx.arc(-hw * 0.82, 0, hh * 0.28, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(hw * 0.82, 0, hh * 0.28, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  }
+
   function drawQueratinocito(t, pulse, expression, blink) {
     // Queratinocito — pila de ESCAMAS (estrato córneo), no hexágono.
     // Placas aplanadas apiladas como tejas; desmosomas en los bordes.
@@ -20146,47 +20260,16 @@
     }
 
     function drawSquame(cx, cy, hw, hh, rot, alpha) {
-      ctx.save();
-      ctx.translate(cx, cy);
-      ctx.rotate(rot);
-      ctx.globalAlpha = alpha;
-      var grad = ctx.createLinearGradient(0, -hh, 0, hh);
-      grad.addColorStop(0, "#fff4c4");
-      grad.addColorStop(0.38, "#e8c86a");
-      grad.addColorStop(0.78, "#c09028");
-      grad.addColorStop(1, "#6a4810");
-      ctx.fillStyle = grad;
-      ctx.beginPath();
-      ctx.ellipse(0, 0, hw, hh, 0, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = "#2a1a06";
-      ctx.lineWidth = Math.max(1.6, 2.2 * U);
-      ctx.stroke();
-      ctx.strokeStyle = "rgba(255, 240, 190, 0.45)";
-      ctx.lineWidth = Math.max(0.9, 1.2 * U);
-      ctx.beginPath();
-      ctx.ellipse(0, -hh * 0.12, hw * 0.72, hh * 0.42, 0, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.strokeStyle = "rgba(48, 32, 8, 0.5)";
-      ctx.lineWidth = Math.max(0.7, 1 * U);
-      for (var gl = -1; gl <= 1; gl++) {
-        ctx.beginPath();
-        ctx.moveTo(-hw * 0.62, gl * hh * 0.28);
-        ctx.lineTo(hw * 0.62, gl * hh * 0.22);
-        ctx.stroke();
-      }
-      ctx.fillStyle = "#3a2808";
-      ctx.beginPath(); ctx.arc(-hw * 0.82, 0, hh * 0.28, 0, Math.PI * 2); ctx.fill();
-      ctx.beginPath(); ctx.arc(hw * 0.82, 0, hh * 0.28, 0, Math.PI * 2); ctx.fill();
-      ctx.restore();
+      paintKeratinSquame(cx, cy, hw, hh, rot, alpha);
     }
 
+    var shedN = (cornifying && t.keraShed) ? (t.keraShed.spawned || 0) : 0;
     var gap = R * 0.34 * clamp;
-    var stackN = 4;
+    var stackN = Math.max(2, 4 - Math.floor(shedN / 3));
     var baseY = R * 0.62;
     for (var si = stackN - 1; si >= 1; si--) {
       var tFrac = si / (stackN - 1);
-      var sway = Math.sin(time * 1.4 + si + w) * R * 0.04;
+      var sway = Math.sin(time * 1.4 + si + w) * R * (cornifying ? 0.10 : 0.04);
       var hw = R * (0.78 + tFrac * 0.42) * swell;
       var hh = R * (0.28 + tFrac * 0.06) * swell;
       var sy = baseY - (stackN - 1 - si) * gap;
@@ -20209,15 +20292,14 @@
     }
 
     if (cornifying) {
-      var cf = 1 - Math.min(1, (t.specialAnim || 0) / 1.2);
-      ctx.strokeStyle = "rgba(212, 168, 85, " + (0.85 * (1 - cf * 0.3)) + ")";
-      ctx.lineWidth = Math.max(2.4, 3.2 * U);
+      ctx.strokeStyle = "rgba(255, 220, 140, 0.35)";
+      ctx.lineWidth = Math.max(1.2, 1.6 * U);
       ctx.beginPath();
-      ctx.ellipse(0, R * 0.1, R * (1.05 + cf * 0.35), R * (0.92 + cf * 0.2), 0, 0, Math.PI * 2);
+      ctx.ellipse(0, R * 0.08, R * 0.95, R * 0.72, 0, 0, Math.PI * 2);
       ctx.stroke();
     }
 
-    if (working || secreting) {
+    if ((working && !cornifying) || secreting) {
       var burstK = working ? Math.min(1, (t.specialAnim || 0) / 1.4) : Math.min(1, (t.attackAnim || 0) / 0.2);
       for (var bb = 0; bb < 5; bb++) {
         var bba = -Math.PI / 2 + (bb - 2) * 0.22;
@@ -29312,6 +29394,8 @@
       }
       ctx.globalAlpha = 1;
       ctx.restore();
+    } else if (ef.kind === "keraSquame") {
+      paintKeratinSquame(ef.x, ef.y, ef.hw || 12 * U, ef.hh || 5 * U, ef.rot || 0, alpha);
     } else if (ef.kind === "shard") {
       // Fragmento elíptico translúcido que gira (pedazo de cápsula).
       ctx.save();

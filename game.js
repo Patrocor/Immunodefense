@@ -7771,7 +7771,7 @@
     function consider(heridaIdx, progress, x, y) {
       var dx = x - tx, dy = y - ty;
       var d2 = dx * dx + dy * dy;
-      if (d2 < bestD2) { bestD2 = d2; best = { heridaIdx: heridaIdx, progress: progress }; }
+      if (d2 < bestD2) { bestD2 = d2; best = { heridaIdx: heridaIdx, progress: progress, x: x, y: y }; }
     }
     function scanBranch(beziers, heridaIdx, baseProgress) {
       if (!beziers) return;
@@ -8474,14 +8474,20 @@
 
   // Frenesí NK: k 0→1 (sale) / 1 (corta) / 1→0 (vuelve al armazón).
   function keraPlanWall(t) {
-    var nTiles = 6;
+    var nTiles = 5;
     var arc = nearestPathProgress(t.x, t.y);
-    var p0 = arc ? pathPos(arc.progress, arc.heridaIdx) : { x: t.x, y: t.y + 48 * U };
-    var p1 = arc ? pathPos(arc.progress + 14 * U, arc.heridaIdx) : { x: t.x + 12 * U, y: t.y + 48 * U };
+    var p0;
+    if (arc && arc.x != null) p0 = { x: arc.x, y: arc.y };
+    else if (arc) p0 = pathPos(arc.progress, arc.heridaIdx);
+    else p0 = { x: t.x, y: t.y + 52 * U };
+    if (Math.hypot(p0.x - t.x, p0.y - t.y) < 34 * U && arc) {
+      p0 = pathPos(arc.progress + 52 * U, arc.heridaIdx) || p0;
+    }
+    var p1 = arc ? pathPos(arc.progress + 16 * U, arc.heridaIdx) : { x: p0.x + 12 * U, y: p0.y };
     var tx = p1.x - p0.x, ty = p1.y - p0.y;
     var len = Math.hypot(tx, ty) || 1;
     var nx = -ty / len, ny = tx / len;
-    var half = 44 * U;
+    var half = 20 * U;
     var tiles = [];
     for (var i = 0; i < nTiles; i++) {
       var u = nTiles === 1 ? 0 : (i / (nTiles - 1)) * 2 - 1;
@@ -8489,8 +8495,8 @@
         lx: p0.x + nx * u * half,
         ly: p0.y + ny * u * half,
         rot: Math.atan2(ny, nx) + (i % 2 ? 0.14 : -0.14),
-        hw: (14 + (i % 2) * 2.4) * U,
-        hh: 6.2 * U,
+        hw: (16 + (i % 2) * 2.2) * U,
+        hh: 7.2 * U,
         arrived: false
       });
     }

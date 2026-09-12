@@ -9,8 +9,7 @@ móvil web y como aplicación nativa mediante Capacitor.
 
 ## Jugar
 
-- Online (GitHub Pages): https://patrocor.github.io/Immunodefense/
-- Online (Vercel): https://immunodefense.vercel.app
+- **Producto:** https://immunodefense.vercel.app
 - Local: `npm run serve` y abre http://localhost:5173.
 
 ## Campaña
@@ -89,7 +88,7 @@ Sepsis y final de Shock/MODS.
 - Sin framework ni bundler: `index.html` carga `data/*.js` (tablas estáticas)
   y después el motor monolítico `game.js`.
 - `npm run build` copia `index.html`, `game.js`, `data/` y `assets/` a `www/`.
-- Vercel y Capacitor consumen `www/`; GitHub Pages sirve los fuentes raíz.
+- Vercel (producto) y Capacitor consumen `www/`. GitHub Pages, si está activo, sirve los mismos fuentes de `main`.
 - `npm run sync`, `npm run android` y `npm run ios` sincronizan o abren los
   proyectos nativos.
 

@@ -43,14 +43,19 @@ await page.evaluate(() => {
   g.ults();
 });
 await page.evaluate(() => {
-  window.__game.step(0.5, 0.04);
+  window.__game.step(0.22, 0.03);
 });
-await sleep(200);
+await sleep(160);
+await page.screenshot({ path: join(ART, "langerhans_crouch.png") });
+await page.evaluate(() => {
+  window.__game.step(0.22, 0.03);
+});
+await sleep(160);
 await page.screenshot({ path: join(ART, "langerhans_impale.png") });
 await page.evaluate(() => {
-  window.__game.step(0.38, 0.03);
+  window.__game.step(0.22, 0.03);
 });
-await sleep(180);
+await sleep(160);
 await page.screenshot({ path: join(ART, "langerhans_mhc_storm.png") });
 await browser.close();
 console.log("OK: langerhans screenshots");

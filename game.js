@@ -9136,10 +9136,23 @@
         t.lastTargetX = tgt.x;
         t.lastTargetY = tgt.y;
         tgt.stunTimer = Math.max(tgt.stunTimer || 0, 0.2);
-        if (st.t < 0.42) {
-          st.embedK = Math.min(1, st.t / 0.42);
+        if (st.t < 0.32) {
+          st.crouch = st.t / 0.32;
+          st.pounce = 0;
+          st.embedK = 0;
+          st.lunge = -22 * U * st.crouch;
+        } else if (st.t < 0.50) {
+          var pn = (st.t - 0.32) / 0.18;
+          st.crouch = Math.max(0.12, 1 - pn * 0.85);
+          st.pounce = pn * pn;
+          st.embedK = 0;
+          st.lunge = -22 * U + 70 * U * st.pounce;
         } else {
-          st.embedK = 1;
+          var sl = Math.min(1, (st.t - 0.50) / 0.20);
+          st.crouch = 0.12;
+          st.pounce = 1;
+          st.embedK = 1 - Math.pow(1 - sl, 3);
+          st.lunge = 48 * U * (1 - sl * 0.22);
         }
         if (st.t >= 0.78 && !st.splitDone) {
           st.splitDone = true;
@@ -18911,15 +18924,19 @@
     var R = 21 * U * pulse;   // 17→21: a la par del resto del roster
     var time = state.time;
     var doingUltimate = (t.def.id === "langerhans" && (t.specialAnim || 0) > 0);
-    // Durante ultimate: las dendritas se EXTIENDEN 2.5× su largo
-    var ultExt = doingUltimate ? (1 + Math.sin((1 - t.specialAnim / 1.5) * Math.PI) * 1.5) : 1;
-    // Carga real del ultimate (t.specialCharge: 0→1 hasta quedar listo) —
-    // alimenta la pre-extensión de dendritas, el brillo de las banderitas
-    // MHC-II y el aura tenue de anticipación, todos más abajo.
+    var storm = t.langerStorm;
+    var stormTgt = storm && storm.enemy && !storm.enemy.dead ? storm.enemy : null;
+    var ultExt = (doingUltimate && !stormTgt) ? (1 + Math.sin((1 - t.specialAnim / 1.5) * Math.PI) * 1.5) : 1;
     var chargeFrac = Math.max(0, Math.min(1, t.specialCharge || 0));
     var preExt = 1 + chargeFrac * 0.22;
     ctx.save();
     ctx.translate(t.x, t.y);
+    var aimA = stormTgt ? Math.atan2(stormTgt.y - t.y, stormTgt.x - t.x) : 0;
+    if (stormTgt) {
+      ctx.translate(Math.cos(aimA) * (storm.lunge || 0), Math.sin(aimA) * (storm.lunge || 0));
+      var sq = 1 - (storm.crouch || 0) * 0.18 + (storm.pounce || 0) * 0.06;
+      ctx.scale(1 + (storm.crouch || 0) * 0.14, sq);
+    }
     // Aura tenue de anticipación: crece gradualmente con la carga real
     // ANTES del estallido (que es el aura grande de más abajo).
     if (!doingUltimate && chargeFrac > 0.15) {
@@ -18932,7 +18949,7 @@
       ctx.beginPath(); ctx.arc(0, 0, preAuraR, 0, Math.PI * 2); ctx.fill();
     }
     // Aura cyan/turquesa durante el ultimate (citoquinas hacia aliados)
-    if (doingUltimate) {
+    if (doingUltimate && !stormTgt) {
       var auraR = R * (3.0 + Math.sin(time * 6) * 0.20);
       var auraFrac = 1 - (t.specialAnim / 1.5);
       var auraA = Math.sin(auraFrac * Math.PI) * 0.65;
@@ -18951,55 +18968,86 @@
         ctx.stroke();
       }
     }
-    // 9 DENDRITAS. En ultimate las espículas MHC-II se clavan en el germen.
-    var storm = t.langerStorm;
-    var stormTgt = storm && storm.enemy && !storm.enemy.dead ? storm.enemy : null;
+    // 9 dendritas en idle; en ultimate, 8 patas de araña (encoge → salta → clava).
     var embedK = storm ? Math.max(0, Math.min(1, storm.embedK || 0)) : 0;
+    var crouchK = storm ? Math.max(0, Math.min(1, storm.crouch || 0)) : 0;
+    if (stormTgt) {
+      var germR = (stormTgt.def.radius || 18) * U * (stormTgt.radiusScale || 1);
+      var legs = 8;
+      for (var i = 0; i < legs; i++) {
+        var side = i < 4 ? -1 : 1;
+        var pair = i % 4;
+        var hipA = aimA + side * (0.42 + pair * 0.36);
+        var hipX = Math.cos(hipA) * R * 0.58;
+        var hipY = Math.sin(hipA) * R * 0.58;
+        var perpA = aimA + side * Math.PI / 2;
+        var backA = aimA + Math.PI;
+        var kneeLift = R * (0.85 + crouchK * 0.7 + pair * 0.08);
+        var kneeBack = R * (0.15 + crouchK * 0.85);
+        var kneeX = hipX + Math.cos(perpA) * kneeLift + Math.cos(backA) * kneeBack;
+        var kneeY = hipY + Math.sin(perpA) * kneeLift + Math.sin(backA) * kneeBack;
+        var cockedX = hipX + Math.cos(backA) * R * (1.05 + crouchK * 0.35) + Math.cos(perpA) * R * 0.55;
+        var cockedY = hipY + Math.sin(backA) * R * (1.05 + crouchK * 0.35) + Math.sin(perpA) * R * 0.55;
+        var hitSpread = (pair - 1.5) * germR * 0.42;
+        var hitX = stormTgt.x - t.x - Math.cos(aimA) * (storm.lunge || 0) + Math.cos(aimA) * germR * 0.2 + Math.cos(perpA) * hitSpread;
+        var hitY = stormTgt.y - t.y - Math.sin(aimA) * (storm.lunge || 0) + Math.sin(aimA) * germR * 0.2 + Math.sin(perpA) * hitSpread;
+        var stagger = Math.max(0, Math.min(1, (embedK - pair * 0.07) / 0.78));
+        var slam = 1 - Math.pow(1 - stagger, 3);
+        if (slam > 1) slam = 1;
+        var over = slam < 1 ? slam : 1;
+        var tipX = cockedX + (hitX - cockedX) * over;
+        var tipY = cockedY + (hitY - cockedY) * over;
+        var midX = kneeX + (hitX - kneeX) * slam * 0.35;
+        var midY = kneeY + (hitY - kneeY) * slam * 0.35;
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+        ctx.strokeStyle = t.def.colorDark;
+        ctx.lineWidth = Math.max(2.6, 3.4 * U);
+        ctx.beginPath();
+        ctx.moveTo(hipX, hipY);
+        ctx.quadraticCurveTo(midX, midY, tipX, tipY);
+        ctx.stroke();
+        ctx.strokeStyle = slam > 0.4 ? "rgba(255, 230, 120, " + (0.35 + slam * 0.5) + ")" : t.def.color;
+        ctx.lineWidth = Math.max(1.3, 1.7 * U);
+        ctx.beginPath();
+        ctx.moveTo(hipX, hipY);
+        ctx.quadraticCurveTo(midX, midY, tipX, tipY);
+        ctx.stroke();
+        var flagR = R * 0.11;
+        ctx.fillStyle = "#ffe27a";
+        ctx.fillRect(tipX - flagR, tipY - flagR, flagR * 2, flagR * 2);
+        ctx.strokeStyle = "rgba(120, 80, 30, 0.9)";
+        ctx.lineWidth = 0.9 * U;
+        ctx.strokeRect(tipX - flagR, tipY - flagR, flagR * 2, flagR * 2);
+        ctx.fillStyle = "#d61f1f";
+        ctx.beginPath();
+        ctx.arc(tipX, tipY, flagR * 0.42, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    } else {
     var dn = 9;
     for (var i = 0; i < dn; i++) {
       var restA = i * Math.PI * 2 / dn + time * 0.3;
       var restLen = R * (1.35 + 0.16 * Math.sin(time * 2 + i)) * ultExt * preExt;
       var startX = Math.cos(restA) * R * 0.55, startY = Math.sin(restA) * R * 0.55;
       var tipX = Math.cos(restA) * restLen, tipY = Math.sin(restA) * restLen;
-      if (stormTgt) {
-        var aimA = Math.atan2(stormTgt.y - t.y, stormTgt.x - t.x);
-        var spread = (i - (dn - 1) / 2) * 0.22;
-        var germR = (stormTgt.def.radius || 18) * U * (stormTgt.radiusScale || 1);
-        var tx = stormTgt.x - t.x + Math.cos(aimA + Math.PI / 2) * germR * spread * 1.8
-          + Math.cos(aimA) * germR * 0.25;
-        var ty = stormTgt.y - t.y + Math.sin(aimA + Math.PI / 2) * germR * spread * 1.8
-          + Math.sin(aimA) * germR * 0.25;
-        var k = 0.15 + embedK * 0.85;
-        tipX = tipX + (tx - tipX) * k;
-        tipY = tipY + (ty - tipY) * k;
-      }
       ctx.strokeStyle = t.def.colorDark;
-      ctx.lineWidth = Math.max(2.2, (stormTgt ? 3.4 : 3) * U);
+      ctx.lineWidth = Math.max(2.2, 3 * U);
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
       ctx.beginPath();
       ctx.moveTo(startX, startY);
       ctx.lineTo(tipX, tipY);
-      if (!stormTgt) {
-        ctx.lineTo(Math.cos(restA + 0.24) * (restLen - R * 0.24), Math.sin(restA + 0.24) * (restLen - R * 0.24));
-      }
+      ctx.lineTo(Math.cos(restA + 0.24) * (restLen - R * 0.24), Math.sin(restA + 0.24) * (restLen - R * 0.24));
       ctx.stroke();
-      if (stormTgt && embedK > 0.35) {
-        ctx.strokeStyle = "rgba(255, 230, 120, " + (0.45 + embedK * 0.45) + ")";
-        ctx.lineWidth = Math.max(1.2, 1.6 * U);
-        ctx.beginPath();
-        ctx.moveTo(startX, startY);
-        ctx.lineTo(tipX, tipY);
-        ctx.stroke();
-      }
-      var flagR = R * 0.13 * (1 + chargeFrac * 0.55) * (stormTgt ? 0.82 : 1);
-      if (chargeFrac > 0.1 && !stormTgt) {
+      var flagR = R * 0.13 * (1 + chargeFrac * 0.55);
+      if (chargeFrac > 0.1) {
         ctx.fillStyle = "rgba(255, 230, 120, " + (chargeFrac * 0.55) + ")";
         ctx.beginPath();
         ctx.arc(tipX, tipY, flagR * 2.0, 0, Math.PI * 2);
         ctx.fill();
       }
-      ctx.fillStyle = embedK > 0.5 ? "#ffe27a" : (chargeFrac > 0.1 ? "#ffe27a" : "#ffd24a");
+      ctx.fillStyle = chargeFrac > 0.1 ? "#ffe27a" : "#ffd24a";
       ctx.fillRect(tipX - flagR, tipY - flagR, flagR * 2, flagR * 2);
       ctx.strokeStyle = "rgba(120, 80, 30, 0.85)";
       ctx.lineWidth = 0.9 * U;
@@ -19008,6 +19056,7 @@
       ctx.beginPath();
       ctx.arc(tipX, tipY, flagR * 0.45, 0, Math.PI * 2);
       ctx.fill();
+    }
     }
     // ── CUERPO ESTRELLADO (dendrítico), NO circular: la Langerhans real es
     // una célula estrellada cuyos velos se meten entre los queratinocitos.

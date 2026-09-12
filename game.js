@@ -4273,6 +4273,7 @@
       guardianTimer: 28,
       epiWalls: [],                     // muros de uniones estrechas (2 Nichos enfrentados)
       keraWalls: [],                    // muros de tejas del ultimate Cornificación
+      mastocClouds: [],                 // nubes de histamina del Mastocito
       ganglio: null,                    // Ganglio linfático (base Fase 1): ensambla un T-blast héroe
       tblasts: [],                      // Linfocitos T blast héroes desplegados
       tblastPlacing: false,             // modo "colocar en el camino" activo
@@ -5268,6 +5269,7 @@
     state.slicks.length = 0;
     if (state.epiWalls) state.epiWalls.length = 0;
     if (state.keraWalls) state.keraWalls.length = 0;
+    if (state.mastocClouds) state.mastocClouds.length = 0;
     state.restos.length = 0;
     state.collectors.length = 0;
     state.pathInflammation.length = 0;
@@ -5471,6 +5473,7 @@
     state.slicks.length = 0;
     if (state.epiWalls) state.epiWalls.length = 0;
     if (state.keraWalls) state.keraWalls.length = 0;
+    if (state.mastocClouds) state.mastocClouds.length = 0;
     state.restos.length = 0;
     state.collectors.length = 0;
     state.pathInflammation.length = 0;
@@ -6856,6 +6859,22 @@
         }
       }
     }
+    if (state.mastocClouds && state.mastocClouds.length) {
+      for (var mci = state.mastocClouds.length - 1; mci >= 0; mci--) {
+        var mc = state.mastocClouds[mci];
+        mc.life -= dt;
+        if (mc.life <= 0) { state.mastocClouds.splice(mci, 1); continue; }
+        for (var mei = 0; mei < state.enemies.length; mei++) {
+          var mee = state.enemies[mei];
+          if (!mee || mee.dead || mee.dying || mee.absorbing) continue;
+          if (mee.burrowed && !mee.revealed) continue;
+          if (mee.def.cloaked && !mee.revealed) continue;
+          if (!mastocInCone(mc.x, mc.y, mc.ang, mc.len, mc.half, mee.x, mee.y)) continue;
+          damageEnemy(mee, (mc.dps || 12) * dt, mc.srcId || "mastocito");
+          mee.slowTimer = Math.max(mee.slowTimer || 0, 0.55);
+        }
+      }
+    }
     for (var i = 0; i < state.enemies.length; i++) {
       var e = state.enemies[i];
       if (e.dead) continue;
@@ -7838,6 +7857,52 @@
     return { x: pt.x, y: pt.y };
   }
 
+  function mastocConeAim(t) {
+    var arc = nearestPathProgress(t.x, t.y);
+    if (arc && arc.x != null) return Math.atan2(arc.y - t.y, arc.x - t.x);
+    if (arc) {
+      var p = pathPos(arc.progress, arc.heridaIdx);
+      if (p) return Math.atan2(p.y - t.y, p.x - t.x);
+    }
+    return -Math.PI / 2 - 0.32;
+  }
+
+  function mastocInCone(ox, oy, ang, len, half, ex, ey) {
+    var dx = ex - ox, dy = ey - oy;
+    var d = Math.hypot(dx, dy);
+    if (d > len || d < 6 * U) return false;
+    var a = Math.atan2(dy, dx) - ang;
+    while (a > Math.PI) a -= Math.PI * 2;
+    while (a < -Math.PI) a += Math.PI * 2;
+    return Math.abs(a) <= half + (d / len) * 0.10;
+  }
+
+  function mastocMouth(t) {
+    var R = 18 * U * 1.1;
+    var g = t.mastocGeyser;
+    var tilt = g ? (g.ang + Math.PI / 2) : -0.32;
+    var mx = R * -0.06, my = R * -0.70;
+    var c = Math.cos(tilt), s = Math.sin(tilt);
+    return { x: t.x + mx * c - my * s, y: t.y + mx * s + my * c };
+  }
+
+  function mastocSpitJet(t) {
+    var g = t.mastocGeyser;
+    if (!g) return;
+    var mouth = mastocMouth(t);
+    var spread = (Math.random() - 0.5) * g.half * 1.35;
+    var ang = g.ang + spread;
+    var spd = (240 + Math.random() * 160) * U;
+    pushEffect({
+      kind: "histamineJet",
+      x: mouth.x, y: mouth.y,
+      vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd,
+      r: (2.4 + Math.random() * 2.2) * U,
+      trypt: Math.random() < 0.28,
+      life: 0.38 + Math.random() * 0.18, max: 0.55
+    });
+  }
+
   function triggerTowerSpecial(t) {
     if (!t || !t.specialReady) return;
     var def = t.def;
@@ -8116,26 +8181,34 @@
       return;
     }
     if (def.id === "mastocito") {
-      // DESGRANULACIÓN: onda de choque única, radio mayor que el aura normal.
+      // DESGRANULACIÓN: geyser por la boca de la herradura hacia el carril.
       var maStats = towerStats(t);
-      var maR = maStats.range * U * 1.6;
+      var maLen = maStats.range * U * 1.45;
+      var maAng = mastocConeAim(t);
+      var maHalf = 0.52;
+      t.mastocGeyser = { ang: maAng, len: maLen, half: maHalf, spitT: 0 };
+      t.specialAnim = 1.28;
+      t.specialReady = false;
+      t.specialCharge = 0;
+      if (!state.mastocClouds) state.mastocClouds = [];
+      state.mastocClouds.push({
+        x: t.x, y: t.y, ang: maAng, len: maLen, half: maHalf,
+        life: 3.2, max: 3.2,
+        dps: (maStats.dotPerSec || 6) * 2.4,
+        srcId: "mastocito"
+      });
       for (var mi2 = 0; mi2 < state.enemies.length; mi2++) {
         var me2 = state.enemies[mi2];
         if (me2.dead || me2.dying || me2.absorbing) continue;
         if (me2.burrowed && !me2.revealed) continue;
         if (me2.def.cloaked && !me2.revealed) continue;
-        if (Math.hypot(me2.x - t.x, me2.y - t.y) > maR) continue;
-        me2.slowTimer = Math.max(me2.slowTimer || 0, 3.0);
-        damageEnemy(me2, (maStats.dotPerSec || 4) * 8, "mastocito");
+        if (!mastocInCone(t.x, t.y, maAng, maLen, maHalf, me2.x, me2.y)) continue;
+        me2.slowTimer = Math.max(me2.slowTimer || 0, 3.4);
+        damageEnemy(me2, (maStats.dotPerSec || 6) * 9, "mastocito");
       }
-      pushEffect({ kind: "mastocWave", x: t.x, y: t.y, r: maR * 0.55, life: 0.55, max: 0.55 });
-      pushEffect({ kind: "mastocWave", x: t.x, y: t.y, r: maR * 0.82, life: 0.65, max: 0.65 });
-      pushEffect({ kind: "mastocWave", x: t.x, y: t.y, r: maR, life: 0.7, max: 0.7 });
-      t.specialAnim = 1.0;
-      t.specialReady = false;
-      t.specialCharge = 0;
+      showMsg("¡Desgranulación!");
       sfx("upgrade");
-      triggerShake(0.12, 4);
+      triggerShake(0.14, 4);
       return;
     }
     if (def.id === "centinela") {
@@ -9579,6 +9652,14 @@
           keraSpawnSquame(t, t.keraShed.spawned);
           t.keraShed.spawned += 1;
           t.keraShed.cd = 0.11;
+        }
+      }
+      if (t.def.id === "mastocito" && (t.specialAnim || 0) > 0 && t.mastocGeyser) {
+        t.mastocGeyser.spitT = (t.mastocGeyser.spitT || 0) - dt;
+        if (t.mastocGeyser.spitT <= 0) {
+          t.mastocGeyser.spitT = 0.045;
+          mastocSpitJet(t);
+          mastocSpitJet(t);
         }
       }
       if (t.def.id === "sebocito" && (t.specialAnim || 0) > 0) {
@@ -12424,6 +12505,34 @@
     }
   }
 
+  function drawMastocClouds() {
+    if (!state.mastocClouds || !state.mastocClouds.length) return;
+    for (var i = 0; i < state.mastocClouds.length; i++) {
+      var c = state.mastocClouds[i];
+      var a = Math.min(1, c.life / c.max);
+      ctx.save();
+      ctx.translate(c.x, c.y);
+      ctx.fillStyle = "rgba(90, 130, 220, " + (0.10 + 0.16 * a) + ")";
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.arc(0, 0, c.len, c.ang - c.half, c.ang + c.half);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = "rgba(170, 140, 255, " + (0.07 + 0.12 * a) + ")";
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.arc(0, 0, c.len * 0.62, c.ang - c.half * 0.72, c.ang + c.half * 0.72);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = "rgba(200, 220, 255, " + (0.22 + 0.28 * a) + ")";
+      ctx.lineWidth = Math.max(1.2, 1.6 * U);
+      ctx.beginPath();
+      ctx.arc(0, 0, c.len * 0.96, c.ang - c.half, c.ang + c.half);
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+
   function drawSebumPuddles() {
     if (!state.sebumPuddles || !state.sebumPuddles.length) return;
     ctx.save();
@@ -14364,6 +14473,11 @@
             }
           }
         }
+      } else if (ef.kind === "histamineJet") {
+        ef.x += ef.vx * dt;
+        ef.y += ef.vy * dt;
+        ef.vx *= 0.92;
+        ef.vy *= 0.92;
       } else if (ef.kind === "perforinBolt") {
         // Perforina del frenesí NK — penetra todos los gérmenes
         // ignorando escudos. Continúa hasta off-screen.
@@ -21962,7 +22076,7 @@
     var auraR = maStats.range * U;
     var bodySwell = 1 + chargeFrac * 0.08 + (ultActive ? Math.sin((1 - t.specialAnim / 1.0) * Math.PI) * 0.12 : 0);
     var degranPulse = attacking ? (1 - t.attackAnim / 0.2) : 0;
-    var bodyTilt = -0.32;
+    var bodyTilt = (ultActive && t.mastocGeyser) ? (t.mastocGeyser.ang + Math.PI / 2) : -0.32;
     // Gránulos en C (sin anillo 360°): ángulo, distancia, radio — layout fijo asimétrico.
     var MA_LAYOUT = [
       { a: 2.40, d: 0.72, r: 0.21 }, { a: 2.02, d: 0.86, r: 0.23 }, { a: 1.58, d: 0.90, r: 0.22 },
@@ -22070,18 +22184,21 @@
         colorAlpha(t.def.color, 0.55 * (1 - degranPulse)), Math.max(1.5, 2 * U));
     }
 
-    if (ultActive) {
-      var dgFrac = 1 - t.specialAnim / 1.0;
-      var dgSwell = dgFrac < 0.22 ? (dgFrac / 0.22) : (1 - (dgFrac - 0.22) / 0.78);
-      ctx.save(); ctx.rotate(bodyTilt);
-      ctx.scale(1 + dgSwell * 0.22, 1 + dgSwell * 0.18);
-      for (var dgW = 0; dgW < 3; dgW++) {
-        ctx.strokeStyle = colorAlpha(t.def.color, 0.75 * (1 - dgFrac) * (1 - dgW * 0.22));
-        ctx.lineWidth = Math.max(2.5, (4 - dgW) * U);
-        ctx.beginPath();
-        ctx.ellipse(hubCx, hubCy, R * (0.95 + dgFrac * 5.8 - dgW * 0.55), R * (0.75 + dgFrac * 4.2 - dgW * 0.4), 0, 0, Math.PI * 2);
-        ctx.stroke();
-      }
+    if (ultActive && t.mastocGeyser) {
+      var gsr = t.mastocGeyser;
+      ctx.save();
+      ctx.fillStyle = "rgba(90, 140, 230, 0.18)";
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.arc(0, 0, gsr.len * 0.92, gsr.ang - gsr.half, gsr.ang + gsr.half);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = "rgba(170, 210, 255, 0.45)";
+      ctx.lineWidth = Math.max(1.4, 1.8 * U);
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(Math.cos(gsr.ang) * gsr.len * 0.88, Math.sin(gsr.ang) * gsr.len * 0.88);
+      ctx.stroke();
       ctx.restore();
     }
 
@@ -29507,6 +29624,14 @@
       ctx.restore();
     } else if (ef.kind === "keraSquame") {
       paintKeratinSquame(ef.x, ef.y, ef.hw || 12 * U, ef.hh || 5 * U, ef.rot || 0, alpha);
+    } else if (ef.kind === "histamineJet") {
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = ef.trypt ? "rgba(190, 140, 255, 0.95)" : "rgba(120, 190, 255, 0.92)";
+      ctx.beginPath(); ctx.arc(ef.x, ef.y, ef.r || 3 * U, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = "rgba(255,255,255,0.55)";
+      ctx.beginPath(); ctx.arc(ef.x - (ef.r || 3 * U) * 0.3, ef.y - (ef.r || 3 * U) * 0.3, (ef.r || 3 * U) * 0.35, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
     } else if (ef.kind === "shard") {
       // Fragmento elíptico translúcido que gira (pedazo de cápsula).
       ctx.save();
@@ -33741,6 +33866,7 @@
     safeDraw("PlaquetaPickups", drawPlaquetaPickups);
     safeDraw("EpiWalls", drawEpiWalls);
     safeDraw("KeraWalls", drawKeraWalls);
+    safeDraw("MastocClouds", drawMastocClouds);
     safeDraw("RangeHint", drawRangeHint);
     // Loops de entidades: cada una en su propio try.
     for (var j = 0; j < state.enemies.length; j++) {

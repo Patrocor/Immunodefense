@@ -1,4 +1,4 @@
-/** Captura Mastocito — DISPLAY=:1 node scripts/playtest-mastocito.mjs */
+/** Captura Mastocito — geyser de desgranulación. DISPLAY=:1 node scripts/playtest-mastocito.mjs */
 import { chromium } from "playwright";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
@@ -22,47 +22,31 @@ await page.evaluate(() => {
   st.atp = 300;
   st.nextWaveAt = 0.08;
 });
-await sleep(1200);
+await sleep(1100);
 await page.evaluate(() => {
   const g = window.__game;
-  g.place("mastocito", 0.48, 0.50);
-  g.place("neutrofilo", 0.62, 0.46);
-  const m = g.state.towers.find((t) => t.def.id === "mastocito");
-  const n = g.state.towers.find((t) => t.def.id === "neutrofilo");
-  if (m) { m.specialCharge = 0.65; m.level = 1; }
-  if (n) n.histBuffT = 0.85;
+  g.place("mastocito", 0.46, 0.48);
+  const m = g.state.towers[0];
+  if (m) { m.specialCharge = 0.7; m.level = 1; }
 });
-await sleep(700);
+await sleep(500);
 await page.screenshot({ path: join(ART, "mastocito_idle_aura.png") });
+await page.evaluate(() => { window.__game.step(5.2, 0.05); });
 await page.evaluate(() => {
-  const g = window.__game;
-  const m = g.state.towers.find((t) => t.def.id === "mastocito");
-  const n = g.state.towers.find((t) => t.def.id === "neutrofilo");
-  if (n) n.histBuffT = 0.85;
-  if (m) { m.attackAnim = 0.14; m.ilc2MastoT = 4.5; }
-});
-await sleep(400);
-await page.screenshot({ path: join(ART, "mastocito_degranulate.png") });
-await page.evaluate(() => {
-  const g = window.__game;
-  const m = g.state.towers.find((t) => t.def.id === "mastocito");
-  if (!m) return;
+  const m = window.__game.state.towers[0];
   m.specialReady = true;
   m.specialCharge = 1;
-  m.specialAnim = 0.55;
-  m.attackAnim = 0;
-  const U = g.metrics.U;
-  const maR = 130 * U * 1.6;
-  g.state.effects.push({
-    kind: "mastocWave",
-    x: m.x,
-    y: m.y,
-    r: maR,
-    life: 0.35,
-    max: 0.7,
-  });
+  window.__game.ults();
 });
-await sleep(350);
+await page.evaluate(() => { window.__game.step(0.22, 0.03); window.__game.hold(true); });
+await sleep(80);
+await page.screenshot({ path: join(ART, "mastocito_geyser.png") });
+await page.evaluate(() => {
+  window.__game.hold(false);
+  window.__game.step(1.15, 0.03);
+  window.__game.hold(true);
+});
+await sleep(80);
 await page.screenshot({ path: join(ART, "mastocito_ultimate_wave.png") });
 await browser.close();
 console.log("OK: mastocito screenshots");

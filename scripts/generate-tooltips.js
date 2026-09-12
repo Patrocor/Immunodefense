@@ -49,7 +49,7 @@ const TOWERS = [
   { id: "langerhans",    name: "Célula de Langerhans",         role: "CPA de la epidermis; captura antígenos, migra al ganglio, activa Th. Ultimate: Presentación Antigénica Masiva — marca y bufa aliados." },
   { id: "nk",            name: "Célula NK (Natural Killer)",   role: "Citotóxico innato: rompe escudos y ejecuta virus (×2.3). Sin aura IFN — eso es pDC. Ultimate: Frenesí — 8 hachas centrífugas." },
   { id: "eosinofilo",    name: "Eosinófilo",                   role: "Gránulos de MBP, ECP, EDN; ADCC contra parásitos. Interleuquinas IL-4/IL-13. Ultimate: Descarga de gránulos." },
-  { id: "mastocito",     name: "Mastocito",                    role: "Desgranulación de histamina, triptasa, leucotrienos. Ralentiza gérmenes en área. Ultimate: Onda de desgranulación." },
+  { id: "mastocito",     name: "Mastocito",                    role: "Desgranulación de histamina, triptasa, leucotrienos. Ralentiza gérmenes en área. Ultimate: geyser de mediadores (cono + nube)." },
   { id: "complemento",   name: "Complemento MAC (C5b-9)",      role: "Complejo de ataque a membrana que perfora bacterias gram-. Ignora escudos. Disparo manual concentrado." },
   { id: "plaqueta",      name: "Fibrina / Plaqueta (barrera)", role: "Coágulo de fibrina que obstruye el carril; tromboxano A2 y factor von Willebrand. Barrera pasiva." },
   { id: "trombo",        name: "Trombo de Respuesta",          role: "Plaqueta activada con pseudópodos; empuja gérmenes hacia atrás. Al destruirse libera una bomba de factores de coagulación." },

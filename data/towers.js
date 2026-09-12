@@ -113,11 +113,10 @@ var TOWER_DEFS = {
   },
   mastocito: {
     id: "mastocito", name: "Mastocito", shortName: "Masto",
-    color: "#4F8FE0", colorDark: "#2c5da0", cost: 75, desc: "Desgranula histamina, triptasa y leucotrienos que ralentizan gérmenes en área. Ultimate: Onda de desgranulación — mediadores que paralizan invasores.",
+    color: "#4F8FE0", colorDark: "#2c5da0", cost: 75, desc: "Desgranula histamina, triptasa y leucotrienos que ralentizan gérmenes en área. Ultimate: geyser de mediadores por la boca de la herradura (cono + nube ~3 s).",
     support: "slow",
-    // Ultimate: DESGRANULACIÓN — onda de choque única: daño +
-    // ralentización mucho más fuertes que su aura pasiva, en un radio
-    // mayor (1.6x del rango normal).
+    // Ultimate: DESGRANULACIÓN — geyser por la abertura de la herradura
+    // hacia el carril: cono de histamina/triptasa + nube que dura ~3 s.
     specialChargeSec: 30,
     specialName: "Desgranulación",
     levels: [

@@ -18920,7 +18920,7 @@
     // Langerhans — célula dendrítica presentadora de antígeno. Biología:
     //  · DENDRITAS LARGAS extendiéndose en todas direcciones (sensan)
     //  · Al final de cada dendrita: MHC-II cargado con antígeno
-    //  · Cuerpo ESTRELLADO (dendrítico) + gránulos de Birbeck (raqueta)
+    // LOCKED v2 — Estrella+Araña MHC, patas oscuras y espículas (user OK "Me gusta").
     var R = 21 * U * pulse;   // 17→21: a la par del resto del roster
     var time = state.time;
     var doingUltimate = (t.def.id === "langerhans" && (t.specialAnim || 0) > 0);

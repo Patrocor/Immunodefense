@@ -97,13 +97,12 @@ var TOWER_DEFS = {
   },
   eosinofilo: {
     id: "eosinofilo", name: "Eosinofilo", shortName: "Eosin",
-    color: "#F2774E", colorDark: "#a8401f", cost: 75, desc: "Gránulos de MBP, ECP y EDN atacan parásitos con ADCC; IL-4 e IL-13 potencian la respuesta. Bonus ×2.6 vs parásitos. Ultimate: Descarga de gránulos.",
+    color: "#F2774E", colorDark: "#a8401f", cost: 75, desc: "Gránulos de MBP, ECP y EDN atacan parásitos con ADCC; IL-4 e IL-13 potencian la respuesta. Bonus ×2.6 vs parásitos. Ultimate: Perdigonera (dos conos de cristales desde cada lóbulo).",
     bonusVs: { kind: "parasito", mult: 2.6 },
-    // Ultimate: DESCARGA DE GRÁNULOS — daño instantáneo a TODOS los
-    // enemigos en rango; a los parásitos además les queda un DoT
-    // corrosivo fuerte (refuerza el bonus normal vs parásitos).
+    // Ultimate: PERDIGONERA — cada lóbulo dispara un cono de cristales
+    // MBP hacia el parásito más cercano; DoT extra a parásitos.
     specialChargeSec: 28,
-    specialName: "Descarga de gránulos",
+    specialName: "Perdigonera",
     levels: [
       { range: 150, damage: 28, fireRate: 1.0, projectileSpeed: 380, splash: 30, hp: 90 },
       { range: 170, damage: 42, fireRate: 1.2, projectileSpeed: 420, splash: 35, hp: 115 },

@@ -7889,6 +7889,68 @@
     return Math.abs(a) <= half + (d / len) * 0.10;
   }
 
+  function eosinPickAim(t) {
+    var range = towerStats(t).range * U * 1.28;
+    var bestP = null, bestPD = Infinity, best = null, bestD = Infinity;
+    for (var i = 0; i < state.enemies.length; i++) {
+      var e = state.enemies[i];
+      if (!e || e.dead || e.dying || e.absorbing) continue;
+      if (e.burrowed && !e.revealed) continue;
+      if (e.def.cloaked && !e.revealed) continue;
+      var d = Math.hypot(e.x - t.x, e.y - t.y);
+      if (d > range || d < 6 * U) continue;
+      if (d < bestD) { bestD = d; best = e; }
+      if (e.def.baseKind === "parasito" && d < bestPD) { bestPD = d; bestP = e; }
+    }
+    var tgt = bestP || best;
+    if (tgt) return Math.atan2(tgt.y - t.y, tgt.x - t.x);
+    var arc = nearestPathProgress(t.x, t.y);
+    if (arc && arc.x != null) return Math.atan2(arc.y - t.y, arc.x - t.x);
+    if (arc) {
+      var p = pathPos(arc.progress, arc.heridaIdx);
+      if (p) return Math.atan2(p.y - t.y, p.x - t.x);
+    }
+    return 0;
+  }
+
+  function eosinMuzzle(t, side, ang) {
+    var R = 17 * U * 1.16;
+    var off = R * 0.62;
+    var fx = Math.cos(ang), fy = Math.sin(ang);
+    return {
+      x: t.x + side * off + fx * R * 0.50,
+      y: t.y + fy * R * 0.50
+    };
+  }
+
+  function eosinHitByShotgun(t, ex, ey) {
+    var g = t.eosinShotgun;
+    if (!g) return false;
+    for (var side = -1; side <= 1; side += 2) {
+      var m = eosinMuzzle(t, side, g.ang);
+      var bang = g.ang + side * 0.12;
+      if (mastocInCone(m.x, m.y, bang, g.len, g.half, ex, ey)) return true;
+    }
+    return false;
+  }
+
+  function eosinSpitPellet(t, side) {
+    var g = t.eosinShotgun;
+    if (!g) return;
+    var m = eosinMuzzle(t, side, g.ang);
+    var spread = (Math.random() - 0.5) * g.half * 1.55;
+    var ang = g.ang + side * 0.10 + spread;
+    var dur = 0.20 + Math.random() * 0.12;
+    var dist = g.len * (0.70 + Math.random() * 0.32);
+    pushEffect({
+      kind: "granuleShot",
+      x: m.x, y: m.y,
+      vx: Math.cos(ang) * dist / dur,
+      vy: Math.sin(ang) * dist / dur,
+      life: dur, max: dur, crystal: true
+    });
+  }
+
   function mastocMouth(t) {
     var R = 18 * U * 1.1;
     var g = t.mastocGeyser;
@@ -8144,37 +8206,29 @@
       return;
     }
     if (def.id === "eosinofilo") {
-      // DESCARGA DE GRÁNULOS: daño instantáneo a todos en rango (con el
-      // bonus de especialista vs parásitos, igual que fireTower aplica en
-      // el disparo normal — antes el ultimate se lo saltaba); DoT
-      // corrosivo extra a los parásitos.
+      // PERDIGONERA: cada lóbulo dispara un cono de cristales MBP hacia
+      // el parásito más cercano (si no hay, el germen / carril).
       var eoStats = towerStats(t);
-      var eoR = eoStats.range * U;
+      var eoAng = eosinPickAim(t);
+      var eoLen = eoStats.range * U * 1.22;
+      var eoHalf = 0.40;
+      t.eosinShotgun = { ang: eoAng, len: eoLen, half: eoHalf, spitT: 0 };
+      t.specialAnim = 1.05;
+      t.specialReady = false;
+      t.specialCharge = 0;
       for (var ei2 = 0; ei2 < state.enemies.length; ei2++) {
         var ee = state.enemies[ei2];
         if (ee.dead || ee.dying || ee.absorbing) continue;
         if (ee.burrowed && !ee.revealed) continue;
         if (ee.def.cloaked && !ee.revealed) continue;
-        if (Math.hypot(ee.x - t.x, ee.y - t.y) > eoR) continue;
-        var eoDmg = eoStats.damage * 2.2;   // subido de 1.5x — estaba muy por debajo del resto del roster
+        if (!eosinHitByShotgun(t, ee.x, ee.y)) continue;
+        var eoDmg = eoStats.damage * 2.2;
         if (t.def.bonusVs && ee.def.baseKind === t.def.bonusVs.kind) eoDmg *= t.def.bonusVs.mult;
         damageEnemy(ee, eoDmg, "eosinofilo");
         if (ee.def.baseKind === "parasito") {
           ee.dotTimer = Math.max(ee.dotTimer || 0, 4.0);
           ee.dotDps = eoStats.damage * 0.8;
           ee.dotSource = "eosinofilo";
-        }
-        // Gránulo coral real (no una partícula genérica) viajando de la
-        // torre al enemigo — se ve claramente que escupió sus gránulos.
-        var gsDur = 0.20 + Math.random() * 0.06;
-        for (var gsN = 0; gsN < 2; gsN++) {
-          var gsOx = (Math.random() - 0.5) * 14 * U;
-          var gsOy = (Math.random() - 0.5) * 14 * U;
-          pushEffect({ kind: "granuleShot", x: t.x + gsOx, y: t.y + gsOy,
-            vx: (ee.x - t.x - gsOx) / gsDur, vy: (ee.y - t.y - gsOy) / gsDur,
-            life: gsDur, max: gsDur, crystal: true });
-        }
-        if (ee.def.baseKind === "parasito") {
           for (var tp = 0; tp < 4; tp++) {
             var tpa = Math.random() * Math.PI * 2;
             var tps = (40 + Math.random() * 50) * U;
@@ -8184,10 +8238,11 @@
           }
         }
       }
-      pushEffect({ kind: "eosinBurst", x: t.x, y: t.y, r: eoR, life: 0.72, max: 0.72 });
-      t.specialAnim = 1.25;
-      t.specialReady = false;
-      t.specialCharge = 0;
+      for (var eoKick = -1; eoKick <= 1; eoKick += 2) {
+        eosinSpitPellet(t, eoKick);
+        eosinSpitPellet(t, eoKick);
+      }
+      showMsg("¡Perdigonera!");
       sfx("upgrade");
       triggerShake(0.10, 3);
       return;
@@ -9672,6 +9727,15 @@
           t.mastocGeyser.spitT = 0.045;
           mastocSpitJet(t);
           mastocSpitJet(t);
+        }
+      }
+      if (t.def.id === "eosinofilo" && (t.specialAnim || 0) > 0 && t.eosinShotgun) {
+        t.eosinShotgun.spitT = (t.eosinShotgun.spitT || 0) - dt;
+        if (t.eosinShotgun.spitT <= 0) {
+          t.eosinShotgun.spitT = 0.050;
+          eosinSpitPellet(t, -1);
+          eosinSpitPellet(t, 1);
+          if (Math.random() < 0.55) eosinSpitPellet(t, Math.random() < 0.5 ? -1 : 1);
         }
       }
       if (t.def.id === "sebocito" && (t.specialAnim || 0) > 0) {
@@ -19756,8 +19820,9 @@
     // Eosinófilo v2 — granulocito bilobulado anti-parásito.
     //  · Silueta orgánica tipo "gafas"/núcleo bilobulado (no dos círculos + puente)
     //  · Gránulos cristaloides MBP/ECP incrustados; receptores CCR3 en superficie
-    //  · Ultimate Descarga: doble lóbulo expansivo + lluvia cristalina (no anillo)
-    // LOCKED v2 — Perdigones+Descarga (user OK "Queda").
+    //  · Ultimate Perdigonera: cada lóbulo dispara un cono de cristales MBP
+    //    hacia el parásito más cercano (no onda/anillo).
+    // LOCKED v2 silueta — Perdigones+Descarga (user OK "Queda"). Ult v3 pendiente.
     var R = 17 * U * pulse;
     var off = R * 0.62;
     var time = state.time;
@@ -19791,6 +19856,34 @@
 
     ctx.save();
     ctx.translate(t.x, t.y);
+
+    // Conos en espacio mundo (mismo len/half que el hitbox), antes del scale del sprite.
+    if (doingUlt && t.eosinShotgun) {
+      var sg = t.eosinShotgun;
+      var uf = 1 - (t.specialAnim / 1.05);
+      var mOff = 17 * U * 1.16 * 0.62;
+      ctx.save();
+      for (var lob = -1; lob <= 1; lob += 2) {
+        var bang = sg.ang + lob * 0.12;
+        ctx.fillStyle = "rgba(242, 119, 78, " + (0.16 + (1 - uf) * 0.18) + ")";
+        ctx.beginPath();
+        ctx.moveTo(lob * mOff, 0);
+        ctx.arc(lob * mOff, 0, sg.len * 0.92, bang - sg.half, bang + sg.half);
+        ctx.closePath();
+        ctx.fill();
+        ctx.strokeStyle = "rgba(255, 190, 140, " + ((1 - uf) * 0.70) + ")";
+        ctx.lineWidth = Math.max(1.6, 2 * U);
+        ctx.beginPath();
+        ctx.arc(lob * mOff, 0, sg.len * 0.90, bang - sg.half, bang + sg.half);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(lob * mOff, 0);
+        ctx.lineTo(lob * mOff + Math.cos(bang) * sg.len * 0.88, Math.sin(bang) * sg.len * 0.88);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
     ctx.scale(1.16, 1.16);
 
     // Sinergia IL-4/IL-13 (Mastocito/Langerhans): halo cálido tenue.
@@ -19804,33 +19897,7 @@
       ctx.fill();
     }
 
-    // Ultimate — doble onda bilobulada + lluvia de cristaloides.
-    if (doingUlt) {
-      var uf = 1 - (t.specialAnim / 1.25);
-      ctx.save();
-      for (var lob = -1; lob <= 1; lob += 2) {
-        ctx.globalAlpha = Math.max(0, (1 - uf) * 0.62);
-        ctx.strokeStyle = t.def.color;
-        ctx.lineWidth = Math.max(2.2, 2.8 * U) * (1 - uf * 0.4);
-        ctx.beginPath();
-        ctx.ellipse(lob * off * (1 + uf * 0.35), 0, R * (1.05 + uf * 4.8), R * (0.85 + uf * 3.4), lob * 0.15, 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.fillStyle = "rgba(242, 119, 78, " + ((1 - uf) * 0.12) + ")";
-        ctx.fill();
-      }
-      for (var rb = 0; rb < 18; rb++) {
-        var ra = rb * (Math.PI * 2 / 18) + time * 1.2;
-        var rr = R * (0.6 + uf * 5.8);
-        drawEosinCrystal(
-          Math.cos(ra) * rr,
-          Math.sin(ra) * rr * 0.72,
-          R * 0.20 * (1 - uf * 0.45),
-          ra + Math.PI * 0.5,
-          Math.max(0, (1 - uf) * 0.85)
-        );
-      }
-      ctx.restore();
-    } else if (chargeFrac > 0.12) {
+    if (!doingUlt && chargeFrac > 0.12) {
       var preP = 0.55 + 0.45 * Math.sin(time * 5);
       ctx.save();
       ctx.globalAlpha = chargeFrac * 0.38 * preP;
@@ -19893,8 +19960,9 @@
     ctx.ellipse(0, 0, R * 0.14, R * 0.22, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    // Gránulos cristaloides incrustados — migran al borde al cargar el ultimate.
-    var granDrift = chargeFrac * R * 0.22;
+    // Gránulos cristaloides incrustados — migran al borde al cargar; se vacían en el ult.
+    var granDrift = doingUlt ? R * 0.48 : chargeFrac * R * 0.22;
+    var granAlpha = doingUlt ? 0.35 : 0.92;
     for (var lobeS = -1; lobeS <= 1; lobeS += 2) {
       var lobeCx = lobeS * off;
       for (var g = 0; g < 6; g++) {
@@ -19903,7 +19971,7 @@
         var gx = lobeCx + Math.cos(ga) * gd;
         var gy = Math.sin(ga) * gd * 0.88 + Math.sin(time * 4 + g) * chargeFrac * 1.2 * U;
         var gSize = R * 0.17 * (0.85 + (g % 3) * 0.12);
-        drawEosinCrystal(gx, gy, gSize, ga + Math.PI * 0.5, 0.92);
+        drawEosinCrystal(gx, gy, gSize, ga + Math.PI * 0.5, granAlpha);
       }
     }
 
@@ -30179,24 +30247,7 @@
       ctx.beginPath(); ctx.arc(ef.x, ef.y, dwR * 0.5, 0, Math.PI * 2); ctx.fill();
       ctx.restore();
     } else if (ef.kind === "eosinBurst") {
-      // Descarga de gránulos — onda bilobulada (no anillo circular).
-      var ebT = 1 - ef.life / ef.max;
-      var ebOff = ef.r * 0.22;
-      ctx.save();
-      ctx.translate(ef.x, ef.y);
-      ctx.globalAlpha = (1 - ebT) * 0.55;
-      for (var ebL = -1; ebL <= 1; ebL += 2) {
-        var ebRx = ef.r * (0.08 + ebT * 0.92);
-        var ebRy = ef.r * (0.06 + ebT * 0.68);
-        ctx.fillStyle = "rgba(242, 119, 78, " + ((1 - ebT) * 0.14) + ")";
-        ctx.beginPath();
-        ctx.ellipse(ebL * ebOff * (1 + ebT * 0.4), 0, ebRx, ebRy, ebL * 0.12, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.strokeStyle = "rgba(242, 119, 78, " + ((1 - ebT) * 0.75) + ")";
-        ctx.lineWidth = Math.max(2, 3 * U) * (1 - ebT * 0.5);
-        ctx.stroke();
-      }
-      ctx.restore();
+      // Legacy: la Perdigonera ya no spawnea esta onda.
     } else if (ef.kind === "novaRing") {
       var nrT = 1 - ef.life / ef.max;
       var nrR = ef.r * (0.05 + 0.95 * nrT);

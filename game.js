@@ -19192,10 +19192,10 @@
   // NK — silueta HEXAGONAL BLINDADA con retícula de caza (cazadora antiviral).
   function drawNK(t, pulse, expression, blink) {
     // Célula NK — diseño LGL (Large Granular Lymphocyte):
-    // · Cuerpo orgánico tipo gota irregular (no hexagonal — único entre torres)
-    // · Núcleo riñón ECCENTRIC (forma de bean) — característica del NK real
-    // · Gránulos densos esparcidos en el citoplasma (perforinas + granzimas)
-    // · Aura fucsia permanente sutil (siempre activa)
+    // · Cuerpo angular tipo daga, núcleo riñón, hachas de perforina
+    // · Ataque: hachazo en cono + execute <15% HP
+    // · Ultimate Frenesí: 8 hachas salen en centrifugado y vuelven al armazón
+    // LOCKED v2 — Hachazo+Frenesí (user OK "Queda").
     var doingUlt = (t.def.id === "nk" && (t.specialAnim || 0) > 0);
     var ultBoost = doingUlt ? 1.18 : 1;
     var R = 22 * U * pulse * ultBoost;   // 18→22: a la par del resto del roster

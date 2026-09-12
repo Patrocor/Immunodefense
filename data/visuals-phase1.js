@@ -7,7 +7,7 @@
     queratinocito:{ role: "productor",  label: "Barrera", glyph: "gear",     arc: "#d4a855", silhouette: "strata", labelKit: "Escamas+Cornificación" },
     mastocito:    { role: "control",    label: "Ralent.",glyph: "snowflake",arc: "#4F8FE0", silhouette: "horseshoe", labelKit: "Herradura+Desgranulación", bodyScale: 1.1 },
     langerhans:   { role: "marca",      label: "APC",    glyph: "target",   arc: "#3FC1C9", silhouette: "dendrite", labelKit: "Estrella+Araña MHC" },
-    nk:           { role: "citotoxico", label: "NK",     glyph: "perforin", arc: "#E84393", silhouette: "lgl", labelKit: "Hachazo+Frenesí" },
+    nk:           { role: "citotoxico", label: "NK",     glyph: "perforin", arc: "#E84393", silhouette: "lgl", labelKit: "Hachazo+Frenesí" }, // LOCKED v2 user OK "Queda"
     eosinofilo:   { role: "parasito",   label: "Eosino", glyph: "granule",  arc: "#F2774E", silhouette: "bilobe", labelKit: "Perdigones+Descarga" },
     linfocitoB:   { role: "opsoniza",   label: "Ig",     glyph: "antibody", arc: "#50C878", silhouette: "round", labelKit: "Latigazos+Puñetazos" },
     linfocitoT:   { role: "apoptosis",  label: "CD8",    glyph: "cross",    arc: "#9370DB", silhouette: "teardrop", labelKit: "Cachetadas+Coscorrones" },

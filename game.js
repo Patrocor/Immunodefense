@@ -12524,19 +12524,19 @@
       var a = Math.min(1, c.life / c.max);
       ctx.save();
       ctx.translate(c.x, c.y);
-      ctx.fillStyle = "rgba(90, 130, 220, " + (0.10 + 0.16 * a) + ")";
+      ctx.fillStyle = "rgba(62, 36, 118, " + (0.22 + 0.28 * a) + ")";
       ctx.beginPath();
       ctx.moveTo(0, 0);
       ctx.arc(0, 0, c.len, c.ang - c.half, c.ang + c.half);
       ctx.closePath();
       ctx.fill();
-      ctx.fillStyle = "rgba(170, 140, 255, " + (0.07 + 0.12 * a) + ")";
+      ctx.fillStyle = "rgba(88, 42, 150, " + (0.14 + 0.22 * a) + ")";
       ctx.beginPath();
       ctx.moveTo(0, 0);
       ctx.arc(0, 0, c.len * 0.62, c.ang - c.half * 0.72, c.ang + c.half * 0.72);
       ctx.closePath();
       ctx.fill();
-      ctx.strokeStyle = "rgba(200, 220, 255, " + (0.22 + 0.28 * a) + ")";
+      ctx.strokeStyle = "rgba(140, 95, 200, " + (0.32 + 0.38 * a) + ")";
       ctx.lineWidth = Math.max(1.2, 1.6 * U);
       ctx.beginPath();
       ctx.arc(0, 0, c.len * 0.96, c.ang - c.half, c.ang + c.half);
@@ -22199,13 +22199,13 @@
     if (ultActive && t.mastocGeyser) {
       var gsr = t.mastocGeyser;
       ctx.save();
-      ctx.fillStyle = "rgba(90, 140, 230, 0.18)";
+      ctx.fillStyle = "rgba(58, 32, 110, 0.32)";
       ctx.beginPath();
       ctx.moveTo(0, 0);
       ctx.arc(0, 0, gsr.len * 0.92, gsr.ang - gsr.half, gsr.ang + gsr.half);
       ctx.closePath();
       ctx.fill();
-      ctx.strokeStyle = "rgba(170, 210, 255, 0.45)";
+      ctx.strokeStyle = "rgba(130, 85, 190, 0.55)";
       ctx.lineWidth = Math.max(1.4, 1.8 * U);
       ctx.beginPath();
       ctx.moveTo(0, 0);
@@ -29639,7 +29639,7 @@
     } else if (ef.kind === "histamineJet") {
       ctx.save();
       ctx.globalAlpha = alpha;
-      ctx.fillStyle = ef.trypt ? "rgba(190, 140, 255, 0.95)" : "rgba(120, 190, 255, 0.92)";
+      ctx.fillStyle = ef.trypt ? "rgba(118, 58, 175, 0.95)" : "rgba(72, 48, 140, 0.92)";
       ctx.beginPath(); ctx.arc(ef.x, ef.y, ef.r || 3 * U, 0, Math.PI * 2); ctx.fill();
       ctx.fillStyle = "rgba(255,255,255,0.55)";
       ctx.beginPath(); ctx.arc(ef.x - (ef.r || 3 * U) * 0.3, ef.y - (ef.r || 3 * U) * 0.3, (ef.r || 3 * U) * 0.35, 0, Math.PI * 2); ctx.fill();

@@ -4373,6 +4373,7 @@
       tissue: null,
       mitosis: null,
       nextMitosisAt: 12,
+      cellVignettes: null,
       patrol: [],
       restos: [],
       collectors: [],
@@ -4557,6 +4558,13 @@
     autoUlt: function (on) { devAutoUlt = (on !== false); return devAutoUlt; },
     // Congela la simulación (render sigue) — capturas de playtest.
     hold: function (on) { devShowcaseHold = (on !== false); return devShowcaseHold; },
+    vignettePlay: function (kind) {
+      ensureCellVignettes();
+      var act = spawnCellVignette(kind);
+      state.cellVignettes.act = act;
+      state.cellVignettes.gap = 0;
+      return act ? act.kind : null;
+    },
     quality: function () {
       return {
         low: !!QUALITY.low,
@@ -15295,6 +15303,7 @@
     updateInflammation(dt);
     updateMitosis(dt);
     updatePatrol(dt);
+    updateCellVignettes(dt);
     updateRestos(dt);
     updateCollectors(dt);
     updateBarricada(dt);
@@ -16029,6 +16038,376 @@
       ctx.fill();
       ctx.restore();
     }
+  }
+
+  // -------- VIÑETAS CELULARES (solo visual, Fase 1) ---------------------
+  // Una escena a la vez, en bordes/huecos. No tocan path, colocación ni ATP.
+  var VIGNETTE_KINDS = ["platelets", "keratin", "endothelium", "fibroblasts", "sweepers"];
+
+  function ensureCellVignettes() {
+    if (!state.cellVignettes) {
+      state.cellVignettes = { kindIdx: -1, act: null, gap: 2.2 };
+    }
+  }
+
+  function vignetteZoneBusy(x, y, r) {
+    var i;
+    for (i = 0; i < state.enemies.length; i++) {
+      var e = state.enemies[i];
+      if (!e || e.dead || e.dying || e.absorbing) continue;
+      if (Math.hypot(e.x - x, e.y - y) < r) return true;
+    }
+    for (i = 0; i < state.towers.length; i++) {
+      var tw = state.towers[i];
+      if (tw && Math.hypot(tw.x - x, tw.y - y) < r * 0.72) return true;
+    }
+    return false;
+  }
+
+  function vignetteCanRun() {
+    if (state.f2 || state.dissemination) return false;
+    if (QUALITY.low || QUALITY.motion <= 0) return false;
+    if (state.showTitle || state.showIntro || state.gameOver || state.victory) return false;
+    var live = 0;
+    for (var i = 0; i < state.enemies.length; i++) {
+      var e = state.enemies[i];
+      if (e && !e.dead && !e.dying && !e.absorbing) live++;
+    }
+    if (live > 12) return false;
+    if (state.mitosis) return false;
+    return true;
+  }
+
+  function vignetteBez(a, c, b, t) {
+    var u = 1 - t;
+    return {
+      x: u * u * a.x + 2 * u * t * c.x + t * t * b.x,
+      y: u * u * a.y + 2 * u * t * c.y + t * t * b.y
+    };
+  }
+
+  function spawnPlateletCaravan() {
+    var w = PATH.wounds && PATH.wounds[0];
+    if (!w) return null;
+    var lip = { x: w.x - 28 * U, y: w.y + 8 * U };
+    if (vignetteZoneBusy(lip.x, lip.y, 42 * U)) {
+      lip = { x: w.x + 28 * U, y: w.y + 8 * U };
+      if (vignetteZoneBusy(lip.x, lip.y, 42 * U)) return null;
+    }
+    var depot = {
+      x: lip.x < w.x ? FIELD_LEFT + FIELD_W * 0.18 : FIELD_RIGHT - FIELD_W * 0.18,
+      y: FIELD_TOP + FIELD_H * 0.24
+    };
+    if (distPointToPath(depot.x, depot.y) < 38 * U) depot.y += 18 * U;
+    if (vignetteZoneBusy(depot.x, depot.y, 36 * U)) return null;
+    var ctrl = {
+      x: (depot.x + lip.x) * 0.5,
+      y: Math.min(depot.y, lip.y) - 18 * U
+    };
+    return {
+      kind: "platelets", t: 0, max: 5.6,
+      depot: depot, lip: lip, ctrl: ctrl, n: 3
+    };
+  }
+
+  function spawnKeratinBrigade() {
+    var w = PATH.wounds && PATH.wounds[0];
+    var y = FIELD_TOP + FIELD_H * 0.078;
+    var left = !w || w.x > FIELD_LEFT + FIELD_W * 0.5;
+    var x0 = FIELD_LEFT + FIELD_W * (left ? 0.20 : 0.62);
+    var cells = [];
+    for (var i = 0; i < 4; i++) {
+      var x = x0 + i * 22 * U * (left ? 1 : -1);
+      if (vignetteZoneBusy(x, y, 26 * U)) return null;
+      cells.push({ x: x, y: y, phase: i * 0.7 });
+    }
+    return { kind: "keratin", t: 0, max: 4.4, cells: cells, left: left };
+  }
+
+  function spawnEndotheliumPatch() {
+    var v = PATH.exit;
+    if (!v) return null;
+    if (vignetteZoneBusy(v.x, v.y, 52 * U)) return null;
+    return { kind: "endothelium", t: 0, max: 5.2, x: v.x, y: v.y, n: 3 };
+  }
+
+  function spawnFibroblastStitch() {
+    var T = state.tissue;
+    var list = (T && T.fibroblasts) ? T.fibroblasts : [];
+    var a = null, b = null, i;
+    for (i = 0; i < list.length; i++) {
+      var fb = list[i];
+      if (vignetteZoneBusy(fb.x, fb.y, 40 * U)) continue;
+      if (!a) a = fb;
+      else if (!b) { b = fb; break; }
+    }
+    if (!a || !b) {
+      a = { x: FIELD_LEFT + FIELD_W * 0.20, y: FIELD_TOP + FIELD_H * 0.40 };
+      b = { x: FIELD_LEFT + FIELD_W * 0.28, y: FIELD_TOP + FIELD_H * 0.50 };
+      if (distPointToPath(a.x, a.y) < 48 * U || distPointToPath(b.x, b.y) < 48 * U) return null;
+      if (vignetteZoneBusy(a.x, a.y, 36 * U) || vignetteZoneBusy(b.x, b.y, 36 * U)) return null;
+    }
+    if (Math.hypot(a.x - b.x, a.y - b.y) < 28 * U) return null;
+    return { kind: "fibroblasts", t: 0, max: 4.2, a: a, b: b };
+  }
+
+  function spawnSweeperCrew() {
+    var left = Math.random() < 0.5;
+    var home = {
+      x: left ? FIELD_LEFT + FIELD_W * 0.12 : FIELD_RIGHT - FIELD_W * 0.12,
+      y: FIELD_TOP + FIELD_H * 0.78
+    };
+    if (vignetteZoneBusy(home.x, home.y, 40 * U)) {
+      left = !left;
+      home.x = left ? FIELD_LEFT + FIELD_W * 0.12 : FIELD_RIGHT - FIELD_W * 0.12;
+      if (vignetteZoneBusy(home.x, home.y, 40 * U)) return null;
+    }
+    var dust = { x: home.x + (left ? 22 : -22) * U, y: home.y - 10 * U };
+    var drop = PATH.exit
+      ? { x: PATH.exit.x + (left ? -48 : 48) * U, y: PATH.exit.y - 10 * U }
+      : { x: home.x, y: home.y - 20 * U };
+    return { kind: "sweepers", t: 0, max: 5.0, home: home, dust: dust, drop: drop, n: 2 };
+  }
+
+  function spawnCellVignette(kind) {
+    if (kind === "platelets") return spawnPlateletCaravan();
+    if (kind === "keratin") return spawnKeratinBrigade();
+    if (kind === "endothelium") return spawnEndotheliumPatch();
+    if (kind === "fibroblasts") return spawnFibroblastStitch();
+    if (kind === "sweepers") return spawnSweeperCrew();
+    return null;
+  }
+
+  function updateCellVignettes(dt) {
+    ensureCellVignettes();
+    var v = state.cellVignettes;
+    if (!vignetteCanRun()) {
+      if (v.act) {
+        v.act.t += dt * 1.6;
+        if (v.act.t >= v.act.max) v.act = null;
+      }
+      return;
+    }
+    if (v.act) {
+      v.act.t += dt;
+      if (v.act.t >= v.act.max) {
+        v.act = null;
+        v.gap = 2.6 + Math.random() * 1.6;
+      }
+      return;
+    }
+    v.gap -= dt;
+    if (v.gap > 0) return;
+    var act = null;
+    for (var tries = 0; tries < VIGNETTE_KINDS.length && !act; tries++) {
+      v.kindIdx = (v.kindIdx + 1) % VIGNETTE_KINDS.length;
+      act = spawnCellVignette(VIGNETTE_KINDS[v.kindIdx]);
+    }
+    v.act = act;
+    if (!act) v.gap = 3.2;
+  }
+
+  function paintVignettePlatelet(x, y, ang, loaded, alpha) {
+    var R = 4.4 * U;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.translate(x, y);
+    ctx.rotate(ang);
+    ctx.fillStyle = "rgba(0,0,0,0.16)";
+    ctx.beginPath(); ctx.ellipse(0, R * 0.7, R * 0.85, R * 0.28, 0, 0, Math.PI * 2); ctx.fill();
+    var g = ctx.createRadialGradient(-R * 0.25, -R * 0.25, R * 0.1, 0, 0, R);
+    g.addColorStop(0, "#ffe6ea");
+    g.addColorStop(1, "#d8788a");
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.ellipse(0, 0, R * 1.05, R * 0.72, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = "rgba(120, 40, 52, 0.45)";
+    ctx.lineWidth = Math.max(0.7, 0.85 * U);
+    ctx.stroke();
+    ctx.fillStyle = "#fff";
+    ctx.beginPath(); ctx.arc(-R * 0.22, -R * 0.08, R * 0.16, 0, Math.PI * 2);
+    ctx.arc(R * 0.22, -R * 0.08, R * 0.16, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "#2a1520";
+    ctx.beginPath(); ctx.arc(-R * 0.22, -R * 0.08, R * 0.08, 0, Math.PI * 2);
+    ctx.arc(R * 0.22, -R * 0.08, R * 0.08, 0, Math.PI * 2); ctx.fill();
+    if (loaded) {
+      ctx.fillStyle = "rgba(236, 214, 188, 0.95)";
+      ctx.beginPath(); ctx.ellipse(0, -R * 1.05, R * 0.85, R * 0.32, 0.15, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = "rgba(180, 150, 120, 0.7)";
+      ctx.lineWidth = Math.max(0.6, 0.75 * U);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function drawVignettePlatelets(act, k) {
+    var out = k < 0.58;
+    var dump = k >= 0.58 && k < 0.70;
+    var back = k >= 0.70;
+    var go = out ? (k / 0.58) : dump ? 1 : 1 - (k - 0.70) / 0.30;
+    if (go < 0) go = 0;
+    if (go > 1) go = 1;
+    for (var i = 0; i < act.n; i++) {
+      var lag = i * 0.14;
+      var gk = Math.max(0, Math.min(1, go - lag * (out || back ? 0.35 : 0)));
+      var p = vignetteBez(act.depot, act.ctrl, act.lip, out || dump ? gk : gk);
+      if (back) p = vignetteBez(act.lip, act.ctrl, act.depot, 1 - gk);
+      var ang = Math.atan2(act.lip.y - act.depot.y, act.lip.x - act.depot.x);
+      if (back) ang += Math.PI;
+      paintVignettePlatelet(p.x, p.y, ang, out || dump, 0.82);
+    }
+    if (dump) {
+      ctx.save();
+      ctx.globalAlpha = 0.55;
+      ctx.fillStyle = "rgba(236, 214, 188, 0.85)";
+      ctx.beginPath();
+      ctx.ellipse(act.lip.x, act.lip.y, 7 * U, 3.2 * U, 0.2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  function drawVignetteKeratin(act, k) {
+    var cells = act.cells;
+    var hop = (k * 3.2) % 1;
+    var pair = Math.min(cells.length - 2, Math.floor(k * 3.2));
+    for (var i = 0; i < cells.length; i++) {
+      var c = cells[i];
+      var bob = Math.sin(state.time * 3 + c.phase) * 1.2 * U;
+      ctx.save();
+      ctx.globalAlpha = 0.80;
+      ctx.translate(c.x, c.y + bob);
+      ctx.fillStyle = "#f0d8c0";
+      ctx.beginPath(); ctx.ellipse(0, 0, 5.2 * U, 4.2 * U, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = "rgba(140, 100, 70, 0.55)";
+      ctx.lineWidth = Math.max(0.7, 0.9 * U); ctx.stroke();
+      ctx.fillStyle = "rgba(90, 55, 35, 0.7)";
+      ctx.beginPath(); ctx.ellipse(0, 0, 1.6 * U, 1.9 * U, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = "#fff";
+      ctx.beginPath(); ctx.arc(-1.4 * U, -0.6 * U, 0.7 * U, 0, Math.PI * 2);
+      ctx.arc(1.4 * U, -0.6 * U, 0.7 * U, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    }
+    var a = cells[pair], b = cells[pair + 1];
+    if (a && b) {
+      var sx = a.x + (b.x - a.x) * hop;
+      var sy = a.y + (b.y - a.y) * hop - Math.sin(hop * Math.PI) * 8 * U;
+      paintKeratinSquame(sx, sy, 5.5 * U, 2.4 * U, hop * 1.2, 0.85);
+    }
+  }
+
+  function drawVignetteEndothelium(act, k) {
+    var rx = 26 * U, ry = 16 * U;
+    for (var i = 0; i < act.n; i++) {
+      var a0 = -0.9 + i * 0.55;
+      var a1 = a0 + 1.8;
+      var ang = a0 + (a1 - a0) * Math.min(1, k / 0.72);
+      var x = act.x + Math.cos(ang) * rx;
+      var y = act.y + Math.sin(ang) * ry * 0.72;
+      ctx.save();
+      ctx.globalAlpha = 0.78;
+      ctx.translate(x, y);
+      ctx.rotate(ang + Math.PI / 2);
+      ctx.fillStyle = "#c97880";
+      ctx.beginPath(); ctx.ellipse(0, 0, 6.2 * U, 3.1 * U, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = "rgba(90, 30, 40, 0.5)";
+      ctx.lineWidth = Math.max(0.7, 0.85 * U); ctx.stroke();
+      ctx.fillStyle = "#fff";
+      ctx.beginPath(); ctx.arc(-1.5 * U, -0.4 * U, 0.7 * U, 0, Math.PI * 2);
+      ctx.arc(1.5 * U, -0.4 * U, 0.7 * U, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    }
+    if (k > 0.55) {
+      var tileA = 0.15;
+      ctx.save();
+      ctx.globalAlpha = Math.min(1, (k - 0.55) / 0.25) * 0.55;
+      ctx.strokeStyle = "rgba(220, 150, 150, 0.85)";
+      ctx.lineWidth = Math.max(1.4, 1.8 * U);
+      ctx.beginPath();
+      ctx.ellipse(act.x, act.y, rx * 0.92, ry * 0.68, 0, tileA, tileA + 0.7);
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  function drawVignetteFibroblasts(act, k) {
+    var pull = Math.sin(Math.min(1, k / 0.75) * Math.PI);
+    var ax = act.a.x, ay = act.a.y, bx = act.b.x, by = act.b.y;
+    var mx = (ax + bx) / 2, my = (ay + by) / 2;
+    var taut = 1 - pull * 0.08;
+    var cx = mx, cy = my - 10 * U * (1 - pull);
+    ctx.save();
+    ctx.globalAlpha = 0.70;
+    ctx.strokeStyle = "rgba(236, 220, 200, 0.9)";
+    ctx.lineWidth = Math.max(1.1, 1.3 * U);
+    ctx.beginPath();
+    ctx.moveTo(ax, ay);
+    ctx.quadraticCurveTo(cx, cy, ax + (bx - ax) * taut, ay + (by - ay) * taut);
+    ctx.stroke();
+    ctx.restore();
+    if (k > 0.78) {
+      ctx.save();
+      ctx.globalAlpha = (k - 0.78) / 0.22 * 0.7;
+      ctx.fillStyle = "rgba(210, 180, 150, 0.85)";
+      ctx.beginPath(); ctx.arc(mx, my, 3.2 * U, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  function drawVignetteSweepers(act, k) {
+    var grab = k < 0.22;
+    var haul = k >= 0.22 && k < 0.78;
+    var done = k >= 0.78;
+    var tGo = grab ? 0 : haul ? (k - 0.22) / 0.56 : 1;
+    var from = grab ? act.home : act.dust;
+    var to = haul || done ? act.drop : act.dust;
+    if (grab) { from = act.home; to = act.dust; tGo = k / 0.22; }
+    for (var i = 0; i < act.n; i++) {
+      var lag = i * 0.12;
+      var tk = Math.max(0, Math.min(1, tGo - lag));
+      var x = from.x + (to.x - from.x) * tk;
+      var y = from.y + (to.y - from.y) * tk + Math.sin(tk * Math.PI) * -6 * U;
+      var R = 5.2 * U;
+      ctx.save();
+      ctx.globalAlpha = 0.78;
+      ctx.translate(x, y);
+      ctx.fillStyle = "#6aa8e0";
+      ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = "#3d7ab8";
+      ctx.beginPath(); ctx.arc(-R * 0.55, 0, R * 0.38, 0, Math.PI * 2);
+      ctx.arc(R * 0.55, 0, R * 0.38, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = "#fff";
+      ctx.beginPath(); ctx.arc(-R * 0.2, -R * 0.15, R * 0.16, 0, Math.PI * 2);
+      ctx.arc(R * 0.2, -R * 0.15, R * 0.16, 0, Math.PI * 2); ctx.fill();
+      if (haul || (done && i === 0)) {
+        ctx.fillStyle = "rgba(160, 140, 110, 0.75)";
+        ctx.beginPath(); ctx.arc(0, R * 0.85, 1.8 * U, 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.restore();
+    }
+    if (grab) {
+      ctx.save();
+      ctx.globalAlpha = 0.55;
+      ctx.fillStyle = "rgba(160, 140, 110, 0.8)";
+      ctx.beginPath(); ctx.arc(act.dust.x, act.dust.y, 1.8 * U, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  function drawCellVignettes() {
+    if (QUALITY.low) return;
+    var v = state.cellVignettes;
+    if (!v || !v.act) return;
+    var act = v.act;
+    var k = Math.max(0, Math.min(1, act.t / act.max));
+    var fade = (k < 0.08) ? k / 0.08 : (k > 0.90 ? (1 - k) / 0.10 : 1);
+    ctx.save();
+    ctx.globalAlpha = fade;
+    if (act.kind === "platelets") drawVignettePlatelets(act, k);
+    else if (act.kind === "keratin") drawVignetteKeratin(act, k);
+    else if (act.kind === "endothelium") drawVignetteEndothelium(act, k);
+    else if (act.kind === "fibroblasts") drawVignetteFibroblasts(act, k);
+    else if (act.kind === "sweepers") drawVignetteSweepers(act, k);
+    ctx.restore();
   }
 
   // -------- INPUT ---------------------------------------------------------
@@ -34024,6 +34403,7 @@
     if (!state.dissemination) {
       safeDraw("PlasmaFlow", drawPlasmaFlow);
       safeDraw("Wound", drawWound);
+      if (!state.f2) safeDraw("CellVignettes", drawCellVignettes);
     }
     safeDraw("LymphNode", drawLymphNode);
     safeDraw("EnergyDrops", drawEnergyDrops);

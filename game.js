@@ -11630,34 +11630,34 @@
   // Habichuela + 4 seudópodos en cápsula. Los dedos se pintan aparte:
   // si se interpolan en un solo path, a escala de juego se leen como papa.
   var MACRO_LOBE_ANG = [0.38, 1.72, 3.42, 5.18];
-  var MACRO_LOBE_W = [0.30, 0.25, 0.32, 0.23];
-  var MACRO_LOBE_LEN = [0.98, 0.82, 0.92, 0.78];
+  var MACRO_LOBE_W = [0.36, 0.30, 0.38, 0.28];
+  var MACRO_LOBE_LEN = [0.92, 0.76, 0.86, 0.72];
   function macrophageLobeTip(i, time, seed) {
     return MACRO_LOBE_ANG[i] + seed * 0.10 + Math.sin(time * 0.7 + i * 1.3) * 0.05;
   }
   function macrophageFingerGeom(i, R, time, seed, reach) {
     var a = macrophageLobeTip(i, time, seed);
-    var pulse = 0.92 + 0.08 * Math.sin(time * (1.05 + i * 0.19) + seed + i);
-    var len = R * MACRO_LOBE_LEN[i] * pulse * (0.78 + 0.22 * reach);
-    var w = R * MACRO_LOBE_W[i] * (0.94 + 0.06 * reach);
+    var pulse = 0.94 + 0.06 * Math.sin(time * (1.05 + i * 0.19) + seed + i);
+    var len = R * MACRO_LOBE_LEN[i] * pulse * (0.84 + 0.16 * reach);
+    var w = R * MACRO_LOBE_W[i] * (0.96 + 0.04 * reach);
     return {
       a: a,
-      bx: Math.cos(a) * R * 0.22,
-      by: Math.sin(a) * R * 0.19,
+      bx: Math.cos(a) * R * 0.34,
+      by: Math.sin(a) * R * 0.30,
       tx: Math.cos(a) * len,
-      ty: Math.sin(a) * len * 0.93,
+      ty: Math.sin(a) * len * 0.92,
       w: w
     };
   }
   function macrophageFillFinger(fg) {
     var mx = (fg.bx + fg.tx) * 0.5;
     var my = (fg.by + fg.ty) * 0.5;
-    var hw = Math.hypot(fg.tx - fg.bx, fg.ty - fg.by) * 0.5 + fg.w * 0.12;
+    var hw = Math.hypot(fg.tx - fg.bx, fg.ty - fg.by) * 0.5 + fg.w * 0.20;
     ctx.beginPath();
-    ctx.ellipse(mx, my, hw, fg.w * 0.78, fg.a, 0, Math.PI * 2);
+    ctx.ellipse(mx, my, hw, fg.w * 1.02, fg.a, 0, Math.PI * 2);
     ctx.fill();
     ctx.beginPath();
-    ctx.arc(fg.tx, fg.ty, fg.w * 0.95, 0, Math.PI * 2);
+    ctx.arc(fg.tx, fg.ty, fg.w * 0.90, 0, Math.PI * 2);
     ctx.fill();
   }
   function macrophageBodyPath(R, time, seed, reach) {
@@ -11668,9 +11668,9 @@
     for (var i = 0; i <= steps; i++) {
       var ang = (i / steps) * Math.PI * 2 + seed * 0.06;
       var indent = Math.pow(Math.max(0, Math.cos(ang + 2.58)), 2);
-      var r = R * (0.52 - indent * 0.14) * breathe * stretch;
+      var r = R * (0.64 - indent * 0.18) * breathe * stretch;
       var px = Math.cos(ang) * r;
-      var py = Math.sin(ang) * r * 0.86;
+      var py = Math.sin(ang) * r * 0.84;
       if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
     }
     ctx.closePath();
@@ -11683,39 +11683,32 @@
     ctx.lineCap = "round";
     ctx.fillStyle = cold;
     for (i = 0; i < 4; i++) macrophageFillFinger(fingers[i]);
-    macrophageBodyPath(R, time, seed, reach);
-    var body = ctx.createRadialGradient(-R * 0.16, -R * 0.14, R * 0.06, 0, 0, R * 0.70);
+    ctx.fillStyle = col;
+    for (i = 0; i < 4; i++) macrophageFillFinger(fingers[i]);
+    var body = ctx.createRadialGradient(-R * 0.16, -R * 0.14, R * 0.06, 0, 0, R * 0.78);
     body.addColorStop(0, hitFlash ? "#ffd0d0" : "#f7cf95");
     body.addColorStop(0.48, col);
     body.addColorStop(1, cold);
-    ctx.fillStyle = body;
-    ctx.fill();
-    ctx.fillStyle = col;
-    for (i = 0; i < 4; i++) {
-      fg = fingers[i];
-      ctx.beginPath();
-      ctx.ellipse(
-        (fg.bx + fg.tx) * 0.52,
-        (fg.by + fg.ty) * 0.52,
-        Math.hypot(fg.tx - fg.bx, fg.ty - fg.by) * 0.38,
-        fg.w * 0.62,
-        fg.a, 0, Math.PI * 2
-      );
-      ctx.fill();
-      ctx.beginPath();
-      ctx.arc(fg.tx, fg.ty, fg.w * 0.88, 0, Math.PI * 2);
-      ctx.fill();
-    }
     ctx.strokeStyle = cold;
     ctx.lineWidth = Math.max(1.4, 1.9 * (R / 28));
-    macrophageBodyPath(R, time, seed, reach);
-    ctx.stroke();
     for (i = 0; i < 4; i++) {
       fg = fingers[i];
+      var mx = (fg.bx + fg.tx) * 0.5;
+      var my = (fg.by + fg.ty) * 0.5;
+      var hw = Math.hypot(fg.tx - fg.bx, fg.ty - fg.by) * 0.5 + fg.w * 0.20;
       ctx.beginPath();
-      ctx.arc(fg.tx, fg.ty, fg.w * 0.88, 0, Math.PI * 2);
+      ctx.ellipse(mx, my, hw, fg.w * 1.02, fg.a, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(fg.tx, fg.ty, fg.w * 0.90, 0, Math.PI * 2);
       ctx.stroke();
     }
+    macrophageBodyPath(R, time, seed, reach);
+    ctx.fillStyle = body;
+    ctx.fill();
+    ctx.strokeStyle = cold;
+    macrophageBodyPath(R, time, seed, reach);
+    ctx.stroke();
     ctx.fillStyle = "rgba(255, 236, 190, 0.28)";
     for (i = 0; i < 4; i++) {
       fg = fingers[i];

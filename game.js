@@ -14407,6 +14407,16 @@
     });
   }
 
+  function continueFromPhase1Cinematic() {
+    state.cinematicEnd = null;
+    UI.cinematicBtn = null;
+    firePhaseTransitionBodyMap({
+      target: "dissemination",
+      outcome: "overload",
+      fired: false
+    });
+  }
+
   function skipPhaseTransition() {
     var ph = state.phaseTransition;
     if (!ph) return false;
@@ -16493,8 +16503,7 @@
     // Cinematic end overlay: only the Continue button responds (after T+7s).
     if (state.cinematicEnd) {
       if (state.cinematicEnd.buttonShown && UI.cinematicBtn && inRect(x, y, UI.cinematicBtn)) {
-        showMsg("La Fase 2 esta en desarrollo. Reiniciando Fase 1...");
-        restartFromLevel1();
+        continueFromPhase1Cinematic();
       }
       return;
     }
@@ -34141,7 +34150,7 @@
       ctx.font = "bold 16px Fredoka, sans-serif";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.fillText("▶ CONTINUAR A FASE 2 (Próximamente)", 0, 0);
+      ctx.fillText("▶ CONTINUAR A DISEMINACIÓN", 0, 0);
       ctx.restore();
     }
     ctx.restore();

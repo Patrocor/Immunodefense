@@ -45,8 +45,13 @@ assert.ok(mac.harpoonTarget, "tiene objetivo");
 assert.equal(st.macrofagoUltimate.ready, false, "consume la carga");
 
 game.__lerr = null;
-g.step(0.35, 0.05);
+g.step(0.20, 0.05);
 assert.equal(game.__lerr, null, "render del seudópodo-arpón no debe fallar");
-assert.ok(mac.harpoonPhase === "pull" || mac.engulfTarget, "pasa a pull o fagocitosis");
+assert.ok(mac.harpoonPhase === "throw" || mac.harpoonPhase === "grab", "el seudópodo sale o ya atrapó");
+g.step(0.28, 0.04);
+assert.ok(
+  mac.harpoonPhase === "grab" || mac.harpoonPhase === "pull" || mac.engulfTarget,
+  "pasa a grab, pull o fagocitosis"
+);
 
 console.log("Smoke OK: Arpón del macrófago");

@@ -10825,17 +10825,19 @@
   var ENGULF_SEEK = 150;          // px diseño: detecta germen vulnerable
   var ENGULF_RANGE = 26;          // px diseño: distancia para empezar a engullir
 
-  // -------- ULTIMATE MACRÓFAGO: ARPÓN (lanza-cadena estilo "¡Ven aquí!") --
-  // Carga única y global (no por macrófago): cuando está lista, el jugador
-  // la tappea y se ejecuta sobre el macrófago vivo con más HP, sobre el
-  // germen más avanzado dentro de rango. Throw → Pull → handoff a la
-  // fagocitosis normal (lick/lift/engulf) ya existente.
+  // -------- ULTIMATE MACRÓFAGO: ARPÓN (seudópodo + copa fagocítica) --
+  // Carga única y global (no por macrófago): throw → grab (copa cierra)
+  // → pull (tirón a la boca) → fagocitosis lick/lift/engulf.
   var MACROFAGO_ULT_CHARGE_SEC = 40;
   var MACROFAGO_ULT_RANGE = 250;   // px diseño (* U)
-  var HARPOON_THROW_TIME = 0.25;
-  var HARPOON_PULL_TIME = 0.4;
-  var HARPOON_FLAME_TIME = HARPOON_THROW_TIME + HARPOON_PULL_TIME + 0.3;
+  var HARPOON_THROW_TIME = 0.28;
+  var HARPOON_GRAB_TIME = 0.14;
+  var HARPOON_PULL_TIME = 0.42;
+  var HARPOON_FLAME_TIME = HARPOON_THROW_TIME + HARPOON_GRAB_TIME + HARPOON_PULL_TIME + 0.25;
   var HARPOON_SHOUT_TIME = 0.9;
+  function macrophageMouthOf(g) {
+    return { x: g.x, y: g.y + 10 * U * (g.scale || 1) };
+  }
   var GUARDIAN_COL = "#E8923A", GUARDIAN_COLD = "#A8581A";   // ámbar macrófago
   var HARPOON_COLOR = "#C86820";    // citoplasma del seudópodo-arpón (no cadena metálica)
   var ENGULF_TIME = 0.9;          // s que tarda la fagocitosis
@@ -10886,38 +10888,73 @@
     g.scale = 1;
   }
 
-  // Ultimate "Arpón": throw (lanza la cadena) → pull (tirón brusco hacia
-  // la boca) → handoff a la fagocitosis normal de 3 fases ya existente.
+  // Ultimate "Arpón": throw (seudópodo) → grab (copa cierra) → pull
+  // (tirón a la boca) → fagocitosis normal de 3 fases.
   function updateHarpoon(g, dt) {
     var e = g.harpoonTarget;
     if (!e || e.dead || e.dying || state.enemies.indexOf(e) === -1) {
-      if (e) e.beingEngulfed = false;
+      if (e) { e.beingEngulfed = false; e.engulfScale = null; }
       g.harpoonTarget = null; g.harpoonPhase = null;
+      g.mouthOpen = 0;
       return;
     }
     g.harpoonT += dt;
+    var mouth = macrophageMouthOf(g);
     if (g.harpoonPhase === "throw") {
       var tt = Math.min(1, g.harpoonT / HARPOON_THROW_TIME);
-      g.harpoonTipX = g.x + (e.x - g.x) * tt;
-      g.harpoonTipY = g.y + (e.y - g.y) * tt;
+      var te = 1 - Math.pow(1 - tt, 3);
+      g.harpoonTipX = mouth.x + (e.x - mouth.x) * te;
+      g.harpoonTipY = mouth.y + (e.y - mouth.y) * te;
+      g.mouthOpen = 0.32 + tt * 0.18;
       if (tt >= 1) {
-        g.harpoonPhase = "pull";
+        g.harpoonPhase = "grab";
         g.harpoonT = 0;
-        g.harpoonFromX = e.x; g.harpoonFromY = e.y;
+        g.harpoonTipX = e.x;
+        g.harpoonTipY = e.y;
+        g.harpoonFromX = e.x;
+        g.harpoonFromY = e.y;
+        e.hitFlash = 0.20;
+        triggerHitstop(0.055);
+        var pk, pa, ps;
+        for (pk = 0; pk < 8; pk++) {
+          pa = Math.random() * Math.PI * 2;
+          ps = (18 + Math.random() * 26) * U;
+          pushEffect({ kind: "particle", x: e.x, y: e.y, vx: Math.cos(pa) * ps, vy: Math.sin(pa) * ps - 6 * U, life: 0.28, max: 0.32, color: GUARDIAN_COL });
+        }
       }
       return;
     }
-    // PULL: tirón brusco (ease-in) hacia el macrófago.
+    if (g.harpoonPhase === "grab") {
+      var gt = Math.min(1, g.harpoonT / HARPOON_GRAB_TIME);
+      var shake = (1 - gt) * 3.4 * U;
+      e.x = g.harpoonFromX + Math.sin((state.time || 0) * 42) * shake;
+      e.y = g.harpoonFromY + Math.cos((state.time || 0) * 38) * shake;
+      e.engulfScale = 1 - gt * 0.08;
+      g.harpoonTipX = e.x;
+      g.harpoonTipY = e.y;
+      g.mouthOpen = 0.55;
+      if (gt >= 1) {
+        g.harpoonPhase = "pull";
+        g.harpoonT = 0;
+        e.x = g.harpoonFromX;
+        e.y = g.harpoonFromY;
+      }
+      return;
+    }
+    // PULL: la copa ya cerró; anticipa y tira hacia la boca.
     var pt = Math.min(1, g.harpoonT / HARPOON_PULL_TIME);
-    var pe = pt * pt;
-    e.x = g.harpoonFromX + (g.x - g.harpoonFromX) * pe;
-    e.y = g.harpoonFromY + (g.y - g.harpoonFromY) * pe;
+    var pe = pt < 0.16 ? pt * 0.10 : Math.pow((pt - 0.16) / 0.84, 2.15);
+    e.x = g.harpoonFromX + (mouth.x - g.harpoonFromX) * pe;
+    e.y = g.harpoonFromY + (mouth.y - g.harpoonFromY) * pe;
+    e.engulfScale = 0.92 - pe * 0.10;
+    g.mouthOpen = 0.50 + pe * 0.28;
     if (pt >= 1) {
       g.harpoonTarget = null;
       g.harpoonPhase = null;
       g.engulfTarget = e;
       g.engulfT = 0;
-      g.engulfSx = e.x; g.engulfSy = e.y;
+      g.engulfSx = e.x;
+      g.engulfSy = e.y;
     }
   }
 
@@ -10958,8 +10995,9 @@
     best.harpoonTarget = target;
     best.harpoonPhase = "throw";
     best.harpoonT = 0;
-    best.harpoonTipX = best.x + (target.x - best.x) * 0.18;
-    best.harpoonTipY = best.y + (target.y - best.y) * 0.18;
+    var mouth0 = macrophageMouthOf(best);
+    best.harpoonTipX = mouth0.x;
+    best.harpoonTipY = mouth0.y;
     best.harpoonFlameT = HARPOON_FLAME_TIME;
     best.harpoonShoutT = HARPOON_SHOUT_TIME;
     best.scale = 1.15;
@@ -11451,77 +11489,96 @@
     }
     if (g.harpoonPhase && g.harpoonTarget) {
       var e = g.harpoonTarget;
+      var mouthH = macrophageMouthOf(g);
       var farX = (g.harpoonPhase === "throw") ? g.harpoonTipX : e.x;
       var farY = (g.harpoonPhase === "throw") ? g.harpoonTipY : e.y;
-      var dxH = farX - g.x, dyH = farY - g.y;
+      var dxH = farX - mouthH.x, dyH = farY - mouthH.y;
       var lenH = Math.hypot(dxH, dyH) || 1;
       var nxH = dxH / lenH, nyH = dyH / lenH;
-      var pxH = -nyH, pyH = nxH;
-      var pullK = (g.harpoonPhase === "pull") ? 1 : 0;
-      var segsH = 8;
+      var close = 0;
+      if (g.harpoonPhase === "grab") close = Math.min(1, g.harpoonT / HARPOON_GRAB_TIME);
+      if (g.harpoonPhase === "pull") close = 1;
+      var taut = close;
+      var segsH = 10;
       function harpoonWave(t) {
-        var taper = 1 - t * 0.35;
-        var wob = Math.sin((state.time || 0) * 8 + t * 8) * (10 - pullK * 4) * U * taper;
+        var taper = 1 - t * 0.42;
+        var wob = Math.sin((state.time || 0) * (7.2 - taut * 3.5) + t * 7) * (10 - taut * 7.5) * U * taper;
         return {
-          x: g.x + dxH * t + pxH * wob,
-          y: g.y + dyH * t + pyH * wob
+          x: mouthH.x + dxH * t + (-nyH) * wob,
+          y: mouthH.y + dyH * t + nxH * wob
         };
+      }
+      var w0 = (16.5 - taut * 1.8) * U;
+      var w1 = (7.2 + close * 2.2) * U;
+      var left = [], right = [], hi, tH, pH, p2, ddx, ddy, dl, ox, oy, ww;
+      for (hi = 0; hi <= segsH; hi++) {
+        tH = hi / segsH;
+        pH = harpoonWave(tH);
+        p2 = harpoonWave(Math.min(1, tH + 0.05));
+        ddx = p2.x - pH.x; ddy = p2.y - pH.y;
+        dl = Math.hypot(ddx, ddy) || 1;
+        ox = -ddy / dl; oy = ddx / dl;
+        ww = w0 + (w1 - w0) * tH;
+        left.push({ x: pH.x + ox * ww * 0.5, y: pH.y + oy * ww * 0.5 });
+        right.push({ x: pH.x - ox * ww * 0.5, y: pH.y - oy * ww * 0.5 });
       }
       ctx.save();
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
       // Cuerda viva: seudópodo grueso ondulante, no palo ni cadena.
-      ctx.strokeStyle = GUARDIAN_COLD;
-      ctx.lineWidth = (15 - pullK * 2.2) * U;
       ctx.beginPath();
-      ctx.moveTo(g.x, g.y);
-      var hi;
+      ctx.moveTo(left[0].x, left[0].y);
+      for (hi = 1; hi < left.length; hi++) ctx.lineTo(left[hi].x, left[hi].y);
+      for (hi = right.length - 1; hi >= 0; hi--) ctx.lineTo(right[hi].x, right[hi].y);
+      ctx.closePath();
+      var armGrad = ctx.createLinearGradient(mouthH.x, mouthH.y, farX, farY);
+      armGrad.addColorStop(0, GUARDIAN_COL);
+      armGrad.addColorStop(0.55, HARPOON_COLOR);
+      armGrad.addColorStop(1, GUARDIAN_COLD);
+      ctx.fillStyle = armGrad;
+      ctx.fill();
+      ctx.strokeStyle = GUARDIAN_COLD;
+      ctx.lineWidth = 1.6 * U;
+      ctx.stroke();
+      ctx.strokeStyle = "rgba(255, 220, 160, 0.50)";
+      ctx.lineWidth = 2.6 * U;
+      ctx.beginPath();
+      ctx.moveTo(mouthH.x, mouthH.y);
       for (hi = 1; hi <= segsH; hi++) {
         var midH = harpoonWave((hi - 0.5) / segsH);
         var endH = harpoonWave(hi / segsH);
         ctx.quadraticCurveTo(midH.x, midH.y, endH.x, endH.y);
       }
       ctx.stroke();
-      ctx.strokeStyle = HARPOON_COLOR;
-      ctx.lineWidth = (11 - pullK * 1.6) * U;
-      ctx.beginPath();
-      ctx.moveTo(g.x, g.y);
-      for (hi = 1; hi <= segsH; hi++) {
-        midH = harpoonWave((hi - 0.5) / segsH);
-        endH = harpoonWave(hi / segsH);
-        ctx.quadraticCurveTo(midH.x, midH.y, endH.x, endH.y);
-      }
-      ctx.stroke();
-      ctx.strokeStyle = "rgba(255, 220, 160, 0.62)";
-      ctx.lineWidth = 3.2 * U;
-      ctx.beginPath();
-      ctx.moveTo(g.x, g.y);
-      for (hi = 1; hi <= segsH; hi++) {
-        midH = harpoonWave((hi - 0.5) / segsH);
-        endH = harpoonWave(hi / segsH);
-        ctx.quadraticCurveTo(midH.x, midH.y, endH.x, endH.y);
-      }
-      ctx.stroke();
-      // Copa fagocítica: dos lóbulos que cierran al tirar (el gancho).
-      var cupOpen = 0.95 - pullK * 0.62;
-      var cupR = 18 * U;
+      // Copa fagocítica: tres lóbulos gordos que envuelven al germen.
+      var germR = ((e.def && e.def.radius) || 12) * U * (e.radiusScale || 1);
+      if (e.engulfScale != null) germR *= e.engulfScale;
+      var cupR = Math.max(14 * U, germR * (1.12 + (1 - close) * 0.58));
       var baseAng = Math.atan2(nyH, nxH);
+      var spread = 0.58 + (1 - close) * 0.82;
+      if (close > 0.12) {
+        ctx.fillStyle = "rgba(232, 146, 58, " + (0.22 + close * 0.28) + ")";
+        ctx.beginPath();
+        ctx.arc(farX, farY, germR * (0.62 + close * 0.42), 0, Math.PI * 2);
+        ctx.fill();
+      }
       ctx.fillStyle = GUARDIAN_COL;
       ctx.strokeStyle = GUARDIAN_COLD;
-      ctx.lineWidth = 1.6 * U;
-      for (var lobe = -1; lobe <= 1; lobe += 2) {
-        var la = baseAng + lobe * (0.55 + cupOpen * 0.70);
-        var lx1 = farX + Math.cos(la) * cupR * 0.15;
-        var ly1 = farY + Math.sin(la) * cupR * 0.15;
-        var lx2 = farX + Math.cos(la) * cupR;
-        var ly2 = farY + Math.sin(la) * cupR;
-        var lpx = -Math.sin(la) * cupR * 0.42;
-        var lpy = Math.cos(la) * cupR * 0.42;
+      ctx.lineWidth = 1.5 * U;
+      var cupOff = [-1, 0, 1];
+      for (var ci = 0; ci < 3; ci++) {
+        var la = baseAng + cupOff[ci] * spread;
+        var reachC = cupR * (0.82 + (1 - close) * 0.38);
+        var txC = farX + Math.cos(la) * reachC;
+        var tyC = farY + Math.sin(la) * reachC;
+        var mxC = farX + Math.cos(la) * reachC * 0.46;
+        var myC = farY + Math.sin(la) * reachC * 0.46;
         ctx.beginPath();
-        ctx.moveTo(farX, farY);
-        ctx.quadraticCurveTo(lx1 + lpx, ly1 + lpy, lx2, ly2);
-        ctx.quadraticCurveTo(lx1 - lpx * 0.35, ly1 - lpy * 0.35, farX, farY);
-        ctx.closePath();
+        ctx.ellipse(mxC, myC, reachC * 0.50, (6.2 + close * 2.0) * U, la, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(txC, tyC, (5.6 + close * 1.8) * U, 0, Math.PI * 2);
         ctx.fill();
         ctx.stroke();
       }
@@ -11529,6 +11586,14 @@
       ctx.beginPath();
       ctx.arc(farX - nxH * 2 * U, farY - nyH * 2 * U, 3.2 * U, 0, Math.PI * 2);
       ctx.fill();
+      if (g.harpoonPhase === "grab") {
+        var grabA = 0.55 * (1 - close);
+        ctx.strokeStyle = "rgba(255, 220, 140, " + grabA + ")";
+        ctx.lineWidth = 2.4 * U;
+        ctx.beginPath();
+        ctx.arc(farX, farY, germR + (8 + close * 6) * U, 0, Math.PI * 2);
+        ctx.stroke();
+      }
       ctx.restore();
     }
     if ((g.harpoonShoutT || 0) > 0) {

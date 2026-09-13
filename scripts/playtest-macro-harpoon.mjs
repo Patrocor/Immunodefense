@@ -67,7 +67,7 @@ await page.evaluate(() => {
   const g = window.__game;
   g.tryMacroUlt();
   g.hold(false);
-  g.step(0.12, 0.03);
+  g.step(0.10, 0.02);
   g.hold(true);
 });
 await sleep(80);
@@ -76,7 +76,16 @@ await page.screenshot({ path: join(ART, "macro_harpoon_throw.png") });
 await page.evaluate(() => {
   const g = window.__game;
   g.hold(false);
-  g.step(0.30, 0.03);
+  g.step(0.24, 0.02);
+  g.hold(true);
+});
+await sleep(80);
+await page.screenshot({ path: join(ART, "macro_harpoon_grab.png") });
+
+await page.evaluate(() => {
+  const g = window.__game;
+  g.hold(false);
+  g.step(0.26, 0.02);
   g.hold(true);
 });
 await sleep(80);

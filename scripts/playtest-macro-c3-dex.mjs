@@ -54,6 +54,19 @@ await page.screenshot({
   path: join(ART, "macro_idle_closeup.png"),
   clip: { x: macBox.x, y: macBox.y, width: macBox.w, height: macBox.h },
 });
+const macBtn = await page.evaluate(() => {
+  const v = window.__game.ui.macrofagoBtn;
+  return { x: v.x - 6, y: v.y - 6, w: v.w + 12, h: v.h + 12 };
+});
+await page.screenshot({
+  path: join(ART, "macro_dock_button.png"),
+  clip: {
+    x: Math.max(0, macBtn.x),
+    y: Math.max(0, macBtn.y),
+    width: macBtn.w,
+    height: macBtn.h,
+  },
+});
 const c3 = await page.evaluate(() => {
   const v = window.__game.ui.c3bMeter;
   return { x: v.x - 8, y: v.y - 8, w: v.w + 16, h: v.h + 16 };

@@ -11638,8 +11638,9 @@
   function macrophageFingerGeom(i, R, time, seed, reach) {
     var a = macrophageLobeTip(i, time, seed);
     var pulse = 0.94 + 0.06 * Math.sin(time * (1.05 + i * 0.19) + seed + i);
-    var len = R * MACRO_LOBE_LEN[i] * pulse * (0.84 + 0.16 * reach);
-    var w = R * MACRO_LOBE_W[i] * (0.96 + 0.04 * reach);
+    var compact = R < 18 ? 0.78 : 1;
+    var len = R * MACRO_LOBE_LEN[i] * pulse * (0.84 + 0.16 * reach) * compact;
+    var w = R * MACRO_LOBE_W[i] * (0.96 + 0.04 * reach) * (R < 18 ? 0.84 : 1);
     return {
       a: a,
       bx: Math.cos(a) * R * 0.34,
@@ -11758,15 +11759,18 @@
     ctx.save();
     ctx.translate(cx, cy);
     paintMacrophageCell(R, time || 0, 0, 1, GUARDIAN_COL, GUARDIAN_COLD, false);
+    var eyeR = Math.max(2.1, R * 0.16);
+    var gap = R * 0.20;
+    var eyeY = -R * 0.06;
     ctx.fillStyle = "#fff";
     ctx.beginPath();
-    ctx.arc(-R * 0.18, -R * 0.12, R * 0.15, 0, Math.PI * 2);
-    ctx.arc(R * 0.22, -R * 0.12, R * 0.15, 0, Math.PI * 2);
+    ctx.arc(-gap, eyeY, eyeR, 0, Math.PI * 2);
+    ctx.arc(gap, eyeY, eyeR, 0, Math.PI * 2);
     ctx.fill();
     ctx.fillStyle = "#1a1a22";
     ctx.beginPath();
-    ctx.arc(-R * 0.14, -R * 0.12, R * 0.08, 0, Math.PI * 2);
-    ctx.arc(R * 0.26, -R * 0.12, R * 0.08, 0, Math.PI * 2);
+    ctx.arc(-gap + eyeR * 0.18, eyeY, eyeR * 0.52, 0, Math.PI * 2);
+    ctx.arc(gap + eyeR * 0.18, eyeY, eyeR * 0.52, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
   }
@@ -12204,7 +12208,7 @@
     }
     ctx.globalAlpha = enabled ? 1 : 0.45;
     var cx = v.x + v.w / 2, cy = v.y + v.h * 0.42;
-    var mR = v.h * 0.22;
+    var mR = v.h * 0.26;
     drawMacrofagoMini(cx, cy, mR, state.time);
     // Costo abajo — gota ATP, no emoji.
     var costStr = String(MACROFAGO_MANUAL_COST);

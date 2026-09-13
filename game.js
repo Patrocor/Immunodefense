@@ -10905,7 +10905,6 @@
       var te = 1 - Math.pow(1 - tt, 3);
       g.harpoonTipX = mouth.x + (e.x - mouth.x) * te;
       g.harpoonTipY = mouth.y + (e.y - mouth.y) * te;
-      g.mouthOpen = 0.32 + tt * 0.18;
       if (tt >= 1) {
         g.harpoonPhase = "grab";
         g.harpoonT = 0;
@@ -10932,7 +10931,6 @@
       e.engulfScale = 1 - gt * 0.08;
       g.harpoonTipX = e.x;
       g.harpoonTipY = e.y;
-      g.mouthOpen = 0.55;
       if (gt >= 1) {
         g.harpoonPhase = "pull";
         g.harpoonT = 0;
@@ -10947,7 +10945,6 @@
     e.x = g.harpoonFromX + (mouth.x - g.harpoonFromX) * pe;
     e.y = g.harpoonFromY + (mouth.y - g.harpoonFromY) * pe;
     e.engulfScale = 0.92 - pe * 0.10;
-    g.mouthOpen = 0.50 + pe * 0.28;
     if (pt >= 1) {
       g.harpoonTarget = null;
       g.harpoonPhase = null;
@@ -11550,35 +11547,43 @@
         ctx.quadraticCurveTo(midH.x, midH.y, endH.x, endH.y);
       }
       ctx.stroke();
-      // Copa fagocítica: tres lóbulos gordos que envuelven al germen.
+      // Copa fagocítica: palma + dos garras que cierran alrededor del germen.
       var germR = ((e.def && e.def.radius) || 12) * U * (e.radiusScale || 1);
       if (e.engulfScale != null) germR *= e.engulfScale;
-      var cupR = Math.max(14 * U, germR * (1.12 + (1 - close) * 0.58));
+      var cupR = Math.max(12 * U, germR * (0.92 + (1 - close) * 0.28));
       var baseAng = Math.atan2(nyH, nxH);
-      var spread = 0.58 + (1 - close) * 0.82;
-      if (close > 0.12) {
-        ctx.fillStyle = "rgba(232, 146, 58, " + (0.22 + close * 0.28) + ")";
+      var clawSpread = 0.70 + (1 - close) * 0.48;
+      if (close > 0.18) {
+        ctx.fillStyle = "rgba(232, 146, 58, " + (0.20 + close * 0.30) + ")";
         ctx.beginPath();
-        ctx.arc(farX, farY, germR * (0.62 + close * 0.42), 0, Math.PI * 2);
+        ctx.arc(farX, farY, germR * (0.55 + close * 0.28), 0, Math.PI * 2);
         ctx.fill();
       }
       ctx.fillStyle = GUARDIAN_COL;
       ctx.strokeStyle = GUARDIAN_COLD;
       ctx.lineWidth = 1.5 * U;
-      var cupOff = [-1, 0, 1];
-      for (var ci = 0; ci < 3; ci++) {
-        var la = baseAng + cupOff[ci] * spread;
-        var reachC = cupR * (0.82 + (1 - close) * 0.38);
-        var txC = farX + Math.cos(la) * reachC;
-        var tyC = farY + Math.sin(la) * reachC;
-        var mxC = farX + Math.cos(la) * reachC * 0.46;
-        var myC = farY + Math.sin(la) * reachC * 0.46;
+      var palmA = baseAng + Math.PI;
+      ctx.beginPath();
+      ctx.ellipse(
+        farX + Math.cos(palmA) * cupR * 0.12,
+        farY + Math.sin(palmA) * cupR * 0.12,
+        cupR * 0.38, (7.2 + close * 1.6) * U, palmA, 0, Math.PI * 2
+      );
+      ctx.fill();
+      ctx.stroke();
+      for (var lobe = -1; lobe <= 1; lobe += 2) {
+        var la = baseAng + lobe * clawSpread;
+        var reachC = cupR * (0.62 + (1 - close) * 0.18);
+        var mxC = farX + Math.cos(la) * reachC * 0.50;
+        var myC = farY + Math.sin(la) * reachC * 0.50;
+        var txC = farX + Math.cos(la) * reachC * 0.92;
+        var tyC = farY + Math.sin(la) * reachC * 0.92;
         ctx.beginPath();
-        ctx.ellipse(mxC, myC, reachC * 0.50, (6.2 + close * 2.0) * U, la, 0, Math.PI * 2);
+        ctx.ellipse(mxC, myC, reachC * 0.48, (7.4 + close * 2.2) * U, la, 0, Math.PI * 2);
         ctx.fill();
         ctx.stroke();
         ctx.beginPath();
-        ctx.arc(txC, tyC, (5.6 + close * 1.8) * U, 0, Math.PI * 2);
+        ctx.arc(txC, tyC, (6.2 + close * 1.4) * U, 0, Math.PI * 2);
         ctx.fill();
         ctx.stroke();
       }
@@ -11587,11 +11592,11 @@
       ctx.arc(farX - nxH * 2 * U, farY - nyH * 2 * U, 3.2 * U, 0, Math.PI * 2);
       ctx.fill();
       if (g.harpoonPhase === "grab") {
-        var grabA = 0.55 * (1 - close);
+        var grabA = 0.50 * (1 - close);
         ctx.strokeStyle = "rgba(255, 220, 140, " + grabA + ")";
-        ctx.lineWidth = 2.4 * U;
+        ctx.lineWidth = 2.2 * U;
         ctx.beginPath();
-        ctx.arc(farX, farY, germR + (8 + close * 6) * U, 0, Math.PI * 2);
+        ctx.arc(farX, farY, germR + (6 + close * 4) * U, 0, Math.PI * 2);
         ctx.stroke();
       }
       ctx.restore();

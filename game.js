@@ -11630,17 +11630,17 @@
   // Cuerpo gordo + 5 seudópodos a ángulos irregulares. No es una estrella:
   // los valles casi no se hunden y cada dedo pulsa con su propia fase.
   var MACRO_LOBE_ANG = [0.40, 1.70, 2.95, 4.25, 5.60];
-  var MACRO_LOBE_W = [0.42, 0.34, 0.50, 0.38, 0.30];
-  var MACRO_LOBE_LEN = [0.20, 0.14, 0.26, 0.16, 0.12];
+  var MACRO_LOBE_W = [0.38, 0.30, 0.46, 0.34, 0.28];
+  var MACRO_LOBE_LEN = [0.36, 0.22, 0.46, 0.28, 0.18];
   function macrophageLobeRadius(ang, R, time, seed, reach) {
-    var base = 0.90 + 0.045 * Math.sin(ang * 2 + seed);
+    var base = 0.84 + 0.04 * Math.sin(ang * 2 + seed);
     var extra = 0;
     for (var i = 0; i < 5; i++) {
       var a0 = MACRO_LOBE_ANG[i] + seed * 0.18 + Math.sin(time * 0.75 + i) * 0.07;
       var d = ang - a0;
       while (d > Math.PI) d -= Math.PI * 2;
       while (d < -Math.PI) d += Math.PI * 2;
-      var pulse = 0.72 + 0.28 * Math.sin(time * (1.05 + i * 0.19) + seed + i * 1.3);
+      var pulse = 0.88 + 0.12 * Math.sin(time * (1.05 + i * 0.19) + seed + i * 1.3);
       var nd = d / MACRO_LOBE_W[i];
       extra += MACRO_LOBE_LEN[i] * pulse * reach * Math.exp(-0.5 * nd * nd);
     }
@@ -12655,36 +12655,46 @@
     ctx.fillStyle = "rgba(80, 200, 120, 0.10)";
     roundRect(v.x + 1, v.y + 1, v.w - 2, v.h - 2, Math.min(7, v.h * 0.24));
     ctx.fill();
-    // 5 bloques: a 2/5 se leen dos llenos, no un tinte al 40%.
-    var segs = MAC_COST;
-    var gapS = 2;
-    var innerX = v.x + 2, innerY = v.y + 2, innerW = v.w - 4, innerH = v.h - 4;
-    var segW = (innerW - (segs - 1) * gapS) / segs;
-    var segR = Math.min(4, innerH * 0.28);
-    for (var si = 0; si < segs; si++) {
-      var sx = innerX + si * (segW + gapS);
-      ctx.fillStyle = si < n
-        ? (ready ? "#7CFC9E" : "#5ee090")
-        : "rgba(124, 252, 158, 0.14)";
-      roundRect(sx, innerY, segW, innerH, segR);
-      ctx.fill();
-    }
-    var iconR = Math.max(5, Math.min(8, v.h * 0.28));
-    var ix = v.x + 6 + iconR;
+    // Izquierda: marca + cuenta. Derecha: 5 bloques (a 2/5 se leen dos llenos).
+    var iconR = Math.max(5, Math.min(7, v.h * 0.26));
+    var ix = v.x + 5 + iconR;
     drawC3bMark(ix, v.y + v.h / 2, iconR, ready);
-    var label = ready ? "▸ C3b LISTO" : ("C3b " + n + "/" + MAC_COST);
-    var textX = ix + iconR + 6;
-    var textMax = Math.max(20, v.x + v.w - 6 - textX);
+    var label = ready ? "LISTO" : (n + "/" + MAC_COST);
     ctx.textBaseline = "middle";
     ctx.textAlign = "left";
-    ctx.shadowColor = "rgba(0,0,0,0.45)";
-    ctx.shadowBlur = 3;
+    ctx.shadowBlur = 0;
     ctx.fillStyle = ready
       ? "rgba(20,40,18," + (0.90 + 0.10 * (0.5 + 0.5 * Math.sin(state.time * 6))) + ")"
       : "#f4fff8";
-    var c3bPx = Math.max(10, Math.min(13, Math.min(v.h * 0.38, textMax * 0.22)));
-    ctx.font = "bold " + fitFont(label, textMax, c3bPx, 8) + "px Fredoka, sans-serif";
-    ctx.fillText(ellipsizeToWidth(label, textMax), textX, v.y + v.h / 2);
+    var labMax = Math.max(18, v.w * 0.28);
+    var c3bPx = Math.max(9, Math.min(12, v.h * 0.36));
+    ctx.font = "bold " + fitFont(label, labMax, c3bPx, 8) + "px Fredoka, sans-serif";
+    var textX = ix + iconR + 4;
+    ctx.fillText(ellipsizeToWidth(label, labMax), textX, v.y + v.h / 2);
+    var pillsX = textX + Math.min(labMax, ctx.measureText(label).width) + 6;
+    var pillsR = v.x + v.w - 4;
+    var segs = MAC_COST;
+    var gapS = 3;
+    var pillsW = Math.max(20, pillsR - pillsX);
+    var segW = (pillsW - (segs - 1) * gapS) / segs;
+    var innerY = v.y + 5, innerH = v.h - 10;
+    var segR = Math.min(3, innerH * 0.28);
+    for (var si = 0; si < segs; si++) {
+      var sx = pillsX + si * (segW + gapS);
+      if (si < n) {
+        ctx.fillStyle = ready ? "#7CFC9E" : "#6af0a0";
+        roundRect(sx, innerY, segW, innerH, segR);
+        ctx.fill();
+      } else {
+        ctx.fillStyle = "rgba(255,255,255,0.10)";
+        roundRect(sx, innerY, segW, innerH, segR);
+        ctx.fill();
+        ctx.strokeStyle = "rgba(124, 252, 158, 0.40)";
+        ctx.lineWidth = 1;
+        roundRect(sx, innerY, segW, innerH, segR);
+        ctx.stroke();
+      }
+    }
     ctx.restore();
   }
 

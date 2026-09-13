@@ -69,7 +69,7 @@ await page.screenshot({
 });
 const hintBox = await page.evaluate(() => {
   const s = window.__game.ui.cardStrip;
-  return { x: s.x, y: s.y, w: s.w, h: Math.min(s.h, 240) };
+  return { x: s.x, y: s.y, width: s.w, height: Math.min(s.h, 240) };
 });
 await page.screenshot({
   path: join(ART, "dock_pause_hint.png"),

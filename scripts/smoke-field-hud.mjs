@@ -37,8 +37,8 @@ assert.ok(src.includes("function drawSerumShell"), "HUD abajo es tira de suero")
 assert.ok(src.includes("function drawDexBookIcon"), "Dex usa libro canvas");
 assert.ok(src.includes("function macrophageBodyPath"), "macrófago usa silueta de lóbulos");
 assert.ok(src.includes("function drawC3bMark"), "C3b tiene marca de complemento");
-assert.ok(src.includes("C3b LISTO"), "C3b listo se lee en el medidor");
-assert.ok(src.includes("5 bloques: a 2/5"), "C3b a medias usa bloques, no un tinte");
+assert.ok(src.includes("ready ? \"LISTO\""), "C3b listo se lee en el medidor");
+assert.ok(src.includes("a 2/5 se leen dos llenos"), "C3b a medias usa bloques, no un tinte");
 assert.ok(src.includes("Pausá y elegí tu loadout"), "el aviso de pausa es una frase");
 assert.ok(src.includes("MACRO_LOBE_ANG"), "macrófago usa lóbulos irregulares");
 assert.ok(src.includes("detailBottom"), "el Dex recorta el texto a la casilla");

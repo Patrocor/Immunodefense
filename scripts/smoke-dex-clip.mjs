@@ -9,7 +9,7 @@ const src = readFileSync(join(ROOT, "game.js"), "utf8");
 
 assert.ok(src.includes("detailBottom"), "el Dex recorta el panel de detalle");
 assert.ok(src.includes("function macrophageBodyPath"), "silueta de 5 lóbulos");
-assert.ok(src.includes("C3b LISTO"), "medidor C3b tiene estado listo");
+assert.ok(src.includes("ready ? \"LISTO\""), "medidor C3b tiene estado listo");
 assert.ok(src.includes("drawSerumShell(v.x, v.y, v.w, v.h, ready)"), "C3b usa tira de suero");
 
 function unlockDex(st, data) {

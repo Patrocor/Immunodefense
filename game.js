@@ -11423,7 +11423,7 @@
   // hacia el objetivo + globo "¡Ven aquí!".
   // Todo dibujado DESPUÉS del cuerpo para que nunca quede tapado.
   function drawHarpoonOverlay(g) {
-    var R = 24 * U * (g.scale || 1);
+    var R = 32 * U * (g.scale || 1);
     if ((g.harpoonFlameT || 0) > 0) {
       ctx.save();
       var nFlames = 9;
@@ -11627,20 +11627,24 @@
     ctx.restore();
   }
 
-  // Cuerpo gordo + 5 seudópodos a ángulos irregulares. No es una estrella:
-  // los valles casi no se hunden y cada dedo pulsa con su propia fase.
-  var MACRO_LOBE_ANG = [0.40, 1.70, 2.95, 4.25, 5.60];
-  var MACRO_LOBE_W = [0.38, 0.30, 0.46, 0.34, 0.28];
-  var MACRO_LOBE_LEN = [0.36, 0.22, 0.46, 0.28, 0.18];
+  // Habichuela + 4 dedos gordos a ángulos distintos. Cada yema es un círculo
+  // pegado al cuerpo: a escala de juego se leen como seudópodos, no como papa.
+  var MACRO_LOBE_ANG = [0.55, 1.95, 3.35, 5.05];
+  var MACRO_LOBE_W = [0.22, 0.18, 0.26, 0.20];
+  var MACRO_LOBE_LEN = [0.62, 0.40, 0.74, 0.48];
+  function macrophageLobeTip(i, time, seed) {
+    return MACRO_LOBE_ANG[i] + seed * 0.16 + Math.sin(time * 0.8 + i * 1.4) * 0.08;
+  }
   function macrophageLobeRadius(ang, R, time, seed, reach) {
-    var base = 0.84 + 0.04 * Math.sin(ang * 2 + seed);
+    var indent = 0.10 * Math.max(0, Math.cos(ang - Math.PI - seed * 0.2));
+    var base = 0.74 + 0.04 * Math.sin(ang * 2 + seed) - indent;
     var extra = 0;
-    for (var i = 0; i < 5; i++) {
-      var a0 = MACRO_LOBE_ANG[i] + seed * 0.18 + Math.sin(time * 0.75 + i) * 0.07;
+    for (var i = 0; i < 4; i++) {
+      var a0 = macrophageLobeTip(i, time, seed);
       var d = ang - a0;
       while (d > Math.PI) d -= Math.PI * 2;
       while (d < -Math.PI) d += Math.PI * 2;
-      var pulse = 0.88 + 0.12 * Math.sin(time * (1.05 + i * 0.19) + seed + i * 1.3);
+      var pulse = 0.90 + 0.10 * Math.sin(time * (1.1 + i * 0.21) + seed + i);
       var nd = d / MACRO_LOBE_W[i];
       extra += MACRO_LOBE_LEN[i] * pulse * reach * Math.exp(-0.5 * nd * nd);
     }
@@ -11648,43 +11652,88 @@
   }
   function macrophageBodyPath(R, time, seed, reach) {
     ctx.beginPath();
-    var steps = 40;
+    var steps = 44;
     for (var i = 0; i <= steps; i++) {
-      var ang = (i / steps) * Math.PI * 2 + seed * 0.12;
+      var ang = (i / steps) * Math.PI * 2 + seed * 0.10;
       var r = macrophageLobeRadius(ang, R, time, seed, reach);
       var px = Math.cos(ang) * r, py = Math.sin(ang) * r;
       if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
     }
     ctx.closePath();
   }
+  function paintMacrophageCell(R, time, seed, reach, col, cold, hitFlash) {
+    var body = ctx.createRadialGradient(-R * 0.28, -R * 0.28, R * 0.18, 0, 0, R * 1.15);
+    body.addColorStop(0, "#f7cf95");
+    body.addColorStop(0.55, col);
+    body.addColorStop(1, cold);
+    ctx.fillStyle = hitFlash ? "#ffd0d0" : body;
+    ctx.lineJoin = "round";
+    ctx.lineCap = "round";
+    macrophageBodyPath(R, time, seed, reach);
+    ctx.fill();
+    for (var i = 0; i < 4; i++) {
+      var a0 = macrophageLobeTip(i, time, seed);
+      var tip = macrophageLobeRadius(a0, R, time, seed, reach);
+      var cap = R * (0.17 + MACRO_LOBE_LEN[i] * 0.08);
+      ctx.beginPath();
+      ctx.arc(Math.cos(a0) * tip * 0.96, Math.sin(a0) * tip * 0.96, cap, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.strokeStyle = cold;
+    ctx.lineWidth = Math.max(1.5, 2.0 * (R / 28));
+    macrophageBodyPath(R, time, seed, reach);
+    ctx.stroke();
+    for (i = 0; i < 4; i++) {
+      a0 = macrophageLobeTip(i, time, seed);
+      tip = macrophageLobeRadius(a0, R, time, seed, reach);
+      cap = R * (0.17 + MACRO_LOBE_LEN[i] * 0.08);
+      ctx.beginPath();
+      ctx.arc(Math.cos(a0) * tip * 0.96, Math.sin(a0) * tip * 0.96, cap, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.fillStyle = "rgba(110, 60, 140, 0.90)";
+    ctx.strokeStyle = "rgba(50, 24, 80, 0.92)";
+    ctx.lineWidth = Math.max(1, R * 0.045);
+    ctx.beginPath();
+    var kNX = -R * 0.22, kNY = 0.02 * R, kR = R * 0.36;
+    ctx.moveTo(kNX + kR * 0.70, kNY - kR * 0.15);
+    ctx.quadraticCurveTo(kNX + kR * 0.15, kNY - kR * 1.05, kNX - kR * 0.55, kNY - kR * 0.55);
+    ctx.quadraticCurveTo(kNX - kR * 1.05, kNY + kR * 0.15, kNX - kR * 0.45, kNY + kR * 0.75);
+    ctx.quadraticCurveTo(kNX + kR * 0.20, kNY + kR * 0.85, kNX + kR * 0.55, kNY + kR * 0.20);
+    ctx.quadraticCurveTo(kNX + kR * 0.85, kNY - kR * 0.05, kNX + kR * 0.70, kNY - kR * 0.15);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "rgba(200, 170, 230, 0.55)";
+    ctx.beginPath();
+    ctx.ellipse(kNX - kR * 0.18, kNY - kR * 0.12, kR * 0.16, kR * 0.12, -0.4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "rgba(90, 40, 20, 0.72)";
+    var lys = [[0.42, 0.28, 0.09], [0.22, 0.48, 0.07], [-0.08, 0.44, 0.08]];
+    for (var ly = 0; ly < lys.length; ly++) {
+      ctx.beginPath();
+      ctx.arc(R * lys[ly][0], R * lys[ly][1], R * lys[ly][2], 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "rgba(220, 160, 80, 0.45)";
+      ctx.beginPath();
+      ctx.arc(R * lys[ly][0] - R * 0.02, R * lys[ly][1] - R * 0.02, R * lys[ly][2] * 0.35, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "rgba(90, 40, 20, 0.72)";
+    }
+  }
   function drawMacrofagoMini(cx, cy, R, time) {
     ctx.save();
     ctx.translate(cx, cy);
-    var t0 = time || 0;
-    var body = ctx.createRadialGradient(-R * 0.3, -R * 0.3, R * 0.2, 0, 0, R * 1.08);
-    body.addColorStop(0, "#f7cf95");
-    body.addColorStop(0.55, GUARDIAN_COL);
-    body.addColorStop(1, GUARDIAN_COLD);
-    ctx.fillStyle = body;
-    ctx.strokeStyle = GUARDIAN_COLD;
-    ctx.lineWidth = Math.max(1, R * 0.12);
-    ctx.lineJoin = "round";
-    macrophageBodyPath(R, t0, 0, 1);
-    ctx.fill();
-    ctx.stroke();
-    ctx.fillStyle = "rgba(110, 60, 140, 0.82)";
-    ctx.beginPath();
-    ctx.ellipse(-R * 0.14, -R * 0.02, R * 0.30, R * 0.22, -0.45, 0, Math.PI * 2);
-    ctx.fill();
+    paintMacrophageCell(R, time || 0, 0, 1, GUARDIAN_COL, GUARDIAN_COLD, false);
     ctx.fillStyle = "#fff";
     ctx.beginPath();
-    ctx.arc(-R * 0.22, -R * 0.10, R * 0.15, 0, Math.PI * 2);
-    ctx.arc(R * 0.22, -R * 0.10, R * 0.15, 0, Math.PI * 2);
+    ctx.arc(-R * 0.18, -R * 0.12, R * 0.15, 0, Math.PI * 2);
+    ctx.arc(R * 0.22, -R * 0.12, R * 0.15, 0, Math.PI * 2);
     ctx.fill();
     ctx.fillStyle = "#1a1a22";
     ctx.beginPath();
-    ctx.arc(-R * 0.18, -R * 0.10, R * 0.08, 0, Math.PI * 2);
-    ctx.arc(R * 0.26, -R * 0.10, R * 0.08, 0, Math.PI * 2);
+    ctx.arc(-R * 0.14, -R * 0.12, R * 0.08, 0, Math.PI * 2);
+    ctx.arc(R * 0.26, -R * 0.12, R * 0.08, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
   }
@@ -11735,72 +11784,21 @@
     var fleeing = g.state === "fleeing";
     var maw = g.mouthOpen || 0;                 // 0..1 al engullir
     var swallow = g.swallow || 0;
-    var R = 28 * U * g.scale * (1 + Math.sin(g.wobble) * 0.05);
+    var R = 32 * U * g.scale * (1 + Math.sin(g.wobble) * 0.05);
     var COL = GUARDIAN_COL, COLD = GUARDIAN_COLD;
     var seed = g.shape || 0;
     ctx.save();
     ctx.globalAlpha = Math.max(0, g.alpha);
-    drawShadow(g.x, g.y + 18 * U * g.scale, 18 * U * g.scale, 5 * U * g.scale);
-    var gl = ctx.createRadialGradient(g.x, g.y, R * 0.4, g.x, g.y, R * 1.55);
-    gl.addColorStop(0, "rgba(245, 180, 110, 0.22)");
+    drawShadow(g.x, g.y + 20 * U * g.scale, 20 * U * g.scale, 6 * U * g.scale);
+    var gl = ctx.createRadialGradient(g.x, g.y, R * 0.4, g.x, g.y, R * 1.45);
+    gl.addColorStop(0, "rgba(245, 180, 110, 0.20)");
     gl.addColorStop(1, "rgba(245, 180, 110, 0)");
     ctx.fillStyle = gl;
-    ctx.beginPath(); ctx.arc(g.x, g.y, R * 1.55, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(g.x, g.y, R * 1.45, 0, Math.PI * 2); ctx.fill();
     ctx.translate(g.x, g.y);
-    // Gulp: squash-stretch al tragar (se ensancha y achata).
     if (swallow > 0) { var sw = swallow / 0.6; ctx.scale(1 + sw * 0.40, 1 - sw * 0.22); }
-    // Cinco lóbulos gordos en un solo path: a 48 px se leen como dedos, no como pelusa.
-    var reach = (maw > 0.05 || g.attackAnim > 0 || g.harpoonPhase) ? 1.32 : 1.0;
-    ctx.lineCap = "round"; ctx.lineJoin = "round";
-    var body = ctx.createRadialGradient(-R * 0.3, -R * 0.3, R * 0.2, 0, 0, R * 1.05);
-    body.addColorStop(0, "#f7cf95");
-    body.addColorStop(0.55, COL);
-    body.addColorStop(1, COLD);
-    ctx.fillStyle = g.hitFlash > 0 ? "#ffd0d0" : body;
-    macrophageBodyPath(R, state.time, seed, reach);
-    ctx.fill();
-    ctx.strokeStyle = COLD; ctx.lineWidth = Math.max(1.6, 2.0 * U); ctx.stroke();
-    // Receptores en los valles entre lóbulos (no tapan los dedos).
-    ctx.fillStyle = "rgba(120, 60, 20, 0.70)";
-    ctx.strokeStyle = COLD;
-    ctx.lineWidth = 0.9 * U;
-    for (var rc = 0; rc < 5; rc++) {
-      var rcA = (rc + 0.5) * Math.PI * 2 / 5 + seed * 0.15;
-      var rcR = macrophageLobeRadius(rcA, R, state.time, seed, reach) * 0.92;
-      ctx.beginPath();
-      ctx.arc(Math.cos(rcA) * rcR, Math.sin(rcA) * rcR, R * 0.08, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
-    }
-    // Núcleo riñón, más grande y lateral para que se lea a escala de juego.
-    ctx.fillStyle = "rgba(110, 60, 140, 0.88)";
-    ctx.strokeStyle = "rgba(60, 30, 90, 0.90)";
-    ctx.lineWidth = 1.2 * U;
-    ctx.beginPath();
-    var kNX = -R * 0.18, kNY = -R * 0.04;
-    var kR = R * 0.38;
-    ctx.moveTo(kNX + kR * 0.85, kNY);
-    ctx.quadraticCurveTo(kNX + kR * 0.85, kNY - kR * 1.05, kNX, kNY - kR * 0.85);
-    ctx.quadraticCurveTo(kNX - kR * 1.15, kNY - kR * 0.35, kNX - kR * 0.90, kNY + kR * 0.45);
-    ctx.quadraticCurveTo(kNX - kR * 0.25, kNY + kR * 0.95, kNX + kR * 0.35, kNY + kR * 0.72);
-    ctx.quadraticCurveTo(kNX + kR * 0.95, kNY + kR * 0.22, kNX + kR * 0.85, kNY);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-    ctx.fillStyle = "rgba(70, 30, 100, 0.78)";
-    for (var ly = 0; ly < 4; ly++) {
-      var lyAng = ly * 1.7 + seed * 0.5 + state.time * 0.1;
-      var lyDist = R * (0.42 + (ly % 3) * 0.07);
-      var lyX = Math.cos(lyAng) * lyDist;
-      var lyY = Math.sin(lyAng) * lyDist + R * 0.16;
-      if (Math.hypot(lyX - kNX, lyY - kNY) < kR + R * 0.08) continue;
-      ctx.beginPath();
-      ctx.arc(lyX, lyY, R * 0.07, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    // Sombra interna sutil (volumen)
-    ctx.fillStyle = "rgba(150, 80, 30, 0.18)";
-    ctx.beginPath(); ctx.ellipse(R * 0.16, R * 0.30, R * 0.30, R * 0.18, 0.4, 0, Math.PI * 2); ctx.fill();
+    var reach = (maw > 0.05 || g.attackAnim > 0 || g.harpoonPhase) ? 1.28 : 1.0;
+    paintMacrophageCell(R, state.time, seed, reach, COL, COLD, g.hitFlash > 0);
     var eyeR = R * 0.20, gap = R * 0.30, faceY = -R * 0.12;
     var tongueExt = g.tongueExtend || 0;
     // Función helper para dibujar la lengua (la usamos ENCIMA del mouth)
@@ -19683,29 +19681,7 @@
     var R = 20 * U * pulse;
     ctx.save();
     ctx.translate(x, y);
-    // Misma silueta de 5 lóbulos que drawGuardian.
-    var grad = ctx.createRadialGradient(-R * 0.3, -R * 0.3, R * 0.2, 0, 0, R * 1.05);
-    grad.addColorStop(0, "#f7cf95");
-    grad.addColorStop(0.55, t.def.color);
-    grad.addColorStop(1, t.def.colorDark);
-    ctx.fillStyle = grad;
-    ctx.lineJoin = "round";
-    macrophageBodyPath(R, state.time, t.idlePhase || 0, 1);
-    ctx.fill();
-    ctx.strokeStyle = t.def.colorDark;
-    ctx.lineWidth = Math.max(1.4, 1.8 * U);
-    ctx.stroke();
-    ctx.fillStyle = "rgba(110, 60, 140, 0.78)";
-    ctx.strokeStyle = "rgba(60, 30, 90, 0.80)";
-    ctx.lineWidth = 1 * U;
-    ctx.beginPath();
-    ctx.moveTo(-R * 0.08, -R * 0.02);
-    ctx.quadraticCurveTo(-R * 0.42, -R * 0.28, -R * 0.22, -R * 0.32);
-    ctx.quadraticCurveTo(R * 0.06, -R * 0.12, R * 0.02, R * 0.22);
-    ctx.quadraticCurveTo(-R * 0.16, R * 0.32, -R * 0.08, -R * 0.02);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
+    paintMacrophageCell(R, state.time, t.idlePhase || 0, 1, t.def.color, t.def.colorDark, false);
     // Face — expression-aware
     var eyeR = R * 0.20;
     if (blink) {
@@ -33350,7 +33326,7 @@
         // para entrar en la mini-pantalla — nada de un círculo genérico.
         var fakeG = {
           x: mx, y: my,
-          scale: (dh * 0.20) / (28 * U),
+          scale: (dh * 0.20) / (32 * U),
           wobble: state.time * 5, shape: 0, alpha: 1,
           mouthOpen: 0, swallow: 0, attackAnim: 0, hitFlash: 0, tongueExtend: 0,
           blinkTimer: 0, nextBlink: state.time + 999, state: "roaming"

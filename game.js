@@ -7943,8 +7943,7 @@
   }
 
   function eosinSpitVolley(t, side, count) {
-    // Una descarga de escopeta: abanico corto de cristaloides MBP desde
-    // el hocico del lóbulo. No es spray suelto ni onda.
+    // LOCKED Ult v3 — descarga de escopeta (abanico corto, no spray/onda).
     var g = t.eosinShotgun;
     if (!g) return;
     var m = eosinMuzzle(t, side, g.ang);
@@ -8230,8 +8229,8 @@
       return;
     }
     if (def.id === "eosinofilo") {
-      // PERDIGONERA v3: dos escopetas (un lóbulo cada una) de cristales
-      // MBP hacia el parásito más cercano (si no hay, el germen / carril).
+      // LOCKED Ult v3 — PERDIGONERA: dos escopetas MBP (user OK "Queda").
+      // Cada lóbulo dispara hacia el parásito más cercano (si no, germen / carril).
       var eoStats = towerStats(t);
       var eoAng = eosinPickAim(t);
       var eoLen = eoStats.range * U * 1.22;
@@ -20340,7 +20339,7 @@
   }
 
   function drawEosinShotgunBlast(t) {
-    // Dos escopetas leídas desde los hocicos reales (eosinMuzzle), mundo.
+    // LOCKED Ult v3 — dos escopetas desde los hocicos reales (user OK "Queda").
     var g = t.eosinShotgun;
     if (!g) return;
     var uf = 1 - Math.max(0, Math.min(1, (t.specialAnim || 0) / 1.05));
@@ -20417,7 +20416,7 @@
     //  · Ultimate Perdigonera: cada lóbulo dispara un cono de cristales MBP
     //    hacia el parásito más cercano (no onda/anillo).
     // LOCKED v2 silueta — Perdigones+Descarga (user OK "Queda").
-    // Ult v3: dos escopetas MBP (racha + fogonazo por lóbulo; no onda/anillo).
+    // LOCKED Ult v3 — dos escopetas MBP (user OK "Queda").
     var R = 17 * U * pulse;
     var off = R * 0.62;
     var time = state.time;

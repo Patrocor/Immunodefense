@@ -99,8 +99,7 @@ var TOWER_DEFS = {
     id: "eosinofilo", name: "Eosinofilo", shortName: "Eosin",
     color: "#F2774E", colorDark: "#a8401f", cost: 75, desc: "Gránulos de MBP, ECP y EDN atacan parásitos con ADCC; IL-4 e IL-13 potencian la respuesta. Bonus ×2.6 vs parásitos. Ultimate: Perdigonera (dos escopetas de cristales MBP, una por lóbulo).",
     bonusVs: { kind: "parasito", mult: 2.6 },
-    // Ultimate: PERDIGONERA v3 — cada lóbulo dispara una escopeta de
-    // cristales MBP hacia el parásito más cercano; DoT extra a parásitos.
+    // LOCKED Ult v3 — PERDIGONERA: escopeta MBP por lóbulo (user OK "Queda").
     specialChargeSec: 28,
     specialName: "Perdigonera",
     levels: [

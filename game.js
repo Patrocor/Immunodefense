@@ -11772,6 +11772,10 @@
     ctx.arc(-gap + eyeR * 0.18, eyeY, eyeR * 0.52, 0, Math.PI * 2);
     ctx.arc(gap + eyeR * 0.18, eyeY, eyeR * 0.52, 0, Math.PI * 2);
     ctx.fill();
+    ctx.fillStyle = "#3a1818";
+    ctx.beginPath();
+    ctx.ellipse(0, R * 0.22, Math.max(2.4, R * 0.24), Math.max(1.8, R * 0.18), 0, 0, Math.PI * 2);
+    ctx.fill();
     ctx.restore();
   }
   function drawC3bMark(cx, cy, R, ready) {
@@ -11909,7 +11913,12 @@
       drawAnimeMouth(0, R * 0.34, R * 0.52, R * (0.18 + 0.5 * chomp), "fanged");
     } else {
       drawAnimeEyes(0, faceY, eyeR, gap, 0, 0, R * 0.12, R * 0.05, "fierce");
-      drawAnimeMouth(0, R * 0.36, R * 0.42, R * 0.24, "serious");
+      drawAnimeMouth(0, R * 0.28, R * 0.52, R * 0.46, "open");
+      ctx.strokeStyle = "#ff9bb0";
+      ctx.lineWidth = Math.max(1.2, 1.6 * U);
+      ctx.beginPath();
+      ctx.ellipse(0, R * 0.28, R * 0.26, R * 0.32, 0, 0, Math.PI * 2);
+      ctx.stroke();
     }
     ctx.restore();
     // Barra de vida si está dañado.
@@ -19732,7 +19741,7 @@
     }
     if (expression === "levelup") drawAnimeMouth(0, R * 0.30, R * 0.55, R * 0.30, "smile");
     else if (expression === "attacking") drawAnimeMouth(0, R * 0.30, R * 0.55, R * 0.55, "open");
-    else drawAnimeMouth(0, R * 0.32, R * 0.40, R * 0.20, "serious");
+    else drawAnimeMouth(0, R * 0.26, R * 0.50, R * 0.42, "open");
     ctx.restore();
   }
 

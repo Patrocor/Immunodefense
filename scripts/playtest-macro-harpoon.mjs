@@ -67,11 +67,26 @@ await page.evaluate(() => {
   const g = window.__game;
   g.tryMacroUlt();
   g.hold(false);
-  g.step(0.10, 0.02);
+  g.step(0.12, 0.02);
+  g.state.time = 0.42;
   g.hold(true);
 });
 await sleep(80);
 await page.screenshot({ path: join(ART, "macro_harpoon_throw.png") });
+const throwBox = await page.evaluate(() => {
+  const g = window.__game;
+  const m = g.state.guardians[0];
+  const e = g.state.enemies[0];
+  const x = Math.min(m.x, e.x) - 70;
+  const y = Math.min(m.y, e.y) - 70;
+  const w = Math.abs(e.x - m.x) + 140;
+  const h = Math.abs(e.y - m.y) + 140;
+  return { x: Math.max(0, x), y: Math.max(0, y), w, h };
+});
+await page.screenshot({
+  path: join(ART, "macro_harpoon_tongue.png"),
+  clip: { x: throwBox.x, y: throwBox.y, width: throwBox.w, height: throwBox.h },
+});
 
 await page.evaluate(() => {
   const g = window.__game;

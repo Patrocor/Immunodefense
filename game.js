@@ -11496,17 +11496,20 @@
       if (g.harpoonPhase === "grab") close = Math.min(1, g.harpoonT / HARPOON_GRAB_TIME);
       if (g.harpoonPhase === "pull") close = 1;
       var taut = close;
-      var segsH = 10;
+      var segsH = 16;
       function harpoonWave(t) {
-        var taper = 1 - t * 0.42;
-        var wob = Math.sin((state.time || 0) * (7.2 - taut * 3.5) + t * 7) * (10 - taut * 7.5) * U * taper;
+        var time = state.time || 0;
+        var env = Math.sin(t * Math.PI);
+        var snake = Math.sin(time * 11 + t * 11.5) * (20 - taut * 12);
+        var snake2 = Math.sin(time * 6.4 + t * 18) * (9 - taut * 5.5);
+        var wob = (snake + snake2) * env * U;
         return {
           x: mouthH.x + dxH * t + (-nyH) * wob,
           y: mouthH.y + dyH * t + nxH * wob
         };
       }
-      var w0 = (16.5 - taut * 1.8) * U;
-      var w1 = (7.2 + close * 2.2) * U;
+      var w0 = (17.5 - taut * 1.2) * U;
+      var w1 = (9.0 + close * 2.2) * U;
       var left = [], right = [], hi, tH, pH, p2, ddx, ddy, dl, ox, oy, ww;
       for (hi = 0; hi <= segsH; hi++) {
         tH = hi / segsH;
@@ -11515,7 +11518,7 @@
         ddx = p2.x - pH.x; ddy = p2.y - pH.y;
         dl = Math.hypot(ddx, ddy) || 1;
         ox = -ddy / dl; oy = ddx / dl;
-        ww = w0 + (w1 - w0) * tH;
+        ww = (w0 + (w1 - w0) * tH) * (0.82 + 0.28 * Math.sin(tH * Math.PI));
         left.push({ x: pH.x + ox * ww * 0.5, y: pH.y + oy * ww * 0.5 });
         right.push({ x: pH.x - ox * ww * 0.5, y: pH.y - oy * ww * 0.5 });
       }
@@ -11529,22 +11532,33 @@
       for (hi = right.length - 1; hi >= 0; hi--) ctx.lineTo(right[hi].x, right[hi].y);
       ctx.closePath();
       var armGrad = ctx.createLinearGradient(mouthH.x, mouthH.y, farX, farY);
-      armGrad.addColorStop(0, GUARDIAN_COL);
-      armGrad.addColorStop(0.55, HARPOON_COLOR);
-      armGrad.addColorStop(1, GUARDIAN_COLD);
+      armGrad.addColorStop(0, "#ff9aa6");
+      armGrad.addColorStop(0.45, "#ff7a8a");
+      armGrad.addColorStop(1, "#c04050");
       ctx.fillStyle = armGrad;
       ctx.fill();
-      ctx.strokeStyle = GUARDIAN_COLD;
+      ctx.strokeStyle = "#a03040";
       ctx.lineWidth = 1.6 * U;
       ctx.stroke();
-      ctx.strokeStyle = "rgba(255, 220, 160, 0.50)";
-      ctx.lineWidth = 2.6 * U;
+      ctx.strokeStyle = "rgba(180, 50, 70, 0.62)";
+      ctx.lineWidth = 2.1 * U;
       ctx.beginPath();
       ctx.moveTo(mouthH.x, mouthH.y);
       for (hi = 1; hi <= segsH; hi++) {
         var midH = harpoonWave((hi - 0.5) / segsH);
         var endH = harpoonWave(hi / segsH);
         ctx.quadraticCurveTo(midH.x, midH.y, endH.x, endH.y);
+      }
+      ctx.stroke();
+      ctx.strokeStyle = "rgba(255, 230, 230, 0.40)";
+      ctx.lineWidth = 1.6 * U;
+      ctx.beginPath();
+      var wet0 = harpoonWave(0.08);
+      ctx.moveTo(wet0.x + (-nyH) * w0 * 0.18, wet0.y + nxH * w0 * 0.18);
+      for (hi = 2; hi <= segsH - 1; hi++) {
+        var wet = harpoonWave(hi / segsH);
+        var wetW = (w0 + (w1 - w0) * (hi / segsH)) * 0.18;
+        ctx.lineTo(wet.x + (-nyH) * wetW, wet.y + nxH * wetW);
       }
       ctx.stroke();
       // Copa fagocítica: palma + dos garras que cierran alrededor del germen.

@@ -7942,21 +7942,36 @@
     return false;
   }
 
-  function eosinSpitPellet(t, side) {
+  function eosinSpitVolley(t, side, count) {
+    // LOCKED Ult v3 — descarga de escopeta (abanico corto, no spray/onda).
     var g = t.eosinShotgun;
     if (!g) return;
     var m = eosinMuzzle(t, side, g.ang);
-    var spread = (Math.random() - 0.5) * g.half * 1.55;
-    var ang = g.ang + side * 0.10 + spread;
-    var dur = 0.20 + Math.random() * 0.12;
-    var dist = g.len * (0.70 + Math.random() * 0.32);
-    pushEffect({
-      kind: "granuleShot",
-      x: m.x, y: m.y,
-      vx: Math.cos(ang) * dist / dur,
-      vy: Math.sin(ang) * dist / dur,
-      life: dur, max: dur, crystal: true
-    });
+    var bang = g.ang + side * 0.12;
+      var n = count || (QUALITY.low ? 4 : 6);
+    for (var i = 0; i < n; i++) {
+      var k = n === 1 ? 0.5 : i / (n - 1);
+      var jitter = (Math.random() - 0.5) * 0.05;
+      var ang = bang + (k - 0.5) * g.half * 1.42 + jitter;
+      var dur = 0.26 + Math.random() * 0.10;
+      var dist = g.len * (0.70 + Math.abs(k - 0.5) * 0.10 + Math.random() * 0.20);
+      pushEffect({
+        kind: "granuleShot",
+        x: m.x, y: m.y,
+        vx: Math.cos(ang) * dist / dur,
+        vy: Math.sin(ang) * dist / dur,
+        life: dur, max: dur, crystal: true,
+        side: side,
+        slug: i === Math.floor(n / 2)
+      });
+    }
+    if (side < 0) g.recoilL = 1;
+    else g.recoilR = 1;
+    g.volleys = (g.volleys || 0) + 1;
+  }
+
+  function eosinSpitPellet(t, side) {
+    eosinSpitVolley(t, side, 1);
   }
 
   function mastocMouth(t) {
@@ -8214,13 +8229,17 @@
       return;
     }
     if (def.id === "eosinofilo") {
-      // PERDIGONERA: cada lóbulo dispara un cono de cristales MBP hacia
-      // el parásito más cercano (si no hay, el germen / carril).
+      // LOCKED Ult v3 — PERDIGONERA: dos escopetas MBP (user OK "Queda").
+      // Cada lóbulo dispara hacia el parásito más cercano (si no, germen / carril).
       var eoStats = towerStats(t);
       var eoAng = eosinPickAim(t);
       var eoLen = eoStats.range * U * 1.22;
       var eoHalf = 0.40;
-      t.eosinShotgun = { ang: eoAng, len: eoLen, half: eoHalf, spitT: 0 };
+      t.eosinShotgun = {
+        ang: eoAng, len: eoLen, half: eoHalf,
+        spitT: 0.08, nextBarrel: 1, burstLeft: 4,
+        recoilL: 1, recoilR: 1, volleys: 0
+      };
       t.specialAnim = 1.05;
       t.specialReady = false;
       t.specialCharge = 0;
@@ -8246,10 +8265,8 @@
           }
         }
       }
-      for (var eoKick = -1; eoKick <= 1; eoKick += 2) {
-        eosinSpitPellet(t, eoKick);
-        eosinSpitPellet(t, eoKick);
-      }
+      eosinSpitVolley(t, -1);
+      eosinSpitVolley(t, 1);
       showMsg("¡Perdigonera!");
       sfx("upgrade");
       triggerShake(0.10, 3);
@@ -9738,12 +9755,15 @@
         }
       }
       if (t.def.id === "eosinofilo" && (t.specialAnim || 0) > 0 && t.eosinShotgun) {
-        t.eosinShotgun.spitT = (t.eosinShotgun.spitT || 0) - dt;
-        if (t.eosinShotgun.spitT <= 0) {
-          t.eosinShotgun.spitT = 0.050;
-          eosinSpitPellet(t, -1);
-          eosinSpitPellet(t, 1);
-          if (Math.random() < 0.55) eosinSpitPellet(t, Math.random() < 0.5 ? -1 : 1);
+        var eoGun = t.eosinShotgun;
+        eoGun.recoilL = Math.max(0, (eoGun.recoilL || 0) - dt * 3.8);
+        eoGun.recoilR = Math.max(0, (eoGun.recoilR || 0) - dt * 3.8);
+        eoGun.spitT = (eoGun.spitT || 0) - dt;
+        if (eoGun.spitT <= 0 && (eoGun.burstLeft || 0) > 0) {
+          eoGun.spitT = 0.09;
+          eoGun.burstLeft -= 1;
+          eosinSpitVolley(t, eoGun.nextBarrel < 0 ? -1 : 1);
+          eoGun.nextBarrel = -(eoGun.nextBarrel || 1);
         }
       }
       if (t.def.id === "sebocito" && (t.specialAnim || 0) > 0) {
@@ -20318,13 +20338,85 @@
     ctx.restore();
   }
 
+  function drawEosinShotgunBlast(t) {
+    // LOCKED Ult v3 — dos escopetas desde los hocicos reales (user OK "Queda").
+    var g = t.eosinShotgun;
+    if (!g) return;
+    var uf = 1 - Math.max(0, Math.min(1, (t.specialAnim || 0) / 1.05));
+    var fade = 1 - uf * 0.35;
+    var nStreaks = QUALITY.low ? 5 : 8;
+    ctx.save();
+    for (var side = -1; side <= 1; side += 2) {
+      var m = eosinMuzzle(t, side, g.ang);
+      var lx = m.x, ly = m.y;
+      var bang = g.ang + side * 0.18;
+      var recoil = side < 0 ? (g.recoilL || 0) : (g.recoilR || 0);
+      var s;
+      for (s = 0; s < nStreaks; s++) {
+        var k = nStreaks === 1 ? 0.5 : s / (nStreaks - 1);
+        var sa = bang + (k - 0.5) * g.half * 1.55;
+        var slen = g.len * (0.82 + (s % 3) * 0.06 + recoil * 0.04);
+        var tx = lx + Math.cos(sa) * slen;
+        var ty = ly + Math.sin(sa) * slen;
+        var sg = ctx.createLinearGradient(lx, ly, tx, ty);
+        sg.addColorStop(0, "rgba(255, 236, 200, " + ((0.96 + recoil * 0.04) * fade) + ")");
+        sg.addColorStop(0.16, "rgba(255, 150, 80, " + ((0.78 + recoil * 0.12) * fade) + ")");
+        sg.addColorStop(0.55, "rgba(242, 119, 78, " + (0.42 * fade) + ")");
+        sg.addColorStop(1, "rgba(242, 119, 78, 0)");
+        ctx.strokeStyle = sg;
+        ctx.lineWidth = Math.max(2.2, (5.4 - Math.abs(k - 0.5) * 2.4) * U);
+        ctx.lineCap = "round";
+        ctx.beginPath();
+        ctx.moveTo(lx, ly);
+        ctx.lineTo(tx, ty);
+        ctx.stroke();
+      }
+      ctx.fillStyle = "rgba(255, 170, 90, " + ((0.32 + recoil * 0.28) * fade) + ")";
+      ctx.beginPath();
+      ctx.moveTo(lx, ly);
+      ctx.arc(lx, ly, g.len * 0.30, bang - g.half * 0.78, bang + g.half * 0.78);
+      ctx.closePath();
+      ctx.fill();
+      var flashR = (11 + recoil * 12) * U;
+      var fl = ctx.createRadialGradient(lx, ly, 0, lx, ly, flashR * 1.9);
+      fl.addColorStop(0, "rgba(255, 252, 230, " + ((0.95 + recoil * 0.05) * fade) + ")");
+      fl.addColorStop(0.28, "rgba(255, 180, 90, " + ((0.72 + recoil * 0.18) * fade) + ")");
+      fl.addColorStop(0.62, "rgba(242, 100, 50, " + (0.28 * fade) + ")");
+      fl.addColorStop(1, "rgba(242, 80, 40, 0)");
+      ctx.fillStyle = fl;
+      ctx.beginPath();
+      ctx.arc(lx, ly, flashR * 1.9, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "rgba(255, 230, 190, " + ((0.85 + recoil * 0.15) * fade) + ")";
+      ctx.lineWidth = Math.max(2, 2.8 * U);
+      ctx.beginPath();
+      ctx.arc(lx, ly, (5.5 + recoil * 3) * U, 0, Math.PI * 2);
+      ctx.stroke();
+      if (!QUALITY.low) {
+        for (var c = -1; c <= 1; c++) {
+          var ca = bang + c * 0.22;
+          var cd = (10 + recoil * 7) * U;
+          drawEosinCrystal(
+            lx + Math.cos(ca) * cd,
+            ly + Math.sin(ca) * cd,
+            (7.2 + recoil * 3.0) * U,
+            ca + Math.PI * 0.5,
+            0.92 * fade
+          );
+        }
+      }
+    }
+    ctx.restore();
+  }
+
   function drawEosinofilo(t, pulse, expression, blink) {
     // Eosinófilo v2 — granulocito bilobulado anti-parásito.
     //  · Silueta orgánica tipo "gafas"/núcleo bilobulado (no dos círculos + puente)
     //  · Gránulos cristaloides MBP/ECP incrustados; receptores CCR3 en superficie
     //  · Ultimate Perdigonera: cada lóbulo dispara un cono de cristales MBP
     //    hacia el parásito más cercano (no onda/anillo).
-    // LOCKED v2 silueta — Perdigones+Descarga (user OK "Queda"). Ult v3 pendiente.
+    // LOCKED v2 silueta — Perdigones+Descarga (user OK "Queda").
+    // LOCKED Ult v3 — dos escopetas MBP (user OK "Queda").
     var R = 17 * U * pulse;
     var off = R * 0.62;
     var time = state.time;
@@ -20359,34 +20451,14 @@
     ctx.save();
     ctx.translate(t.x, t.y);
 
-    // Conos en espacio mundo (mismo len/half que el hitbox), antes del scale del sprite.
-    if (doingUlt && t.eosinShotgun) {
-      var sg = t.eosinShotgun;
-      var uf = 1 - (t.specialAnim / 1.05);
-      var mOff = 17 * U * 1.16 * 0.62;
-      ctx.save();
-      for (var lob = -1; lob <= 1; lob += 2) {
-        var bang = sg.ang + lob * 0.12;
-        ctx.fillStyle = "rgba(242, 119, 78, " + (0.16 + (1 - uf) * 0.18) + ")";
-        ctx.beginPath();
-        ctx.moveTo(lob * mOff, 0);
-        ctx.arc(lob * mOff, 0, sg.len * 0.92, bang - sg.half, bang + sg.half);
-        ctx.closePath();
-        ctx.fill();
-        ctx.strokeStyle = "rgba(255, 190, 140, " + ((1 - uf) * 0.70) + ")";
-        ctx.lineWidth = Math.max(1.6, 2 * U);
-        ctx.beginPath();
-        ctx.arc(lob * mOff, 0, sg.len * 0.90, bang - sg.half, bang + sg.half);
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.moveTo(lob * mOff, 0);
-        ctx.lineTo(lob * mOff + Math.cos(bang) * sg.len * 0.88, Math.sin(bang) * sg.len * 0.88);
-        ctx.stroke();
-      }
-      ctx.restore();
-    }
-
     ctx.scale(1.16, 1.16);
+    if (doingUlt && t.eosinShotgun) {
+      var kick = Math.max(t.eosinShotgun.recoilL || 0, t.eosinShotgun.recoilR || 0);
+      ctx.translate(
+        -Math.cos(t.eosinShotgun.ang) * kick * 3.2 * U,
+        -Math.sin(t.eosinShotgun.ang) * kick * 3.2 * U
+      );
+    }
 
     // Sinergia IL-4/IL-13 (Mastocito/Langerhans): halo cálido tenue.
     if (il4) {
@@ -20509,6 +20581,8 @@
     else drawAnimeEyes(0, faceY, eyeR, eyeGap, 0, 0, R * 0.13, R * 0.05, "fierce");
     drawAnimeMouth(0, faceY + R * 0.32, R * 0.30, R * 0.15, attacking || doingUlt ? "fanged" : "serious");
     ctx.restore();
+    // Overlay encima del cuerpo, en espacio mundo (como el Arpón).
+    if (doingUlt && t.eosinShotgun) drawEosinShotgunBlast(t);
   }
 
   // MASTOCITO — cuerpo GRUMOSO (borde con bultos) repleto de gránulos (alerta).
@@ -30178,13 +30252,12 @@
     } else if (ef.kind === "granuleShot") {
       var gsAge = 1 - ef.life / ef.max;
       var gsImpact = Math.max(0, (gsAge - 0.60) / 0.40);
-      var gsR = (3.5 + gsImpact * 3.0) * U;
+      var gsR = ((ef.slug ? 7.4 : 6.2) + gsImpact * 3.6) * U;
       ctx.save();
       ctx.globalAlpha = alpha;
       var gsSpd = Math.hypot(ef.vx, ef.vy) || 1;
       var gsAng = Math.atan2(ef.vy, ef.vx);
-      var gsTailLen = 14 * U;
-      var gsTx = -ef.vx / gsSpd * gsTailLen, gsTy = -ef.vy / gsSpd * gsTailLen;
+      var gsTailLen = (ef.slug ? 30 : 24) * U;
       var gsTailGrad = ctx.createLinearGradient(ef.x, ef.y, ef.x + gsTx, ef.y + gsTy);
       gsTailGrad.addColorStop(0, "rgba(242, 119, 78, 0.55)");
       gsTailGrad.addColorStop(1, "rgba(242, 119, 78, 0)");

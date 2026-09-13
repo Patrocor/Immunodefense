@@ -11631,9 +11631,11 @@
   // (no como un óvalo ámbar). Un solo path relleno, no 11 trazos finos.
   function macrophageLobeRadius(ang, R, time, seed, reach) {
     var lobes = 5;
-    var lobe = Math.pow(0.5 + 0.5 * Math.cos(ang * lobes - time * 0.9 + seed * 0.35), 1.35);
-    var breathe = 1 + Math.sin(time * 1.5 + seed + ang * 2) * 0.035;
-    return R * (0.70 + 0.42 * reach * lobe) * breathe;
+    var lobe = Math.pow(0.5 + 0.5 * Math.cos(ang * lobes - time * 0.7 + seed * 0.35), 1.75);
+    var which = Math.round(((ang / (Math.PI * 2) + 2) % 1) * lobes) % lobes;
+    var lenVar = 0.78 + 0.30 * (0.5 + 0.5 * Math.sin(which * 2.3 + seed * 1.1));
+    var breathe = 1 + Math.sin(time * 1.3 + seed + ang * 2) * 0.03;
+    return R * (0.84 + 0.36 * reach * lobe * lenVar) * breathe;
   }
   function macrophageBodyPath(R, time, seed, reach) {
     ctx.beginPath();
@@ -11724,7 +11726,7 @@
     var fleeing = g.state === "fleeing";
     var maw = g.mouthOpen || 0;                 // 0..1 al engullir
     var swallow = g.swallow || 0;
-    var R = 24 * U * g.scale * (1 + Math.sin(g.wobble) * 0.05);  // más grande
+    var R = 28 * U * g.scale * (1 + Math.sin(g.wobble) * 0.05);
     var COL = GUARDIAN_COL, COLD = GUARDIAN_COLD;
     var seed = g.shape || 0;
     ctx.save();
@@ -12646,7 +12648,7 @@
     roundRect(v.x + 1, v.y + 1, v.w - 2, v.h - 2, Math.min(7, v.h * 0.24));
     ctx.fill();
     if (pct > 0) {
-      ctx.fillStyle = ready ? "#7CFC9E" : "rgba(124, 252, 158, 0.58)";
+      ctx.fillStyle = ready ? "#7CFC9E" : "#4ec87a";
       roundRect(v.x + 2, v.y + 2, Math.max(4, (v.w - 4) * pct), v.h - 4, Math.min(6, v.h * 0.22));
       ctx.fill();
     }
@@ -12658,9 +12660,11 @@
     var textMax = Math.max(20, v.x + v.w - 6 - textX);
     ctx.textBaseline = "middle";
     ctx.textAlign = "left";
+    ctx.shadowColor = "rgba(0,0,0,0.45)";
+    ctx.shadowBlur = 3;
     ctx.fillStyle = ready
       ? "rgba(20,40,18," + (0.90 + 0.10 * (0.5 + 0.5 * Math.sin(state.time * 6))) + ")"
-      : "#e8fff0";
+      : "#f4fff8";
     var c3bPx = Math.max(10, Math.min(13, Math.min(v.h * 0.38, textMax * 0.22)));
     ctx.font = "bold " + fitFont(label, textMax, c3bPx, 8) + "px Fredoka, sans-serif";
     ctx.fillText(ellipsizeToWidth(label, textMax), textX, v.y + v.h / 2);
@@ -33316,7 +33320,7 @@
         // para entrar en la mini-pantalla — nada de un círculo genérico.
         var fakeG = {
           x: mx, y: my,
-          scale: (dh * 0.20) / (24 * U),
+          scale: (dh * 0.20) / (28 * U),
           wobble: state.time * 5, shape: 0, alpha: 1,
           mouthOpen: 0, swallow: 0, attackAnim: 0, hitFlash: 0, tongueExtend: 0,
           blinkTimer: 0, nextBlink: state.time + 999, state: "roaming"

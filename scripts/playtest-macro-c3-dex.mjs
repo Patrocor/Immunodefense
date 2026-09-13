@@ -44,6 +44,24 @@ await page.evaluate(() => {
 });
 await sleep(160);
 await page.screenshot({ path: join(ART, "macro_idle_lobes.png") });
+const macBox = await page.evaluate(() => {
+  const g = window.__game;
+  const m = g.state.guardians[0];
+  const f = g.metrics.FIELD;
+  return { x: Math.max(0, m.x - 90), y: Math.max(0, m.y - 90), w: 180, h: 180, field: f };
+});
+await page.screenshot({
+  path: join(ART, "macro_idle_closeup.png"),
+  clip: { x: macBox.x, y: macBox.y, width: macBox.w, height: macBox.h },
+});
+const c3 = await page.evaluate(() => {
+  const v = window.__game.ui.c3bMeter;
+  return { x: v.x - 8, y: v.y - 8, w: v.w + 16, h: v.h + 16 };
+});
+await page.screenshot({
+  path: join(ART, "c3b_charging.png"),
+  clip: { x: Math.max(0, c3.x), y: Math.max(0, c3.y), width: c3.w, height: c3.h },
+});
 
 await page.evaluate(() => {
   const g = window.__game;

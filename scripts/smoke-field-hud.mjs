@@ -43,6 +43,14 @@ assert.ok(src.includes("Pausá y elegí tu loadout"), "el aviso de pausa es una 
 assert.ok(src.includes("MACRO_LOBE_ANG"), "macrófago usa lóbulos irregulares");
 assert.ok(src.includes("function paintMacrophageCell"), "macrófago comparte silueta de habichuela+dedos");
 assert.ok(src.includes("detailBottom"), "el Dex recorta el texto a la casilla");
+assert.ok(src.includes("function uiSlotRadius"), "casillas usan radio de vértices romos");
+assert.ok(src.includes("function fillSlot"), "casillas se rellenan con fillSlot");
+assert.ok(src.includes("function strokeSlot"), "casillas se recortan con strokeSlot");
+assert.ok(src.includes("Casillas/casilleros: cuadrado o rectángulo de vértices romos"), "regla visual de casillas documentada");
+assert.ok(!src.includes("sin rounded corners"), "ya no hay cartas de esquina viva");
+assert.ok(!/roundRect\([^)]*,\s*0\s*\)/.test(src), "ningún roundRect queda en radio 0");
+assert.ok(src.includes("LOCKED v5 — Habichuela+4 seudópodos+boca abierta+lengua-Arpón"), "macrófago idle cerrado");
+assert.ok(src.includes("LOCKED v5 — lengua serpenteante + copa fagocítica"), "Arpón cerrado");
 
 const game = createTestGame();
 const g = game.__game;

@@ -2413,7 +2413,7 @@
         var nameTxt = isCombo ? "Combo +10%" : (isBuff ? "Refuerzo Médico" : (def.shortName || def.name));
         var pad = 4 * U;
         var tw = ctx.measureText(nameTxt).width;
-        ctx.fillRect(p.x - tw / 2 - pad, p.y + 24 * U, tw + pad * 2, 16 * U);
+        fillSlot(p.x - tw / 2 - pad, p.y + 24 * U, tw + pad * 2, 16 * U);
         ctx.fillStyle = "#fff";
         ctx.fillText(nameTxt, p.x, p.y + 26 * U);
         ctx.restore();
@@ -2575,10 +2575,12 @@
       var x = startX + i * (cardW + gap);
       var pulse = 0.5 + 0.5 * Math.sin(state.time * 3 + i);
       var stack = (state.combo && state.combo[cb.id]) || 0;
-      roundRect(x, cy - cardH / 2, cardW, cardH, 7 * U);
-      ctx.fillStyle = "rgba(20,26,40,0.96)"; ctx.fill();
-      ctx.fillStyle = colorAlpha(cb.color, 0.10 + pulse * 0.12); ctx.fill();
-      ctx.strokeStyle = cb.color; ctx.lineWidth = 2 * U; ctx.stroke();
+      ctx.fillStyle = "rgba(20,26,40,0.96)";
+      fillSlot(x, cy - cardH / 2, cardW, cardH);
+      ctx.fillStyle = colorAlpha(cb.color, 0.10 + pulse * 0.12);
+      fillSlot(x, cy - cardH / 2, cardW, cardH);
+      ctx.strokeStyle = cb.color; ctx.lineWidth = 2 * U;
+      strokeSlot(x, cy - cardH / 2, cardW, cardH);
       ctx.fillStyle = cb.color;
       ctx.font = Math.floor(30 * U) + "px Fredoka, sans-serif";
       ctx.textAlign = "center"; ctx.textBaseline = "middle";
@@ -2875,8 +2877,7 @@
     ctx.save();
     // Fondo con esquinas redondeadas (matching cards).
     ctx.fillStyle = pulse ? "rgba(255, 210, 74, " + (0.55 + pulse * 0.30) + ")" : "#33212e";
-    roundRect(b.x, b.y, b.w, b.h, 6);
-    ctx.fill();
+    fillSlot(b.x, b.y, b.w, b.h);
     ctx.fillStyle = pulse ? "#5a3a08" : "#ffd24a";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
@@ -2923,12 +2924,12 @@
     var modalY = (VH - modalH) / 2;
     UI.compendiumModal = { x: modalX, y: modalY, w: modalW, h: modalH };
     ctx.fillStyle = "#241620";
-    ctx.fillRect(modalX, modalY, modalW, modalH);
+    fillSlot(modalX, modalY, modalW, modalH);
 
     // Header
     var headerH = 40;
     ctx.fillStyle = "#33212e";
-    ctx.fillRect(modalX, modalY, modalW, headerH);
+    fillSlot(modalX, modalY, modalW, headerH);
     ctx.fillStyle = "#ffd24a";
     ctx.font = "bold 15px Fredoka, sans-serif";
     ctx.textAlign = "left";
@@ -2943,7 +2944,7 @@
                        "  ·  Tanques " + lo.tanks.length + "/" + LOADOUT_LIMITS.tanks +
                        "  ·  Barrera " + lo.barriers.length + "/" + LOADOUT_LIMITS.barriers;
       ctx.fillStyle = "rgba(20, 12, 18, 0.85)";
-      ctx.fillRect(modalX, counterY, modalW, 22);
+      fillSlot(modalX, counterY, modalW, 22);
       ctx.fillStyle = "#ffd24a";
       ctx.font = "bold 11px Fredoka, sans-serif";
       ctx.textAlign = "center"; ctx.textBaseline = "middle";
@@ -2956,7 +2957,7 @@
       w: closeSize, h: closeSize
     };
     ctx.fillStyle = "#7a3a3a";
-    ctx.fillRect(UI.compendiumCloseBtn.x, UI.compendiumCloseBtn.y, closeSize, closeSize);
+    fillSlot(UI.compendiumCloseBtn.x, UI.compendiumCloseBtn.y, closeSize, closeSize);
     ctx.fillStyle = "#fff";
     ctx.font = "bold 16px Fredoka, sans-serif";
     ctx.textAlign = "center"; ctx.textBaseline = "middle";
@@ -2976,7 +2977,7 @@
       var active = (state.compendiumTab === tabs[ti].key);
       UI.compendiumTabs.push({ key: tabs[ti].key, x: tx, y: tabY, w: tw, h: tabH });
       ctx.fillStyle = active ? "#241620" : "#1a1018";
-      ctx.fillRect(tx, tabY, tw, tabH);
+      fillSlot(tx, tabY, tw, tabH);
       if (active) {
         ctx.fillStyle = "#ffd24a";
         ctx.fillRect(tx, tabY + tabH - 3, tw, 3);
@@ -3036,7 +3037,7 @@
       // tinte del color. Desbloqueado normal: dark.
       var bgFill = locked ? "#15101a" : (selected ? colorAlpha(def.color || "#888", 0.30) : "#1f1219");
       ctx.fillStyle = bgFill;
-      ctx.fillRect(cx, cy, cardW, cardH);
+      fillSlot(cx, cy, cardW, cardH);
       ctx.save();
       ctx.beginPath();
       ctx.rect(cx + 1, cy + 1, cardW - 2, cardH - 2);
@@ -3044,18 +3045,16 @@
       if (selected && !locked) {
         ctx.strokeStyle = def.color || "#888";
         ctx.lineWidth = 2;
-        ctx.strokeRect(cx, cy, cardW, cardH);
+        strokeSlot(cx, cy, cardW, cardH);
       } else if (locked) {
-        // Borde gris para diferenciar de cards desbloqueadas.
         ctx.strokeStyle = "rgba(120, 120, 130, 0.30)";
         ctx.lineWidth = 1;
-        ctx.strokeRect(cx, cy, cardW, cardH);
+        strokeSlot(cx, cy, cardW, cardH);
       }
-      // En modo LOADOUT, sobre-renderizar borde verde + check en cards seleccionadas.
       if (state.loadoutEditing && !locked && typeId !== "macrofagoLibre" && isInLoadout(typeId)) {
         ctx.strokeStyle = "#7ad05b";
         ctx.lineWidth = 3;
-        ctx.strokeRect(cx + 1, cy + 1, cardW - 2, cardH - 2);
+        strokeSlot(cx + 1, cy + 1, cardW - 2, cardH - 2);
         // Checkmark verde en esquina sup-derecha
         var cmS = 14;
         ctx.fillStyle = "#7ad05b";
@@ -3135,7 +3134,7 @@
     var detailX = modalX + 10;
     var detailW = modalW - 20;
     ctx.fillStyle = "#1a1018";
-    ctx.fillRect(detailX, detailY, detailW, detailH);
+    fillSlot(detailX, detailY, detailW, detailH);
     ctx.fillStyle = "#33212e";
     ctx.fillRect(detailX, detailY, detailW, 2);
 
@@ -3501,8 +3500,8 @@
     ctx.fillStyle = "rgba(30, 15, 20, 0.85)";
     ctx.strokeStyle = "#ffd24a";
     ctx.lineWidth = 2;
-    ctx.fillRect(x, y, w, h);
-    ctx.strokeRect(x, y, w, h);
+    fillSlot(x, y, w, h);
+    strokeSlot(x, y, w, h);
     // Ícono "★" arriba con halo sutil
     ctx.fillStyle = "rgba(255, 210, 74, 0.30)";
     ctx.beginPath(); ctx.arc(x + w / 2, y + 14 * U, 11 * U, 0, Math.PI * 2); ctx.fill();
@@ -3592,7 +3591,7 @@
       var lineH = mechPx + 2;
       var mechH = 16 + mechLines.length * lineH + 6;
       ctx.fillStyle = "rgba(20, 12, 16, 0.85)";
-      ctx.fillRect(box.x, y, box.w, mechH);
+      fillSlot(box.x, y, box.w, mechH);
       ctx.fillStyle = colorAlpha(cfg.color, 0.9);
       ctx.fillRect(box.x, y, 2, mechH);
       ctx.textAlign = "left";
@@ -3640,7 +3639,7 @@
       }
       var sy = box.y + box.h - (filas.length * 17 + 5);
       ctx.fillStyle = "rgba(20, 12, 16, 0.7)";
-      ctx.fillRect(box.x, sy - 4, box.w, filas.length * 17 + 9);
+      fillSlot(box.x, sy - 4, box.w, filas.length * 17 + 9);
       for (var si = 0; si < filas.length; si++) {
         var fy = sy + si * 17;
         ctx.textAlign = "left";
@@ -3679,7 +3678,7 @@
     ctx.save();
     // Contenedor plano sin borde.
     ctx.fillStyle = "rgba(30, 15, 20, 0.85)";
-    ctx.fillRect(rp.x, rp.y, rp.w, rp.h);
+    fillSlot(rp.x, rp.y, rp.w, rp.h);
 
     UI.responseCards = [];
     for (var i = 0; i < RESPONSE_ORDER.length; i++) {
@@ -3694,12 +3693,11 @@
 
       ctx.globalAlpha = canAfford ? 1 : 0.4;
       ctx.fillStyle = armed ? colorAlpha(def.color, 0.30) : "rgba(20, 10, 14, 0.85)";
-      ctx.fillRect(cx, cy, cardW, cardH);
-      // Borde solo si está armada (feedback). Sin borde en estado normal.
+      fillSlot(cx, cy, cardW, cardH);
       if (armed) {
         ctx.strokeStyle = def.color;
         ctx.lineWidth = 2;
-        ctx.strokeRect(cx, cy, cardW, cardH);
+        strokeSlot(cx, cy, cardW, cardH);
       }
 
       // Ícono como glifo de texto (sin círculo de fondo que se lea como "globo
@@ -4722,11 +4720,10 @@
     bgGrad.addColorStop(0, "rgba(40, 20, 28, 0.92)");
     bgGrad.addColorStop(1, "rgba(20, 10, 14, 0.92)");
     ctx.fillStyle = bgGrad;
-    ctx.fillRect(bxFinal, by, bw, bh);
-    // Borde dorado tenue
+    fillSlot(bxFinal, by, bw, bh);
     ctx.strokeStyle = "rgba(255, 200, 100, 0.55)";
     ctx.lineWidth = 1.2;
-    ctx.strokeRect(bxFinal, by, bw, bh);
+    strokeSlot(bxFinal, by, bw, bh);
     // Sprite preview (mini) en la izquierda
     var spriteSize = bh - 10;
     var spriteCx = bxFinal + 5 + spriteSize / 2;
@@ -9239,7 +9236,7 @@
       // Background pill
       var tw = ctx.measureText(buffText).width;
       ctx.fillStyle = "rgba(20, 10, 14, 0.85)";
-      ctx.fillRect(rt.x - tw / 2 - 5, tY - 7, tw + 10, 14);
+      fillSlot(rt.x - tw / 2 - 5, tY - 7, tw + 10, 14);
       ctx.fillStyle = colorAlpha(rt.def.color, 0.95);
       ctx.fillText(buffText, rt.x, tY);
       ctx.restore();
@@ -11454,6 +11451,7 @@
     ctx.restore();
   }
 
+  // LOCKED v5 — lengua serpenteante + copa fagocítica (user OK "Excelente").
   // Llamas envolventes + seudópodo-arpón (cuerda viva + copa fagocítica)
   // hacia el objetivo + globo "¡Ven aquí!".
   // Todo dibujado DESPUÉS del cuerpo para que nunca quede tapado.
@@ -11711,6 +11709,8 @@
     ctx.restore();
   }
 
+  // LOCKED v5 — Habichuela+4 seudópodos+boca abierta+lengua-Arpón
+  // (user OK "Excelente" / "Cerremos").
   // Habichuela + 4 seudópodos en cápsula. Los dedos se pintan aparte:
   // si se interpolan en un solo path, a escala de juego se leen como papa.
   var MACRO_LOBE_ANG = [0.38, 1.95, 3.42, 5.18];
@@ -12171,17 +12171,15 @@
   }
 
   function drawSerumShell(x, y, w, h, ready) {
-    var r = Math.min(8, h * 0.28);
+    var r = uiSlotRadius(w, h);
     ctx.fillStyle = "rgba(18, 10, 14, 0.72)";
-    roundRect(x, y, w, h, r);
-    ctx.fill();
+    fillSlot(x, y, w, h);
     ctx.fillStyle = "rgba(255, 255, 255, 0.08)";
     roundRect(x + 1, y + 1, w - 2, Math.max(3, h * 0.34), r * 0.7);
     ctx.fill();
     ctx.strokeStyle = ready ? "rgba(255, 230, 180, 0.85)" : "rgba(255,255,255,0.38)";
     ctx.lineWidth = ready ? 2 : 1;
-    roundRect(x, y, w, h, r);
-    ctx.stroke();
+    strokeSlot(x, y, w, h);
   }
 
   function drawMedVial() {
@@ -12205,15 +12203,19 @@
       var col = MED_POWERS[i].color;
       // Fondo tenue del color de este nivel (siempre visible, da pistas).
       ctx.fillStyle = colorAlpha(col, 0.10);
-      ctx.fillRect(segX + 1, v.y + 2, segW - 2, v.h - 4);
-      // Llenado real proporcional.
+      fillSlot(segX + 1, v.y + 2, segW - 2, v.h - 4);
       if (f > 0) {
+        ctx.save();
+        ctx.beginPath();
+        roundRect(segX + 1, v.y + 2, segW - 2, v.h - 4, uiSlotRadius(segW - 2, v.h - 4));
+        ctx.clip();
         ctx.fillStyle = colorAlpha(col, 0.40 + 0.55 * f);
         ctx.fillRect(segX + 1, v.y + 2, (segW - 2) * f, v.h - 4);
+        ctx.restore();
       }
       ctx.strokeStyle = (f >= 1) ? col : "rgba(255,255,255,0.25)";
       ctx.lineWidth = (f >= 1) ? 2 : 1;
-      ctx.strokeRect(segX + 1, v.y + 1.5, segW - 2, v.h - 3);
+      strokeSlot(segX + 1, v.y + 1.5, segW - 2, v.h - 3);
       // Código de 3 letras del antibiótico (TET/PEN/VAN/CAR), centrado.
       // Es la identidad visual de cada tier — combinado con el color, el
       // jugador asocia rápido "ese turquesa con PEN = Penicilina".
@@ -12229,8 +12231,7 @@
       ctx.fillText("Nv" + (i + 1), segX + segW - 3, v.y + 2);
     }
     ctx.strokeStyle = "rgba(255,255,255,0.22)"; ctx.lineWidth = 1;
-    roundRect(v.x, v.y, v.w, v.h, Math.min(8, v.h * 0.28));
-    ctx.stroke();
+    strokeSlot(v.x, v.y, v.w, v.h);
     // Watermark DINÁMICO en la parte baja del vial: muestra la CLASE del
     // bloque más alto lleno (ej. "Bacteriostático", "β-lactámico"...). Así el
     // jugador sabe qué va a desatar antes de tocar. Si no hay nada cargado,
@@ -12252,13 +12253,16 @@
     ctx.save();
     drawSerumShell(v.x, v.y, v.w, v.h, ready);
     ctx.fillStyle = "rgba(143, 206, 46, 0.10)";
-    roundRect(v.x + 1, v.y + 1, v.w - 2, v.h - 2, Math.min(7, v.h * 0.24));
-    ctx.fill();
+    fillSlot(v.x + 1, v.y + 1, v.w - 2, v.h - 2);
     var lw = (v.w - 4) * ratio;
     ctx.fillStyle = ready ? "#b6ff3a" : "#8fce2e";
     if (lw > 1) {
-      roundRect(v.x + 2, v.y + 2, lw, v.h - 4, Math.min(6, v.h * 0.22));
-      ctx.fill();
+      ctx.save();
+      ctx.beginPath();
+      roundRect(v.x + 1, v.y + 1, v.w - 2, v.h - 2, uiSlotRadius(v.w - 2, v.h - 2));
+      ctx.clip();
+      ctx.fillRect(v.x + 2, v.y + 2, lw, v.h - 4);
+      ctx.restore();
     }
     ctx.restore();
     ctx.save();
@@ -12283,24 +12287,20 @@
     drawSerumShell(v.x, v.y, v.w, v.h, armed || enabled);
     if (armed) {
       ctx.fillStyle = "rgba(232, 146, 58, 0.38)";
-      roundRect(v.x + 1, v.y + 1, v.w - 2, v.h - 2, Math.min(7, v.h * 0.24));
-      ctx.fill();
+      fillSlot(v.x + 1, v.y + 1, v.w - 2, v.h - 2);
     } else {
       ctx.fillStyle = "rgba(232, 146, 58, 0.12)";
-      roundRect(v.x + 1, v.y + 1, v.w - 2, v.h - 2, Math.min(7, v.h * 0.24));
-      ctx.fill();
+      fillSlot(v.x + 1, v.y + 1, v.w - 2, v.h - 2);
     }
     if (armed) {
       var pp = 0.5 + 0.5 * Math.sin(state.time * 5);
       ctx.strokeStyle = "rgba(255, 210, 100, " + (0.7 + pp * 0.30) + ")";
       ctx.lineWidth = 2.5;
-      roundRect(v.x, v.y, v.w, v.h, Math.min(8, v.h * 0.28));
-      ctx.stroke();
+      strokeSlot(v.x, v.y, v.w, v.h);
     } else if (!enabled) {
       ctx.strokeStyle = "rgba(200, 100, 100, 0.45)";
       ctx.lineWidth = 1;
-      roundRect(v.x, v.y, v.w, v.h, Math.min(8, v.h * 0.28));
-      ctx.stroke();
+      strokeSlot(v.x, v.y, v.w, v.h);
     }
     ctx.globalAlpha = enabled ? 1 : 0.45;
     var cx = v.x + v.w / 2, cy = v.y + v.h * 0.42;
@@ -12751,13 +12751,20 @@
     var ready = mu.ready;
     ctx.save();
     ctx.fillStyle = "rgba(20,8,12,0.55)";
-    ctx.fillRect(v.x, v.y, v.w, v.h);
+    fillSlot(v.x, v.y, v.w, v.h);
     var pct = Math.max(0, Math.min(1, mu.charge));
-    ctx.fillStyle = "rgba(255,90,40,0.35)";
-    ctx.fillRect(v.x, v.y, v.w * pct, v.h);
+    if (pct > 0) {
+      ctx.save();
+      ctx.beginPath();
+      roundRect(v.x, v.y, v.w, v.h, uiSlotRadius(v.w, v.h));
+      ctx.clip();
+      ctx.fillStyle = "rgba(255,90,40,0.35)";
+      ctx.fillRect(v.x, v.y, v.w * pct, v.h);
+      ctx.restore();
+    }
     ctx.strokeStyle = ready ? "rgba(255,110,40,0.95)" : "rgba(255,255,255,0.45)";
     ctx.lineWidth = ready ? 2 : 1;
-    ctx.strokeRect(v.x, v.y, v.w, v.h);
+    strokeSlot(v.x, v.y, v.w, v.h);
     var arpLabel = ready ? "▸ Arpón" : "Arpón";
     var arpPx = Math.max(10, Math.min(14, Math.min(v.h * 0.40, v.w * 0.18)));
     ctx.font = "bold " + fitFont(arpLabel, v.w - 12, arpPx, 8) + "px Fredoka, sans-serif";
@@ -12784,8 +12791,7 @@
     drawSerumShell(v.x, v.y, v.w, v.h, ready);
     ctx.shadowBlur = 0;
     ctx.fillStyle = "rgba(80, 200, 120, 0.10)";
-    roundRect(v.x + 1, v.y + 1, v.w - 2, v.h - 2, Math.min(7, v.h * 0.24));
-    ctx.fill();
+    fillSlot(v.x + 1, v.y + 1, v.w - 2, v.h - 2);
     // Izquierda: marca + cuenta. Derecha: 5 bloques (a 2/5 se leen dos llenos).
     var iconR = Math.max(5, Math.min(7, v.h * 0.26));
     var ix = v.x + 5 + iconR;
@@ -13591,7 +13597,7 @@
     ctx.clip();
     // Fondo sutil del viewport con borde
     ctx.fillStyle = "rgba(20, 12, 18, 0.45)";
-    ctx.fillRect(viewX, viewY, viewW, viewH);
+    fillSlot(viewX, viewY, viewW, viewH);
 
     // Calcular estado de cada nodo en función de currentNode + availableNodes
     var curIdx = mapProgressIdx(b.currentNode);  // -1 si nada
@@ -13681,7 +13687,7 @@
     // Borde decorativo alrededor del viewport
     ctx.strokeStyle = "rgba(255, 200, 140, 0.30)";
     ctx.lineWidth = 1;
-    ctx.strokeRect(viewX, viewY, viewW, viewH);
+    strokeSlot(viewX, viewY, viewW, viewH);
 
     // Indicadores de scroll (flechas tenues si se puede scrollear más)
     if (maxScrollX > 0) {
@@ -14540,11 +14546,13 @@
         ctx.globalAlpha = miniAlpha;
         // Marco tipo monitor.
         ctx.fillStyle = "#0a0c0a";
-        ctx.fillRect(px - 4 * U, py - 4 * U, panelW + 8 * U, panelH + 8 * U);
+        fillSlot(px - 4 * U, py - 4 * U, panelW + 8 * U, panelH + 8 * U);
         ctx.fillStyle = "#142016";
-        ctx.fillRect(px, py, panelW, panelH);
+        fillSlot(px, py, panelW, panelH);
         ctx.save();
-        ctx.beginPath(); ctx.rect(px, py, panelW, panelH); ctx.clip();
+        ctx.beginPath();
+        roundRect(px, py, panelW, panelH, uiSlotRadius(panelW, panelH));
+        ctx.clip();
         // Camino horizontal.
         var pathY = py + panelH * 0.64;
         ctx.strokeStyle = "rgba(150, 190, 150, 0.55)";
@@ -14573,7 +14581,7 @@
         ctx.restore(); // fin clip
         ctx.strokeStyle = "rgba(130, 210, 150, 0.65)";
         ctx.lineWidth = 1.6 * U;
-        ctx.strokeRect(px, py, panelW, panelH);
+        strokeSlot(px, py, panelW, panelH);
         ctx.restore();
         // Etiqueta.
         ctx.save();
@@ -32486,14 +32494,19 @@
       var totalOla = Math.max(1, faltanSpawn + sueltosHud);
       var entrados = Math.max(0, totalOla - faltanSpawn);
       ctx.fillStyle = "rgba(20, 14, 18, 0.55)";
-      ctx.fillRect(nb.x, nb.y, nb.w, nb.h);
+      fillSlot(nb.x, nb.y, nb.w, nb.h);
       // Barra de avance del spawn de la ola.
       var pbH = Math.max(3, Math.min(5, nb.h * 0.18));
       var pbY = nb.y + nb.h - pbH - 2;
       ctx.fillStyle = "rgba(255,255,255,0.12)";
-      ctx.fillRect(nb.x + 4, pbY, nb.w - 8, pbH);
+      fillSlot(nb.x + 4, pbY, nb.w - 8, pbH);
+      ctx.save();
+      ctx.beginPath();
+      roundRect(nb.x + 4, pbY, nb.w - 8, pbH, uiSlotRadius(nb.w - 8, pbH));
+      ctx.clip();
       ctx.fillStyle = "rgba(255, 150, 120, 0.75)";
       ctx.fillRect(nb.x + 4, pbY, (nb.w - 8) * (entrados / totalOla), pbH);
+      ctx.restore();
       var olaTxt = "OLEADA EN CURSO · " + sueltosHud + " en campo"
                  + (faltanSpawn > 0 ? " · faltan " + faltanSpawn : "");
       ctx.fillStyle = "rgba(255, 214, 196, 0.92)";
@@ -32506,7 +32519,7 @@
     }
     if (nb && statusText) {
       ctx.fillStyle = "rgba(20, 14, 18, 0.55)";
-      ctx.fillRect(nb.x, nb.y, nb.w, nb.h);
+      fillSlot(nb.x, nb.y, nb.w, nb.h);
       ctx.fillStyle = "#ffd6c4";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
@@ -32518,15 +32531,14 @@
       ctx.fillText(ellipsizeToWidth(statusText, nb.w - 8), nb.x + nb.w / 2, nb.y + nb.h / 2);
     }
 
-    // Restart y Mute como rectángulos planos (sin borde).
     var rb = UI.restartBtn;
     ctx.fillStyle = "#5a3540";
-    ctx.fillRect(rb.x, rb.y, rb.w, rb.h);
+    fillSlot(rb.x, rb.y, rb.w, rb.h);
     drawRestartIcon(rb.x + rb.w / 2, rb.y + rb.h / 2, rb.h * 0.32, "#fff");
 
     var mb = UI.muteBtn;
     ctx.fillStyle = "#5a3540";
-    ctx.fillRect(mb.x, mb.y, mb.w, mb.h);
+    fillSlot(mb.x, mb.y, mb.w, mb.h);
     drawSpeakerIcon(mb.x + mb.w / 2, mb.y + mb.h / 2, mb.h * 0.36, audio.muted, "#fff");
     // Botón PAUSA — abre el Dex en modo loadout (elegir 5+2+1).
     var pb = UI.pauseBtn;
@@ -32539,7 +32551,7 @@
         ctx.shadowBlur = 10 + lp * 6;
       }
       ctx.fillStyle = state.paused ? "#7a4a30" : "#5a3540";
-      ctx.fillRect(pb.x, pb.y, pb.w, pb.h);
+      fillSlot(pb.x, pb.y, pb.w, pb.h);
       ctx.shadowBlur = 0;
       // Icono ⏸ — 2 barras verticales
       ctx.fillStyle = "#fff";
@@ -32630,14 +32642,26 @@
     ctx.fillText(value, x, y + fontLabel + 4);
   }
 
+  // Casillas/casilleros: cuadrado o rectángulo de vértices romos.
+  // Radio moderado — ni esquina viva ni píldora (r = h/2).
+  function uiSlotRadius(w, h) {
+    var m = Math.min(Math.abs(w), Math.abs(h));
+    return Math.min(10, Math.max(4, m * 0.16));
+  }
+  function fillSlot(x, y, w, h) {
+    roundRect(x, y, w, h, uiSlotRadius(w, h));
+    ctx.fill();
+  }
+  function strokeSlot(x, y, w, h) {
+    roundRect(x, y, w, h, uiSlotRadius(w, h));
+    ctx.stroke();
+  }
   function drawButton(r, text, fill, stroke, enabled) {
     ctx.fillStyle = fill;
-    roundRect(r.x, r.y, r.w, r.h, 0);
-    ctx.fill();
+    fillSlot(r.x, r.y, r.w, r.h);
     ctx.strokeStyle = stroke;
     ctx.lineWidth = 1.5;
-    roundRect(r.x, r.y, r.w, r.h, 0);
-    ctx.stroke();
+    strokeSlot(r.x, r.y, r.w, r.h);
     ctx.fillStyle = enabled ? "#fff" : uiInkDisabled();
     var fs = Math.max(11, Math.min(14, r.h * 0.36));
     ctx.textAlign = "center";
@@ -32730,7 +32754,7 @@
         var hy = strip.y + Hh.contentY - scroll;
         if (hy + Hh.h < strip.y - 4 || hy > strip.y + strip.h + 4) continue;
         ctx.fillStyle = Hh.open ? "#33212e" : "#241620";
-        ctx.fillRect(Hh.x, hy, Hh.w, Hh.h);
+        fillSlot(Hh.x, hy, Hh.w, Hh.h);
         // Layout con auto-ajuste: la cuenta a la derecha (siempre visible),
         // y la etiqueta a la izquierda escalada/recortada para que no
         // invada el espacio de la cuenta.
@@ -32771,17 +32795,14 @@
           ctx.shadowBlur = 8;
           ctx.shadowOffsetX = -4;
         }
-        // Card RECTANGULAR (sin rounded corners) — combinado con el
-        // ícono circular se evita el efecto "globo de diálogo".
+        // Casilla de vértices romos (no pill, no esquina viva).
         ctx.fillStyle = "#1f1219";
-        ctx.fillRect(cardX, cardY, cw, ch);
-        // TINT del def color sobre el fondo dark.
+        fillSlot(cardX, cardY, cw, ch);
         ctx.fillStyle = colorAlpha(def.color, isSelected ? 0.32 : 0.18);
-        ctx.fillRect(cardX, cardY, cw, ch);
+        fillSlot(cardX, cardY, cw, ch);
         ctx.shadowColor = "transparent";
         ctx.shadowBlur = 0;
         ctx.shadowOffsetX = 0;
-        // Borde rectangular siempre visible.
         if (isSelected) {
           ctx.strokeStyle = def.color;
           ctx.lineWidth = 2;
@@ -32789,7 +32810,7 @@
           ctx.strokeStyle = colorAlpha(def.colorDark, 0.50);
           ctx.lineWidth = 1.0;
         }
-        ctx.strokeRect(cardX, cardY, cw, ch);
+        strokeSlot(cardX, cardY, cw, ch);
 
         // Tres bandas que escalan con la carta: nombre / preview / costo.
         var cardCenterX = cardX + cw / 2;
@@ -32880,8 +32901,7 @@
 
       // X deseleccionar (esquina sup-der de la zona info).
       ctx.fillStyle = "rgba(255,255,255,0.12)";
-      roundRect(UI.deselectBtn.x, UI.deselectBtn.y, UI.deselectBtn.w, UI.deselectBtn.h, 0);
-      ctx.fill();
+      fillSlot(UI.deselectBtn.x, UI.deselectBtn.y, UI.deselectBtn.w, UI.deselectBtn.h);
       ctx.fillStyle = "rgba(255,255,255,0.8)";
       ctx.font = "bold 13px Fredoka, sans-serif";
       ctx.textAlign = "center";
@@ -33027,8 +33047,7 @@
       var x = VW / 2 - w / 2;
       ctx.fillStyle = "rgba(0,0,0,0.55)";
       ctx.globalAlpha = alpha * 0.6;
-      roundRect(x, FIELD_TOP + 12, w, 36, 0);
-      ctx.fill();
+      fillSlot(x, FIELD_TOP + 12, w, 36);
       ctx.globalAlpha = alpha;
       ctx.fillStyle = "#fff";
       ctx.textAlign = "center";
@@ -33043,12 +33062,10 @@
     ctx.fillStyle = "rgba(0,0,0,0.55)";
     ctx.fillRect(0, 0, VW, VH);
     ctx.fillStyle = "#2a1a22";
-    roundRect(UI.modal.x, UI.modal.y, UI.modal.w, UI.modal.h, 0);
-    ctx.fill();
+    fillSlot(UI.modal.x, UI.modal.y, UI.modal.w, UI.modal.h);
     ctx.strokeStyle = "#5a3540";
     ctx.lineWidth = 2;
-    roundRect(UI.modal.x, UI.modal.y, UI.modal.w, UI.modal.h, 0);
-    ctx.stroke();
+    strokeSlot(UI.modal.x, UI.modal.y, UI.modal.w, UI.modal.h);
     ctx.fillStyle = "#fff";
     ctx.font = "bold 18px Fredoka, sans-serif";
     ctx.textAlign = "center";
@@ -33118,12 +33135,10 @@
     var btn = { x: VW / 2 - btnW / 2, y: sy + stats.length * lineH + 24, w: btnW, h: btnH };
     UI.transitionBtn = btn;
     ctx.fillStyle = state.finalScreen ? "#2C3E50" : "#1f8a4c";
-    roundRect(btn.x, btn.y, btn.w, btn.h, 0);
-    ctx.fill();
+    fillSlot(btn.x, btn.y, btn.w, btn.h);
     ctx.strokeStyle = "rgba(0,0,0,0.4)";
     ctx.lineWidth = 1.5;
-    roundRect(btn.x, btn.y, btn.w, btn.h, 0);
-    ctx.stroke();
+    strokeSlot(btn.x, btn.y, btn.w, btn.h);
     ctx.fillStyle = "#fff";
     ctx.font = 'bold 16px Fredoka, sans-serif';
     ctx.fillText(
@@ -33194,7 +33209,7 @@
     // Tarjeta plana estilo overlay: fondo oscuro semitransparente, sin borde
     // ni sombra. Antes era cream + borde negro grueso + sombra → "bocadillo".
     ctx.fillStyle = "rgba(15, 12, 18, 0.92)";
-    ctx.fillRect(x, y, W, H);
+    fillSlot(x, y, W, H);
     // Dibujo por filas: cada fila centrada en su franja (baseline middle).
     var cyc = y + ttPad;
     for (var r2 = 0; r2 < ttRows.length; r2++) {
@@ -33345,13 +33360,13 @@
     grad.addColorStop(0.5, "#4A0000");
     grad.addColorStop(1, "#1A0000");
     ctx.fillStyle = grad;
-    ctx.fillRect(bx, by, bw, bh);
+    fillSlot(bx, by, bw, bh);
     // Glow border
     ctx.shadowColor = "rgba(231, 76, 60, 0.85)";
     ctx.shadowBlur = 20;
     ctx.strokeStyle = "#E74C3C";
     ctx.lineWidth = 3;
-    ctx.strokeRect(bx, by, bw, bh);
+    strokeSlot(bx, by, bw, bh);
     ctx.shadowBlur = 0;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
@@ -33416,9 +33431,9 @@
         var ccy = cy + dh * 0.06;
         var lit = bp > 0.82;
         ctx.fillStyle = lit ? "rgba(183,156,224,0.35)" : "rgba(255,255,255,0.08)";
-        ctx.fillRect(cx - cardW2 / 2, ccy - cardH2 / 2, cardW2, cardH2);
+        fillSlot(cx - cardW2 / 2, ccy - cardH2 / 2, cardW2, cardH2);
         ctx.strokeStyle = "rgba(255,255,255,0.5)"; ctx.lineWidth = 1.5;
-        ctx.strokeRect(cx - cardW2 / 2, ccy - cardH2 / 2, cardW2, cardH2);
+        strokeSlot(cx - cardW2 / 2, ccy - cardH2 / 2, cardW2, cardH2);
         drawTowerPreview("neutrofilo", cx, ccy, cardH2 * 0.30, true);
         // Dedo bajando y subiendo (bumerang) sobre la tarjeta.
         var fingerY = ccy - cardH2 * 1.5 + bp * (cardH2 * 1.35);
@@ -33432,11 +33447,11 @@
       } else if (type === "placeCell") {
         var dockX = cx - dw * 0.30, fieldX = cx + dw * 0.30;
         ctx.fillStyle = "rgba(255,255,255,0.08)";
-        ctx.fillRect(dockX - dw * 0.12, cy - dh * 0.30, dw * 0.24, dh * 0.60);
-        ctx.fillRect(fieldX - dw * 0.18, cy - dh * 0.30, dw * 0.36, dh * 0.60);
+        fillSlot(dockX - dw * 0.12, cy - dh * 0.30, dw * 0.24, dh * 0.60);
+        fillSlot(fieldX - dw * 0.18, cy - dh * 0.30, dw * 0.36, dh * 0.60);
         ctx.strokeStyle = "rgba(255,255,255,0.30)"; ctx.lineWidth = 1;
-        ctx.strokeRect(dockX - dw * 0.12, cy - dh * 0.30, dw * 0.24, dh * 0.60);
-        ctx.strokeRect(fieldX - dw * 0.18, cy - dh * 0.30, dw * 0.36, dh * 0.60);
+        strokeSlot(dockX - dw * 0.12, cy - dh * 0.30, dw * 0.24, dh * 0.60);
+        strokeSlot(fieldX - dw * 0.18, cy - dh * 0.30, dw * 0.36, dh * 0.60);
         var travelX = dockX + (fieldX - dockX) * bp;
         var arcY = cy - Math.sin(bp * Math.PI) * dh * 0.22;
         drawTowerPreview("neutrofilo", travelX, arcY, dh * 0.15, true);
@@ -33666,16 +33681,16 @@
     ctx.globalAlpha = a;
     // Sombra dura manga (drop shadow desplazado)
     ctx.fillStyle = "rgba(0,0,0,0.45)";
-    ctx.fillRect(x + 4, y + 5, w, h);
+    fillSlot(x + 4, y + 5, w, h);
     // Marco grueso negro
     ctx.fillStyle = "#1a0e12";
-    ctx.fillRect(x - 3, y - 3, w + 6, h + 6);
+    fillSlot(x - 3, y - 3, w + 6, h + 6);
     // Imagen recortada (clip + drawImage manualmente)
     var img = introImgs[cfg.srcIdx];
     if (img && img.complete && img.naturalWidth) {
       ctx.save();
       ctx.beginPath();
-      ctx.rect(x, y, w, h);
+      roundRect(x, y, w, h, uiSlotRadius(w, h));
       ctx.clip();
       var iw = img.naturalWidth, ih = img.naturalHeight;
       var sx = iw * cfg.cropX, sy = ih * cfg.cropY;
@@ -33687,7 +33702,7 @@
       ctx.drawImage(img, sx, sy, sw, sh, dx, dy, dw, dh);
       ctx.restore();
     } else {
-      ctx.fillStyle = "#33212e"; ctx.fillRect(x, y, w, h);
+      ctx.fillStyle = "#33212e"; fillSlot(x, y, w, h);
     }
     // Etiqueta de esquina (label manga tipo "ZOOM", "CURA", etc)
     if (cfg.label) {
@@ -33696,7 +33711,7 @@
       ctx.textAlign = "left"; ctx.textBaseline = "top";
       var lblW = ctx.measureText(cfg.label).width + lblPad * 2;
       ctx.fillStyle = "#ffd24a";
-      ctx.fillRect(x - 3, y - 3, lblW, 16);
+      fillSlot(x - 3, y - 3, lblW, 16);
       ctx.fillStyle = "#1a0e12";
       ctx.fillText(cfg.label, x - 3 + lblPad, y - 1);
     }
@@ -33805,15 +33820,20 @@
     var bx = 16, by = VH - bh - 20;
     // Sombra dura manga
     ctx.fillStyle = "rgba(0,0,0,0.55)";
-    ctx.fillRect(bx + 4, by + 5, bw, bh);
+    fillSlot(bx + 4, by + 5, bw, bh);
     // Fondo crema con borde negro grueso (estilo caja narrativa manga)
     ctx.fillStyle = "#fff8e7";
-    ctx.fillRect(bx, by, bw, bh);
+    fillSlot(bx, by, bw, bh);
     ctx.strokeStyle = "#1a0e12"; ctx.lineWidth = 3;
-    ctx.strokeRect(bx, by, bw, bh);
+    strokeSlot(bx, by, bw, bh);
     // Acento de color en esquina sup-izq (banda manga)
+    ctx.save();
+    ctx.beginPath();
+    roundRect(bx, by, bw, bh, uiSlotRadius(bw, bh));
+    ctx.clip();
     ctx.fillStyle = "#d61f1f";
     ctx.fillRect(bx, by, 8, bh);
+    ctx.restore();
     // Texto
     ctx.fillStyle = "#1a0e12";
     ctx.font = "bold 16px Fredoka, sans-serif";
@@ -33859,20 +33879,17 @@
       var card = TUTORIAL_CARDS[i];
       var cx = marginX + i * (cardW + gap) - scroll;
       if (cx + cardW < marginX - 20 || cx > marginX + stripW + 20) continue;
-      // Cuadro 100% plano — esquinas a 90°, sin radio. Nada de forma de
-      // globo de diálogo (esos quedan solo para los diálogos de personajes).
       ctx.fillStyle = "rgba(255,255,255,0.06)";
-      ctx.fillRect(cx, stripY, cardW, cardH);
+      fillSlot(cx, stripY, cardW, cardH);
       ctx.strokeStyle = "rgba(255,255,255,0.30)"; ctx.lineWidth = 1.5;
-      ctx.strokeRect(cx, stripY, cardW, cardH);
+      strokeSlot(cx, stripY, cardW, cardH);
 
-      // "Pantallita" con la mini-demo animada del paso (recorte propio).
       var demoX = cx + 8, demoY = stripY + 8;
       var demoW = cardW - 16, demoH = cardH * 0.48;
       ctx.fillStyle = "rgba(0,0,0,0.35)";
-      ctx.fillRect(demoX, demoY, demoW, demoH);
+      fillSlot(demoX, demoY, demoW, demoH);
       ctx.strokeStyle = "rgba(255,255,255,0.18)"; ctx.lineWidth = 1;
-      ctx.strokeRect(demoX, demoY, demoW, demoH);
+      strokeSlot(demoX, demoY, demoW, demoH);
       ctx.save();
       ctx.beginPath(); ctx.rect(demoX, demoY, demoW, demoH); ctx.clip();
       drawTutorialDemo(card.demo, demoX, demoY, demoW, demoH);
@@ -33902,9 +33919,9 @@
     // Botón "Cerrar".
     var csw = 110, csh = 36, csx = VW / 2 - csw / 2, csy = VH - 56;
     UI.tutorialClose = { x: csx, y: csy, w: csw, h: csh };
-    ctx.fillStyle = "#1a1a22"; roundRect(csx, csy, csw, csh, 8); ctx.fill();
+    ctx.fillStyle = "#1a1a22"; fillSlot(csx, csy, csw, csh);
     ctx.strokeStyle = "rgba(255,255,255,0.40)"; ctx.lineWidth = 1.5;
-    roundRect(csx, csy, csw, csh, 8); ctx.stroke();
+    strokeSlot(csx, csy, csw, csh);
     ctx.fillStyle = "#fff"; ctx.font = "bold 14px Fredoka, sans-serif";
     ctx.fillText("Cerrar", csx + csw / 2, csy + csh / 2);
 
@@ -33973,7 +33990,7 @@
     // Puntos de progreso (rectángulo sólido para que se lea limpio).
     var nd = INTRO_DUR.length, dx0 = VW / 2 - (nd - 1) * 6;
     ctx.fillStyle = "rgba(20,15,18,0.85)";
-    roundRect(dx0 - 12, 12, (nd - 1) * 12 + 24, 16, 4); ctx.fill();
+    fillSlot(dx0 - 12, 12, (nd - 1) * 12 + 24, 16);
     for (var s2 = 0; s2 < nd; s2++) {
       ctx.fillStyle = s2 === sc ? "#ffffff" : "rgba(255,255,255,0.45)";
       ctx.beginPath(); ctx.arc(dx0 + s2 * 12, 20, 4, 0, Math.PI * 2); ctx.fill();
@@ -33982,9 +33999,9 @@
     // Botón "Saltar" — rectángulo sólido, esquinas suaves, texto centrado.
     var sw = 86, sh = 30, sx = VW - sw - 12, sy = 12;
     UI.introSkip = { x: sx, y: sy, w: sw, h: sh };
-    ctx.fillStyle = "#1a1a22"; roundRect(sx, sy, sw, sh, 0); ctx.fill();
+    ctx.fillStyle = "#1a1a22"; fillSlot(sx, sy, sw, sh);
     ctx.strokeStyle = "rgba(255,255,255,0.40)"; ctx.lineWidth = 1.5;
-    roundRect(sx, sy, sw, sh, 0); ctx.stroke();
+    strokeSlot(sx, sy, sw, sh);
     ctx.fillStyle = "#fff"; ctx.font = "bold 13px Fredoka, sans-serif";
     ctx.textAlign = "center"; ctx.textBaseline = "middle";
     ctx.fillText("Saltar", sx + sw / 2, sy + sh / 2);
@@ -33993,9 +34010,9 @@
     // Botón "Tutorial" — mismo estilo, debajo del de Saltar.
     var tsy = sy + sh + 8;
     UI.tutorialBtn = { x: sx, y: tsy, w: sw, h: sh };
-    ctx.fillStyle = "#1a1a22"; roundRect(sx, tsy, sw, sh, 0); ctx.fill();
+    ctx.fillStyle = "#1a1a22"; fillSlot(sx, tsy, sw, sh);
     ctx.strokeStyle = "rgba(255,255,255,0.40)"; ctx.lineWidth = 1.5;
-    roundRect(sx, tsy, sw, sh, 0); ctx.stroke();
+    strokeSlot(sx, tsy, sw, sh);
     ctx.fillStyle = "#fff"; ctx.font = "bold 13px Fredoka, sans-serif";
     ctx.fillText("Tutorial", sx + sw / 2, tsy + sh / 2);
 
@@ -34014,14 +34031,14 @@
     var modalX = (VW - modalW) / 2;
     var modalY = Math.max(safeTop + 12, (VH - modalH) / 2);
     ctx.fillStyle = "rgba(27, 14, 20, 0.98)";
-    roundRect(modalX, modalY, modalW, modalH, 0); ctx.fill();
+    fillSlot(modalX, modalY, modalW, modalH);
     ctx.strokeStyle = "rgba(255, 210, 74, 0.55)"; ctx.lineWidth = 1.5;
-    roundRect(modalX, modalY, modalW, modalH, 0); ctx.stroke();
+    strokeSlot(modalX, modalY, modalW, modalH);
 
     var closeW = 76, closeH = 34;
     UI.achievementClose = { x: modalX + modalW - closeW - 14, y: modalY + 14, w: closeW, h: closeH };
-    ctx.fillStyle = "#24171b"; ctx.fillRect(UI.achievementClose.x, UI.achievementClose.y, closeW, closeH);
-    ctx.strokeStyle = "rgba(255,255,255,0.38)"; ctx.lineWidth = 1; ctx.strokeRect(UI.achievementClose.x, UI.achievementClose.y, closeW, closeH);
+    ctx.fillStyle = "#24171b"; fillSlot(UI.achievementClose.x, UI.achievementClose.y, closeW, closeH);
+    ctx.strokeStyle = "rgba(255,255,255,0.38)"; ctx.lineWidth = 1; strokeSlot(UI.achievementClose.x, UI.achievementClose.y, closeW, closeH);
     ctx.fillStyle = "#fff"; ctx.font = "bold 13px Fredoka, sans-serif";
     ctx.textAlign = "center"; ctx.textBaseline = "middle";
     ctx.fillText("CERRAR", UI.achievementClose.x + closeW / 2, UI.achievementClose.y + closeH / 2);
@@ -34038,8 +34055,8 @@
     var statY = modalY + 76;
     var statH = 42;
     ctx.fillStyle = "rgba(10, 5, 9, 0.62)";
-    ctx.fillRect(modalX + 14, statY, modalW - 28, statH);
-    ctx.strokeStyle = "rgba(255,255,255,0.12)"; ctx.strokeRect(modalX + 14, statY, modalW - 28, statH);
+    fillSlot(modalX + 14, statY, modalW - 28, statH);
+    ctx.strokeStyle = "rgba(255,255,255,0.12)"; strokeSlot(modalX + 14, statY, modalW - 28, statH);
     ctx.font = "bold 11px Fredoka, sans-serif";
     ctx.fillStyle = "#f5d79a"; ctx.textAlign = "left";
     ctx.fillText("ESTADÍSTICAS GLOBALES", modalX + 24, statY + 13);
@@ -34064,9 +34081,9 @@
       UI.achievementCards.push(card);
       var unlocked = !!ACHIEVEMENTS_UNLOCKED[a.id];
       ctx.fillStyle = unlocked ? "rgba(73, 53, 22, 0.72)" : "rgba(18, 15, 21, 0.82)";
-      roundRect(card.x, card.y, card.w, card.h, 0); ctx.fill();
+      fillSlot(card.x, card.y, card.w, card.h);
       ctx.strokeStyle = unlocked ? "rgba(255,210,74,0.62)" : "rgba(150,150,165,0.28)";
-      ctx.lineWidth = unlocked ? 1.4 : 1; roundRect(card.x, card.y, card.w, card.h, 0); ctx.stroke();
+      ctx.lineWidth = unlocked ? 1.4 : 1; strokeSlot(card.x, card.y, card.w, card.h);
       ctx.globalAlpha = unlocked ? 1 : 0.62;
       ctx.font = "27px Fredoka, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
       ctx.fillText(unlocked ? a.icon : "?", card.x + 25, card.y + card.h / 2);
@@ -34188,9 +34205,9 @@
       ctx.fillStyle = fill;
       ctx.shadowColor = colorAlpha(fill, 0.45);
       ctx.shadowBlur = 12;
-      ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+      fillSlot(rect.x, rect.y, rect.w, rect.h);
       ctx.shadowBlur = 0;
-      if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = 1.5; ctx.strokeRect(rect.x, rect.y, rect.w, rect.h); }
+      if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = 1.5; strokeSlot(rect.x, rect.y, rect.w, rect.h); }
       ctx.fillStyle = fg || "#fff";
       ctx.font = "900 " + Math.round(rect.h * 0.36) + "px Fredoka, sans-serif";
       ctx.textAlign = "center"; ctx.textBaseline = "middle";
@@ -34201,9 +34218,9 @@
       // Tarjeta compacta de estado de campaña.
       var cardW = Math.min(VW * 0.82, 380), cardH = 66, cardX = cx - cardW / 2, cardY = VH * 0.50;
       ctx.fillStyle = "rgba(18, 8, 10, 0.72)";
-      roundRect(cardX, cardY, cardW, cardH, 0); ctx.fill();
+      fillSlot(cardX, cardY, cardW, cardH);
       ctx.strokeStyle = "rgba(255,210,74,0.35)"; ctx.lineWidth = 1;
-      roundRect(cardX, cardY, cardW, cardH, 0); ctx.stroke();
+      strokeSlot(cardX, cardY, cardW, cardH);
       ctx.fillStyle = "#ffd24a"; ctx.font = "bold " + Math.max(12, Math.round(VW * 0.034)) + "px Fredoka, sans-serif";
       ctx.fillText("Progreso guardado", cx, cardY + 18);
       ctx.fillStyle = "rgba(255,245,230,0.86)"; ctx.font = Math.max(10, Math.round(VW * 0.029)) + "px Fredoka, sans-serif";
@@ -34580,10 +34597,10 @@
       ctx.translate(btn.x + btn.w / 2, btn.y + btn.h / 2);
       ctx.scale(bp, bp);
       ctx.fillStyle = "#fff";
-      ctx.fillRect(-btn.w / 2, -btn.h / 2, btn.w, btn.h);
+      fillSlot(-btn.w / 2, -btn.h / 2, btn.w, btn.h);
       ctx.strokeStyle = "#1a1a22";
       ctx.lineWidth = 3;
-      ctx.strokeRect(-btn.w / 2, -btn.h / 2, btn.w, btn.h);
+      strokeSlot(-btn.w / 2, -btn.h / 2, btn.w, btn.h);
       ctx.fillStyle = "#1a1a22";
       ctx.font = "bold 16px Fredoka, sans-serif";
       ctx.textAlign = "center";
@@ -34643,24 +34660,20 @@
     var btn = UI.endRestartBtn;
     if (state.victory) {
       ctx.fillStyle = "#2C3E50";
-      roundRect(btn.x, btn.y, btn.w, btn.h, 0);
-      ctx.fill();
+      fillSlot(btn.x, btn.y, btn.w, btn.h);
       ctx.strokeStyle = "#1a2b3a";
       ctx.lineWidth = 1.5;
-      roundRect(btn.x, btn.y, btn.w, btn.h, 0);
-      ctx.stroke();
+      strokeSlot(btn.x, btn.y, btn.w, btn.h);
       ctx.fillStyle = "#fff";
       ctx.font = 'bold 15px Fredoka, sans-serif';
       ctx.textBaseline = "middle";
       ctx.fillText("Jugar de nuevo", btn.x + btn.w / 2, btn.y + btn.h / 2);
     } else {
       ctx.fillStyle = "#C0392B";
-      roundRect(btn.x, btn.y, btn.w, btn.h, 0);
-      ctx.fill();
+      fillSlot(btn.x, btn.y, btn.w, btn.h);
       ctx.strokeStyle = "#7d2419";
       ctx.lineWidth = 1.5;
-      roundRect(btn.x, btn.y, btn.w, btn.h, 0);
-      ctx.stroke();
+      strokeSlot(btn.x, btn.y, btn.w, btn.h);
       ctx.fillStyle = "#fff";
       ctx.font = 'bold 15px Fredoka, sans-serif';
       ctx.textBaseline = "middle";
@@ -34686,10 +34699,10 @@
       var y = baseY + i * (h + 6);
       ctx.globalAlpha = a;
       ctx.fillStyle = "rgba(12, 28, 18, 0.92)";
-      roundRect(x, y, w, h, 0); ctx.fill();
+      fillSlot(x, y, w, h);
       ctx.strokeStyle = "rgba(120, 220, 160, 0.55)";
       ctx.lineWidth = 1.2;
-      roundRect(x, y, w, h, 0); ctx.stroke();
+      strokeSlot(x, y, w, h);
       ctx.fillStyle = "#a8f0c0";
       ctx.font = "bold 11px Fredoka, sans-serif";
       ctx.textAlign = "left"; ctx.textBaseline = "top";
@@ -34729,11 +34742,11 @@
         ctx.shadowColor = "rgba(255, 210, 74, 0.35)";
         ctx.shadowBlur = 14;
       }
-      roundRect(x, y, w, h, 0); ctx.fill();
+      fillSlot(x, y, w, h);
       ctx.shadowBlur = 0;
       ctx.strokeStyle = "rgba(255, 210, 74, 0.60)";
       ctx.lineWidth = 1.4;
-      roundRect(x, y, w, h, 0); ctx.stroke();
+      strokeSlot(x, y, w, h);
       ctx.fillStyle = "#ffd24a";
       ctx.font = "bold 11px Fredoka, sans-serif";
       ctx.textAlign = "left"; ctx.textBaseline = "top";
@@ -36361,8 +36374,7 @@
     var rows = 2 + (cfg.cartilageMax ? 1 : 0) + (cfg.mechanic === "tormenta" ? 1 : 0);
     var panelH = rows * (barH + 16 * U) + 8 * U;
     ctx.fillStyle = "rgba(12, 8, 14, 0.55)";
-    roundRect(x - 6 * U, y - 14 * U, barW + 12 * U, panelH, 4 * U);
-    ctx.fill();
+    fillSlot(x - 6 * U, y - 14 * U, barW + 12 * U, panelH);
     // Integridad del órgano.
     ctx.font = "bold " + Math.floor(10 * U) + "px Fredoka, sans-serif";
     ctx.textAlign = "left"; ctx.textBaseline = "bottom";
@@ -36770,7 +36782,7 @@
     var cntY = y - ry - 11 * U;
     var cntW = ctx.measureText(cntTxt).width + 12 * U;
     ctx.fillStyle = "rgba(12, 6, 10, 0.85)";
-    roundRect(x - cntW / 2, cntY - 8 * U, cntW, 16 * U, 5 * U); ctx.fill();
+    fillSlot(x - cntW / 2, cntY - 8 * U, cntW, 16 * U);
     var loadColor = pct >= 0.7 ? "#ff7a7a" : (pct >= 0.4 ? "#ffd24a" : "#f0dcc8");
     ctx.fillStyle = loadColor;
     ctx.fillText(cntTxt, x, cntY);
@@ -37009,11 +37021,13 @@
       ctx.save();
       ctx.globalAlpha = miniAlpha;
       ctx.fillStyle = "#0a0c0a";
-      ctx.fillRect(panelX - 4 * U, panelY - 4 * U, panelW + 8 * U, panelH + 8 * U);
+      fillSlot(panelX - 4 * U, panelY - 4 * U, panelW + 8 * U, panelH + 8 * U);
       ctx.fillStyle = "#16121a";
-      ctx.fillRect(panelX, panelY, panelW, panelH);
+      fillSlot(panelX, panelY, panelW, panelH);
       ctx.save();
-      ctx.beginPath(); ctx.rect(panelX, panelY, panelW, panelH); ctx.clip();
+      ctx.beginPath();
+      roundRect(panelX, panelY, panelW, panelH, uiSlotRadius(panelW, panelH));
+      ctx.clip();
       var barrierY = panelY + panelH * 0.30;
       ctx.strokeStyle = "rgba(255, 90, 70, 0.55)";
       ctx.setLineDash([4 * U, 3 * U]);
@@ -37038,7 +37052,7 @@
       ctx.restore(); // fin clip
       ctx.strokeStyle = "rgba(130, 210, 150, 0.55)";
       ctx.lineWidth = 1.6 * U;
-      ctx.strokeRect(panelX, panelY, panelW, panelH);
+      strokeSlot(panelX, panelY, panelW, panelH);
       ctx.restore();
       ctx.save();
       ctx.globalAlpha = miniAlpha;

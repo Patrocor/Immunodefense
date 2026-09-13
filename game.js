@@ -401,6 +401,10 @@
   // DOS ejes — se navega arrastrando hacia abajo y hacia los costados. Cada
   // nivel define su propio stretch en F2_LEVELS[key].stretchX / stretchY.
   function f2Cfg() { return (state && state.f2) ? state.f2.cfg : null; }
+  function organKit(cfg) {
+    var key = cfg ? cfg.key : (f2Cfg() && f2Cfg().key);
+    return (key && ORGAN_IDENTITY[key]) || null;
+  }
   function worldStretchY() {
     var c = f2Cfg(); if (c) return c.stretchY || 1;
     return (state && state.dissemination) ? DS_STRETCH : 1;
@@ -1177,6 +1181,7 @@
   var ENEMY_DEFS = gameData("enemyDefs");
   var SIGNATURE_ATTACK_DEFS = gameData("signatureAttackDefs");
   var PHASE1_TOWER_VISUALS = gameData("phase1TowerVisuals");
+  var ORGAN_IDENTITY = gameData("organIdentity");
   var GERM_KIND_FRAMES = gameData("germKindFrames");
   var GERM_COUNTER_GLYPHS = gameData("germCounterGlyphs");
   var PHASE1_GERM_HINTS = gameData("phase1GermHints");
@@ -4467,6 +4472,10 @@
     },
     // Salto directo a un nivel de Fase 2 (pruebas): __game.goF2("artritis").
     goF2: function (key) { state.showTitle = false; state.showIntro = false; enterF2TD(key); },
+    organIdentity: function (key) {
+      if (key) return ORGAN_IDENTITY[key] || null;
+      return organKit(f2Cfg());
+    },
     goMap: function () { state.showTitle = false; state.showIntro = false; enterBodyMapForState(); },
     saveCampaign: saveCampaignProgress,
     clearCampaign: clearCampaignProgress,
@@ -17847,13 +17856,70 @@
     ctx.restore();
   }
 
+  function drawPathOrganKit(kit) {
+    // Carril de órgano con paleta propia. No usa el rosa de F1 ni el
+    // trazo fino del puente. El grosor late en sístole (corazón).
+    var p = kit.path;
+    if (!p) { drawDisseminationPathStroke(); return; }
+    drawPathInflammation();
+    var beat = (state.f2 && state.f2.inSystole) ? 1 : 0;
+    var swell = 1 + beat * 0.07;
+    ctx.save();
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.strokeStyle = p.outer;
+    ctx.lineWidth = 28 * U * swell;
+    strokeAllPaths();
+    ctx.strokeStyle = p.mid;
+    ctx.lineWidth = 20 * U * swell;
+    strokeAllPaths();
+    ctx.strokeStyle = p.lumen;
+    ctx.lineWidth = 12 * U * swell;
+    strokeAllPaths();
+    if (PATH.confluence) {
+      ctx.fillStyle = p.confluence || p.mid;
+      ctx.beginPath();
+      ctx.arc(PATH.confluence.x, PATH.confluence.y, 14 * U * swell, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = p.confluenceInner || p.outer;
+      ctx.beginPath();
+      ctx.arc(PATH.confluence.x, PATH.confluence.y, 9 * U * swell, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.strokeStyle = p.dash || "rgba(255,255,255,0.30)";
+    ctx.lineWidth = 2.2 * U;
+    ctx.setLineDash([5 * U, 8 * U]);
+    strokeAllPaths();
+    ctx.setLineDash([]);
+    if (!QUALITY.low && p.tick) {
+      ctx.strokeStyle = p.tick;
+      ctx.lineWidth = Math.max(1.0, 1.25 * U);
+      walkPathSamples(function (x, y, nx, ny, seed) {
+        var j = ((seed * 9301 + 49297) % 233280) / 233280;
+        if (j < 0.55) return;
+        var side = (seed % 2) ? 1 : -1;
+        var x0 = x + nx * 11.5 * U * side;
+        var y0 = y + ny * 11.5 * U * side;
+        var flen = (2.6 + j * 3.4) * U;
+        var tx = -ny, ty = nx;
+        ctx.beginPath();
+        ctx.moveTo(x0 - tx * flen * 0.5, y0 - ty * flen * 0.5);
+        ctx.lineTo(x0 + tx * flen * 0.5, y0 + ty * flen * 0.5);
+        ctx.stroke();
+      }, 3);
+    }
+    ctx.restore();
+  }
+
   function drawPath() {
-    if (state.dissemination) {
-      drawDisseminationPathStroke();
+    if (state.f2) {
+      var kit = organKit(f2Cfg());
+      if (kit && kit.path) drawPathOrganKit(kit);
+      else drawDisseminationPathStroke();
       return;
     }
-    if (state.f2) {
-      drawPathHighway();
+    if (state.dissemination) {
+      drawDisseminationPathStroke();
       return;
     }
     drawPathWoundChannel();
@@ -35228,7 +35294,7 @@
     for (var k = 0; k < PATH.wounds.length; k++) {
       var w = PATH.wounds[k];
       var d = PATH.organDoors[k];
-      drawDisseminationCrack(w.x, w.y);
+      drawF2Entry(w.x, w.y, cfg);
       ctx.save();
       ctx.font = "bold " + Math.floor(10 * U) + "px Fredoka, sans-serif";
       ctx.fillStyle = colorAlpha(cfg.colorLight, 0.9);
@@ -35239,8 +35305,126 @@
     }
   }
 
+  function drawF2Entry(x, y, cfg) {
+    var kit = organKit(cfg);
+    if (kit && kit.entry === "auricula") {
+      drawF2EntryAuricula(x, y, cfg);
+      return;
+    }
+    drawDisseminationCrack(x, y);
+  }
+
+  function drawF2EntryAuricula(x, y, cfg) {
+    // Ostium auricular: boca vascular, no grieta de piel.
+    var f = state.f2;
+    var sist = (f && f.inSystole) ? 1 : 0;
+    ctx.save();
+    ctx.translate(x, y);
+    var rx = 15 * U, ry = 8.2 * U * (1 - sist * 0.16);
+    var halo = ctx.createRadialGradient(0, -ry * 0.15, 0, 0, 0, rx * 1.45);
+    halo.addColorStop(0, colorAlpha(cfg.colorLight, 0.38 + sist * 0.18));
+    halo.addColorStop(0.55, colorAlpha(cfg.color, 0.50));
+    halo.addColorStop(1, colorAlpha(cfg.colorDark, 0));
+    ctx.fillStyle = halo;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, rx * 1.38, ry * 1.58, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = colorAlpha("#140308", 0.84);
+    ctx.beginPath();
+    ctx.ellipse(0, 0, rx * 0.70, ry * 0.76, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = colorAlpha(cfg.colorLight, 0.42 + sist * 0.28);
+    ctx.beginPath();
+    ctx.moveTo(-rx * 0.62, ry * 0.12);
+    ctx.quadraticCurveTo(-rx * 0.12, ry * 0.88, 0, ry * 0.22);
+    ctx.quadraticCurveTo(rx * 0.12, ry * 0.88, rx * 0.62, ry * 0.12);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = colorAlpha(cfg.colorLight, 0.80);
+    ctx.lineWidth = Math.max(1.2, 1.5 * U);
+    ctx.beginPath();
+    ctx.ellipse(0, 0, rx * 0.78, ry * 0.86, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawF2FocusVelo(x, y, cfg, flash, idx) {
+    var r = 24 * U;
+    var kind = (idx === 2) ? "cuerda" : ((idx === 1 || idx === 3) ? "comisura" : "velo");
+    var fl = Math.min(1, (flash || 0) / 0.6);
+    ctx.save();
+    ctx.translate(x, y);
+    if (kind === "velo") {
+      ctx.beginPath();
+      ctx.moveTo(-r * 0.95, -r * 0.32);
+      ctx.quadraticCurveTo(0, r * 1.08, r * 0.95, -r * 0.32);
+      ctx.quadraticCurveTo(0, -r * 0.12, -r * 0.95, -r * 0.32);
+      ctx.closePath();
+      ctx.fillStyle = colorAlpha(cfg.colorDark, 0.94);
+      ctx.fill();
+      ctx.strokeStyle = colorAlpha(cfg.colorLight, 0.48 + fl * 0.47);
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.fillStyle = colorAlpha("#000000", 0.52);
+      ctx.beginPath();
+      ctx.ellipse(0, r * 0.14, r * 0.40, r * 0.15, 0, 0, Math.PI * 2);
+      ctx.fill();
+      if (fl > 0) {
+        ctx.fillStyle = colorAlpha(cfg.colorLight, 0.32 * fl);
+        ctx.beginPath();
+        ctx.ellipse(0, r * 0.14, r * 0.40, r * 0.15, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    } else if (kind === "comisura") {
+      ctx.beginPath();
+      ctx.moveTo(-r * 0.85, -r * 0.42);
+      ctx.lineTo(0, r * 0.72);
+      ctx.lineTo(r * 0.85, -r * 0.42);
+      ctx.quadraticCurveTo(0, -r * 0.08, -r * 0.85, -r * 0.42);
+      ctx.closePath();
+      ctx.fillStyle = colorAlpha(cfg.colorDark, 0.94);
+      ctx.fill();
+      ctx.strokeStyle = colorAlpha(cfg.colorLight, 0.48 + fl * 0.47);
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.fillStyle = colorAlpha("#000000", 0.52);
+      ctx.beginPath();
+      ctx.moveTo(-r * 0.22, -r * 0.08);
+      ctx.lineTo(0, r * 0.38);
+      ctx.lineTo(r * 0.22, -r * 0.08);
+      ctx.closePath();
+      ctx.fill();
+    } else {
+      ctx.strokeStyle = colorAlpha(cfg.colorLight, 0.55 + fl * 0.40);
+      ctx.lineWidth = 3.2 * U;
+      ctx.beginPath();
+      ctx.arc(0, 0, r * 0.62, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.fillStyle = colorAlpha(cfg.colorDark, 0.90);
+      ctx.beginPath();
+      ctx.arc(0, 0, r * 0.38, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = colorAlpha("#000000", 0.45);
+      ctx.lineWidth = 1.4 * U;
+      ctx.beginPath();
+      ctx.moveTo(0, -r * 0.72);
+      ctx.lineTo(0, r * 0.72);
+      ctx.stroke();
+      ctx.fillStyle = colorAlpha("#000000", 0.50);
+      ctx.beginPath();
+      ctx.arc(0, 0, r * 0.16, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
   // Foco del órgano: la estructura al final de cada carril. Recibe el impacto.
   function drawF2Focus(x, y, cfg, flash, idx) {
+    var kit = organKit(cfg);
+    if (kit && kit.focus === "velo") {
+      drawF2FocusVelo(x, y, cfg, flash, idx);
+      return;
+    }
     var r = 22 * U;
     ctx.save();
     ctx.translate(x, y);
@@ -35914,6 +36098,13 @@
     ctx.fillStyle = "rgba(12, 8, 14, 0.55)";
     roundRect(x - 6 * U, y - 14 * U, barW + 12 * U, panelH, 4 * U);
     ctx.fill();
+    var hudKit = organKit(cfg);
+    if (hudKit && hudKit.hudAccent) {
+      ctx.strokeStyle = colorAlpha(cfg.colorLight, 0.50 + ((f.inSystole ? 1 : 0) * 0.28));
+      ctx.lineWidth = 1.4;
+      roundRect(x - 6 * U, y - 14 * U, barW + 12 * U, panelH, 4 * U);
+      ctx.stroke();
+    }
     // Integridad del órgano.
     ctx.font = "bold " + Math.floor(10 * U) + "px Fredoka, sans-serif";
     ctx.textAlign = "left"; ctx.textBaseline = "bottom";

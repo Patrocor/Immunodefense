@@ -23,6 +23,7 @@ var F2_LEVELS = {
     arrivalDamage: 7,          // cuánta integridad cuesta cada germen que llega
     ambient: "corazon",
     mechanic: "pulso",
+    // Identidad v1 (data/visuals-phase2.js organIdentity.endocarditis).
     // Latido lento y contable: ~23 lpm. Avisa medio segundo antes (telegraph)
     // y pega fuerte. Entre sístole y sístole hay tiempo real para decidir.
     pulseCycle: 2.6,

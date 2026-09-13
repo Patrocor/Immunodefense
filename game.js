@@ -32642,11 +32642,15 @@
     ctx.fillText(value, x, y + fontLabel + 4);
   }
 
-  // Casillas/casilleros: cuadrado o rectángulo de vértices romos.
-  // Radio moderado — ni esquina viva ni píldora (r = h/2).
+  // Casillas/casilleros: cuadrado o rectángulo de vértices apenas romos.
+  // Radio chico a propósito: si crece con la altura, las barras anchas
+  // se leen como burbuja de diálogo / chat. Ni esquina viva ni píldora.
   function uiSlotRadius(w, h) {
-    var m = Math.min(Math.abs(w), Math.abs(h));
-    return Math.min(10, Math.max(4, m * 0.16));
+    var aw = Math.abs(w), ah = Math.abs(h);
+    var m = Math.min(aw, ah);
+    var r = Math.min(5, Math.max(2.5, m * 0.07));
+    if (aw > ah * 1.8) r = Math.min(r, 3.5);
+    return r;
   }
   function fillSlot(x, y, w, h) {
     roundRect(x, y, w, h, uiSlotRadius(w, h));

@@ -61,7 +61,7 @@ const info = await page.evaluate(() => {
   eo.specialReady = true;
   eo.specialCharge = 1;
   g.ults();
-  g.step(0.10, 0.02);
+  g.step(0.04, 0.02);
   g.hold(true);
   const canvas = document.getElementById("canvas");
   const rect = canvas.getBoundingClientRect();

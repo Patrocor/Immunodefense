@@ -7949,12 +7949,12 @@
     if (!g) return;
     var m = eosinMuzzle(t, side, g.ang);
     var bang = g.ang + side * 0.12;
-    var n = count || (QUALITY.low ? 3 : 5);
+      var n = count || (QUALITY.low ? 4 : 6);
     for (var i = 0; i < n; i++) {
       var k = n === 1 ? 0.5 : i / (n - 1);
       var jitter = (Math.random() - 0.5) * 0.05;
       var ang = bang + (k - 0.5) * g.half * 1.42 + jitter;
-      var dur = 0.22 + Math.random() * 0.10;
+      var dur = 0.26 + Math.random() * 0.10;
       var dist = g.len * (0.70 + Math.abs(k - 0.5) * 0.10 + Math.random() * 0.20);
       pushEffect({
         kind: "granuleShot",
@@ -7962,7 +7962,8 @@
         vx: Math.cos(ang) * dist / dur,
         vy: Math.sin(ang) * dist / dur,
         life: dur, max: dur, crystal: true,
-        side: side
+        side: side,
+        slug: i === Math.floor(n / 2)
       });
     }
     if (side < 0) g.recoilL = 1;
@@ -20339,63 +20340,69 @@
   }
 
   function drawEosinShotgunBlast(t) {
-    // Dos escopetas leídas desde los hocicos reales (eosinMuzzle).
+    // Dos escopetas leídas desde los hocicos reales (eosinMuzzle), mundo.
     var g = t.eosinShotgun;
     if (!g) return;
     var uf = 1 - Math.max(0, Math.min(1, (t.specialAnim || 0) / 1.05));
-    var fade = 1 - uf * 0.50;
-    var nStreaks = QUALITY.low ? 4 : 7;
+    var fade = 1 - uf * 0.35;
+    var nStreaks = QUALITY.low ? 5 : 8;
     ctx.save();
     for (var side = -1; side <= 1; side += 2) {
       var m = eosinMuzzle(t, side, g.ang);
-      var lx = m.x - t.x, ly = m.y - t.y;
-      var bang = g.ang + side * 0.12;
+      var lx = m.x, ly = m.y;
+      var bang = g.ang + side * 0.18;
       var recoil = side < 0 ? (g.recoilL || 0) : (g.recoilR || 0);
       var s;
       for (s = 0; s < nStreaks; s++) {
         var k = nStreaks === 1 ? 0.5 : s / (nStreaks - 1);
-        var sa = bang + (k - 0.5) * g.half * 1.68;
-        var slen = g.len * (0.74 + (s % 3) * 0.07 + recoil * 0.05);
+        var sa = bang + (k - 0.5) * g.half * 1.55;
+        var slen = g.len * (0.82 + (s % 3) * 0.06 + recoil * 0.04);
         var tx = lx + Math.cos(sa) * slen;
         var ty = ly + Math.sin(sa) * slen;
         var sg = ctx.createLinearGradient(lx, ly, tx, ty);
-        sg.addColorStop(0, "rgba(255, 214, 168, " + ((0.78 + recoil * 0.16) * fade) + ")");
-        sg.addColorStop(0.20, "rgba(242, 119, 78, " + ((0.40 + recoil * 0.12) * fade) + ")");
+        sg.addColorStop(0, "rgba(255, 236, 200, " + ((0.96 + recoil * 0.04) * fade) + ")");
+        sg.addColorStop(0.16, "rgba(255, 150, 80, " + ((0.78 + recoil * 0.12) * fade) + ")");
+        sg.addColorStop(0.55, "rgba(242, 119, 78, " + (0.42 * fade) + ")");
         sg.addColorStop(1, "rgba(242, 119, 78, 0)");
         ctx.strokeStyle = sg;
-        ctx.lineWidth = Math.max(1.3, (2.6 - Math.abs(k - 0.5) * 1.8) * U);
+        ctx.lineWidth = Math.max(2.2, (5.4 - Math.abs(k - 0.5) * 2.4) * U);
         ctx.lineCap = "round";
         ctx.beginPath();
         ctx.moveTo(lx, ly);
         ctx.lineTo(tx, ty);
         ctx.stroke();
       }
-      // Lavado corto junto al hocico — fogonazo, no onda de campo.
-      ctx.fillStyle = "rgba(255, 158, 88, " + ((0.18 + recoil * 0.24) * fade) + ")";
+      ctx.fillStyle = "rgba(255, 170, 90, " + ((0.32 + recoil * 0.28) * fade) + ")";
       ctx.beginPath();
       ctx.moveTo(lx, ly);
-      ctx.arc(lx, ly, g.len * 0.26, bang - g.half * 0.82, bang + g.half * 0.82);
+      ctx.arc(lx, ly, g.len * 0.30, bang - g.half * 0.78, bang + g.half * 0.78);
       ctx.closePath();
       ctx.fill();
-      var flashR = (7.2 + recoil * 9.5) * U;
-      var fl = ctx.createRadialGradient(lx, ly, 0, lx, ly, flashR * 1.85);
-      fl.addColorStop(0, "rgba(255, 246, 220, " + ((0.88 + recoil * 0.12) * fade) + ")");
-      fl.addColorStop(0.34, "rgba(255, 158, 78, " + ((0.52 + recoil * 0.22) * fade) + ")");
+      var flashR = (11 + recoil * 12) * U;
+      var fl = ctx.createRadialGradient(lx, ly, 0, lx, ly, flashR * 1.9);
+      fl.addColorStop(0, "rgba(255, 252, 230, " + ((0.95 + recoil * 0.05) * fade) + ")");
+      fl.addColorStop(0.28, "rgba(255, 180, 90, " + ((0.72 + recoil * 0.18) * fade) + ")");
+      fl.addColorStop(0.62, "rgba(242, 100, 50, " + (0.28 * fade) + ")");
       fl.addColorStop(1, "rgba(242, 80, 40, 0)");
       ctx.fillStyle = fl;
       ctx.beginPath();
-      ctx.arc(lx, ly, flashR * 1.85, 0, Math.PI * 2);
+      ctx.arc(lx, ly, flashR * 1.9, 0, Math.PI * 2);
       ctx.fill();
+      ctx.strokeStyle = "rgba(255, 230, 190, " + ((0.85 + recoil * 0.15) * fade) + ")";
+      ctx.lineWidth = Math.max(2, 2.8 * U);
+      ctx.beginPath();
+      ctx.arc(lx, ly, (5.5 + recoil * 3) * U, 0, Math.PI * 2);
+      ctx.stroke();
       if (!QUALITY.low) {
         for (var c = -1; c <= 1; c++) {
-          var ca = bang + c * 0.20;
-          var cd = (7.5 + recoil * 6) * U;
+          var ca = bang + c * 0.22;
+          var cd = (10 + recoil * 7) * U;
           drawEosinCrystal(
             lx + Math.cos(ca) * cd,
             ly + Math.sin(ca) * cd,
-            (4.4 + recoil * 2.2) * U,
+            (7.2 + recoil * 3.0) * U,
             ca + Math.PI * 0.5,
-            0.78 * fade
+            0.92 * fade
           );
         }
       }
@@ -20444,9 +20451,6 @@
 
     ctx.save();
     ctx.translate(t.x, t.y);
-
-    // Telegraph v3: rachas de perdigón + fogonazo en cada hocico (no pie relleno).
-    if (doingUlt && t.eosinShotgun) drawEosinShotgunBlast(t);
 
     ctx.scale(1.16, 1.16);
     if (doingUlt && t.eosinShotgun) {
@@ -20578,6 +20582,8 @@
     else drawAnimeEyes(0, faceY, eyeR, eyeGap, 0, 0, R * 0.13, R * 0.05, "fierce");
     drawAnimeMouth(0, faceY + R * 0.32, R * 0.30, R * 0.15, attacking || doingUlt ? "fanged" : "serious");
     ctx.restore();
+    // Overlay encima del cuerpo, en espacio mundo (como el Arpón).
+    if (doingUlt && t.eosinShotgun) drawEosinShotgunBlast(t);
   }
 
   // MASTOCITO — cuerpo GRUMOSO (borde con bultos) repleto de gránulos (alerta).
@@ -30247,12 +30253,12 @@
     } else if (ef.kind === "granuleShot") {
       var gsAge = 1 - ef.life / ef.max;
       var gsImpact = Math.max(0, (gsAge - 0.60) / 0.40);
-      var gsR = (4.1 + gsImpact * 3.2) * U;
+      var gsR = ((ef.slug ? 7.4 : 6.2) + gsImpact * 3.6) * U;
       ctx.save();
       ctx.globalAlpha = alpha;
       var gsSpd = Math.hypot(ef.vx, ef.vy) || 1;
       var gsAng = Math.atan2(ef.vy, ef.vx);
-      var gsTailLen = 20 * U;
+      var gsTailLen = (ef.slug ? 30 : 24) * U;
       var gsTailGrad = ctx.createLinearGradient(ef.x, ef.y, ef.x + gsTx, ef.y + gsTy);
       gsTailGrad.addColorStop(0, "rgba(242, 119, 78, 0.55)");
       gsTailGrad.addColorStop(1, "rgba(242, 119, 78, 0)");

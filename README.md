@@ -46,7 +46,9 @@ Sepsis y final de Shock/MODS.
   Cañón del Complemento usa fragmentos de complemento en vez de ATP.
 - **Click / Tap** sobre una torre existente para seleccionarla y poder
   **mejorarla** (hasta nivel 3) o **venderla**.
-- **Iniciar Oleada** (botón superior derecho) lanza la siguiente wave.
+- Las oleadas salen solas. El HUD muestra **PRÓXIMA OLEADA EN Ns**;
+  `Espacio` adelanta el contador. El botón de pausa abre el Dex para armar
+  el loadout.
 - Los patógenos que alcanzan el torrente aumentan la carga de infestación.
 - Fase 1 termina al derrotar a MRSA en la oleada 10 o cuando la infestación
   desborda la barrera. Ambos desenlaces continúan la historia en
@@ -58,9 +60,9 @@ Sepsis y final de Shock/MODS.
 
 | Tecla | Acción |
 |---|---|
-| `1` / `2` / `3` | Seleccionar Neutrófilo / Linfocito B / Linfocito T |
-| `Espacio` | Iniciar siguiente oleada |
-| `Esc` | Cancelar selección |
+| `1` / `2` / `3` | Neutrófilo / Linfocito B / Linfocito T (el resto, desde el dock) |
+| `Espacio` | Adelantar el contador de la próxima oleada |
+| `Esc` | Cancelar selección o cerrar modal |
 | `M` | Mute / unmute |
 | `R` | Reiniciar (con confirmación) |
 

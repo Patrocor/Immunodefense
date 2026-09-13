@@ -55,6 +55,32 @@ await page.screenshot({ path: join(ART, "slots_title.png") });
 
 await prepBattle(page);
 await page.screenshot({ path: join(ART, "slots_dock_hud.png") });
+const dock = await page.evaluate(() => {
+  const m = window.__game.metrics;
+  return {
+    x: m.FIELD.right - 4,
+    y: m.FIELD.top - 4,
+    width: m.VW - m.FIELD.right + 12,
+    height: Math.min(520, m.FIELD.bottom - m.FIELD.top + 8)
+  };
+});
+await page.screenshot({ path: join(ART, "slots_dock_closeup.png"), clip: dock });
+const hud = await page.evaluate(() => {
+  const b = window.__game.ui.nextWaveBtn;
+  return { x: b.x - 8, y: b.y - 8, width: b.w + 140, height: b.h + 16 };
+});
+await page.screenshot({ path: join(ART, "slots_hud_closeup.png"), clip: hud });
+const serum = await page.evaluate(() => {
+  const ui = window.__game.ui;
+  const v = ui.topicalVial;
+  return {
+    x: v.x - 8,
+    y: v.y - 8,
+    width: ui.macrofagoBtn.x + ui.macrofagoBtn.w - v.x + 24,
+    height: v.h + 16
+  };
+});
+await page.screenshot({ path: join(ART, "slots_serum_closeup.png"), clip: serum });
 
 await page.evaluate(() => {
   const g = window.__game;

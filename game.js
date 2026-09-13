@@ -32678,16 +32678,19 @@
 
   function roundRect(x, y, w, h, r) {
     r = Math.min(r, w / 2, h / 2);
+    if (r < 0.5) {
+      ctx.beginPath();
+      ctx.rect(x, y, w, h);
+      return;
+    }
+    // Arco circular (no quadratic): la curva cuadrática hincha el vértice
+    // y la casilla se lee como burbuja de diálogo.
     ctx.beginPath();
     ctx.moveTo(x + r, y);
-    ctx.lineTo(x + w - r, y);
-    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
-    ctx.lineTo(x + w, y + h - r);
-    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-    ctx.lineTo(x + r, y + h - r);
-    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
-    ctx.lineTo(x, y + r);
-    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
     ctx.closePath();
   }
 

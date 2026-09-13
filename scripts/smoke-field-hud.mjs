@@ -48,6 +48,8 @@ assert.ok(src.includes("function fillSlot"), "casillas se rellenan con fillSlot"
 assert.ok(src.includes("function strokeSlot"), "casillas se recortan con strokeSlot");
 assert.ok(src.includes("Casillas/casilleros: cuadrado o rectángulo de vértices apenas romos"), "regla visual de casillas documentada");
 assert.ok(src.includes("se leen como burbuja de diálogo"), "el radio evita la forma de bocadillo");
+assert.ok(src.includes("ctx.arcTo"), "roundRect usa arco circular, no curva hinchada");
+assert.ok(!/function roundRect[\s\S]{0,240}quadraticCurveTo/.test(src), "roundRect ya no usa quadraticCurveTo");
 assert.ok(!src.includes("sin rounded corners"), "ya no hay cartas de esquina viva");
 assert.ok(!/roundRect\([^)]*,\s*0\s*\)/.test(src), "ningún roundRect queda en radio 0");
 assert.ok(src.includes("LOCKED v5 — Habichuela+4 seudópodos+boca abierta+lengua-Arpón"), "macrófago idle cerrado");

@@ -11627,21 +11627,30 @@
     ctx.restore();
   }
 
-  // Silueta ameboide de 5 lóbulos: se lee como macrófago a escala de juego
-  // (no como un óvalo ámbar). Un solo path relleno, no 11 trazos finos.
+  // Cuerpo gordo + 5 seudópodos a ángulos irregulares. No es una estrella:
+  // los valles casi no se hunden y cada dedo pulsa con su propia fase.
+  var MACRO_LOBE_ANG = [0.40, 1.70, 2.95, 4.25, 5.60];
+  var MACRO_LOBE_W = [0.42, 0.34, 0.50, 0.38, 0.30];
+  var MACRO_LOBE_LEN = [0.20, 0.14, 0.26, 0.16, 0.12];
   function macrophageLobeRadius(ang, R, time, seed, reach) {
-    var lobes = 5;
-    var lobe = Math.pow(0.5 + 0.5 * Math.cos(ang * lobes - time * 0.7 + seed * 0.35), 1.75);
-    var which = Math.round(((ang / (Math.PI * 2) + 2) % 1) * lobes) % lobes;
-    var lenVar = 0.78 + 0.30 * (0.5 + 0.5 * Math.sin(which * 2.3 + seed * 1.1));
-    var breathe = 1 + Math.sin(time * 1.3 + seed + ang * 2) * 0.03;
-    return R * (0.84 + 0.36 * reach * lobe * lenVar) * breathe;
+    var base = 0.90 + 0.045 * Math.sin(ang * 2 + seed);
+    var extra = 0;
+    for (var i = 0; i < 5; i++) {
+      var a0 = MACRO_LOBE_ANG[i] + seed * 0.18 + Math.sin(time * 0.75 + i) * 0.07;
+      var d = ang - a0;
+      while (d > Math.PI) d -= Math.PI * 2;
+      while (d < -Math.PI) d += Math.PI * 2;
+      var pulse = 0.72 + 0.28 * Math.sin(time * (1.05 + i * 0.19) + seed + i * 1.3);
+      var nd = d / MACRO_LOBE_W[i];
+      extra += MACRO_LOBE_LEN[i] * pulse * reach * Math.exp(-0.5 * nd * nd);
+    }
+    return R * (base + extra);
   }
   function macrophageBodyPath(R, time, seed, reach) {
     ctx.beginPath();
-    var steps = 28;
+    var steps = 40;
     for (var i = 0; i <= steps; i++) {
-      var ang = (i / steps) * Math.PI * 2 + seed * 0.15;
+      var ang = (i / steps) * Math.PI * 2 + seed * 0.12;
       var r = macrophageLobeRadius(ang, R, time, seed, reach);
       var px = Math.cos(ang) * r, py = Math.sin(ang) * r;
       if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
@@ -12635,7 +12644,6 @@
       v = { x: FIELD_LEFT + 6, y: (UI.topicalVial ? UI.topicalVial.y + UI.topicalVial.h + 6 : FIELD_TOP + 6), w: 100, h: 22 };
     }
     var ready = n >= MAC_COST;
-    var pct = Math.max(0, Math.min(1, n / MAC_COST));
     ctx.save();
     if (ready) {
       var gp = 0.5 + 0.5 * Math.sin(state.time * 5);
@@ -12647,9 +12655,18 @@
     ctx.fillStyle = "rgba(80, 200, 120, 0.10)";
     roundRect(v.x + 1, v.y + 1, v.w - 2, v.h - 2, Math.min(7, v.h * 0.24));
     ctx.fill();
-    if (pct > 0) {
-      ctx.fillStyle = ready ? "#7CFC9E" : "#4ec87a";
-      roundRect(v.x + 2, v.y + 2, Math.max(4, (v.w - 4) * pct), v.h - 4, Math.min(6, v.h * 0.22));
+    // 5 bloques: a 2/5 se leen dos llenos, no un tinte al 40%.
+    var segs = MAC_COST;
+    var gapS = 2;
+    var innerX = v.x + 2, innerY = v.y + 2, innerW = v.w - 4, innerH = v.h - 4;
+    var segW = (innerW - (segs - 1) * gapS) / segs;
+    var segR = Math.min(4, innerH * 0.28);
+    for (var si = 0; si < segs; si++) {
+      var sx = innerX + si * (segW + gapS);
+      ctx.fillStyle = si < n
+        ? (ready ? "#7CFC9E" : "#5ee090")
+        : "rgba(124, 252, 158, 0.14)";
+      roundRect(sx, innerY, segW, innerH, segR);
       ctx.fill();
     }
     var iconR = Math.max(5, Math.min(8, v.h * 0.28));
@@ -32544,16 +32561,19 @@
     var dockHasCards = UI.cards && UI.cards.length > 0;
     if (!dockHasCards && strip && strip.h > 0) {
       ctx.save();
-      // Todo el aviso vive DENTRO del strip: antes las últimas líneas se
-      // salían por la derecha del dock y se montaban sobre lo que hubiera
-      // debajo. Cada línea se ajusta al ancho y se corta lo que no entre.
+      ctx.beginPath();
+      ctx.rect(strip.x, strip.y, strip.w, strip.h);
+      ctx.clip();
+      // Frase completa, envuelta al ancho del dock: "Pausá y / elegí tu / loadout".
       var hintX = strip.x + strip.w / 2;
-      var maxHintW = strip.w - 4;
+      var maxHintW = strip.w - 8;
       var pulseH = 0.5 + 0.5 * Math.sin(state.time * 2.5);
-      var linePx = fitFont("ELEGÍ TU", maxHintW, Math.floor(11 * U), 7);
-      var lineGap = linePx + 6;
-      var iconPx = Math.floor(Math.min(28 * U, strip.h * 0.22));
-      var bloqueH = iconPx + lineGap * 3 + 4;
+      var linePx = Math.max(8, Math.min(12, Math.floor(strip.w * 0.13)));
+      ctx.font = "bold " + linePx + "px Fredoka, sans-serif";
+      var hintLines = wrapTextLines("Pausá y elegí tu loadout", maxHintW);
+      var lineGap = linePx + 5;
+      var iconPx = Math.floor(Math.min(22 * U, strip.h * 0.18));
+      var bloqueH = iconPx + lineGap * hintLines.length + 4;
       var conDetalle = (strip.h >= bloqueH + lineGap * 2 + 10);
       if (conDetalle) bloqueH += lineGap * 2 + 6;
       var hintY = strip.y + Math.max(iconPx * 0.6, (strip.h - bloqueH) / 2 + iconPx * 0.5);
@@ -32563,10 +32583,10 @@
       ctx.fillText("⏸", hintX, hintY);
       ctx.fillStyle = "#ffd24a";
       ctx.font = "bold " + linePx + "px Fredoka, sans-serif";
-      var hy = hintY + iconPx * 0.6 + lineGap;
-      ctx.fillText(ellipsizeToWidth("PAUSÁ Y", maxHintW), hintX, hy);
-      ctx.fillText(ellipsizeToWidth("ELEGÍ TU", maxHintW), hintX, hy + lineGap);
-      ctx.fillText(ellipsizeToWidth("LOADOUT", maxHintW), hintX, hy + lineGap * 2);
+      var hy = hintY + iconPx * 0.55 + lineGap;
+      for (var hli = 0; hli < hintLines.length; hli++) {
+        ctx.fillText(ellipsizeToWidth(hintLines[hli], maxHintW), hintX, hy + hli * lineGap);
+      }
       if (conDetalle) {
         ctx.fillStyle = "rgba(255,255,255,0.55)";
         var detPx = fitFont("5 torres", maxHintW, 10, 7);
@@ -32575,8 +32595,8 @@
         var det1 = "5 torres · 2 tanques", det2 = "1 barrera";
         if (ctx.measureText(det1).width > maxHintW) { det1 = "5 torres + 2 tanques"; }
         if (ctx.measureText(det1).width > maxHintW) { det1 = "5 + 2 + 1"; det2 = ""; }
-        ctx.fillText(det1, hintX, hy + lineGap * 3 + 6);
-        if (det2) ctx.fillText(det2, hintX, hy + lineGap * 4 + 6);
+        ctx.fillText(det1, hintX, hy + lineGap * hintLines.length + 6);
+        if (det2) ctx.fillText(det2, hintX, hy + lineGap * (hintLines.length + 1) + 6);
       }
       ctx.restore();
     }

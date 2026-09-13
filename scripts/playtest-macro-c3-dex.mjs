@@ -60,7 +60,20 @@ const c3 = await page.evaluate(() => {
 });
 await page.screenshot({
   path: join(ART, "c3b_charging.png"),
-  clip: { x: Math.max(0, c3.x), y: Math.max(0, c3.y), width: c3.w, height: c3.h },
+  clip: {
+    x: Math.max(0, c3.x - 20),
+    y: Math.max(0, c3.y - 20),
+    width: c3.w + 40,
+    height: c3.h + 40,
+  },
+});
+const hintBox = await page.evaluate(() => {
+  const s = window.__game.ui.cardStrip;
+  return { x: s.x, y: s.y, w: s.w, h: Math.min(s.h, 240) };
+});
+await page.screenshot({
+  path: join(ART, "dock_pause_hint.png"),
+  clip: hintBox,
 });
 
 await page.evaluate(() => {

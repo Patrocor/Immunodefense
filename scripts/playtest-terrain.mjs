@@ -41,9 +41,23 @@ await page.evaluate(() => {
   g.hold(false);
   g.place("neutrofilo", 0.38, 0.38);
   g.place("eosinofilo", 0.62, 0.58);
+  g.state.viralLoad = Math.max(g.state.viralLoad, 22);
   g.hold(true);
 });
 await sleep(120);
 await page.screenshot({ path: join(ART, "terrain_wound_channel_towers.png") });
+await page.evaluate(() => {
+  const g = window.__game;
+  const st = g.state;
+  st.topicalCharge = 80;
+  st.medCharge = 60;
+  st.atp = 180;
+  st.waveActive = true;
+  st.pendingSpawns = [{}, {}];
+  st.enemies = st.enemies || [];
+  g.hold(true);
+});
+await sleep(80);
+await page.screenshot({ path: join(ART, "terrain_hud_serum.png") });
 await browser.close();
 console.log("OK: terrain screenshots in", ART);

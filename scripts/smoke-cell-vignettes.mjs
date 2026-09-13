@@ -19,6 +19,19 @@ for (const kind of kinds) {
   assert.ok(g.state.cellVignettes.act, kind + " sigue activa a mitad de escena");
 }
 
+const field = g.metrics.FIELD;
+const ker = g.vignettePlay("keratin");
+assert.equal(ker, "keratin");
+const act = g.state.cellVignettes.act;
+assert.ok(act.left && act.left.length >= 3, "brigada izquierda hasta la herida");
+assert.ok(act.right && act.right.length >= 3, "brigada derecha hasta la herida");
+assert.ok(act.left[0].x - field.left < field.w * 0.08, "izquierda nace en el borde");
+assert.ok(field.right - act.right[0].x < field.w * 0.08, "derecha nace en el borde");
+const leftTip = act.left[act.left.length - 1];
+const rightTip = act.right[act.right.length - 1];
+assert.ok(Math.abs(leftTip.x - act.woundX) < 40, "izquierda llega a la herida");
+assert.ok(Math.abs(rightTip.x - act.woundX) < 40, "derecha llega a la herida");
+
 g.state.cellVignettes.act = null;
 g.state.cellVignettes.gap = 0;
 g.state.cellVignettes.kindIdx = -1;

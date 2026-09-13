@@ -476,13 +476,11 @@
     // que el campo use TODO el alto. Portrait: dock angosto (~27% del ancho);
     // landscape: dock fijo cómodo. Incluye safeRight para no quedar bajo el
     // notch/esquina redondeada del lado derecho.
-    // Dock compacto pero LEGIBLE — el ancho permite cards de ~52-65px
-    // con contenido contenido (nombre + ícono + costo).
-    // Dock un poco más amplio para mostrar más torres y dar espacio
-    // al card strip hasta tocar (apenas) la cartilla de NETosis.
+    // El dock tiene que entrar nombre + preview + costo. Portrait ~26% del
+    // ancho; landscape ~12%, con piso para que el ícono no quede en 16 px.
     SIDE_INNER = isPortrait
-      ? Math.round(0.85 * Math.max(78, Math.min(96, VW * 0.21)))
-      : Math.round(0.85 * Math.max(72, Math.min(98, VW * 0.10)));
+      ? Math.round(Math.max(92, Math.min(120, VW * 0.26)))
+      : Math.round(Math.max(88, Math.min(124, VW * 0.12)));
     SIDE_W = SIDE_INNER + safeRight;
     HUD_H = Math.round(hudBase + safeTop);
     PANEL_H = 0;  // legacy: ya no hay franja inferior
@@ -1671,15 +1669,7 @@
       ctx.setLineDash([6 * U, 5 * U]);
       ctx.beginPath(); ctx.arc(f.x, f.y, 40 * U, 0, Math.PI * 2); ctx.stroke();
       ctx.setLineDash([]);
-      ctx.fillStyle = "rgba(232,200,150," + (0.6 + dp * 0.3) + ")";
-      ctx.font = "bold " + Math.floor(9 * U) + "px Fredoka, sans-serif";
-      ctx.textAlign = "center"; ctx.textBaseline = "bottom";
-      ctx.fillText("TOCA PARA ARMAR", f.x, f.y - 40 * U);
     }
-    ctx.fillStyle = "rgba(60,30,20,0.85)";
-    ctx.font = "bold " + Math.floor(8 * U) + "px Fredoka, sans-serif";
-    ctx.textAlign = "center"; ctx.textBaseline = "top";
-    ctx.fillText("ENSAMBLAJE", f.x, f.y + 30 * U);
     ctx.restore();
   }
 
@@ -1983,15 +1973,7 @@
       ctx.setLineDash([6 * U, 5 * U]);
       ctx.beginPath(); ctx.arc(g.x, g.y, 40 * U, 0, Math.PI * 2); ctx.stroke();
       ctx.setLineDash([]);
-      ctx.fillStyle = "rgba(180,230,235," + (0.6 + dp * 0.3) + ")";
-      ctx.font = "bold " + Math.floor(9 * U) + "px Fredoka, sans-serif";
-      ctx.textAlign = "center"; ctx.textBaseline = "bottom";
-      ctx.fillText("TOCA PARA ARMAR", g.x, g.y - 40 * U);
     }
-    ctx.fillStyle = "rgba(20,60,70,0.9)";
-    ctx.font = "bold " + Math.floor(8 * U) + "px Fredoka, sans-serif";
-    ctx.textAlign = "center"; ctx.textBaseline = "top";
-    ctx.fillText("GANGLIO", g.x, g.y + 30 * U);
     ctx.restore();
   }
 
@@ -2311,12 +2293,6 @@
       ctx.ellipse(0, 0, 18 * s, 8 * s, 0, 0, Math.PI * 2);
       ctx.fill();
     }
-    // Etiqueta — siempre.
-    ctx.fillStyle = "rgba(80, 50, 30, 0.8)";
-    ctx.font = "bold " + Math.floor(9 * s) + "px Fredoka, sans-serif";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "top";
-    ctx.fillText("MÉDULA", 0, 20 * s);
     // Badges de bonuses activos
     var activeBonuses = [];
     if ((state.medRegenTimer   || 0) > 0) activeBonuses.push({ icon: "♻", color: "#4caf50" });
@@ -2437,7 +2413,7 @@
         var nameTxt = isCombo ? "Combo +10%" : (isBuff ? "Refuerzo Médico" : (def.shortName || def.name));
         var pad = 4 * U;
         var tw = ctx.measureText(nameTxt).width;
-        ctx.fillRect(p.x - tw / 2 - pad, p.y + 24 * U, tw + pad * 2, 16 * U);
+        fillSlot(p.x - tw / 2 - pad, p.y + 24 * U, tw + pad * 2, 16 * U);
         ctx.fillStyle = "#fff";
         ctx.fillText(nameTxt, p.x, p.y + 26 * U);
         ctx.restore();
@@ -2599,10 +2575,12 @@
       var x = startX + i * (cardW + gap);
       var pulse = 0.5 + 0.5 * Math.sin(state.time * 3 + i);
       var stack = (state.combo && state.combo[cb.id]) || 0;
-      roundRect(x, cy - cardH / 2, cardW, cardH, 7 * U);
-      ctx.fillStyle = "rgba(20,26,40,0.96)"; ctx.fill();
-      ctx.fillStyle = colorAlpha(cb.color, 0.10 + pulse * 0.12); ctx.fill();
-      ctx.strokeStyle = cb.color; ctx.lineWidth = 2 * U; ctx.stroke();
+      ctx.fillStyle = "rgba(20,26,40,0.96)";
+      fillSlot(x, cy - cardH / 2, cardW, cardH);
+      ctx.fillStyle = colorAlpha(cb.color, 0.10 + pulse * 0.12);
+      fillSlot(x, cy - cardH / 2, cardW, cardH);
+      ctx.strokeStyle = cb.color; ctx.lineWidth = 2 * U;
+      strokeSlot(x, cy - cardH / 2, cardW, cardH);
       ctx.fillStyle = cb.color;
       ctx.font = Math.floor(30 * U) + "px Fredoka, sans-serif";
       ctx.textAlign = "center"; ctx.textBaseline = "middle";
@@ -2857,6 +2835,41 @@
     return arr.map(function (m) { return MEDIUM_LABELS[m] || m; }).join(" · ");
   }
 
+  function drawDexBookIcon(cx, cy, s, color) {
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.fillStyle = color;
+    ctx.strokeStyle = color;
+    ctx.lineWidth = Math.max(1.2, s * 0.14);
+    ctx.lineJoin = "round";
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(-s * 0.72, -s * 0.78);
+    ctx.lineTo(-s * 0.08, -s * 0.58);
+    ctx.lineTo(-s * 0.08, s * 0.78);
+    ctx.lineTo(-s * 0.72, s * 0.58);
+    ctx.closePath();
+    ctx.stroke();
+    ctx.globalAlpha = 0.28;
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.beginPath();
+    ctx.moveTo(s * 0.72, -s * 0.78);
+    ctx.lineTo(s * 0.08, -s * 0.58);
+    ctx.lineTo(s * 0.08, s * 0.78);
+    ctx.lineTo(s * 0.72, s * 0.58);
+    ctx.closePath();
+    ctx.stroke();
+    ctx.globalAlpha = 0.18;
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, -s * 0.58);
+    ctx.lineTo(0, s * 0.78);
+    ctx.stroke();
+    ctx.restore();
+  }
+
   function drawCompendiumButton() {
     var b = UI.compendiumBtn;
     if (!b) return;
@@ -2864,17 +2877,16 @@
     ctx.save();
     // Fondo con esquinas redondeadas (matching cards).
     ctx.fillStyle = pulse ? "rgba(255, 210, 74, " + (0.55 + pulse * 0.30) + ")" : "#33212e";
-    roundRect(b.x, b.y, b.w, b.h, 6);
-    ctx.fill();
+    fillSlot(b.x, b.y, b.w, b.h);
     ctx.fillStyle = pulse ? "#5a3a08" : "#ffd24a";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    // Layout VERTICAL: ícono arriba, "Dex" debajo.
-    var iconSize = Math.max(13, Math.min(18, b.h * 0.50));
-    ctx.font = iconSize + "px Fredoka, sans-serif";
-    ctx.fillText("📖", b.x + b.w / 2, b.y + b.h * 0.32);
-    ctx.font = "bold " + Math.max(10, Math.min(12, b.h * 0.32)) + "px Fredoka, sans-serif";
-    ctx.fillText("Dex", b.x + b.w / 2, b.y + b.h * 0.74);
+    // Layout VERTICAL: libro canvas arriba, "Dex" debajo.
+    var iconSize = Math.max(14, Math.min(22, Math.min(b.h * 0.46, b.w * 0.38)));
+    drawDexBookIcon(b.x + b.w / 2, b.y + b.h * 0.32, iconSize * 0.52, pulse ? "#5a3a08" : "#ffd24a");
+    var dexPx = Math.max(10, Math.min(14, Math.min(b.h * 0.30, b.w * 0.28)));
+    ctx.font = "bold " + fitFont("Dex", b.w - 8, dexPx, 8) + "px Fredoka, sans-serif";
+    ctx.fillText(ellipsizeToWidth("Dex", b.w - 8), b.x + b.w / 2, b.y + b.h * 0.74);
     // Badge rojo en la esquina superior derecha si hay items nuevos.
     if (hasDexNew()) {
       var dotR = Math.max(3, Math.min(5, b.h * 0.12));
@@ -2912,9 +2924,12 @@
     var modalY = (VH - modalH) / 2;
     UI.compendiumModal = { x: modalX, y: modalY, w: modalW, h: modalH };
     ctx.fillStyle = "#241620";
-    ctx.fillRect(modalX, modalY, modalW, modalH);
+    fillSlot(modalX, modalY, modalW, modalH);
+    ctx.save();
+    clipSlot(modalX, modalY, modalW, modalH);
 
-    // Header
+    // Header — franja recta; el clip del modal le da las puntas de arriba
+    // sin convertir la barra en una burbuja suelta.
     var headerH = 40;
     ctx.fillStyle = "#33212e";
     ctx.fillRect(modalX, modalY, modalW, headerH);
@@ -2922,7 +2937,7 @@
     ctx.font = "bold 15px Fredoka, sans-serif";
     ctx.textAlign = "left";
     ctx.textBaseline = "middle";
-    var headerLabel = state.loadoutEditing ? "🎯 Elegí tu loadout" : "📖 Dex";
+    var headerLabel = state.loadoutEditing ? "Elegí tu loadout" : "Dex";
     ctx.fillText(headerLabel, modalX + 12, modalY + headerH / 2);
     // Counters en modo loadout
     if (state.loadoutEditing && state.loadout) {
@@ -2945,7 +2960,7 @@
       w: closeSize, h: closeSize
     };
     ctx.fillStyle = "#7a3a3a";
-    ctx.fillRect(UI.compendiumCloseBtn.x, UI.compendiumCloseBtn.y, closeSize, closeSize);
+    fillSlot(UI.compendiumCloseBtn.x, UI.compendiumCloseBtn.y, closeSize, closeSize);
     ctx.fillStyle = "#fff";
     ctx.font = "bold 16px Fredoka, sans-serif";
     ctx.textAlign = "center"; ctx.textBaseline = "middle";
@@ -3025,22 +3040,22 @@
       // tinte del color. Desbloqueado normal: dark.
       var bgFill = locked ? "#15101a" : (selected ? colorAlpha(def.color || "#888", 0.30) : "#1f1219");
       ctx.fillStyle = bgFill;
-      ctx.fillRect(cx, cy, cardW, cardH);
+      fillSlot(cx, cy, cardW, cardH);
+      ctx.save();
+      clipSlot(cx, cy, cardW, cardH);
       if (selected && !locked) {
         ctx.strokeStyle = def.color || "#888";
         ctx.lineWidth = 2;
-        ctx.strokeRect(cx, cy, cardW, cardH);
+        strokeSlot(cx, cy, cardW, cardH);
       } else if (locked) {
-        // Borde gris para diferenciar de cards desbloqueadas.
         ctx.strokeStyle = "rgba(120, 120, 130, 0.30)";
         ctx.lineWidth = 1;
-        ctx.strokeRect(cx, cy, cardW, cardH);
+        strokeSlot(cx, cy, cardW, cardH);
       }
-      // En modo LOADOUT, sobre-renderizar borde verde + check en cards seleccionadas.
       if (state.loadoutEditing && !locked && typeId !== "macrofagoLibre" && isInLoadout(typeId)) {
         ctx.strokeStyle = "#7ad05b";
         ctx.lineWidth = 3;
-        ctx.strokeRect(cx + 1, cy + 1, cardW - 2, cardH - 2);
+        strokeSlot(cx + 1, cy + 1, cardW - 2, cardH - 2);
         // Checkmark verde en esquina sup-derecha
         var cmS = 14;
         ctx.fillStyle = "#7ad05b";
@@ -3059,62 +3074,36 @@
         ctx.stroke();
       }
       // Ícono / sprite — bloqueados se ven en GRIS con alpha reducido.
+      var nameBand = Math.max(12, Math.min(18, cardH * 0.26));
+      var iconBoxY = cy + 3;
+      var iconBoxH = cardH - nameBand - 4;
       var iconCx = cx + cardW / 2;
-      var iconCy = cy + cardW * 0.50;
+      var iconCy = iconBoxY + iconBoxH * 0.52;
       var isGerm = !!ENEMY_DEFS[typeId];
       ctx.save();
+      clipSlot(cx + 3, iconBoxY, cardW - 6, iconBoxH);
       if (locked) {
         ctx.globalAlpha = 0.40;
         ctx.filter = "grayscale(100%) brightness(0.50)";
       }
       if (isGerm) {
-        ctx.save();
-        ctx.beginPath();
-        ctx.rect(cx + 4, cy + 4, cardW - 8, cardW - 8);
-        ctx.clip();
-        drawTooltipSprite(def, iconCx, iconCy, iconR);
-        ctx.restore();
+        drawTooltipSprite(def, iconCx, iconCy, Math.min(iconR, iconBoxH * 0.38));
       } else if (typeId === "macrofagoLibre") {
-        // Sprite simplificado del macrófago libre.
-        ctx.save();
-        ctx.translate(iconCx, iconCy);
-        ctx.fillStyle = def.color;
-        ctx.strokeStyle = def.colorDark;
-        ctx.lineWidth = 2;
-        ctx.beginPath(); ctx.arc(0, 0, iconR, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-        // Bumps (clipeados)
-        ctx.beginPath(); ctx.arc(0, 0, iconR, 0, Math.PI * 2); ctx.clip();
-        for (var bb = 0; bb < 5; bb++) {
-          var ba = bb * Math.PI * 2 / 5;
-          ctx.beginPath();
-          ctx.arc(Math.cos(ba) * iconR * 0.85, Math.sin(ba) * iconR * 0.85, iconR * 0.30, 0, Math.PI * 2);
-          ctx.fill();
-        }
-        ctx.restore();
-        // Ojos pequeños
-        ctx.fillStyle = "#fff";
-        ctx.beginPath(); ctx.arc(iconCx - iconR * 0.25, iconCy - iconR * 0.05, iconR * 0.16, 0, Math.PI * 2);
-        ctx.arc(iconCx + iconR * 0.25, iconCy - iconR * 0.05, iconR * 0.16, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = "#1a1a22";
-        ctx.beginPath(); ctx.arc(iconCx - iconR * 0.25, iconCy - iconR * 0.05, iconR * 0.09, 0, Math.PI * 2);
-        ctx.arc(iconCx + iconR * 0.25, iconCy - iconR * 0.05, iconR * 0.09, 0, Math.PI * 2);
-        ctx.fill();
+        drawMacrofagoMini(iconCx, iconCy, Math.min(iconR, iconBoxH * 0.40), state.time || 0);
       } else {
-        // Preview de la TORRE REAL (snowman neutrofilo, LGL nk, etc).
-        drawTowerPreview(typeId, iconCx, iconCy, iconR, true);
+        drawTowerPreview(typeId, iconCx, iconCy, Math.min(iconR, iconBoxH * 0.38), true);
       }
-      ctx.restore();   // cierra el save del filtro de locked
-      // Nombre abajo. Bloqueado → "???" en gris.
+      ctx.restore();
       if (locked) {
         ctx.fillStyle = "rgba(170, 170, 180, 0.75)";
       } else {
         ctx.fillStyle = def.color || "#fff";
       }
       var dexMaxW = cardW - 6, dName = locked ? "???" : (def.shortName || def.name);
-      fitFont(dName, dexMaxW, Math.max(8, Math.min(11, cardW * 0.14)), 7);
       ctx.textAlign = "center"; ctx.textBaseline = "middle";
-      ctx.fillText(ellipsizeToWidth(dName, dexMaxW), cx + cardW / 2, cy + cardH - 10);
+      fitFont(dName, dexMaxW, Math.max(8, Math.min(11, cardW * 0.14)), 7);
+      ctx.fillText(ellipsizeToWidth(dName, dexMaxW), cx + cardW / 2, cy + cardH - nameBand * 0.48);
+      ctx.restore();
       // Badge rojo de "nuevo" en esquina sup. derecha (solo si está desbloqueado)
       if (!locked && state.dexNew && state.dexNew[typeId]) {
         var dotPulse = 0.5 + 0.5 * Math.sin(state.time * 5);
@@ -3144,7 +3133,7 @@
     var detailX = modalX + 10;
     var detailW = modalW - 20;
     ctx.fillStyle = "#1a1018";
-    ctx.fillRect(detailX, detailY, detailW, detailH);
+    fillSlot(detailX, detailY, detailW, detailH);
     ctx.fillStyle = "#33212e";
     ctx.fillRect(detailX, detailY, detailW, 2);
 
@@ -3170,6 +3159,9 @@
       var def2 = compendiumGetDef(sel);
       var lore = compendiumGetLore(sel);
       var isGerm = !!ENEMY_DEFS[sel];
+      ctx.save();
+      clipSlot(detailX, detailY, detailW, detailH);
+      var detailBottom = detailY + detailH - 6;
       // Nombre + sprite (ajustado: nombres largos como "Staphylococcus aureus"
       // o "Célula Dendrítica Plasmocitoide" no deben salirse del recuadro).
       ctx.fillStyle = def2.color || "#fff";
@@ -3180,24 +3172,19 @@
       // Sprite icon
       if (isGerm) {
         ctx.save();
-        ctx.beginPath();
-        ctx.rect(detailX + 8, detailY + 8, 44, 44);
-        ctx.clip();
+        clipSlot(detailX + 8, detailY + 8, 44, 44);
         drawTooltipSprite(def2, detailX + 30, detailY + 30, 14);
         ctx.restore();
       } else if (sel === "macrofagoLibre") {
-        ctx.fillStyle = def2.color;
-        ctx.beginPath();
-        ctx.arc(detailX + 30, detailY + 30, 18, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.strokeStyle = def2.colorDark; ctx.lineWidth = 2; ctx.stroke();
-        ctx.fillStyle = "#fff";
-        ctx.font = "bold 10px Fredoka, sans-serif";
-        ctx.textAlign = "center"; ctx.textBaseline = "middle";
-        ctx.fillText("M", detailX + 30, detailY + 31);
+        ctx.save();
+        clipSlot(detailX + 8, detailY + 8, 44, 44);
+        drawMacrofagoMini(detailX + 30, detailY + 30, 16, state.time || 0);
+        ctx.restore();
       } else {
-        // Detail panel del dex: preview grande de la torre real.
-        drawTowerPreview(sel, detailX + 30, detailY + 30, 18, true);
+        ctx.save();
+        clipSlot(detailX + 8, detailY + 8, 44, 44);
+        drawTowerPreview(sel, detailX + 30, detailY + 30, 16, true);
+        ctx.restore();
       }
       // Costo + stats
       var lvl2 = (def2.levels && def2.levels[0]) || {};
@@ -3205,12 +3192,12 @@
       if (def2.free) {
         line2 = "Gratis (autónomo)";
       } else if (def2.cost != null) {
-        line2 = (def2.currency === "complement" ? "🧬 C3b: " : "⚡ ATP: ") + def2.cost;
+        line2 = (def2.currency === "complement" ? "C3b: " : "ATP: ") + def2.cost;
       }
       ctx.fillStyle = (def2.currency === "complement") ? "#7CFC9E" : "#f5d76e";
       ctx.font = "bold 11px Fredoka, sans-serif";
       ctx.textAlign = "left"; ctx.textBaseline = "top";
-      ctx.fillText(line2, detailX + 60, detailY + 32);
+      ctx.fillText(ellipsizeToWidth(line2, nameMaxW), detailX + 60, detailY + 32);
       // Stats / hp / vel
       var sparts = [];
       if (isGerm) {
@@ -3230,17 +3217,19 @@
       ctx.font = "9px Fredoka, sans-serif";
       var sLines = wrapText(sparts.join("  ·  "), detailW - 22, 9);
       for (var sli = 0; sli < Math.min(2, sLines.length); sli++) {
-        ctx.fillText(sLines[sli], detailX + 10, detailY + 60 + sli * 14);
+        if (detailY + 60 + sli * 14 > detailBottom) break;
+        ctx.fillText(ellipsizeToWidth(sLines[sli], detailW - 22), detailX + 10, detailY + 60 + sli * 14);
       }
 
       // Descripción
       var descY = detailY + 92;
-      if (def2.desc || def2.tooltip) {
+      if ((def2.desc || def2.tooltip) && descY < detailBottom) {
         ctx.fillStyle = "rgba(255,255,255,0.85)";
         ctx.font = "10px Fredoka, sans-serif";
         var descTxt = def2.tooltip || def2.desc || "";
         var descLines = wrapText(descTxt, detailW - 22, 10);
-        var dN = Math.min(3, descLines.length);
+        var roomDesc = Math.max(0, Math.floor((detailBottom - descY) / 14));
+        var dN = Math.min(3, descLines.length, roomDesc);
         for (var dli = 0; dli < dN; dli++) {
           var dTxt = descLines[dli];
           if (dli === dN - 1 && descLines.length > dN) dTxt += " …";
@@ -3254,16 +3243,17 @@
         var labelW = 74;        // ancho reservado para la etiqueta
         var lineH = 12;         // alto de línea compacto
         function drawLoreRow(emoji, label, labelColor, valueText) {
-          if (!valueText) return;
+          if (!valueText || descY + lineH > detailBottom) return;
           ctx.fillStyle = labelColor;
           ctx.font = "bold 9px Fredoka, sans-serif";
           ctx.textAlign = "left"; ctx.textBaseline = "top";
-          ctx.fillText(emoji + " " + label, detailX + 10, descY);
+          ctx.fillText(ellipsizeToWidth(emoji + " " + label, labelW - 4), detailX + 10, descY);
           ctx.fillStyle = "rgba(255,255,255,0.85)";
           ctx.font = "9px Fredoka, sans-serif";
-          var vMaxW = detailW - labelW - 14;   // gutter derecho para no tocar el borde
+          var vMaxW = detailW - labelW - 14;
           var vw = wrapText(valueText, vMaxW, 9);
-          var n = Math.min(2, vw.length);
+          var room = Math.max(1, Math.floor((detailBottom - descY) / lineH));
+          var n = Math.min(2, vw.length, room);
           for (var vi = 0; vi < n; vi++) {
             var lineTxt = vw[vi];
             if (vi === n - 1 && vw.length > n) lineTxt += " …";   // hay más: indica recorte
@@ -3278,8 +3268,10 @@
         drawLoreRow("🌍", "Mejor en:", "#8ec5d0", compendiumMediumLabels(lore.bestIn));
         drawLoreRow("🧬", "Afinidad:", "#c0a0e0", lore.affinity);
       }
+      ctx.restore();
     }
 
+    ctx.restore();
     ctx.restore();
   }
   // ============ FIN COMPENDIO ============
@@ -3500,8 +3492,8 @@
     ctx.fillStyle = "rgba(30, 15, 20, 0.85)";
     ctx.strokeStyle = "#ffd24a";
     ctx.lineWidth = 2;
-    ctx.fillRect(x, y, w, h);
-    ctx.strokeRect(x, y, w, h);
+    fillSlot(x, y, w, h);
+    strokeSlot(x, y, w, h);
     // Ícono "★" arriba con halo sutil
     ctx.fillStyle = "rgba(255, 210, 74, 0.30)";
     ctx.beginPath(); ctx.arc(x + w / 2, y + 14 * U, 11 * U, 0, Math.PI * 2); ctx.fill();
@@ -3591,7 +3583,7 @@
       var lineH = mechPx + 2;
       var mechH = 16 + mechLines.length * lineH + 6;
       ctx.fillStyle = "rgba(20, 12, 16, 0.85)";
-      ctx.fillRect(box.x, y, box.w, mechH);
+      fillSlot(box.x, y, box.w, mechH);
       ctx.fillStyle = colorAlpha(cfg.color, 0.9);
       ctx.fillRect(box.x, y, 2, mechH);
       ctx.textAlign = "left";
@@ -3639,26 +3631,27 @@
       }
       var sy = box.y + box.h - (filas.length * 17 + 5);
       ctx.fillStyle = "rgba(20, 12, 16, 0.7)";
-      ctx.fillRect(box.x, sy - 4, box.w, filas.length * 17 + 9);
+      fillSlot(box.x, sy - 4, box.w, filas.length * 17 + 9);
       for (var si = 0; si < filas.length; si++) {
         var fy = sy + si * 17;
         ctx.textAlign = "left";
         ctx.textBaseline = "middle";
         ctx.fillStyle = "rgba(255,255,255,0.42)";
-        ctx.font = "bold 8px Fredoka, sans-serif";
-        // Espacio real para la etiqueta = ancho menos lo que ocupa el número.
+        var labPx = Math.max(7, Math.min(10, innerW * 0.12));
+        var numPx = (UI.dockType && UI.dockType.infoBody) || 11;
+        ctx.font = "bold " + labPx + "px Fredoka, sans-serif";
         ctx.save();
-        ctx.font = "bold 11px Fredoka, sans-serif";
+        ctx.font = "bold " + numPx + "px Fredoka, sans-serif";
         var numW = ctx.measureText(filas[si][2]).width;
         ctx.restore();
-        ctx.font = "bold 8px Fredoka, sans-serif";
+        ctx.font = "bold " + labPx + "px Fredoka, sans-serif";
         var labMax = innerW - numW - 6;
         var lab = filas[si][0];
         if (ctx.measureText(lab).width > labMax) lab = filas[si][1];
         ctx.fillText(ellipsizeToWidth(lab, labMax), innerX, fy + 6);
         ctx.textAlign = "right";
         ctx.fillStyle = filas[si][3];
-        ctx.font = "bold 11px Fredoka, sans-serif";
+        ctx.font = "bold " + numPx + "px Fredoka, sans-serif";
         ctx.fillText(filas[si][2], box.x + box.w - 5, fy + 6);
       }
       ctx.textBaseline = "top";
@@ -3677,7 +3670,7 @@
     ctx.save();
     // Contenedor plano sin borde.
     ctx.fillStyle = "rgba(30, 15, 20, 0.85)";
-    ctx.fillRect(rp.x, rp.y, rp.w, rp.h);
+    fillSlot(rp.x, rp.y, rp.w, rp.h);
 
     UI.responseCards = [];
     for (var i = 0; i < RESPONSE_ORDER.length; i++) {
@@ -3692,12 +3685,11 @@
 
       ctx.globalAlpha = canAfford ? 1 : 0.4;
       ctx.fillStyle = armed ? colorAlpha(def.color, 0.30) : "rgba(20, 10, 14, 0.85)";
-      ctx.fillRect(cx, cy, cardW, cardH);
-      // Borde solo si está armada (feedback). Sin borde en estado normal.
+      fillSlot(cx, cy, cardW, cardH);
       if (armed) {
         ctx.strokeStyle = def.color;
         ctx.lineWidth = 2;
-        ctx.strokeRect(cx, cy, cardW, cardH);
+        strokeSlot(cx, cy, cardW, cardH);
       }
 
       // Ícono como glifo de texto (sin círculo de fondo que se lea como "globo
@@ -4565,6 +4557,23 @@
       state.cellVignettes.gap = 0;
       return act ? act.kind : null;
     },
+    relayout: function () { layoutUI(); return window.__game.metrics; },
+    tryMacroUlt: function () { return tryActivateMacrofagoUltimate(); },
+    spawnGuardianAt: function (wnx, wny) {
+      var x = FIELD_LEFT + wnx * dsWorldW();
+      var y = FIELD_TOP + wny * dsWorldH();
+      state.guardians.push({
+        x: x, y: y, vx: 0, vy: 0,
+        hp: GUARDIAN_HP, maxHp: GUARDIAN_HP,
+        state: "roaming", alpha: 1, scale: 1,
+        biteCd: 0, wobble: Math.random() * Math.PI * 2,
+        blinkTimer: 0, nextBlink: state.time + 2,
+        tearTimer: 0, hitFlash: 0, attackAnim: 0,
+        mouthOpen: 0, swallow: 0, engulfTarget: null, engulfT: 0,
+        shape: Math.random() * Math.PI * 2
+      });
+      return state.guardians[state.guardians.length - 1];
+    },
     quality: function () {
       return {
         low: !!QUALITY.low,
@@ -4703,35 +4712,20 @@
     bgGrad.addColorStop(0, "rgba(40, 20, 28, 0.92)");
     bgGrad.addColorStop(1, "rgba(20, 10, 14, 0.92)");
     ctx.fillStyle = bgGrad;
-    ctx.fillRect(bxFinal, by, bw, bh);
-    // Borde dorado tenue
+    fillSlot(bxFinal, by, bw, bh);
     ctx.strokeStyle = "rgba(255, 200, 100, 0.55)";
     ctx.lineWidth = 1.2;
-    ctx.strokeRect(bxFinal, by, bw, bh);
+    strokeSlot(bxFinal, by, bw, bh);
     // Sprite preview (mini) en la izquierda
     var spriteSize = bh - 10;
     var spriteCx = bxFinal + 5 + spriteSize / 2;
     var spriteCy = by + bh / 2;
     if (bi.typeId === "macrofagoLibre") {
-      // Mini macrófago: cuerpo amber con dedos
       ctx.save();
-      ctx.translate(spriteCx, spriteCy);
-      var miniR = spriteSize * 0.36;
-      ctx.fillStyle = "#E8923A";
-      ctx.beginPath(); ctx.arc(0, 0, miniR, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = "#A8581A";
-      ctx.lineWidth = 1.3;
-      ctx.stroke();
-      // 4 mini-dedos
-      for (var mf = 0; mf < 4; mf++) {
-        var mfA = mf * Math.PI / 2 + 0.4;
-        ctx.fillStyle = "#E8923A";
-        ctx.beginPath();
-        ctx.arc(Math.cos(mfA) * miniR * 1.25, Math.sin(mfA) * miniR * 1.25, miniR * 0.30, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.strokeStyle = "#A8581A";
-        ctx.stroke();
-      }
+      ctx.beginPath();
+      ctx.rect(bxFinal + 4, by + 5, spriteSize, spriteSize);
+      ctx.clip();
+      drawMacrofagoMini(spriteCx, spriteCy, spriteSize * 0.36, state.time || 0);
       ctx.restore();
     } else {
       var def = ENEMY_DEFS[bi.typeId];
@@ -4749,15 +4743,14 @@
     ctx.fillStyle = isAlly ? "#7ad05b" : "#ffd24a";
     ctx.font = "bold 9px Fredoka, sans-serif";
     ctx.textAlign = "left"; ctx.textBaseline = "top";
-    ctx.fillText(isAlly ? "ALIADO" : "NUEVO INVASOR", bxFinal + spriteSize + 14, by + 5);
-    // Nombre
+    var introMaxW = bw - spriteSize - 22;
+    ctx.fillText(ellipsizeToWidth(isAlly ? "ALIADO" : "NUEVO INVASOR", introMaxW), bxFinal + spriteSize + 14, by + 5);
     ctx.fillStyle = "#fff";
     ctx.font = "bold 13px Fredoka, sans-serif";
-    ctx.fillText(info.name, bxFinal + spriteSize + 14, by + 16);
-    // Descripción
+    ctx.fillText(ellipsizeToWidth(info.name, introMaxW), bxFinal + spriteSize + 14, by + 16);
     ctx.fillStyle = "rgba(220, 220, 230, 0.78)";
     ctx.font = "10px Fredoka, sans-serif";
-    ctx.fillText(info.desc, bxFinal + spriteSize + 14, by + 30);
+    ctx.fillText(ellipsizeToWidth(info.desc, introMaxW), bxFinal + spriteSize + 14, by + 30);
     ctx.restore();
   }
 
@@ -4940,24 +4933,35 @@
     // reubica arriba de la cartilla de NETosis (antes vivía en la fila
     // inferior del campo, donde quedaba pegado/superpuesto con ella).
     // Y arriba del C3b, la tarjeta del ultimate "Arpón" del macrófago.
-    var c3bMeterH = Math.round(34 * U);
-    var c3bMeterGap = Math.round(4 * U);
-    var ultCardH = Math.round(34 * U);
-    var ultCardGap = Math.round(4 * U);
+    var dockScale = Math.max(0.75, Math.min(1.4, contentW / 90));
+    UI.dockScale = dockScale;
+    UI.dockType = {
+      name: Math.round(Math.max(10, Math.min(15, contentW * 0.16))),
+      cost: Math.round(Math.max(9, Math.min(13, contentW * 0.145))),
+      header: Math.round(Math.max(9, Math.min(13, contentW * 0.135))),
+      infoTitle: Math.round(Math.max(10, Math.min(14, contentW * 0.155))),
+      infoBody: Math.round(Math.max(9, Math.min(12, contentW * 0.125)))
+    };
+    var c3bMeterH = Math.round(Math.max(28, Math.min(40, contentW * 0.40)));
+    var c3bMeterGap = Math.round(4 * dockScale);
+    var ultCardH = c3bMeterH;
+    var ultCardGap = c3bMeterGap;
+    UI.dockMeterH = c3bMeterH;
+    UI.dockMeterGap = c3bMeterGap;
     // C3b + Arpón siempre reservan espacio al fondo del dock, en ambas fases.
     var responsesReservedH = c3bMeterH + c3bMeterGap + ultCardH + ultCardGap + dockPad;
     var rpH = 0;
     if (state && state.dissemination) {
-      var rpCardH = Math.round(44 * U);
-      var rpPad = Math.round(5 * U);
+      var rpCardH = Math.round(Math.max(36, Math.min(52, contentW * 0.48)));
+      var rpPad = Math.round(Math.max(4, 5 * dockScale));
       rpH = rpCardH + 2 * rpPad;
       responsesReservedH += rpH;
     }
 
-    var btnH = Math.round(Math.max(32, Math.min(42, contentW * 0.36)));
+    var btnH = Math.round(Math.max(34, Math.min(44, contentW * 0.40)));
 
     // Botón "Dex" arriba del dock (vertical: ícono arriba + nombre).
-    var compBtnH = Math.round(Math.max(38, Math.min(52, contentW * 0.62)));
+    var compBtnH = Math.round(Math.max(42, Math.min(58, contentW * 0.56)));
     UI.compendiumBtn = { x: contentX, y: dockTop, w: contentW, h: compBtnH };
 
     // Cartilla por GRUPOS DESPLEGABLES: cada categoría (cabecera) se abre/cierra
@@ -4967,10 +4971,13 @@
     // de teléfono, 393 px de alto) al strip le quedaban 11 px y NO se veía
     // ninguna torre.
     var stripTop = dockTop + compBtnH + 6;
-    var headerH = 28, groupSpacing = 6;
-    // Cartas verticales: nombre arriba, ícono al medio, costo abajo.
-    // Altura ajustada para que los 3 elementos respiren.
-    var cardH = Math.round(Math.max(64, Math.min(82, contentW * 0.95)));
+    var headerH = Math.round(Math.max(24, Math.min(34, 22 + 10 * dockScale)));
+    var groupSpacing = Math.round(Math.max(4, 6 * dockScale));
+    // Cartas verticales: nombre, preview real y costo escalan con el ancho.
+    var cardH = Math.round(Math.max(76, Math.min(108, contentW * 1.12)));
+    if (!isPortrait && VH < 520) {
+      cardH = Math.round(Math.max(68, Math.min(cardH, contentW * 0.92)));
+    }
     var openMap = (state && state.openGroups) ? state.openGroups : { linea: true };
     UI.cards = [];
     UI.groupHeaders = [];
@@ -5034,10 +5041,21 @@
     // elegida para construir. Sin selección no reserva nada y el alto entero
     // del dock es para las cartas.
     var hasInfo = !!(state && (state.selectedTower || state.selectedToBuild));
-    var infoWant = hasInfo ? Math.min(96 + btnH * 2, Math.round(dockH * 0.52)) : 0;
-    // El piso de la zona de info tiene que dar para el texto + los dos botones.
+    var placingOnly = !!(state && state.selectedToBuild && !state.selectedTower);
+    var infoWant = hasInfo
+      ? Math.min(
+          (placingOnly ? 70 : 96) + (placingOnly ? 0 : btnH * 2),
+          Math.round(dockH * (placingOnly ? 0.28 : 0.52))
+        )
+      : 0;
+    // Colocar no usa Mejorar/Vender: no les reserva alto. Así en landscape
+    // bajo sigue cabiendo al menos una carta.
     var infoFloor = hasInfo
-      ? Math.min(infoWant, Math.round(Math.max(btnH * 2 + 8 + 34, dockH * 0.26))) : 0;
+      ? Math.min(infoWant, Math.round(Math.max(
+          placingOnly ? 62 : btnH * 2 + 8 + 34,
+          dockH * (placingOnly ? 0.16 : 0.26)
+        )))
+      : 0;
     var infoH = Math.max(infoFloor, Math.min(infoWant, freeH - stripFloor));
     // Si ni con el mínimo entra todo, el strip se queda con lo que sobre
     // (scrolleable) en vez de tapar los botones de mejorar/vender.
@@ -5091,8 +5109,13 @@
     // ZONA DE INFO — no del dock. Clavados a dockBottom se montaban encima de
     // la tarjeta del Arpón y del medidor de C3b, y en pantallas bajas el botón
     // de Mejorar se salía por debajo del borde.
-    UI.upgradeBtn = { x: contentX, y: infoY + infoH - btnH, w: contentW, h: btnH };
-    UI.sellBtn = { x: contentX, y: infoY + infoH - btnH * 2 - 8, w: contentW, h: btnH };
+    if (placingOnly) {
+      UI.upgradeBtn = { x: -99, y: -99, w: 0, h: 0 };
+      UI.sellBtn = { x: -99, y: -99, w: 0, h: 0 };
+    } else {
+      UI.upgradeBtn = { x: contentX, y: infoY + infoH - btnH, w: contentW, h: btnH };
+      UI.sellBtn = { x: contentX, y: infoY + infoH - btnH * 2 - 8, w: contentW, h: btnH };
+    }
     var dsz = 22;
     UI.deselectBtn = { x: contentRight - dsz, y: infoY, w: dsz, h: dsz };
 
@@ -9205,7 +9228,7 @@
       // Background pill
       var tw = ctx.measureText(buffText).width;
       ctx.fillStyle = "rgba(20, 10, 14, 0.85)";
-      ctx.fillRect(rt.x - tw / 2 - 5, tY - 7, tw + 10, 14);
+      fillSlot(rt.x - tw / 2 - 5, tY - 7, tw + 10, 14);
       ctx.fillStyle = colorAlpha(rt.def.color, 0.95);
       ctx.fillText(buffText, rt.x, tY);
       ctx.restore();
@@ -10791,19 +10814,21 @@
   var ENGULF_SEEK = 150;          // px diseño: detecta germen vulnerable
   var ENGULF_RANGE = 26;          // px diseño: distancia para empezar a engullir
 
-  // -------- ULTIMATE MACRÓFAGO: ARPÓN (lanza-cadena estilo "¡Ven aquí!") --
-  // Carga única y global (no por macrófago): cuando está lista, el jugador
-  // la tappea y se ejecuta sobre el macrófago vivo con más HP, sobre el
-  // germen más avanzado dentro de rango. Throw → Pull → handoff a la
-  // fagocitosis normal (lick/lift/engulf) ya existente.
+  // -------- ULTIMATE MACRÓFAGO: ARPÓN (seudópodo + copa fagocítica) --
+  // Carga única y global (no por macrófago): throw → grab (copa cierra)
+  // → pull (tirón a la boca) → fagocitosis lick/lift/engulf.
   var MACROFAGO_ULT_CHARGE_SEC = 40;
   var MACROFAGO_ULT_RANGE = 250;   // px diseño (* U)
-  var HARPOON_THROW_TIME = 0.25;
-  var HARPOON_PULL_TIME = 0.4;
-  var HARPOON_FLAME_TIME = HARPOON_THROW_TIME + HARPOON_PULL_TIME + 0.3;
+  var HARPOON_THROW_TIME = 0.28;
+  var HARPOON_GRAB_TIME = 0.14;
+  var HARPOON_PULL_TIME = 0.42;
+  var HARPOON_FLAME_TIME = HARPOON_THROW_TIME + HARPOON_GRAB_TIME + HARPOON_PULL_TIME + 0.25;
   var HARPOON_SHOUT_TIME = 0.9;
+  function macrophageMouthOf(g) {
+    return { x: g.x, y: g.y + 10 * U * (g.scale || 1) };
+  }
   var GUARDIAN_COL = "#E8923A", GUARDIAN_COLD = "#A8581A";   // ámbar macrófago
-  var HARPOON_COLOR = "#5C300E";    // un poco más oscuro que GUARDIAN_COLD, para el arpón/cadena
+  var HARPOON_COLOR = "#C86820";    // citoplasma del seudópodo-arpón (no cadena metálica)
   var ENGULF_TIME = 0.9;          // s que tarda la fagocitosis
 
   // Libera al germen que el macrófago estaba engullendo (al huir/morir).
@@ -10852,38 +10877,70 @@
     g.scale = 1;
   }
 
-  // Ultimate "Arpón": throw (lanza la cadena) → pull (tirón brusco hacia
-  // la boca) → handoff a la fagocitosis normal de 3 fases ya existente.
+  // Ultimate "Arpón": throw (seudópodo) → grab (copa cierra) → pull
+  // (tirón a la boca) → fagocitosis normal de 3 fases.
   function updateHarpoon(g, dt) {
     var e = g.harpoonTarget;
     if (!e || e.dead || e.dying || state.enemies.indexOf(e) === -1) {
-      if (e) e.beingEngulfed = false;
+      if (e) { e.beingEngulfed = false; e.engulfScale = null; }
       g.harpoonTarget = null; g.harpoonPhase = null;
+      g.mouthOpen = 0;
       return;
     }
     g.harpoonT += dt;
+    var mouth = macrophageMouthOf(g);
     if (g.harpoonPhase === "throw") {
       var tt = Math.min(1, g.harpoonT / HARPOON_THROW_TIME);
-      g.harpoonTipX = g.x + (e.x - g.x) * tt;
-      g.harpoonTipY = g.y + (e.y - g.y) * tt;
+      var te = 1 - Math.pow(1 - tt, 3);
+      g.harpoonTipX = mouth.x + (e.x - mouth.x) * te;
+      g.harpoonTipY = mouth.y + (e.y - mouth.y) * te;
       if (tt >= 1) {
-        g.harpoonPhase = "pull";
+        g.harpoonPhase = "grab";
         g.harpoonT = 0;
-        g.harpoonFromX = e.x; g.harpoonFromY = e.y;
+        g.harpoonTipX = e.x;
+        g.harpoonTipY = e.y;
+        g.harpoonFromX = e.x;
+        g.harpoonFromY = e.y;
+        e.hitFlash = 0.20;
+        triggerHitstop(0.055);
+        var pk, pa, ps;
+        for (pk = 0; pk < 8; pk++) {
+          pa = Math.random() * Math.PI * 2;
+          ps = (18 + Math.random() * 26) * U;
+          pushEffect({ kind: "particle", x: e.x, y: e.y, vx: Math.cos(pa) * ps, vy: Math.sin(pa) * ps - 6 * U, life: 0.28, max: 0.32, color: GUARDIAN_COL });
+        }
       }
       return;
     }
-    // PULL: tirón brusco (ease-in) hacia el macrófago.
+    if (g.harpoonPhase === "grab") {
+      var gt = Math.min(1, g.harpoonT / HARPOON_GRAB_TIME);
+      var shake = (1 - gt) * 3.4 * U;
+      e.x = g.harpoonFromX + Math.sin((state.time || 0) * 42) * shake;
+      e.y = g.harpoonFromY + Math.cos((state.time || 0) * 38) * shake;
+      e.engulfScale = 1 - gt * 0.08;
+      g.harpoonTipX = e.x;
+      g.harpoonTipY = e.y;
+      if (gt >= 1) {
+        g.harpoonPhase = "pull";
+        g.harpoonT = 0;
+        e.x = g.harpoonFromX;
+        e.y = g.harpoonFromY;
+      }
+      return;
+    }
+    // PULL: la copa ya cerró; anticipa y tira hacia la boca.
     var pt = Math.min(1, g.harpoonT / HARPOON_PULL_TIME);
-    var pe = pt * pt;
-    e.x = g.harpoonFromX + (g.x - g.harpoonFromX) * pe;
-    e.y = g.harpoonFromY + (g.y - g.harpoonFromY) * pe;
+    var pe = pt < 0.16 ? pt * 0.10 : Math.pow((pt - 0.16) / 0.84, 2.15);
+    e.x = g.harpoonFromX + (mouth.x - g.harpoonFromX) * pe;
+    e.y = g.harpoonFromY + (mouth.y - g.harpoonFromY) * pe;
+    e.engulfScale = 0.92 - pe * 0.10;
     if (pt >= 1) {
       g.harpoonTarget = null;
       g.harpoonPhase = null;
       g.engulfTarget = e;
       g.engulfT = 0;
-      g.engulfSx = e.x; g.engulfSy = e.y;
+      g.engulfSx = e.x;
+      g.engulfSy = e.y;
     }
   }
 
@@ -10924,6 +10981,9 @@
     best.harpoonTarget = target;
     best.harpoonPhase = "throw";
     best.harpoonT = 0;
+    var mouth0 = macrophageMouthOf(best);
+    best.harpoonTipX = mouth0.x;
+    best.harpoonTipY = mouth0.y;
     best.harpoonFlameT = HARPOON_FLAME_TIME;
     best.harpoonShoutT = HARPOON_SHOUT_TIME;
     best.scale = 1.15;
@@ -11383,11 +11443,12 @@
     ctx.restore();
   }
 
-  // Llamas envolventes (lenguas radiales y flickerantes alrededor del
-  // cuerpo) + cadena/arpón gruesos hacia el objetivo + globo "¡Ven aquí!".
+  // LOCKED v5 — lengua serpenteante + copa fagocítica (user OK "Excelente").
+  // Llamas envolventes + seudópodo-arpón (cuerda viva + copa fagocítica)
+  // hacia el objetivo + globo "¡Ven aquí!".
   // Todo dibujado DESPUÉS del cuerpo para que nunca quede tapado.
   function drawHarpoonOverlay(g) {
-    var R = 24 * U * (g.scale || 1);
+    var R = 32 * U * (g.scale || 1);
     if ((g.harpoonFlameT || 0) > 0) {
       ctx.save();
       var nFlames = 9;
@@ -11415,37 +11476,133 @@
     }
     if (g.harpoonPhase && g.harpoonTarget) {
       var e = g.harpoonTarget;
+      var mouthH = macrophageMouthOf(g);
       var farX = (g.harpoonPhase === "throw") ? g.harpoonTipX : e.x;
       var farY = (g.harpoonPhase === "throw") ? g.harpoonTipY : e.y;
-      ctx.save();
-      ctx.strokeStyle = HARPOON_COLOR;
-      ctx.lineWidth = 6 * U;
-      ctx.lineCap = "round";
-      ctx.beginPath();
-      ctx.moveTo(g.x, g.y);
-      ctx.lineTo(farX, farY);
-      ctx.stroke();
-      // Eslabones de la cadena (círculos gruesos a lo largo de la línea).
-      var segs = 6;
-      ctx.fillStyle = HARPOON_COLOR;
-      ctx.strokeStyle = "rgba(0,0,0,0.35)";
-      ctx.lineWidth = 1 * U;
-      for (var i = 1; i < segs; i++) {
-        var t = i / segs;
-        var lx = g.x + (farX - g.x) * t;
-        var ly = g.y + (farY - g.y) * t;
-        ctx.beginPath();
-        ctx.arc(lx, ly, 4.2 * U, 0, Math.PI * 2);
-        ctx.fill(); ctx.stroke();
+      var dxH = farX - mouthH.x, dyH = farY - mouthH.y;
+      var lenH = Math.hypot(dxH, dyH) || 1;
+      var nxH = dxH / lenH, nyH = dyH / lenH;
+      var close = 0;
+      if (g.harpoonPhase === "grab") close = Math.min(1, g.harpoonT / HARPOON_GRAB_TIME);
+      if (g.harpoonPhase === "pull") close = 1;
+      var taut = close;
+      var segsH = 16;
+      function harpoonWave(t) {
+        var time = state.time || 0;
+        var env = Math.sin(t * Math.PI);
+        var snake = Math.sin(time * 11 + t * 11.5) * (20 - taut * 12);
+        var snake2 = Math.sin(time * 6.4 + t * 18) * (9 - taut * 5.5);
+        var wob = (snake + snake2) * env * U;
+        return {
+          x: mouthH.x + dxH * t + (-nyH) * wob,
+          y: mouthH.y + dyH * t + nxH * wob
+        };
       }
-      // Punta de arpón en el extremo, más grande.
-      ctx.fillStyle = HARPOON_COLOR;
+      var w0 = (17.5 - taut * 1.2) * U;
+      var w1 = (9.0 + close * 2.2) * U;
+      var left = [], right = [], hi, tH, pH, p2, ddx, ddy, dl, ox, oy, ww;
+      for (hi = 0; hi <= segsH; hi++) {
+        tH = hi / segsH;
+        pH = harpoonWave(tH);
+        p2 = harpoonWave(Math.min(1, tH + 0.05));
+        ddx = p2.x - pH.x; ddy = p2.y - pH.y;
+        dl = Math.hypot(ddx, ddy) || 1;
+        ox = -ddy / dl; oy = ddx / dl;
+        ww = (w0 + (w1 - w0) * tH) * (0.82 + 0.28 * Math.sin(tH * Math.PI));
+        left.push({ x: pH.x + ox * ww * 0.5, y: pH.y + oy * ww * 0.5 });
+        right.push({ x: pH.x - ox * ww * 0.5, y: pH.y - oy * ww * 0.5 });
+      }
+      ctx.save();
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      // Cuerda viva: seudópodo grueso ondulante, no palo ni cadena.
       ctx.beginPath();
-      ctx.moveTo(farX, farY - 10 * U);
-      ctx.lineTo(farX + 8 * U, farY + 7 * U);
-      ctx.lineTo(farX - 8 * U, farY + 7 * U);
+      ctx.moveTo(left[0].x, left[0].y);
+      for (hi = 1; hi < left.length; hi++) ctx.lineTo(left[hi].x, left[hi].y);
+      for (hi = right.length - 1; hi >= 0; hi--) ctx.lineTo(right[hi].x, right[hi].y);
       ctx.closePath();
+      var armGrad = ctx.createLinearGradient(mouthH.x, mouthH.y, farX, farY);
+      armGrad.addColorStop(0, "#ff9aa6");
+      armGrad.addColorStop(0.45, "#ff7a8a");
+      armGrad.addColorStop(1, "#c04050");
+      ctx.fillStyle = armGrad;
       ctx.fill();
+      ctx.strokeStyle = "#a03040";
+      ctx.lineWidth = 1.6 * U;
+      ctx.stroke();
+      ctx.strokeStyle = "rgba(180, 50, 70, 0.62)";
+      ctx.lineWidth = 2.1 * U;
+      ctx.beginPath();
+      ctx.moveTo(mouthH.x, mouthH.y);
+      for (hi = 1; hi <= segsH; hi++) {
+        var midH = harpoonWave((hi - 0.5) / segsH);
+        var endH = harpoonWave(hi / segsH);
+        ctx.quadraticCurveTo(midH.x, midH.y, endH.x, endH.y);
+      }
+      ctx.stroke();
+      ctx.strokeStyle = "rgba(255, 230, 230, 0.40)";
+      ctx.lineWidth = 1.6 * U;
+      ctx.beginPath();
+      var wet0 = harpoonWave(0.08);
+      ctx.moveTo(wet0.x + (-nyH) * w0 * 0.18, wet0.y + nxH * w0 * 0.18);
+      for (hi = 2; hi <= segsH - 1; hi++) {
+        var wet = harpoonWave(hi / segsH);
+        var wetW = (w0 + (w1 - w0) * (hi / segsH)) * 0.18;
+        ctx.lineTo(wet.x + (-nyH) * wetW, wet.y + nxH * wetW);
+      }
+      ctx.stroke();
+      // Copa fagocítica: palma + dos garras que cierran alrededor del germen.
+      var germR = ((e.def && e.def.radius) || 12) * U * (e.radiusScale || 1);
+      if (e.engulfScale != null) germR *= e.engulfScale;
+      var cupR = Math.max(12 * U, germR * (0.92 + (1 - close) * 0.28));
+      var baseAng = Math.atan2(nyH, nxH);
+      var clawSpread = 0.70 + (1 - close) * 0.48;
+      if (close > 0.18) {
+        ctx.fillStyle = "rgba(232, 146, 58, " + (0.20 + close * 0.30) + ")";
+        ctx.beginPath();
+        ctx.arc(farX, farY, germR * (0.55 + close * 0.28), 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.fillStyle = GUARDIAN_COL;
+      ctx.strokeStyle = GUARDIAN_COLD;
+      ctx.lineWidth = 1.5 * U;
+      var palmA = baseAng + Math.PI;
+      ctx.beginPath();
+      ctx.ellipse(
+        farX + Math.cos(palmA) * cupR * 0.12,
+        farY + Math.sin(palmA) * cupR * 0.12,
+        cupR * 0.38, (7.2 + close * 1.6) * U, palmA, 0, Math.PI * 2
+      );
+      ctx.fill();
+      ctx.stroke();
+      for (var lobe = -1; lobe <= 1; lobe += 2) {
+        var la = baseAng + lobe * clawSpread;
+        var reachC = cupR * (0.62 + (1 - close) * 0.18);
+        var mxC = farX + Math.cos(la) * reachC * 0.50;
+        var myC = farY + Math.sin(la) * reachC * 0.50;
+        var txC = farX + Math.cos(la) * reachC * 0.92;
+        var tyC = farY + Math.sin(la) * reachC * 0.92;
+        ctx.beginPath();
+        ctx.ellipse(mxC, myC, reachC * 0.48, (7.4 + close * 2.2) * U, la, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(txC, tyC, (6.2 + close * 1.4) * U, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+      }
+      ctx.fillStyle = "rgba(255, 200, 120, 0.55)";
+      ctx.beginPath();
+      ctx.arc(farX - nxH * 2 * U, farY - nyH * 2 * U, 3.2 * U, 0, Math.PI * 2);
+      ctx.fill();
+      if (g.harpoonPhase === "grab") {
+        var grabA = 0.50 * (1 - close);
+        ctx.strokeStyle = "rgba(255, 220, 140, " + grabA + ")";
+        ctx.lineWidth = 2.2 * U;
+        ctx.beginPath();
+        ctx.arc(farX, farY, germR + (6 + close * 4) * U, 0, Math.PI * 2);
+        ctx.stroke();
+      }
       ctx.restore();
     }
     if ((g.harpoonShoutT || 0) > 0) {
@@ -11544,6 +11701,188 @@
     ctx.restore();
   }
 
+  // LOCKED v5 — Habichuela+4 seudópodos+boca abierta+lengua-Arpón
+  // (user OK "Excelente" / "Cerremos").
+  // Habichuela + 4 seudópodos en cápsula. Los dedos se pintan aparte:
+  // si se interpolan en un solo path, a escala de juego se leen como papa.
+  var MACRO_LOBE_ANG = [0.38, 1.95, 3.42, 5.18];
+  var MACRO_LOBE_W = [0.36, 0.34, 0.38, 0.28];
+  var MACRO_LOBE_LEN = [0.92, 0.86, 0.86, 0.72];
+  function macrophageLobeTip(i, time, seed) {
+    return MACRO_LOBE_ANG[i] + seed * 0.10 + Math.sin(time * 0.7 + i * 1.3) * 0.05;
+  }
+  function macrophageFingerGeom(i, R, time, seed, reach) {
+    var a = macrophageLobeTip(i, time, seed);
+    var pulse = 0.94 + 0.06 * Math.sin(time * (1.05 + i * 0.19) + seed + i);
+    var compact = R < 18 ? 0.78 : 1;
+    var len = R * MACRO_LOBE_LEN[i] * pulse * (0.84 + 0.16 * reach) * compact;
+    var w = R * MACRO_LOBE_W[i] * (0.96 + 0.04 * reach) * (R < 18 ? 0.84 : 1);
+    return {
+      a: a,
+      bx: Math.cos(a) * R * 0.34,
+      by: Math.sin(a) * R * 0.30,
+      tx: Math.cos(a) * len,
+      ty: Math.sin(a) * len * 0.92,
+      w: w
+    };
+  }
+  function macrophageFillFinger(fg) {
+    var mx = (fg.bx + fg.tx) * 0.5;
+    var my = (fg.by + fg.ty) * 0.5;
+    var hw = Math.hypot(fg.tx - fg.bx, fg.ty - fg.by) * 0.5 + fg.w * 0.20;
+    ctx.beginPath();
+    ctx.ellipse(mx, my, hw, fg.w * 1.02, fg.a, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(fg.tx, fg.ty, fg.w * 0.90, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  function macrophageBodyPath(R, time, seed, reach) {
+    ctx.beginPath();
+    var steps = 32;
+    var breathe = 1 + 0.03 * Math.sin((time || 0) * 1.5 + seed);
+    var stretch = 1 + Math.max(0, reach - 1) * 0.06;
+    for (var i = 0; i <= steps; i++) {
+      var ang = (i / steps) * Math.PI * 2 + seed * 0.06;
+      var indent = Math.pow(Math.max(0, Math.cos(ang + 2.58)), 2);
+      var r = R * (0.64 - indent * 0.18) * breathe * stretch;
+      var px = Math.cos(ang) * r;
+      var py = Math.sin(ang) * r * 0.84;
+      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+  }
+  function paintMacrophageCell(R, time, seed, reach, col, cold, hitFlash) {
+    var i, fg;
+    var fingers = [];
+    for (i = 0; i < 4; i++) fingers.push(macrophageFingerGeom(i, R, time, seed, reach));
+    ctx.lineJoin = "round";
+    ctx.lineCap = "round";
+    ctx.fillStyle = cold;
+    for (i = 0; i < 4; i++) macrophageFillFinger(fingers[i]);
+    ctx.fillStyle = col;
+    for (i = 0; i < 4; i++) macrophageFillFinger(fingers[i]);
+    var body = ctx.createRadialGradient(-R * 0.16, -R * 0.14, R * 0.06, 0, 0, R * 0.78);
+    body.addColorStop(0, hitFlash ? "#ffd0d0" : "#f7cf95");
+    body.addColorStop(0.48, col);
+    body.addColorStop(1, cold);
+    ctx.strokeStyle = cold;
+    ctx.lineWidth = Math.max(1.4, 1.9 * (R / 28));
+    for (i = 0; i < 4; i++) {
+      fg = fingers[i];
+      var mx = (fg.bx + fg.tx) * 0.5;
+      var my = (fg.by + fg.ty) * 0.5;
+      var hw = Math.hypot(fg.tx - fg.bx, fg.ty - fg.by) * 0.5 + fg.w * 0.20;
+      ctx.beginPath();
+      ctx.ellipse(mx, my, hw, fg.w * 1.02, fg.a, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(fg.tx, fg.ty, fg.w * 0.90, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    macrophageBodyPath(R, time, seed, reach);
+    ctx.fillStyle = body;
+    ctx.fill();
+    ctx.strokeStyle = cold;
+    macrophageBodyPath(R, time, seed, reach);
+    ctx.stroke();
+    ctx.fillStyle = "rgba(255, 236, 190, 0.28)";
+    for (i = 0; i < 4; i++) {
+      fg = fingers[i];
+      ctx.beginPath();
+      ctx.arc(fg.tx - Math.cos(fg.a) * fg.w * 0.18, fg.ty - Math.sin(fg.a) * fg.w * 0.18, fg.w * 0.32, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.fillStyle = "rgba(255, 244, 210, 0.22)";
+    ctx.beginPath();
+    ctx.ellipse(-R * 0.10, -R * 0.14, R * 0.20, R * 0.11, -0.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "rgba(110, 60, 140, 0.90)";
+    ctx.strokeStyle = "rgba(50, 24, 80, 0.92)";
+    ctx.lineWidth = Math.max(1, R * 0.04);
+    ctx.beginPath();
+    var kNX = -R * 0.16, kNY = 0.04 * R, kR = R * 0.22;
+    ctx.moveTo(kNX + kR * 0.70, kNY - kR * 0.15);
+    ctx.quadraticCurveTo(kNX + kR * 0.15, kNY - kR * 1.05, kNX - kR * 0.55, kNY - kR * 0.55);
+    ctx.quadraticCurveTo(kNX - kR * 1.05, kNY + kR * 0.15, kNX - kR * 0.45, kNY + kR * 0.75);
+    ctx.quadraticCurveTo(kNX + kR * 0.20, kNY + kR * 0.85, kNX + kR * 0.55, kNY + kR * 0.20);
+    ctx.quadraticCurveTo(kNX + kR * 0.85, kNY - kR * 0.05, kNX + kR * 0.70, kNY - kR * 0.15);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "rgba(200, 170, 230, 0.55)";
+    ctx.beginPath();
+    ctx.ellipse(kNX - kR * 0.16, kNY - kR * 0.10, kR * 0.15, kR * 0.11, -0.4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "rgba(255, 250, 230, 0.20)";
+    ctx.beginPath();
+    ctx.arc(R * 0.16, -R * 0.04, R * 0.08, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "rgba(90, 40, 20, 0.72)";
+    var lys = [[0.18, 0.20, 0.065], [0.08, 0.28, 0.05]];
+    for (var ly = 0; ly < lys.length; ly++) {
+      ctx.beginPath();
+      ctx.arc(R * lys[ly][0], R * lys[ly][1], R * lys[ly][2], 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "rgba(220, 160, 80, 0.45)";
+      ctx.beginPath();
+      ctx.arc(R * lys[ly][0] - R * 0.015, R * lys[ly][1] - R * 0.015, R * lys[ly][2] * 0.35, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "rgba(90, 40, 20, 0.72)";
+    }
+  }
+  function drawMacrofagoMini(cx, cy, R, time) {
+    ctx.save();
+    ctx.translate(cx, cy);
+    paintMacrophageCell(R, time || 0, 0, 1, GUARDIAN_COL, GUARDIAN_COLD, false);
+    var eyeR = Math.max(2.1, R * 0.16);
+    var gap = R * 0.20;
+    var eyeY = -R * 0.06;
+    ctx.fillStyle = "#fff";
+    ctx.beginPath();
+    ctx.arc(-gap, eyeY, eyeR, 0, Math.PI * 2);
+    ctx.arc(gap, eyeY, eyeR, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#1a1a22";
+    ctx.beginPath();
+    ctx.arc(-gap + eyeR * 0.18, eyeY, eyeR * 0.52, 0, Math.PI * 2);
+    ctx.arc(gap + eyeR * 0.18, eyeY, eyeR * 0.52, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#3a1818";
+    ctx.beginPath();
+    ctx.ellipse(0, R * 0.26, Math.max(3.0, R * 0.30), Math.max(2.4, R * 0.24), 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "#ff9bb0";
+    ctx.lineWidth = Math.max(1, R * 0.08);
+    ctx.stroke();
+    ctx.restore();
+  }
+  function drawC3bMark(cx, cy, R, ready) {
+    ctx.save();
+    ctx.translate(cx, cy);
+    var pulse = ready ? (0.92 + 0.08 * Math.sin(state.time * 6)) : 1;
+    ctx.scale(pulse, pulse);
+    var g = ctx.createRadialGradient(0, 0, 1, 0, 0, R * 1.7);
+    g.addColorStop(0, ready ? "rgba(124,252,158,0.55)" : "rgba(124,252,158,0.22)");
+    g.addColorStop(1, "rgba(124,252,158,0)");
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(0, 0, R * 1.7, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = ready ? "#c8ffd8" : "#aef7c4";
+    ctx.strokeStyle = ready ? "#1f8a4c" : "#3fa86a";
+    ctx.lineWidth = Math.max(1.2, R * 0.22);
+    ctx.lineJoin = "round";
+    ctx.beginPath();
+    for (var k = 0; k < 3; k++) {
+      var ang = -Math.PI / 2 + k * 2.094;
+      var px = Math.cos(ang) * R, py = Math.sin(ang) * R;
+      if (k === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+  }
+
   function drawGuardian(g) {
     if (g.kind === "dendriticT") {
       var alpha = g.age > g.ttl - 1 ? Math.max(0, 1 - (g.age - (g.ttl - 1))) : 1;
@@ -11565,118 +11904,21 @@
     var fleeing = g.state === "fleeing";
     var maw = g.mouthOpen || 0;                 // 0..1 al engullir
     var swallow = g.swallow || 0;
-    var R = 24 * U * g.scale * (1 + Math.sin(g.wobble) * 0.05);  // más grande
+    var R = 32 * U * g.scale * (1 + Math.sin(g.wobble) * 0.05);
     var COL = GUARDIAN_COL, COLD = GUARDIAN_COLD;
     var seed = g.shape || 0;
     ctx.save();
     ctx.globalAlpha = Math.max(0, g.alpha);
-    drawShadow(g.x, g.y + 18 * U * g.scale, 18 * U * g.scale, 5 * U * g.scale);
-    var gl = ctx.createRadialGradient(g.x, g.y, R * 0.4, g.x, g.y, R * 2.2);
-    gl.addColorStop(0, "rgba(245, 180, 110, 0.30)");
+    drawShadow(g.x, g.y + 20 * U * g.scale, 20 * U * g.scale, 6 * U * g.scale);
+    var gl = ctx.createRadialGradient(g.x, g.y, R * 0.4, g.x, g.y, R * 1.45);
+    gl.addColorStop(0, "rgba(245, 180, 110, 0.20)");
     gl.addColorStop(1, "rgba(245, 180, 110, 0)");
     ctx.fillStyle = gl;
-    ctx.beginPath(); ctx.arc(g.x, g.y, R * 2.2, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(g.x, g.y, R * 1.45, 0, Math.PI * 2); ctx.fill();
     ctx.translate(g.x, g.y);
-    // Gulp: squash-stretch al tragar (se ensancha y achata).
     if (swallow > 0) { var sw = swallow / 0.6; ctx.scale(1 + sw * 0.40, 1 - sw * 0.22); }
-    // PSEUDÓPODOS TISSUE-RESIDENT: 11 pseudópodos cortos en movimiento
-    // ameboide constante. Cada uno se extiende y retrae con un ciclo de
-    // pulso INDEPENDIENTE (basado en su seed). Da la sensación de un
-    // macrófago tisular vivo que está sintiendo el entorno constantemente.
-    var reach = (maw > 0.05 || g.attackAnim > 0) ? 1.35 : 1.0;
-    ctx.lineCap = "round"; ctx.lineJoin = "round";
-    var nF = 11, b0 = R * 0.62;
-    for (var f = 0; f < nF; f++) {
-      var fSeed = f * 1.73 + seed * 0.5;
-      // Movimiento ameboide: cada pseudópodo pulsa con su propia fase
-      var pulseT = state.time * 1.4 + fSeed;
-      var pulse = (Math.sin(pulseT) + 1) * 0.5;   // 0..1 cyclical
-      // Posición angular SUTILMENTE móvil (no perfectamente equidistantes)
-      var fa = f / nF * Math.PI * 2 + Math.sin(state.time * 0.8 + f) * 0.12;
-      // Longitud corta + variación independiente
-      var fl = R * (0.20 + pulse * 0.35) * reach;
-      var bend = Math.sin(state.time * 2.5 + f * 1.5) * R * 0.10;
-      var bx = Math.cos(fa) * b0, by = Math.sin(fa) * b0;
-      var tx = Math.cos(fa) * (b0 + fl), ty = Math.sin(fa) * (b0 + fl);
-      var nx = -Math.sin(fa), ny = Math.cos(fa);
-      var mx = (bx + tx) / 2 + nx * bend, my = (by + ty) / 2 + ny * bend;
-      // Stroke principal (más fino que antes para que se vean varios)
-      ctx.strokeStyle = COLD; ctx.lineWidth = R * 0.36;
-      ctx.beginPath(); ctx.moveTo(bx, by); ctx.quadraticCurveTo(mx, my, tx, ty); ctx.stroke();
-      ctx.strokeStyle = (g.hitFlash > 0) ? "#ffd0d0" : COL; ctx.lineWidth = R * 0.28;
-      ctx.beginPath(); ctx.moveTo(bx, by); ctx.quadraticCurveTo(mx, my, tx, ty); ctx.stroke();
-      // Yema redondeada al final del pseudópodo
-      ctx.fillStyle = (g.hitFlash > 0) ? "#ffd0d0" : COL;
-      ctx.strokeStyle = COLD; ctx.lineWidth = 1.1 * U;
-      ctx.beginPath(); ctx.arc(tx, ty, R * 0.14, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-    }
-    // Cuerpo central AMEBOIDE — contorno ondulado, no perfectamente redondo.
-    // Membrana viva que se ondula sutilmente con el tiempo.
-    var body = ctx.createRadialGradient(-R * 0.3, -R * 0.3, R * 0.2, 0, 0, R * 0.95);
-    body.addColorStop(0, "#f7cf95");
-    body.addColorStop(0.6, COL);
-    body.addColorStop(1, COLD);
-    ctx.fillStyle = g.hitFlash > 0 ? "#ffd0d0" : body;
-    ctx.beginPath();
-    var nWaves = 14;
-    for (var bw = 0; bw <= nWaves; bw++) {
-      var bwAng = (bw / nWaves) * Math.PI * 2 + seed * 0.3;
-      var bwBump = 1 + Math.sin(bwAng * 4 + state.time * 1.3 + seed) * 0.05;
-      var bwR = R * 0.80 * bwBump;
-      var bwX = Math.cos(bwAng) * bwR;
-      var bwY = Math.sin(bwAng) * bwR;
-      if (bw === 0) ctx.moveTo(bwX, bwY); else ctx.lineTo(bwX, bwY);
-    }
-    ctx.closePath();
-    ctx.fill();
-    ctx.strokeStyle = COLD; ctx.lineWidth = 1.6 * U; ctx.stroke();
-    // RECEPTORES DE SUPERFICIE — pequeños bumps en la membrana (TLR, Fc, CR3).
-    // Signature de la membrana del macrófago: muchos receptores sensando.
-    ctx.fillStyle = "rgba(120, 60, 20, 0.65)";
-    ctx.strokeStyle = COLD;
-    ctx.lineWidth = 0.9 * U;
-    for (var rc = 0; rc < 7; rc++) {
-      var rcA = (rc * Math.PI * 2 / 7) + state.time * 0.15 + seed;
-      var rcX = Math.cos(rcA) * R * 0.80;
-      var rcY = Math.sin(rcA) * R * 0.80;
-      ctx.beginPath();
-      ctx.arc(rcX, rcY, R * 0.07, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
-    }
-    // NÚCLEO KIDNEY (forma de riñón) — signature del macrófago. Lóbulo
-    // grande con concavidad de un lado.
-    ctx.fillStyle = "rgba(110, 60, 140, 0.85)";
-    ctx.strokeStyle = "rgba(60, 30, 90, 0.85)";
-    ctx.lineWidth = 1.1 * U;
-    ctx.beginPath();
-    var kNX = -R * 0.06, kNY = -R * 0.10;
-    var kR = R * 0.28;
-    ctx.moveTo(kNX + kR, kNY);
-    ctx.quadraticCurveTo(kNX + kR, kNY - kR * 1.1, kNX, kNY - kR * 0.9);
-    ctx.quadraticCurveTo(kNX - kR * 1.2, kNY - kR * 0.5, kNX - kR * 0.95, kNY + kR * 0.4);
-    ctx.quadraticCurveTo(kNX - kR * 0.4, kNY + kR * 0.95, kNX + kR * 0.4, kNY + kR * 0.85);
-    ctx.quadraticCurveTo(kNX + kR * 1.05, kNY + kR * 0.35, kNX + kR, kNY);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-    // LISOSOMAS — pequeñas vesículas oscuras (orgánulos de digestión)
-    // signature del fagocito.
-    ctx.fillStyle = "rgba(70, 30, 100, 0.75)";
-    for (var ly = 0; ly < 5; ly++) {
-      var lyAng = ly * 1.7 + seed * 0.5 + state.time * 0.1;
-      var lyDist = R * (0.45 + (ly % 3) * 0.08);
-      var lyX = Math.cos(lyAng) * lyDist;
-      var lyY = Math.sin(lyAng) * lyDist + R * 0.18;
-      // Skip si choca con el núcleo
-      if (Math.hypot(lyX - kNX, lyY - kNY) < kR + R * 0.10) continue;
-      ctx.beginPath();
-      ctx.arc(lyX, lyY, R * 0.06, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    // Sombra interna sutil (volumen)
-    ctx.fillStyle = "rgba(150, 80, 30, 0.18)";
-    ctx.beginPath(); ctx.ellipse(R * 0.16, R * 0.30, R * 0.30, R * 0.18, 0.4, 0, Math.PI * 2); ctx.fill();
+    var reach = (maw > 0.05 || g.attackAnim > 0 || g.harpoonPhase) ? 1.28 : 1.0;
+    paintMacrophageCell(R, state.time, seed, reach, COL, COLD, g.hitFlash > 0);
     var eyeR = R * 0.20, gap = R * 0.30, faceY = -R * 0.12;
     var tongueExt = g.tongueExtend || 0;
     // Función helper para dibujar la lengua (la usamos ENCIMA del mouth)
@@ -11750,7 +11992,12 @@
       drawAnimeMouth(0, R * 0.34, R * 0.52, R * (0.18 + 0.5 * chomp), "fanged");
     } else {
       drawAnimeEyes(0, faceY, eyeR, gap, 0, 0, R * 0.12, R * 0.05, "fierce");
-      drawAnimeMouth(0, R * 0.36, R * 0.42, R * 0.24, "serious");
+      drawAnimeMouth(0, R * 0.28, R * 0.52, R * 0.46, "open");
+      ctx.strokeStyle = "#ff9bb0";
+      ctx.lineWidth = Math.max(1.2, 1.6 * U);
+      ctx.beginPath();
+      ctx.ellipse(0, R * 0.28, R * 0.26, R * 0.32, 0, 0, Math.PI * 2);
+      ctx.stroke();
     }
     ctx.restore();
     // Barra de vida si está dañado.
@@ -11801,16 +12048,16 @@
       anchorW = UI.compendiumBtn.w;
       anchorBottomY = UI.dockBottom - UI.dockPad;
     }
-    var c3bH = Math.round(34 * U);
-    var c3bGap = Math.round(4 * U);
+    var c3bH = UI.dockMeterH || Math.round(Math.max(28, Math.min(40, anchorW * 0.40)));
+    var c3bGap = UI.dockMeterGap || Math.round(4 * (UI.dockScale || 1));
     UI.c3bMeter = {
       x: anchorX,
       y: anchorBottomY - c3bGap - c3bH,
       w: anchorW,
       h: c3bH
     };
-    var ultH = Math.round(34 * U);
-    var ultGap = Math.round(4 * U);
+    var ultH = UI.dockMeterH || c3bH;
+    var ultGap = UI.dockMeterGap || c3bGap;
     UI.macrofagoUltCard = {
       x: UI.c3bMeter.x,
       y: UI.c3bMeter.y - ultGap - ultH,
@@ -11915,6 +12162,18 @@
     if ((state.medCitoTimer    || 0) > 0) state.medCitoTimer    -= dt;
   }
 
+  function drawSerumShell(x, y, w, h, ready) {
+    var r = uiSlotRadius(w, h);
+    ctx.fillStyle = "rgba(18, 10, 14, 0.72)";
+    fillSlot(x, y, w, h);
+    ctx.fillStyle = "rgba(255, 255, 255, 0.08)";
+    roundRect(x + 1, y + 1, w - 2, Math.max(3, h * 0.34), r * 0.7);
+    ctx.fill();
+    ctx.strokeStyle = ready ? "rgba(255, 230, 180, 0.85)" : "rgba(255,255,255,0.38)";
+    ctx.lineWidth = ready ? 2 : 1;
+    strokeSlot(x, y, w, h);
+  }
+
   function drawMedVial() {
     var v = UI.medVial; if (!v) return;
     var perBlock = MED_MAX / MED_BLOCKS;
@@ -11926,8 +12185,7 @@
       ctx.shadowColor = colorAlpha(MED_POWERS[filled - 1].color, 0.9);
       ctx.shadowBlur = 8 + 8 * gp;
     }
-    ctx.fillStyle = "rgba(20,8,12,0.55)";
-    ctx.fillRect(v.x, v.y, v.w, v.h);
+    drawSerumShell(v.x, v.y, v.w, v.h, filled >= 1);
     ctx.shadowBlur = 0;
     // 4 bloques de Nv1 a Nv4. Cada uno muestra su número siempre (faded si
     // está vacío, brillante si está lleno) para que se entienda el progreso.
@@ -11937,15 +12195,19 @@
       var col = MED_POWERS[i].color;
       // Fondo tenue del color de este nivel (siempre visible, da pistas).
       ctx.fillStyle = colorAlpha(col, 0.10);
-      ctx.fillRect(segX + 1, v.y + 2, segW - 2, v.h - 4);
-      // Llenado real proporcional.
+      fillSlot(segX + 1, v.y + 2, segW - 2, v.h - 4);
       if (f > 0) {
+        ctx.save();
+        ctx.beginPath();
+        roundRect(segX + 1, v.y + 2, segW - 2, v.h - 4, uiSlotRadius(segW - 2, v.h - 4));
+        ctx.clip();
         ctx.fillStyle = colorAlpha(col, 0.40 + 0.55 * f);
         ctx.fillRect(segX + 1, v.y + 2, (segW - 2) * f, v.h - 4);
+        ctx.restore();
       }
       ctx.strokeStyle = (f >= 1) ? col : "rgba(255,255,255,0.25)";
       ctx.lineWidth = (f >= 1) ? 2 : 1;
-      ctx.strokeRect(segX + 1, v.y + 1.5, segW - 2, v.h - 3);
+      strokeSlot(segX + 1, v.y + 1.5, segW - 2, v.h - 3);
       // Código de 3 letras del antibiótico (TET/PEN/VAN/CAR), centrado.
       // Es la identidad visual de cada tier — combinado con el color, el
       // jugador asocia rápido "ese turquesa con PEN = Penicilina".
@@ -11960,9 +12222,8 @@
       ctx.fillStyle = (f >= 1) ? "rgba(255,255,255,0.90)" : "rgba(255,255,255,0.30)";
       ctx.fillText("Nv" + (i + 1), segX + segW - 3, v.y + 2);
     }
-    // Borde exterior fino para enmarcar todo el contenedor.
-    ctx.strokeStyle = "rgba(255,255,255,0.45)"; ctx.lineWidth = 1;
-    ctx.strokeRect(v.x, v.y, v.w, v.h);
+    ctx.strokeStyle = "rgba(255,255,255,0.22)"; ctx.lineWidth = 1;
+    strokeSlot(v.x, v.y, v.w, v.h);
     // Watermark DINÁMICO en la parte baja del vial: muestra la CLASE del
     // bloque más alto lleno (ej. "Bacteriostático", "β-lactámico"...). Así el
     // jugador sabe qué va a desatar antes de tocar. Si no hay nada cargado,
@@ -11982,28 +12243,28 @@
     var ratio = Math.max(0, Math.min(1, state.topicalCharge / TOPICAL_MAX));
     var ready = state.topicalCharge >= TOPICAL_MAX;
     ctx.save();
-    // Fondo + fondo tenue del color del poder (igual estilo que medvial).
-    ctx.fillStyle = "rgba(20,8,12,0.55)";
-    ctx.fillRect(v.x, v.y, v.w, v.h);
+    drawSerumShell(v.x, v.y, v.w, v.h, ready);
     ctx.fillStyle = "rgba(143, 206, 46, 0.10)";
-    ctx.fillRect(v.x + 1, v.y + 1, v.w - 2, v.h - 2);
-    // Llenado HORIZONTAL.
+    fillSlot(v.x + 1, v.y + 1, v.w - 2, v.h - 2);
     var lw = (v.w - 4) * ratio;
     ctx.fillStyle = ready ? "#b6ff3a" : "#8fce2e";
-    ctx.fillRect(v.x + 2, v.y + 2, lw, v.h - 4);
-    ctx.strokeStyle = ready ? "#b6ff3a" : "rgba(255,255,255,0.45)";
-    ctx.lineWidth = ready ? 2 : 1;
-    ctx.strokeRect(v.x, v.y, v.w, v.h);
+    if (lw > 1) {
+      ctx.save();
+      ctx.beginPath();
+      roundRect(v.x + 1, v.y + 1, v.w - 2, v.h - 2, uiSlotRadius(v.w - 2, v.h - 2));
+      ctx.clip();
+      ctx.fillRect(v.x + 2, v.y + 2, lw, v.h - 4);
+      ctx.restore();
+    }
     ctx.restore();
-    // Texto centrado dentro del rect (igual tamaño y estilo que el resto).
     ctx.save();
     ctx.textAlign = "center"; ctx.textBaseline = "middle";
     ctx.font = "bold " + Math.max(10, Math.min(12, v.h * 0.32)) + "px Fredoka, sans-serif";
     ctx.fillStyle = ready
       ? "rgba(20,30,8," + (0.90 + 0.10 * (0.5 + 0.5 * Math.sin(state.time * 6))) + ")"
       : "rgba(255,255,255,0.85)";
-    var lbl = ready ? "▸ Antiséptico" : "🧴 " + Math.round(ratio * 100) + "%";
-    ctx.fillText(lbl, v.x + v.w / 2, v.y + v.h / 2);
+    var lbl = ready ? "▸ Antiséptico" : "Antiséptico " + Math.round(ratio * 100) + "%";
+    ctx.fillText(ellipsizeToWidth(lbl, v.w - 8), v.x + v.w / 2, v.y + v.h / 2);
     ctx.restore();
   }
 
@@ -12015,48 +12276,38 @@
     var max = (state.guardians && state.guardians.length >= GUARDIAN_MAX);
     var enabled = canAfford && !max;
     ctx.save();
-    // Fondo + tinte amber
-    ctx.fillStyle = armed ? "rgba(232, 146, 58, 0.40)" : "rgba(20,8,12,0.55)";
-    ctx.fillRect(v.x, v.y, v.w, v.h);
-    if (!armed) {
+    drawSerumShell(v.x, v.y, v.w, v.h, armed || enabled);
+    if (armed) {
+      ctx.fillStyle = "rgba(232, 146, 58, 0.38)";
+      fillSlot(v.x + 1, v.y + 1, v.w - 2, v.h - 2);
+    } else {
       ctx.fillStyle = "rgba(232, 146, 58, 0.12)";
-      ctx.fillRect(v.x + 1, v.y + 1, v.w - 2, v.h - 2);
+      fillSlot(v.x + 1, v.y + 1, v.w - 2, v.h - 2);
     }
-    // Borde: pulsa dorado si armado, blanco si listo, rojo tenue si bloqueado
     if (armed) {
       var pp = 0.5 + 0.5 * Math.sin(state.time * 5);
       ctx.strokeStyle = "rgba(255, 210, 100, " + (0.7 + pp * 0.30) + ")";
       ctx.lineWidth = 2.5;
-    } else if (enabled) {
-      ctx.strokeStyle = "rgba(232, 146, 58, 0.85)";
-      ctx.lineWidth = 1.5;
-    } else {
+      strokeSlot(v.x, v.y, v.w, v.h);
+    } else if (!enabled) {
       ctx.strokeStyle = "rgba(200, 100, 100, 0.45)";
       ctx.lineWidth = 1;
+      strokeSlot(v.x, v.y, v.w, v.h);
     }
-    ctx.strokeRect(v.x, v.y, v.w, v.h);
-    // Mini macrófago en el centro
     ctx.globalAlpha = enabled ? 1 : 0.45;
     var cx = v.x + v.w / 2, cy = v.y + v.h * 0.42;
-    var mR = v.h * 0.18;
-    ctx.fillStyle = "#E8923A";
-    ctx.strokeStyle = "#A8581A";
-    ctx.lineWidth = 1.2;
-    ctx.beginPath(); ctx.arc(cx, cy, mR, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-    // 4 dedos
-    for (var f = 0; f < 4; f++) {
-      var fa = f * Math.PI / 2 + 0.4;
-      ctx.fillStyle = "#E8923A";
-      ctx.beginPath();
-      ctx.arc(cx + Math.cos(fa) * mR * 1.30, cy + Math.sin(fa) * mR * 1.30, mR * 0.32, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
-    }
-    // Costo abajo
-    ctx.fillStyle = canAfford ? "#ffd24a" : "rgba(220, 100, 100, 0.85)";
+    var mR = v.h * 0.26;
+    drawMacrofagoMini(cx, cy, mR, state.time);
+    // Costo abajo — gota ATP, no emoji.
+    var costStr = String(MACROFAGO_MANUAL_COST);
     ctx.font = "bold " + Math.max(9, Math.min(11, v.h * 0.26)) + "px Fredoka, sans-serif";
-    ctx.textAlign = "center"; ctx.textBaseline = "bottom";
-    ctx.fillText("⚡" + MACROFAGO_MANUAL_COST, v.x + v.w / 2, v.y + v.h - 2);
+    ctx.textAlign = "left"; ctx.textBaseline = "bottom";
+    var costW = ctx.measureText(costStr).width;
+    var dropR = Math.max(3.5, v.h * 0.10);
+    var costX = v.x + v.w / 2 - (dropR * 2 + 3 + costW) / 2;
+    drawAtpDrop(costX + dropR, v.y + v.h - dropR - 1, dropR, canAfford ? "#ffd24a" : "rgba(220, 100, 100, 0.85)");
+    ctx.fillStyle = canAfford ? "#ffd24a" : "rgba(220, 100, 100, 0.85)";
+    ctx.fillText(costStr, costX + dropR * 2 + 3, v.y + v.h - 2);
     ctx.restore();
   }
 
@@ -12492,66 +12743,82 @@
     var ready = mu.ready;
     ctx.save();
     ctx.fillStyle = "rgba(20,8,12,0.55)";
-    ctx.fillRect(v.x, v.y, v.w, v.h);
+    fillSlot(v.x, v.y, v.w, v.h);
     var pct = Math.max(0, Math.min(1, mu.charge));
-    ctx.fillStyle = "rgba(255,90,40,0.35)";
-    ctx.fillRect(v.x, v.y, v.w * pct, v.h);
+    if (pct > 0) {
+      ctx.save();
+      ctx.beginPath();
+      roundRect(v.x, v.y, v.w, v.h, uiSlotRadius(v.w, v.h));
+      ctx.clip();
+      ctx.fillStyle = "rgba(255,90,40,0.35)";
+      ctx.fillRect(v.x, v.y, v.w * pct, v.h);
+      ctx.restore();
+    }
     ctx.strokeStyle = ready ? "rgba(255,110,40,0.95)" : "rgba(255,255,255,0.45)";
     ctx.lineWidth = ready ? 2 : 1;
-    ctx.strokeRect(v.x, v.y, v.w, v.h);
-    ctx.font = "bold " + Math.max(10, Math.min(12, v.h * 0.32)) + "px Fredoka, sans-serif";
+    strokeSlot(v.x, v.y, v.w, v.h);
+    var arpLabel = ready ? "▸ Arpón" : "Arpón";
+    var arpPx = Math.max(10, Math.min(14, Math.min(v.h * 0.40, v.w * 0.18)));
+    ctx.font = "bold " + fitFont(arpLabel, v.w - 12, arpPx, 8) + "px Fredoka, sans-serif";
     ctx.textBaseline = "middle";
     ctx.textAlign = "left";
     ctx.fillStyle = ready ? "#ffd9c0" : "rgba(255,255,255,0.75)";
-    ctx.fillText(ready ? "▸ Arpón" : "Arpón", v.x + 7, v.y + v.h / 2);
+    ctx.fillText(ellipsizeToWidth(arpLabel, v.w - 12), v.x + 7, v.y + v.h / 2);
     ctx.restore();
   }
 
   function drawComplementMeter() {
     var n = state.complement || 0;
-    if (n <= 0 && (!state.fragments || !state.fragments.length)) return;
-    // Usa UI.c3bMeter (fila inferior, a la derecha del medvial). Si no existe,
-    // fallback al sitio anterior para no romper layouts antiguos.
     var v = UI.c3bMeter;
     if (!v) {
       v = { x: FIELD_LEFT + 6, y: (UI.topicalVial ? UI.topicalVial.y + UI.topicalVial.h + 6 : FIELD_TOP + 6), w: 100, h: 22 };
     }
     var ready = n >= MAC_COST;
     ctx.save();
-    // Fondo (mismo tono base que medvial/topical, con tinte verde sutil del color del poder).
-    ctx.fillStyle = "rgba(20,8,12,0.55)";
-    ctx.fillRect(v.x, v.y, v.w, v.h);
-    ctx.fillStyle = "rgba(124,252,158,0.10)";
-    ctx.fillRect(v.x + 1, v.y + 1, v.w - 2, v.h - 2);
-    ctx.strokeStyle = ready ? "rgba(124,252,158,0.95)" : "rgba(255,255,255,0.45)";
-    ctx.lineWidth = ready ? 2 : 1;
-    ctx.strokeRect(v.x, v.y, v.w, v.h);
-    // Label "C3b"
-    ctx.font = "bold " + Math.max(10, Math.min(12, v.h * 0.32)) + "px Fredoka, sans-serif";
+    if (ready) {
+      var gp = 0.5 + 0.5 * Math.sin(state.time * 5);
+      ctx.shadowColor = "rgba(124,252,158,0.90)";
+      ctx.shadowBlur = 8 + 8 * gp;
+    }
+    drawSerumShell(v.x, v.y, v.w, v.h, ready);
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = "rgba(80, 200, 120, 0.10)";
+    fillSlot(v.x + 1, v.y + 1, v.w - 2, v.h - 2);
+    // Izquierda: marca + cuenta. Derecha: 5 bloques (a 2/5 se leen dos llenos).
+    var iconR = Math.max(5, Math.min(7, v.h * 0.26));
+    var ix = v.x + 5 + iconR;
+    drawC3bMark(ix, v.y + v.h / 2, iconR, ready);
+    var label = ready ? "LISTO" : (n + "/" + MAC_COST);
     ctx.textBaseline = "middle";
     ctx.textAlign = "left";
-    ctx.fillStyle = "#aef7c4";
-    var label = ready ? "▸ C3b" : "C3b";
-    var pad = 7;
-    ctx.fillText(label, v.x + pad, v.y + v.h / 2);
-    var lw = ctx.measureText(label).width;
-    // Dots a la derecha del label, calculados para NUNCA salirse del rect.
-    var dotsStart = v.x + pad + lw + 6;
-    var dotsEnd = v.x + v.w - pad;
-    var dotsArea = Math.max(20, dotsEnd - dotsStart);
-    // Mínimo 1.5px de gap entre dots; el radio se calcula al revés para que
-    // todo entre en dotsArea (con un poco de aire al final).
-    var minGap = 1.5;
-    var maxRByArea = (dotsArea - (MAC_COST - 1) * minGap) / (MAC_COST * 2);
-    var dotR = Math.max(2.5, Math.min(4.5, maxRByArea));
-    var totalDotsW = MAC_COST * (dotR * 2);
-    var gapDots = Math.max(minGap, (dotsArea - totalDotsW) / Math.max(1, MAC_COST - 1));
-    for (var i = 0; i < MAC_COST; i++) {
-      var cx = dotsStart + dotR + i * (dotR * 2 + gapDots);
-      ctx.beginPath();
-      ctx.arc(cx, v.y + v.h / 2, dotR, 0, Math.PI * 2);
-      ctx.fillStyle = i < n ? "#7CFC9E" : "rgba(255,255,255,0.20)";
-      ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = ready
+      ? "rgba(20,40,18," + (0.90 + 0.10 * (0.5 + 0.5 * Math.sin(state.time * 6))) + ")"
+      : "#f4fff8";
+    var labMax = Math.max(18, v.w * 0.28);
+    var c3bPx = Math.max(9, Math.min(12, v.h * 0.36));
+    ctx.font = "bold " + fitFont(label, labMax, c3bPx, 8) + "px Fredoka, sans-serif";
+    var textX = ix + iconR + 4;
+    ctx.fillText(ellipsizeToWidth(label, labMax), textX, v.y + v.h / 2);
+    var pillsX = textX + Math.min(labMax, ctx.measureText(label).width) + 6;
+    var pillsR = v.x + v.w - 4;
+    var segs = MAC_COST;
+    var gapS = 3;
+    var pillsW = Math.max(20, pillsR - pillsX);
+    var segW = (pillsW - (segs - 1) * gapS) / segs;
+    var innerY = v.y + 5, innerH = v.h - 10;
+    for (var si = 0; si < segs; si++) {
+      var sx = pillsX + si * (segW + gapS);
+      if (si < n) {
+        ctx.fillStyle = ready ? "#7CFC9E" : "#6af0a0";
+        fillSlot(sx, innerY, segW, innerH);
+      } else {
+        ctx.fillStyle = "rgba(255,255,255,0.10)";
+        fillSlot(sx, innerY, segW, innerH);
+        ctx.strokeStyle = "rgba(124, 252, 158, 0.40)";
+        ctx.lineWidth = 1;
+        strokeSlot(sx, innerY, segW, innerH);
+      }
     }
     ctx.restore();
   }
@@ -13318,7 +13585,7 @@
     ctx.clip();
     // Fondo sutil del viewport con borde
     ctx.fillStyle = "rgba(20, 12, 18, 0.45)";
-    ctx.fillRect(viewX, viewY, viewW, viewH);
+    fillSlot(viewX, viewY, viewW, viewH);
 
     // Calcular estado de cada nodo en función de currentNode + availableNodes
     var curIdx = mapProgressIdx(b.currentNode);  // -1 si nada
@@ -13408,7 +13675,7 @@
     // Borde decorativo alrededor del viewport
     ctx.strokeStyle = "rgba(255, 200, 140, 0.30)";
     ctx.lineWidth = 1;
-    ctx.strokeRect(viewX, viewY, viewW, viewH);
+    strokeSlot(viewX, viewY, viewW, viewH);
 
     // Indicadores de scroll (flechas tenues si se puede scrollear más)
     if (maxScrollX > 0) {
@@ -14267,11 +14534,13 @@
         ctx.globalAlpha = miniAlpha;
         // Marco tipo monitor.
         ctx.fillStyle = "#0a0c0a";
-        ctx.fillRect(px - 4 * U, py - 4 * U, panelW + 8 * U, panelH + 8 * U);
+        fillSlot(px - 4 * U, py - 4 * U, panelW + 8 * U, panelH + 8 * U);
         ctx.fillStyle = "#142016";
-        ctx.fillRect(px, py, panelW, panelH);
+        fillSlot(px, py, panelW, panelH);
         ctx.save();
-        ctx.beginPath(); ctx.rect(px, py, panelW, panelH); ctx.clip();
+        ctx.beginPath();
+        roundRect(px, py, panelW, panelH, uiSlotRadius(panelW, panelH));
+        ctx.clip();
         // Camino horizontal.
         var pathY = py + panelH * 0.64;
         ctx.strokeStyle = "rgba(150, 190, 150, 0.55)";
@@ -14300,7 +14569,7 @@
         ctx.restore(); // fin clip
         ctx.strokeStyle = "rgba(130, 210, 150, 0.65)";
         ctx.lineWidth = 1.6 * U;
-        ctx.strokeRect(px, py, panelW, panelH);
+        strokeSlot(px, py, panelW, panelH);
         ctx.restore();
         // Etiqueta.
         ctx.save();
@@ -14989,11 +15258,6 @@
       ctx.beginPath(); ctx.ellipse(cx - rxp * 0.10, cy - ryp * 0.50, rxp * 0.42, ryp * 0.16, 0, 0, Math.PI * 2); ctx.fill();
     }
 
-    // Etiqueta — siempre.
-    ctx.fillStyle = "rgba(70, 30, 10, 0.75)";
-    ctx.font = "bold 10px Fredoka, sans-serif";
-    ctx.textAlign = "center"; ctx.textBaseline = "top";
-    ctx.fillText("MITOCONDRIA", cx, cy + ryp + 6);
     ctx.restore();
   }
 
@@ -15272,7 +15536,7 @@
 
   // -------- AMBIENT BLOOD CELLS -----------------------------------------
   function ensureAmbient() {
-    var target = Math.max(8, Math.min(20, Math.round(FIELD_W * FIELD_H / 22000)));
+    var target = Math.max(5, Math.min(10, Math.round(FIELD_W * FIELD_H / 40000)));
     while (state.ambient.length < target) {
       state.ambient.push({
         x: FIELD_LEFT + Math.random() * FIELD_W,
@@ -15486,32 +15750,6 @@
       ctx.restore();
     }
     ctx.restore();
-    // Floating "TAPÓN DE FIBRINA" text on spawn.
-    if (b.textTimer > 0) {
-      var alpha = Math.min(1, b.textTimer / 0.4);
-      ctx.save();
-      ctx.globalAlpha = alpha;
-      var fs = Math.max(9, 10 * U);          // más pequeño
-      ctx.font = "bold " + fs + "px Fredoka, sans-serif";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      var label = "TAPÓN DE FIBRINA";
-      var tw = ctx.measureText(label).width;
-      // Clamp dentro del campo para que SIEMPRE se vea (aunque el tapón esté
-      // pegado a un borde del camino).
-      var margin = 6;
-      var tx = Math.max(FIELD_LEFT + margin + tw / 2,
-                Math.min(FIELD_RIGHT - margin - tw / 2, b.x));
-      var ty = b.y - 30 * U - (1.5 - b.textTimer) * 14 * U;
-      ty = Math.max(FIELD_TOP + 10 * U, ty);
-      ctx.lineWidth = 3;
-      ctx.lineJoin = "round";
-      ctx.strokeStyle = "rgba(60, 50, 0, 0.85)";
-      ctx.strokeText(label, tx, ty);
-      ctx.fillStyle = "#FFE680";
-      ctx.fillText(label, tx, ty);
-      ctx.restore();
-    }
   }
 
   // -------- RESTOS (pathogen remnants) ---------------------------------
@@ -16042,6 +16280,7 @@
 
   // -------- VIÑETAS CELULARES (solo visual, Fase 1) ---------------------
   // Una escena a la vez, en bordes/huecos. No tocan path, colocación ni ATP.
+  // Queratina: dos brigadas, de cada borde lateral hasta la herida.
   var VIGNETTE_KINDS = ["platelets", "keratin", "endothelium", "fibroblasts", "sweepers"];
 
   function ensureCellVignettes() {
@@ -16095,40 +16334,52 @@
       if (vignetteZoneBusy(lip.x, lip.y, 42 * U)) return null;
     }
     var depot = {
-      x: lip.x < w.x ? FIELD_LEFT + FIELD_W * 0.18 : FIELD_RIGHT - FIELD_W * 0.18,
-      y: FIELD_TOP + FIELD_H * 0.24
+      x: lip.x < w.x ? FIELD_LEFT + 14 * U : FIELD_RIGHT - 14 * U,
+      y: FIELD_TOP + FIELD_H * 0.22
     };
     if (distPointToPath(depot.x, depot.y) < 38 * U) depot.y += 18 * U;
     if (vignetteZoneBusy(depot.x, depot.y, 36 * U)) return null;
     var ctrl = {
       x: (depot.x + lip.x) * 0.5,
-      y: Math.min(depot.y, lip.y) - 18 * U
+      y: Math.min(depot.y, lip.y) - 22 * U
     };
     return {
-      kind: "platelets", t: 0, max: 5.6,
-      depot: depot, lip: lip, ctrl: ctrl, n: 3
+      kind: "platelets", t: 0, max: 6.2,
+      depot: depot, lip: lip, ctrl: ctrl, n: 4
     };
   }
 
-  function spawnKeratinBrigade() {
-    var w = PATH.wounds && PATH.wounds[0];
-    var y = FIELD_TOP + FIELD_H * 0.105;
-    var left = !w || w.x > FIELD_LEFT + FIELD_W * 0.5;
-    var x0 = FIELD_LEFT + FIELD_W * (left ? 0.20 : 0.62);
+  function spawnKeratinLine(x0, x1, y, n) {
     var cells = [];
-    for (var i = 0; i < 4; i++) {
-      var x = x0 + i * 28 * U * (left ? 1 : -1);
-      if (vignetteZoneBusy(x, y, 26 * U)) return null;
-      cells.push({ x: x, y: y, phase: i * 0.7 });
+    var i, t, x;
+    for (i = 0; i < n; i++) {
+      t = n <= 1 ? 0 : i / (n - 1);
+      x = x0 + (x1 - x0) * t;
+      if (vignetteZoneBusy(x, y, 18 * U)) continue;
+      cells.push({ x: x, y: y, phase: i * 0.55 });
     }
-    return { kind: "keratin", t: 0, max: 4.4, cells: cells, left: left };
+    return cells;
+  }
+
+  function spawnKeratinBrigade() {
+    var w = (PATH.wounds && PATH.wounds[0]) || PATH.confluence;
+    var y = FIELD_TOP + FIELD_H * 0.128;
+    var woundX = w ? w.x : FIELD_LEFT + FIELD_W * 0.5;
+    var gap = 26 * U;
+    var left = spawnKeratinLine(FIELD_LEFT + 10 * U, woundX - gap, y, 7);
+    var right = spawnKeratinLine(FIELD_RIGHT - 10 * U, woundX + gap, y, 7);
+    if (left.length < 3 && right.length < 3) return null;
+    return {
+      kind: "keratin", t: 0, max: 6.6,
+      left: left, right: right, woundX: woundX, y: y
+    };
   }
 
   function spawnEndotheliumPatch() {
     var v = PATH.exit;
     if (!v) return null;
     if (vignetteZoneBusy(v.x, v.y, 52 * U)) return null;
-    return { kind: "endothelium", t: 0, max: 5.2, x: v.x, y: v.y, n: 3 };
+    return { kind: "endothelium", t: 0, max: 5.6, x: v.x, y: v.y, n: 4 };
   }
 
   function spawnFibroblastStitch() {
@@ -16164,9 +16415,9 @@
       home.x = left ? FIELD_LEFT + FIELD_W * 0.16 : FIELD_RIGHT - FIELD_W * 0.16;
       if (vignetteZoneBusy(home.x, home.y, 36 * U)) return null;
     }
-    var dust = { x: home.x + (left ? 26 : -26) * U, y: home.y - 8 * U };
-    var drop = { x: home.x + (left ? 52 : -52) * U, y: home.y - 6 * U };
-    return { kind: "sweepers", t: 0, max: 5.0, home: home, dust: dust, drop: drop, n: 2 };
+    var dust = { x: home.x + (left ? 36 : -36) * U, y: home.y - 10 * U };
+    var drop = { x: home.x + (left ? 78 : -78) * U, y: home.y - 8 * U };
+    return { kind: "sweepers", t: 0, max: 5.6, home: home, dust: dust, drop: drop, n: 3 };
   }
 
   function spawnCellVignette(kind) {
@@ -16208,7 +16459,7 @@
   }
 
   function paintVignettePlatelet(x, y, ang, loaded, alpha) {
-    var R = 8.2 * U;
+    var R = 10 * U;
     ctx.save();
     ctx.globalAlpha = alpha;
     ctx.translate(x, y);
@@ -16253,45 +16504,90 @@
       if (back) p = vignetteBez(act.lip, act.ctrl, act.depot, 1 - gk);
       var ang = Math.atan2(act.lip.y - act.depot.y, act.lip.x - act.depot.x);
       if (back) ang += Math.PI;
-      paintVignettePlatelet(p.x, p.y, ang, out || dump, 0.82);
+      paintVignettePlatelet(p.x, p.y, ang, out || dump, 0.94);
     }
     if (dump) {
       ctx.save();
-      ctx.globalAlpha = 0.55;
-      ctx.fillStyle = "rgba(236, 214, 188, 0.85)";
+      ctx.globalAlpha = 0.72;
+      ctx.fillStyle = "rgba(236, 214, 188, 0.92)";
       ctx.beginPath();
-      ctx.ellipse(act.lip.x, act.lip.y, 7 * U, 3.2 * U, 0.2, 0, Math.PI * 2);
+      ctx.ellipse(act.lip.x, act.lip.y, 10 * U, 4.4 * U, 0.2, 0, Math.PI * 2);
       ctx.fill();
       ctx.restore();
     }
   }
 
-  function drawVignetteKeratin(act, k) {
-    var cells = act.cells;
-    var hop = (k * 3.2) % 1;
-    var pair = Math.min(cells.length - 2, Math.floor(k * 3.2));
-    for (var i = 0; i < cells.length; i++) {
-      var c = cells[i];
-      var bob = Math.sin(state.time * 3 + c.phase) * 1.2 * U;
-      ctx.save();
-      ctx.globalAlpha = 0.80;
-      ctx.translate(c.x, c.y + bob);
-      ctx.fillStyle = "#f0d8c0";
-      ctx.beginPath(); ctx.ellipse(0, 0, 7.4 * U, 6.2 * U, 0, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = "rgba(140, 100, 70, 0.55)";
-      ctx.lineWidth = Math.max(0.7, 0.9 * U); ctx.stroke();
-      ctx.fillStyle = "rgba(90, 55, 35, 0.7)";
-      ctx.beginPath(); ctx.ellipse(0, 0, 1.6 * U, 1.9 * U, 0, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = "#fff";
-      ctx.beginPath(); ctx.arc(-1.4 * U, -0.6 * U, 0.7 * U, 0, Math.PI * 2);
-      ctx.arc(1.4 * U, -0.6 * U, 0.7 * U, 0, Math.PI * 2); ctx.fill();
-      ctx.restore();
-    }
+  function paintVignetteKeratinocyte(c) {
+    var bob = Math.sin(state.time * 3 + c.phase) * 1.6 * U;
+    var rx = 13.2 * U, ry = 10.6 * U;
+    ctx.save();
+    ctx.globalAlpha = 0.98;
+    ctx.translate(c.x, c.y + bob);
+    ctx.fillStyle = "rgba(40, 22, 10, 0.28)";
+    ctx.beginPath(); ctx.ellipse(1.2 * U, ry * 0.72, rx * 0.92, ry * 0.28, 0, 0, Math.PI * 2); ctx.fill();
+    var kg = ctx.createRadialGradient(-rx * 0.25, -ry * 0.3, rx * 0.12, 0, 0, rx);
+    kg.addColorStop(0, "#ffe3a8");
+    kg.addColorStop(0.55, "#e8a85a");
+    kg.addColorStop(1, "#b86a28");
+    ctx.fillStyle = kg;
+    ctx.beginPath(); ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = "#4a2a10";
+    ctx.lineWidth = Math.max(1.6, 2 * U); ctx.stroke();
+    ctx.fillStyle = "rgba(90, 48, 20, 0.9)";
+    ctx.beginPath(); ctx.ellipse(0, 0.4 * U, 2.8 * U, 3.2 * U, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "#fff";
+    ctx.beginPath(); ctx.arc(-2.4 * U, -1.1 * U, 1.15 * U, 0, Math.PI * 2);
+    ctx.arc(2.4 * U, -1.1 * U, 1.15 * U, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "#2a1510";
+    ctx.beginPath(); ctx.arc(-2.4 * U, -1.1 * U, 0.55 * U, 0, Math.PI * 2);
+    ctx.arc(2.4 * U, -1.1 * U, 0.55 * U, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  }
+
+  function paintVignetteKeratinHop(cells, k) {
+    if (!cells || cells.length < 2) return;
+    var span = k * (cells.length - 1);
+    var pair = Math.min(cells.length - 2, Math.floor(span));
+    var hop = span - pair;
     var a = cells[pair], b = cells[pair + 1];
-    if (a && b) {
-      var sx = a.x + (b.x - a.x) * hop;
-      var sy = a.y + (b.y - a.y) * hop - Math.sin(hop * Math.PI) * 8 * U;
-      paintKeratinSquame(sx, sy, 7.2 * U, 3.1 * U, hop * 1.2, 0.90);
+    if (!a || !b) return;
+    var sx = a.x + (b.x - a.x) * hop;
+    var sy = a.y + (b.y - a.y) * hop - Math.sin(hop * Math.PI) * 10 * U;
+    paintKeratinSquame(sx, sy, 10.2 * U, 4.4 * U, hop * 1.2, 1);
+  }
+
+  function drawVignetteKeratin(act, k) {
+    var i;
+    var left = act.left || [];
+    var right = act.right || [];
+    ctx.save();
+    ctx.globalAlpha = 0.55;
+    ctx.strokeStyle = "rgba(180, 110, 40, 0.95)";
+    ctx.lineWidth = Math.max(3.2, 4 * U);
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    if (left.length) {
+      ctx.moveTo(left[0].x, act.y);
+      ctx.lineTo(act.woundX - 10 * U, act.y);
+    }
+    if (right.length) {
+      ctx.moveTo(right[0].x, act.y);
+      ctx.lineTo(act.woundX + 10 * U, act.y);
+    }
+    ctx.stroke();
+    ctx.restore();
+    for (i = 0; i < left.length; i++) paintVignetteKeratinocyte(left[i]);
+    for (i = 0; i < right.length; i++) paintVignetteKeratinocyte(right[i]);
+    paintVignetteKeratinHop(left, k);
+    paintVignetteKeratinHop(right, k);
+    if (k > 0.82) {
+      ctx.save();
+      ctx.globalAlpha = Math.min(1, (k - 0.82) / 0.12) * 0.7;
+      ctx.fillStyle = "rgba(232, 200, 120, 0.9)";
+      ctx.beginPath();
+      ctx.ellipse(act.woundX, act.y + 2 * U, 9 * U, 3.4 * U, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
     }
   }
 
@@ -16304,13 +16600,13 @@
       var x = act.x + Math.cos(ang) * rx;
       var y = act.y + Math.sin(ang) * ry * 0.72;
       ctx.save();
-      ctx.globalAlpha = 0.78;
+      ctx.globalAlpha = 0.96;
       ctx.translate(x, y);
       ctx.rotate(ang + Math.PI / 2);
-      ctx.fillStyle = "#c97880";
-      ctx.beginPath(); ctx.ellipse(0, 0, 8.4 * U, 4.2 * U, 0, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = "rgba(90, 30, 40, 0.5)";
-      ctx.lineWidth = Math.max(0.7, 0.85 * U); ctx.stroke();
+      ctx.fillStyle = "#f098a0";
+      ctx.beginPath(); ctx.ellipse(0, 0, 12.4 * U, 6.2 * U, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = "#5a1824";
+      ctx.lineWidth = Math.max(1.4, 1.7 * U); ctx.stroke();
       ctx.fillStyle = "#fff";
       ctx.beginPath(); ctx.arc(-1.5 * U, -0.4 * U, 0.7 * U, 0, Math.PI * 2);
       ctx.arc(1.5 * U, -0.4 * U, 0.7 * U, 0, Math.PI * 2); ctx.fill();
@@ -16319,9 +16615,9 @@
     if (k > 0.55) {
       var tileA = 0.15;
       ctx.save();
-      ctx.globalAlpha = Math.min(1, (k - 0.55) / 0.25) * 0.55;
-      ctx.strokeStyle = "rgba(220, 150, 150, 0.85)";
-      ctx.lineWidth = Math.max(1.4, 1.8 * U);
+      ctx.globalAlpha = Math.min(1, (k - 0.55) / 0.25) * 0.78;
+      ctx.strokeStyle = "rgba(232, 168, 168, 0.95)";
+      ctx.lineWidth = Math.max(2.2, 2.8 * U);
       ctx.beginPath();
       ctx.ellipse(act.x, act.y, rx * 0.92, ry * 0.68, 0, tileA, tileA + 0.7);
       ctx.stroke();
@@ -16339,10 +16635,10 @@
       ctx.save();
       ctx.translate(x, y);
       ctx.rotate(rot);
-      ctx.fillStyle = "rgba(232, 184, 148, 0.92)";
-      ctx.beginPath(); ctx.ellipse(0, 0, 9 * U, 5.2 * U, 0, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = "rgba(140, 90, 70, 0.6)";
-      ctx.lineWidth = Math.max(0.8, 1 * U); ctx.stroke();
+      ctx.fillStyle = "#e8a060";
+      ctx.beginPath(); ctx.ellipse(0, 0, 13 * U, 7.2 * U, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = "#5a3018";
+      ctx.lineWidth = Math.max(1.5, 1.8 * U); ctx.stroke();
       ctx.fillStyle = "rgba(110, 70, 50, 0.75)";
       ctx.beginPath(); ctx.ellipse(0, 0, 2.6 * U, 2.2 * U, 0, 0, Math.PI * 2); ctx.fill();
       ctx.fillStyle = "#fff";
@@ -16351,9 +16647,9 @@
       ctx.restore();
     }
     ctx.save();
-    ctx.globalAlpha = 0.78;
-    ctx.strokeStyle = "rgba(236, 220, 200, 0.95)";
-    ctx.lineWidth = Math.max(1.6, 2 * U);
+    ctx.globalAlpha = 0.9;
+    ctx.strokeStyle = "rgba(244, 226, 200, 0.98)";
+    ctx.lineWidth = Math.max(2.4, 3 * U);
     ctx.beginPath();
     ctx.moveTo(ax, ay);
     ctx.quadraticCurveTo(cx, cy, ax + (bx - ax) * taut, ay + (by - ay) * taut);
@@ -16383,11 +16679,11 @@
       var tk = Math.max(0, Math.min(1, tGo - lag));
       var x = from.x + (to.x - from.x) * tk;
       var y = from.y + (to.y - from.y) * tk + Math.sin(tk * Math.PI) * -6 * U;
-      var R = 7.4 * U;
+      var R = 11 * U;
       ctx.save();
-      ctx.globalAlpha = 0.78;
+      ctx.globalAlpha = 0.96;
       ctx.translate(x, y);
-      ctx.fillStyle = "#6aa8e0";
+      ctx.fillStyle = "#5cb0f5";
       ctx.beginPath(); ctx.arc(0, 0, R, 0, Math.PI * 2); ctx.fill();
       ctx.fillStyle = "#3d7ab8";
       ctx.beginPath(); ctx.arc(-R * 0.55, 0, R * 0.38, 0, Math.PI * 2);
@@ -16415,7 +16711,7 @@
     if (!v || !v.act) return;
     var act = v.act;
     var k = Math.max(0, Math.min(1, act.t / act.max));
-    var fade = (k < 0.08) ? k / 0.08 : (k > 0.90 ? (1 - k) / 0.10 : 1);
+    var fade = (k < 0.06) ? k / 0.06 : (k > 0.92 ? (1 - k) / 0.08 : 1);
     ctx.save();
     ctx.globalAlpha = fade;
     if (act.kind === "platelets") drawVignettePlatelets(act, k);
@@ -17469,15 +17765,61 @@
     var hb = 1 + 0.10 * Math.sin((state.time || 0) * 1.1);
     band(0.15, 0.52, "rgba(228,140,128," + (0.26 * hb).toFixed(3) + ")", "rgba(224,128,116," + (0.16 * hb).toFixed(3) + ")");
     band(0.52, 0.82, "rgba(245,222,138," + (0.30 * hb).toFixed(3) + ")", "rgba(240,206,120," + (0.18 * hb).toFixed(3) + ")");
-    // Etiquetas tenues de capa en el margen izquierdo.
+    /* Las capas se leen por color (rosa / grasa), no por carteles. */
+  }
+
+  // Adipocitos (hipodermis) + capilares (dermis) encima del PNG de campo.
+  // Semilla fija: no parpadean ni se mueven. Se omiten en low / F2 / puente.
+  function drawTissueDepth() {
+    if (QUALITY.low || state.f2 || state.dissemination) return;
     ctx.save();
-    ctx.fillStyle = "rgba(120, 70, 70, 0.30)";
-    ctx.font = "bold " + Math.max(8, Math.min(11, FIELD_W * 0.026)) + "px Fredoka, sans-serif";
-    ctx.textAlign = "left";
-    ctx.textBaseline = "middle";
-    ctx.fillText("EPIDERMIS", x + 6 * U, FIELD_TOP + FIELD_H * 0.11);
-    ctx.fillText("DERMIS",    x + 6 * U, FIELD_TOP + FIELD_H * 0.33);
-    ctx.fillText("HIPODERMIS", x + 6 * U, FIELD_TOP + FIELD_H * 0.67);
+    var seed = 17411;
+    function rnd() {
+      seed = (seed * 9301 + 49297) % 233280;
+      return seed / 233280;
+    }
+    var i, cx, cy, ang, len, ax, ay, rx, ry;
+    ctx.lineCap = "round";
+    for (i = 0; i < 8; i++) {
+      cx = FIELD_LEFT + FIELD_W * (0.08 + rnd() * 0.84);
+      cy = FIELD_TOP + FIELD_H * (0.18 + rnd() * 0.30);
+      if (typeof distPointToPath === "function" && distPointToPath(cx, cy) < 30 * U) continue;
+      ang = rnd() * Math.PI;
+      len = (26 + rnd() * 38) * U;
+      ctx.strokeStyle = "rgba(168, 64, 78, 0.26)";
+      ctx.lineWidth = Math.max(1.15, 1.45 * U);
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.quadraticCurveTo(
+        cx + Math.cos(ang + 0.45) * len * 0.52,
+        cy + Math.sin(ang + 0.45) * len * 0.52,
+        cx + Math.cos(ang) * len,
+        cy + Math.sin(ang) * len
+      );
+      ctx.stroke();
+      ctx.fillStyle = "rgba(196, 72, 86, 0.18)";
+      ctx.beginPath();
+      ctx.arc(cx, cy, 1.6 * U, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    for (i = 0; i < 16; i++) {
+      ax = FIELD_LEFT + FIELD_W * (0.06 + rnd() * 0.88);
+      ay = FIELD_TOP + FIELD_H * (0.55 + rnd() * 0.26);
+      if (typeof distPointToPath === "function" && distPointToPath(ax, ay) < 34 * U) continue;
+      rx = (6.5 + rnd() * 6.5) * U;
+      ry = rx * (0.70 + rnd() * 0.20);
+      ctx.fillStyle = "rgba(248, 222, 148, 0.24)";
+      ctx.strokeStyle = "rgba(196, 150, 72, 0.30)";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.ellipse(ax, ay, rx, ry, rnd() * 0.7, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = "rgba(176, 118, 48, 0.30)";
+      ctx.beginPath();
+      ctx.arc(ax - rx * 0.16, ay - ry * 0.10, rx * 0.22, 0, Math.PI * 2);
+      ctx.fill();
+    }
     ctx.restore();
   }
 
@@ -17679,8 +18021,8 @@
     if (!marks || !marks.length) return;
     for (var i = 0; i < marks.length; i++) {
       var m = marks[i];
-      var R = 25 * U * m.intensity;
-      var alpha = 0.40 * m.intensity;
+      var R = 32 * U * m.intensity;
+      var alpha = 0.64 * m.intensity;
       var grad = ctx.createRadialGradient(m.x, m.y, 0, m.x, m.y, R);
       grad.addColorStop(0, "rgba(192, 57, 43, " + alpha + ")");
       grad.addColorStop(1, "rgba(192, 57, 43, 0)");
@@ -17748,10 +18090,87 @@
       for (var i = 0; i < marks.length; i++) sum += marks[i].intensity;
       k = Math.min(1, sum / 12);
     }
-    var r = Math.round(0xe4 + (0xc8 - 0xe4) * k);
-    var g = Math.round(0xc0 + (0x6a - 0xc0) * k);
-    var b = Math.round(0xae + (0x58 - 0xae) * k);
+    var r = Math.round(0xb4 + (0xc0 - 0xb4) * k);
+    var g = Math.round(0x58 + (0x3a - 0x58) * k);
+    var b = Math.round(0x56 + (0x32 - 0x56) * k);
     return "rgb(" + r + "," + g + "," + b + ")";
+  }
+
+  var WOUND_COVER = { key: "", data: null, w: 0, h: 0, dermis: null, fat: null };
+
+  function tissueLooksLikeSkin(r, g, b) {
+    var luma = 0.299 * r + 0.587 * g + 0.114 * b;
+    if (luma < 118 || luma > 186) return false;
+    if (r < 155 || g < 88 || b < 72) return false;
+    if (r < g) return false;
+    if (r - g > 68) return false;
+    return true;
+  }
+
+  function averageLayerColor(cover, y0n, y1n) {
+    var y0 = Math.max(0, Math.round(y0n * cover.h));
+    var y1 = Math.min(cover.h, Math.round(y1n * cover.h));
+    var rs = 0, gs = 0, bs = 0, n = 0, step = 10;
+    var x, y, idx, r, g, b;
+    for (y = y0; y < y1; y += step) {
+      for (x = 6; x < cover.w; x += step) {
+        var xn = x / cover.w;
+        if (xn > 0.14 && xn < 0.86) continue;
+        idx = (y * cover.w + x) * 4;
+        r = cover.data[idx]; g = cover.data[idx + 1]; b = cover.data[idx + 2];
+        if (!tissueLooksLikeSkin(r, g, b)) continue;
+        rs += r; gs += g; bs += b; n++;
+      }
+    }
+    if (n < 10) return null;
+    return { r: Math.round(rs / n), g: Math.round(gs / n), b: Math.round(bs / n) };
+  }
+
+  function ensureWoundCoverSample() {
+    var bg = ASSETS.get("assets/fase1/bg-skin-field.webp");
+    if (!bg || !bg.naturalWidth) return null;
+    var key = Math.round(FIELD_W) + "x" + Math.round(FIELD_H) + ":" + bg.naturalWidth;
+    if (WOUND_COVER.key === key && WOUND_COVER.dermis && WOUND_COVER.fat) return WOUND_COVER;
+    var off;
+    try { off = document.createElement("canvas"); } catch (e0) { return null; }
+    if (!off) return null;
+    off.width = Math.max(2, Math.round(FIELD_W));
+    off.height = Math.max(2, Math.round(FIELD_H));
+    var octx = off.getContext && off.getContext("2d");
+    if (!octx || !octx.drawImage || !octx.getImageData) return null;
+    try {
+      octx.drawImage(bg, 0, 0, off.width, off.height);
+      var id = octx.getImageData(0, 0, off.width, off.height);
+      if (!id || !id.data) return null;
+      WOUND_COVER.data = id.data;
+      WOUND_COVER.w = off.width;
+      WOUND_COVER.h = off.height;
+      WOUND_COVER.dermis = averageLayerColor(WOUND_COVER, 0.16, 0.48) || { r: 200, g: 108, b: 100 };
+      var fatRaw = averageLayerColor(WOUND_COVER, 0.68, 0.82) || { r: 196, g: 152, b: 88 };
+      var der = WOUND_COVER.dermis;
+      WOUND_COVER.fat = {
+        r: Math.round(fatRaw.r * 0.55 + der.r * 0.45),
+        g: Math.round(fatRaw.g * 0.55 + der.g * 0.45),
+        b: Math.round(fatRaw.b * 0.55 + der.b * 0.45)
+      };
+      WOUND_COVER.key = key;
+      return WOUND_COVER;
+    } catch (e1) {
+      return null;
+    }
+  }
+
+  function sampleTissueAt(x, y) {
+    var fy = (y - FIELD_TOP) / Math.max(1, FIELD_H);
+    var cover = ensureWoundCoverSample();
+    var a = (cover && cover.dermis) || { r: 200, g: 108, b: 100 };
+    var b = (cover && cover.fat) || { r: 208, g: 164, b: 86 };
+    var t = Math.max(0, Math.min(1, (fy - 0.68) / 0.10));
+    return {
+      r: Math.round(a.r + (b.r - a.r) * t),
+      g: Math.round(a.g + (b.g - a.g) * t),
+      b: Math.round(a.b + (b.b - a.b) * t)
+    };
   }
 
   function drawPathHighway() {
@@ -17784,28 +18203,39 @@
   function drawPathWoundChannel() {
     // Carril-herida irregular (exudado + labio), no tubo/carretera.
     // Ancho visual ~36 U — misma holgura de colocación que antes.
-    drawPathInflammation();
     ctx.save();
     function paintChannel(beziers) {
       if (!beziers || !beziers.length) return;
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
-      ctx.strokeStyle = "rgba(198, 96, 88, 0.26)";
-      ctx.lineWidth = 40 * U;
-      strokeBeziers(beziers);
       ctx.strokeStyle = computeWoundLipTint();
-      ctx.lineWidth = 32 * U;
+      ctx.lineWidth = 15 * U;
       strokeBeziers(beziers);
-      ctx.strokeStyle = "#8a3c38";
-      ctx.lineWidth = 17 * U;
+      var load = Math.min(1, (state.viralLoad || 0) / Math.max(1, state.viralThreshold || 1));
+      var lr = Math.round(96 + load * 48);
+      var lg = Math.round(32 + load * 10);
+      var lb = Math.round(36 + load * 8);
+      ctx.strokeStyle = "rgb(" + lr + "," + lg + "," + lb + ")";
+      ctx.lineWidth = 8 * U;
+      strokeBeziers(beziers);
+      ctx.strokeStyle = "rgba(255, 176, 160, " + (0.16 + load * 0.12).toFixed(2) + ")";
+      ctx.lineWidth = Math.max(1.1, 1.5 * U);
       strokeBeziers(beziers);
     }
+    walkPathSamples(function (x, y) {
+      var c = sampleTissueAt(x, y);
+      ctx.fillStyle = "rgb(" + c.r + "," + c.g + "," + c.b + ")";
+      ctx.beginPath();
+      ctx.arc(x, y, 26 * U, 0, Math.PI * 2);
+      ctx.fill();
+    }, QUALITY.low ? 2 : 1);
     if (PATH.branches) {
       for (var br = 0; br < PATH.branches.length; br++) {
         if (PATH.branches[br].length > 10) paintChannel(PATH.branches[br].beziers);
       }
     }
     paintChannel(PATH.main && PATH.main.beziers);
+    drawPathInflammation();
 
     if (PATH.confluence) {
       var cx = PATH.confluence.x, cy = PATH.confluence.y;
@@ -17827,20 +18257,30 @@
     }
 
     if (!QUALITY.low) {
-      ctx.strokeStyle = "rgba(245, 226, 200, 0.70)";
-      ctx.lineWidth = Math.max(1.15, 1.4 * U);
       walkPathSamples(function (x, y, nx, ny, seed) {
         var j = ((seed * 9301 + 49297) % 233280) / 233280;
-        if (j < 0.22) return;
+        if (j < 0.08) return;
         var side = (seed % 2) ? 1 : -1;
-        var wob = (j - 0.5) * 4.2 * U;
-        var x0 = x + nx * (15.8 * U + wob) * side;
-        var y0 = y + ny * (15.8 * U + wob) * side;
-        var flen = (4.2 + j * 6.2) * U;
+        var jig = ((seed * 17) % 7) - 3;
+        var wob = (j - 0.5) * 3.6 * U + jig * 0.4 * U;
+        var lip = 7.6 * U + wob;
+        var x0 = x + nx * lip * side;
+        var y0 = y + ny * lip * side;
         var tx = -ny, ty = nx;
+        var flen = (5.2 + j * 7.4) * U;
+        var inward = (j > 0.72 ? 3.8 : 1.2) * U;
+        ctx.strokeStyle = "rgba(168, 62, 68, 0.82)";
+        ctx.lineWidth = Math.max(2.2, 2.6 * U);
+        ctx.lineCap = "round";
         ctx.beginPath();
-        ctx.moveTo(x0 - tx * flen * 0.5, y0 - ty * flen * 0.5);
-        ctx.lineTo(x0 + tx * flen * 0.5, y0 + ty * flen * 0.5);
+        ctx.moveTo(x0 - tx * flen * 0.55, y0 - ty * flen * 0.55);
+        ctx.lineTo(x0 + tx * flen * 0.55 - nx * inward * side, y0 + ty * flen * 0.55 - ny * inward * side);
+        ctx.stroke();
+        ctx.strokeStyle = "rgba(255, 176, 162, 0.42)";
+        ctx.lineWidth = Math.max(1.1, 1.35 * U);
+        ctx.beginPath();
+        ctx.moveTo(x0 - tx * flen * 0.35, y0 - ty * flen * 0.35);
+        ctx.lineTo(x0 + tx * flen * 0.25, y0 + ty * flen * 0.25);
         ctx.stroke();
       }, 2);
     }
@@ -19370,30 +19810,7 @@
     var R = 20 * U * pulse;
     ctx.save();
     ctx.translate(x, y);
-    // Pseudópodos: 6 small bumps
-    ctx.fillStyle = t.def.color;
-    var bumps = 6;
-    for (var i = 0; i < bumps; i++) {
-      var a = i * Math.PI * 2 / bumps + state.time * 0.5;
-      var bx = Math.cos(a) * R * 0.95;
-      var by = Math.sin(a) * R * 0.95;
-      var br = R * (0.32 + Math.sin(state.time * 2 + i) * 0.05);
-      ctx.beginPath();
-      ctx.arc(bx, by, br, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    // Body gradient
-    var grad = ctx.createRadialGradient(-R * 0.3, -R * 0.3, R * 0.2, 0, 0, R);
-    grad.addColorStop(0, "#a7d0f6");
-    grad.addColorStop(0.6, t.def.color);
-    grad.addColorStop(1, t.def.colorDark);
-    ctx.fillStyle = grad;
-    ctx.beginPath();
-    ctx.arc(0, 0, R, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = t.def.colorDark;
-    ctx.lineWidth = Math.max(1.2, 1.5 * U);
-    ctx.stroke();
+    paintMacrophageCell(R, state.time, t.idlePhase || 0, 1, t.def.color, t.def.colorDark, false);
     // Face — expression-aware
     var eyeR = R * 0.20;
     if (blink) {
@@ -19407,7 +19824,7 @@
     }
     if (expression === "levelup") drawAnimeMouth(0, R * 0.30, R * 0.55, R * 0.30, "smile");
     else if (expression === "attacking") drawAnimeMouth(0, R * 0.30, R * 0.55, R * 0.55, "open");
-    else drawAnimeMouth(0, R * 0.32, R * 0.40, R * 0.20, "serious");
+    else drawAnimeMouth(0, R * 0.26, R * 0.50, R * 0.42, "open");
     ctx.restore();
   }
 
@@ -31597,11 +32014,11 @@
     var pulse = (R / (18 * U)) * factor;
     ctx.save();
     if (!enabled) ctx.globalAlpha = 0.45;
-    // Clip al área del icon (radio R*1.5) para que decoraciones que
+    // Clip al área del icon (radio R*1.12) para que decoraciones que
     // sobresalen (dendritas, anticuerpos, aura) no contaminen cards
-    // vecinas.
+    // vecinas ni se salgan de la casilla.
     ctx.beginPath();
-    ctx.rect(cx - R * 1.5, cy - R * 1.5, R * 3, R * 3);
+    ctx.rect(cx - R * 1.12, cy - R * 1.12, R * 2.24, R * 2.24);
     ctx.clip();
     // Trasladamos para que el dibujo de torre arranque en (cx, cy).
     ctx.translate(cx, cy);
@@ -31952,11 +32369,33 @@
     if ((state.viralPulse || 0) > 0) state.viralPulse = Math.max(0, state.viralPulse - dt * 2.5);
   }
 
+  function drawAtpDrop(cx, cy, r, color) {
+    ctx.save();
+    ctx.fillStyle = color || "#f5d76e";
+    ctx.strokeStyle = "rgba(80, 50, 10, 0.45)";
+    ctx.lineWidth = Math.max(0.8, r * 0.16);
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - r * 1.15);
+    ctx.quadraticCurveTo(cx + r * 0.95, cy - r * 0.15, cx + r * 0.72, cy + r * 0.45);
+    ctx.quadraticCurveTo(cx, cy + r * 1.15, cx - r * 0.72, cy + r * 0.45);
+    ctx.quadraticCurveTo(cx - r * 0.95, cy - r * 0.15, cx, cy - r * 1.15);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "rgba(255, 255, 230, 0.45)";
+    ctx.beginPath();
+    ctx.ellipse(cx - r * 0.22, cy - r * 0.15, r * 0.22, r * 0.32, -0.4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
   function drawHUD() {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.fillStyle = "#3a2530";
+    ctx.fillStyle = "#34222b";
     ctx.fillRect(0, 0, VW, FIELD_TOP);
-    ctx.fillStyle = "rgba(255,255,255,0.06)";
+    ctx.fillStyle = "rgba(255, 214, 180, 0.10)";
+    ctx.fillRect(0, 0, VW, FIELD_TOP);
+    ctx.fillStyle = "rgba(255,255,255,0.07)";
     ctx.fillRect(0, FIELD_TOP - 2, VW, 2);
 
     var leftX = safeLeft + 12;
@@ -31970,13 +32409,16 @@
       ctx.font = "700 15px Fredoka, sans-serif";
       var atpNumP = Math.round(state.displayAtp != null ? state.displayAtp : state.atp);
       var atpBumpP = state.atpBump || 0;
-      var atpStr = "⚡ " + atpNumP;
+      var atpStr = String(atpNumP);
       ctx.fillStyle = atpBumpP > 0.35 ? "#fff2b8" : "#f5d76e";
-      var atpWp = ctx.measureText(atpStr).width;
+      var dropRP = 6.5;
+      var atpWp = dropRP * 2.1 + 5 + ctx.measureText(atpStr).width;
       ctx.save();
       var abScaleP = 1 + atpBumpP * 0.16;
-      ctx.translate(cx, midY); ctx.scale(abScaleP, abScaleP); ctx.translate(-cx, -midY);
-      ctx.fillText(atpStr, cx, midY);
+      ctx.translate(cx + atpWp * 0.5, midY); ctx.scale(abScaleP, abScaleP); ctx.translate(-(cx + atpWp * 0.5), -midY);
+      drawAtpDrop(cx + dropRP, midY, dropRP, atpBumpP > 0.35 ? "#fff2b8" : "#f5d76e");
+      ctx.fillStyle = atpBumpP > 0.35 ? "#fff2b8" : "#f5d76e";
+      ctx.fillText(atpStr, cx + dropRP * 2.1 + 5, midY);
       ctx.restore();
       state.atpHudPos = { x: cx + atpWp * 0.5, y: midY };
       cx += atpWp + 14;
@@ -32000,7 +32442,8 @@
       ctx.textAlign = "left"; ctx.textBaseline = "top";
       ctx.fillStyle = "rgba(255,255,255,0.55)";
       ctx.font = fontLabel + "px Fredoka, sans-serif";
-      ctx.fillText("⚡ ATP", leftX, statsY);
+      drawAtpDrop(leftX + 8, statsY + fontLabel * 0.55, Math.max(7, fontLabel * 0.58), "#f5d76e");
+      ctx.fillText("ATP", leftX + 22, statsY);
       var atpNumY = statsY + fontLabel + 4;
       ctx.font = "bold " + fontStat + "px Fredoka, sans-serif";
       ctx.fillStyle = atpBumpL > 0.35 ? "#fff2b8" : "#f5d76e";
@@ -32039,14 +32482,19 @@
       var totalOla = Math.max(1, faltanSpawn + sueltosHud);
       var entrados = Math.max(0, totalOla - faltanSpawn);
       ctx.fillStyle = "rgba(20, 14, 18, 0.55)";
-      ctx.fillRect(nb.x, nb.y, nb.w, nb.h);
+      fillSlot(nb.x, nb.y, nb.w, nb.h);
       // Barra de avance del spawn de la ola.
       var pbH = Math.max(3, Math.min(5, nb.h * 0.18));
       var pbY = nb.y + nb.h - pbH - 2;
       ctx.fillStyle = "rgba(255,255,255,0.12)";
-      ctx.fillRect(nb.x + 4, pbY, nb.w - 8, pbH);
+      fillSlot(nb.x + 4, pbY, nb.w - 8, pbH);
+      ctx.save();
+      ctx.beginPath();
+      roundRect(nb.x + 4, pbY, nb.w - 8, pbH, uiSlotRadius(nb.w - 8, pbH));
+      ctx.clip();
       ctx.fillStyle = "rgba(255, 150, 120, 0.75)";
       ctx.fillRect(nb.x + 4, pbY, (nb.w - 8) * (entrados / totalOla), pbH);
+      ctx.restore();
       var olaTxt = "OLEADA EN CURSO · " + sueltosHud + " en campo"
                  + (faltanSpawn > 0 ? " · faltan " + faltanSpawn : "");
       ctx.fillStyle = "rgba(255, 214, 196, 0.92)";
@@ -32059,7 +32507,7 @@
     }
     if (nb && statusText) {
       ctx.fillStyle = "rgba(20, 14, 18, 0.55)";
-      ctx.fillRect(nb.x, nb.y, nb.w, nb.h);
+      fillSlot(nb.x, nb.y, nb.w, nb.h);
       ctx.fillStyle = "#ffd6c4";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
@@ -32071,15 +32519,14 @@
       ctx.fillText(ellipsizeToWidth(statusText, nb.w - 8), nb.x + nb.w / 2, nb.y + nb.h / 2);
     }
 
-    // Restart y Mute como rectángulos planos (sin borde).
     var rb = UI.restartBtn;
     ctx.fillStyle = "#5a3540";
-    ctx.fillRect(rb.x, rb.y, rb.w, rb.h);
+    fillSlot(rb.x, rb.y, rb.w, rb.h);
     drawRestartIcon(rb.x + rb.w / 2, rb.y + rb.h / 2, rb.h * 0.32, "#fff");
 
     var mb = UI.muteBtn;
     ctx.fillStyle = "#5a3540";
-    ctx.fillRect(mb.x, mb.y, mb.w, mb.h);
+    fillSlot(mb.x, mb.y, mb.w, mb.h);
     drawSpeakerIcon(mb.x + mb.w / 2, mb.y + mb.h / 2, mb.h * 0.36, audio.muted, "#fff");
     // Botón PAUSA — abre el Dex en modo loadout (elegir 5+2+1).
     var pb = UI.pauseBtn;
@@ -32092,7 +32539,7 @@
         ctx.shadowBlur = 10 + lp * 6;
       }
       ctx.fillStyle = state.paused ? "#7a4a30" : "#5a3540";
-      ctx.fillRect(pb.x, pb.y, pb.w, pb.h);
+      fillSlot(pb.x, pb.y, pb.w, pb.h);
       ctx.shadowBlur = 0;
       // Icono ⏸ — 2 barras verticales
       ctx.fillStyle = "#fff";
@@ -32183,14 +32630,35 @@
     ctx.fillText(value, x, y + fontLabel + 4);
   }
 
+  // Casillas/casilleros a todo nivel: cuadrado o rectángulo de puntas romas.
+  // Radio chico también en fichas internas (Dex, C3b, detalle). Si crece
+  // con el lado, se leen como burbuja de diálogo.
+  function uiSlotRadius(w, h) {
+    var aw = Math.abs(w), ah = Math.abs(h);
+    var m = Math.min(aw, ah);
+    var r = Math.min(4, Math.max(2, m * 0.05));
+    if (aw > ah * 1.5 || ah > aw * 1.5) r = Math.min(r, 2.5);
+    if (m < 72) r = Math.min(r, 2.5);
+    return r;
+  }
+  function fillSlot(x, y, w, h) {
+    roundRect(x, y, w, h, uiSlotRadius(w, h));
+    ctx.fill();
+  }
+  function strokeSlot(x, y, w, h) {
+    roundRect(x, y, w, h, uiSlotRadius(w, h));
+    ctx.stroke();
+  }
+  function clipSlot(x, y, w, h) {
+    roundRect(x, y, w, h, uiSlotRadius(w, h));
+    ctx.clip();
+  }
   function drawButton(r, text, fill, stroke, enabled) {
     ctx.fillStyle = fill;
-    roundRect(r.x, r.y, r.w, r.h, 0);
-    ctx.fill();
+    fillSlot(r.x, r.y, r.w, r.h);
     ctx.strokeStyle = stroke;
     ctx.lineWidth = 1.5;
-    roundRect(r.x, r.y, r.w, r.h, 0);
-    ctx.stroke();
+    strokeSlot(r.x, r.y, r.w, r.h);
     ctx.fillStyle = enabled ? "#fff" : uiInkDisabled();
     var fs = Math.max(11, Math.min(14, r.h * 0.36));
     ctx.textAlign = "center";
@@ -32203,16 +32671,19 @@
 
   function roundRect(x, y, w, h, r) {
     r = Math.min(r, w / 2, h / 2);
+    if (r < 0.5) {
+      ctx.beginPath();
+      ctx.rect(x, y, w, h);
+      return;
+    }
+    // Arco circular (no quadratic): la curva cuadrática hincha el vértice
+    // y la casilla se lee como burbuja de diálogo.
     ctx.beginPath();
     ctx.moveTo(x + r, y);
-    ctx.lineTo(x + w - r, y);
-    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
-    ctx.lineTo(x + w, y + h - r);
-    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-    ctx.lineTo(x + r, y + h - r);
-    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
-    ctx.lineTo(x, y + r);
-    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
     ctx.closePath();
   }
 
@@ -32233,16 +32704,19 @@
     var dockHasCards = UI.cards && UI.cards.length > 0;
     if (!dockHasCards && strip && strip.h > 0) {
       ctx.save();
-      // Todo el aviso vive DENTRO del strip: antes las últimas líneas se
-      // salían por la derecha del dock y se montaban sobre lo que hubiera
-      // debajo. Cada línea se ajusta al ancho y se corta lo que no entre.
+      ctx.beginPath();
+      ctx.rect(strip.x, strip.y, strip.w, strip.h);
+      ctx.clip();
+      // Frase completa, envuelta al ancho del dock: "Pausá y / elegí tu / loadout".
       var hintX = strip.x + strip.w / 2;
-      var maxHintW = strip.w - 4;
+      var maxHintW = strip.w - 8;
       var pulseH = 0.5 + 0.5 * Math.sin(state.time * 2.5);
-      var linePx = fitFont("Y ELEGÍ TU", maxHintW, Math.floor(11 * U), 7);
-      var lineGap = linePx + 6;
-      var iconPx = Math.floor(Math.min(28 * U, strip.h * 0.22));
-      var bloqueH = iconPx + lineGap * 3 + 4;
+      var linePx = Math.max(8, Math.min(12, Math.floor(strip.w * 0.13)));
+      ctx.font = "bold " + linePx + "px Fredoka, sans-serif";
+      var hintLines = wrapTextLines("Pausá y elegí tu loadout", maxHintW);
+      var lineGap = linePx + 5;
+      var iconPx = Math.floor(Math.min(22 * U, strip.h * 0.18));
+      var bloqueH = iconPx + lineGap * hintLines.length + 4;
       var conDetalle = (strip.h >= bloqueH + lineGap * 2 + 10);
       if (conDetalle) bloqueH += lineGap * 2 + 6;
       var hintY = strip.y + Math.max(iconPx * 0.6, (strip.h - bloqueH) / 2 + iconPx * 0.5);
@@ -32252,10 +32726,10 @@
       ctx.fillText("⏸", hintX, hintY);
       ctx.fillStyle = "#ffd24a";
       ctx.font = "bold " + linePx + "px Fredoka, sans-serif";
-      var hy = hintY + iconPx * 0.6 + lineGap;
-      ctx.fillText(ellipsizeToWidth("PAUSÁ", maxHintW), hintX, hy);
-      ctx.fillText(ellipsizeToWidth("Y ELEGÍ TU", maxHintW), hintX, hy + lineGap);
-      ctx.fillText(ellipsizeToWidth("LOADOUT", maxHintW), hintX, hy + lineGap * 2);
+      var hy = hintY + iconPx * 0.55 + lineGap;
+      for (var hli = 0; hli < hintLines.length; hli++) {
+        ctx.fillText(ellipsizeToWidth(hintLines[hli], maxHintW), hintX, hy + hli * lineGap);
+      }
       if (conDetalle) {
         ctx.fillStyle = "rgba(255,255,255,0.55)";
         var detPx = fitFont("5 torres", maxHintW, 10, 7);
@@ -32264,8 +32738,8 @@
         var det1 = "5 torres · 2 tanques", det2 = "1 barrera";
         if (ctx.measureText(det1).width > maxHintW) { det1 = "5 torres + 2 tanques"; }
         if (ctx.measureText(det1).width > maxHintW) { det1 = "5 + 2 + 1"; det2 = ""; }
-        ctx.fillText(det1, hintX, hy + lineGap * 3 + 6);
-        if (det2) ctx.fillText(det2, hintX, hy + lineGap * 4 + 6);
+        ctx.fillText(det1, hintX, hy + lineGap * hintLines.length + 6);
+        if (det2) ctx.fillText(det2, hintX, hy + lineGap * (hintLines.length + 1) + 6);
       }
       ctx.restore();
     }
@@ -32280,39 +32754,23 @@
         var hy = strip.y + Hh.contentY - scroll;
         if (hy + Hh.h < strip.y - 4 || hy > strip.y + strip.h + 4) continue;
         ctx.fillStyle = Hh.open ? "#33212e" : "#241620";
-        ctx.fillRect(Hh.x, hy, Hh.w, Hh.h);
+        fillSlot(Hh.x, hy, Hh.w, Hh.h);
         // Layout con auto-ajuste: la cuenta a la derecha (siempre visible),
         // y la etiqueta a la izquierda escalada/recortada para que no
         // invada el espacio de la cuenta.
         ctx.textBaseline = "middle";
         var countStr = String(Hh.count);
-        // Reserva espacio para la cuenta (siempre 11px font).
-        ctx.font = "bold 11px Fredoka, sans-serif";
+        var headPx = (UI.dockType && UI.dockType.header) || Math.max(9, Math.min(13, Hh.w * 0.14));
+        ctx.font = "bold " + headPx + "px Fredoka, sans-serif";
         var countW = ctx.measureText(countStr).width;
         var lblText = (Hh.open ? "▾ " : "▸ ") + Hh.label;
         var lblX = Hh.x + 8;
         var lblMaxW = Hh.w - 16 - countW - 6;
-        // Probar tamaños descendentes hasta que entre, o usar ellipsis.
-        var maxFs = Math.max(10, Math.min(12, Hh.w * 0.105));
-        var fs = maxFs;
-        ctx.font = "bold " + fs + "px Fredoka, sans-serif";
-        while (fs > 8 && ctx.measureText(lblText).width > lblMaxW) {
-          fs -= 0.5;
-          ctx.font = "bold " + fs + "px Fredoka, sans-serif";
-        }
-        // Si aún no entra al mínimo de 8px, recorta con "…"
-        var displayText = lblText;
-        if (ctx.measureText(displayText).width > lblMaxW) {
-          while (displayText.length > 4 && ctx.measureText(displayText + "…").width > lblMaxW) {
-            displayText = displayText.slice(0, -1);
-          }
-          displayText += "…";
-        }
+        fitFont(lblText, lblMaxW, headPx, 8);
         ctx.fillStyle = "#fff";
         ctx.textAlign = "left";
-        ctx.fillText(displayText, lblX, hy + Hh.h / 2);
-        // Cuenta a la derecha.
-        ctx.font = "bold 11px Fredoka, sans-serif";
+        ctx.fillText(ellipsizeToWidth(lblText, lblMaxW), lblX, hy + Hh.h / 2);
+        ctx.font = "bold " + headPx + "px Fredoka, sans-serif";
         ctx.textAlign = "right"; ctx.fillStyle = "rgba(255,255,255,0.45)";
         ctx.fillText(countStr, Hh.x + Hh.w - 8, hy + Hh.h / 2);
       }
@@ -32337,17 +32795,14 @@
           ctx.shadowBlur = 8;
           ctx.shadowOffsetX = -4;
         }
-        // Card RECTANGULAR (sin rounded corners) — combinado con el
-        // ícono circular se evita el efecto "globo de diálogo".
+        // Casilla de vértices romos (no pill, no esquina viva).
         ctx.fillStyle = "#1f1219";
-        ctx.fillRect(cardX, cardY, cw, ch);
-        // TINT del def color sobre el fondo dark.
+        fillSlot(cardX, cardY, cw, ch);
         ctx.fillStyle = colorAlpha(def.color, isSelected ? 0.32 : 0.18);
-        ctx.fillRect(cardX, cardY, cw, ch);
+        fillSlot(cardX, cardY, cw, ch);
         ctx.shadowColor = "transparent";
         ctx.shadowBlur = 0;
         ctx.shadowOffsetX = 0;
-        // Borde rectangular siempre visible.
         if (isSelected) {
           ctx.strokeStyle = def.color;
           ctx.lineWidth = 2;
@@ -32355,37 +32810,40 @@
           ctx.strokeStyle = colorAlpha(def.colorDark, 0.50);
           ctx.lineWidth = 1.0;
         }
-        ctx.strokeRect(cardX, cardY, cw, ch);
+        strokeSlot(cardX, cardY, cw, ch);
 
-        // Layout VERTICAL — todo centrado horizontalmente, ícono CONTENIDO
-        // (sin sobresalir): nombre arriba, ícono al medio, costo abajo.
+        // Tres bandas que escalan con la carta: nombre / preview / costo.
         var cardCenterX = cardX + cw / 2;
+        var typo = UI.dockType || {};
+        var nameBand = ch * 0.22;
+        var costBand = ch * 0.22;
+        var iconBand = ch - nameBand - costBand;
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
 
-        // 1. NOMBRE (top) — encoge la fuente y, si aún no entra, recorta con "…"
         ctx.fillStyle = canAfford ? "#fff" : "rgba(255,255,255,0.45)";
-        var fs1 = Math.max(10, Math.min(12, cw * 0.18));
+        var fs1 = typo.name || Math.max(10, Math.min(15, cw * 0.16));
         var nMaxW = cw - 8, nameStr = def.shortName || def.name;
-        fitFont(nameStr, nMaxW, fs1, Math.max(8, fs1 * 0.72));
-        ctx.fillText(ellipsizeToWidth(nameStr, nMaxW), cardCenterX, cardY + ch * 0.18);
+        fitFont(nameStr, nMaxW, fs1, Math.max(8, fs1 * 0.7));
+        ctx.fillText(ellipsizeToWidth(nameStr, nMaxW), cardCenterX, cardY + nameBand * 0.52);
 
-        // 2. ÍCONO (centro) — preview de la TORRE REAL (snowman
-        // neutrofilo, LGL nk, etc) en lugar del ícono simple.
-        var iconCy = cardY + ch * 0.50;
-        var iconR = Math.min(ch * 0.24, cw * 0.28) * (canAfford ? 1 : 0.6);
+        var iconCy = cardY + nameBand + iconBand * 0.5;
+        var iconR = Math.min(iconBand * 0.44, cw * 0.40) * (canAfford ? 1 : 0.6);
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(cardX + 3, cardY + nameBand, cw - 6, iconBand);
+        ctx.clip();
         drawTowerPreview(typeId, cardCenterX, iconCy, iconR, canAfford);
+        ctx.restore();
 
-        // 3. COSTO ATP (bottom)
         var isComp = def.currency === "complement";
         ctx.fillStyle = canAfford ? (isComp ? "#7CFC9E" : "#f5d76e") : "#d9534f";
-        ctx.font = "bold " + Math.max(9, Math.min(11, cw * 0.16)) + "px Fredoka, sans-serif";
-        if (typeId === "plaqueta") {
-          var rdy = (state.plaquetaPickups || []).length;
-          ctx.fillText("🔶 " + rdy, cardCenterX, cardY + ch * 0.84);
-        } else {
-          ctx.fillText((isComp ? "🧬 " : "⚡ ") + def.cost, cardCenterX, cardY + ch * 0.84);
-        }
+        var costPx = typo.cost || Math.max(9, Math.min(13, cw * 0.145));
+        var costStr = typeId === "plaqueta"
+          ? "🔶 " + ((state.plaquetaPickups || []).length)
+          : ((isComp ? "🧬 " : "⚡ ") + def.cost);
+        ctx.font = "bold " + fitFont(costStr, nMaxW, costPx, 8) + "px Fredoka, sans-serif";
+        ctx.fillText(ellipsizeToWidth(costStr, nMaxW), cardCenterX, cardY + ch - costBand * 0.48);
       }
       ctx.restore();
       // Edge-fade indicators (arriba/abajo) cuando hay contenido oculto.
@@ -32409,7 +32867,13 @@
       }
     }
 
-    var infoX = UI.infoX, infoY = UI.infoY, infoW = UI.infoW;
+    var infoX = UI.infoX, infoY = UI.infoY, infoW = UI.infoW, infoH = UI.infoH;
+    ctx.save();
+    if (infoW > 0 && infoH > 0) {
+      ctx.beginPath();
+      ctx.rect(infoX - 2, infoY - 2, infoW + 4, infoH + 2);
+      ctx.clip();
+    }
     ctx.textAlign = "left";
     ctx.textBaseline = "top";
     if (state.selectedTower) {
@@ -32419,24 +32883,25 @@
       var nm = (t.def.shortName || t.def.name);
       // Deja libre la esquina del botón ✕ de deseleccionar.
       var nmMaxW = Math.max(24, infoW - (UI.deselectBtn ? UI.deselectBtn.w + 6 : 2));
-      fitFont(nm, nmMaxW, 13, 8);
+      var infoTitle = (UI.dockType && UI.dockType.infoTitle) || 13;
+      var infoBody = (UI.dockType && UI.dockType.infoBody) || 11;
+      fitFont(nm, nmMaxW, infoTitle, 8);
       ctx.fillText(ellipsizeToWidth(nm, nmMaxW), infoX, infoY + 2);
       ctx.fillStyle = "rgba(255,255,255,0.7)";
-      ctx.font = "11px Fredoka, sans-serif";
-      ctx.fillText("Nivel " + (t.level + 1) + "/3", infoX, infoY + 18);
+      ctx.font = infoBody + "px Fredoka, sans-serif";
+      ctx.fillText(ellipsizeToWidth("Nivel " + (t.level + 1) + "/3", infoW), infoX, infoY + infoTitle + 6);
 
-      ctx.font = "11px Fredoka, sans-serif";
+      ctx.font = infoBody + "px Fredoka, sans-serif";
       ctx.fillStyle = "rgba(255,255,255,0.85)";
-      // Recortadas al ancho del dock: en teléfonos angostos "Dmg 30 AOE" se
-      // salía por la derecha de la pantalla.
-      ctx.fillText(ellipsizeToWidth("Dmg " + stats.damage + (stats.splash > 0 ? " AOE" : ""), infoW), infoX, infoY + 36);
-      ctx.fillText(ellipsizeToWidth("Rango " + stats.range, infoW), infoX, infoY + 50);
-      ctx.fillText(ellipsizeToWidth("Cad. " + stats.fireRate.toFixed(1) + "/s", infoW), infoX, infoY + 64);
+      var line1 = infoY + infoTitle + infoBody + 12;
+      var lh = infoBody + 3;
+      ctx.fillText(ellipsizeToWidth("Dmg " + stats.damage + (stats.splash > 0 ? " AOE" : ""), infoW), infoX, line1);
+      ctx.fillText(ellipsizeToWidth("Rango " + stats.range, infoW), infoX, line1 + lh);
+      ctx.fillText(ellipsizeToWidth("Cad. " + stats.fireRate.toFixed(1) + "/s", infoW), infoX, line1 + lh * 2);
 
       // X deseleccionar (esquina sup-der de la zona info).
       ctx.fillStyle = "rgba(255,255,255,0.12)";
-      roundRect(UI.deselectBtn.x, UI.deselectBtn.y, UI.deselectBtn.w, UI.deselectBtn.h, 0);
-      ctx.fill();
+      fillSlot(UI.deselectBtn.x, UI.deselectBtn.y, UI.deselectBtn.w, UI.deselectBtn.h);
       ctx.fillStyle = "rgba(255,255,255,0.8)";
       ctx.font = "bold 13px Fredoka, sans-serif";
       ctx.textAlign = "center";
@@ -32464,16 +32929,19 @@
       var def2 = TOWER_DEFS[state.selectedToBuild];
       ctx.fillStyle = def2.color;
       var sbName = def2.shortName || def2.name;
-      fitFont(sbName, infoW - 2, 12, 8);
+      var infoTitle2 = (UI.dockType && UI.dockType.infoTitle) || 12;
+      var infoBody2 = (UI.dockType && UI.dockType.infoBody) || 11;
+      fitFont(sbName, infoW - 2, infoTitle2, 8);
       ctx.fillText(ellipsizeToWidth(sbName, infoW - 2), infoX, infoY + 2);
-      ctx.font = "11px Fredoka, sans-serif";
+      ctx.font = infoBody2 + "px Fredoka, sans-serif";
       ctx.fillStyle = "rgba(255,255,255,0.8)";
-      ctx.fillText("Toca el campo", infoX, infoY + 20);
-      ctx.fillText("para colocar", infoX, infoY + 34);
+      ctx.fillText(ellipsizeToWidth("Toca el campo", infoW - 2), infoX, infoY + infoTitle2 + 8);
+      ctx.fillText(ellipsizeToWidth("para colocar", infoW - 2), infoX, infoY + infoTitle2 + infoBody2 + 12);
       ctx.fillStyle = "#f5d76e";
-      ctx.font = "bold 12px Fredoka, sans-serif";
-      ctx.fillText("⚡ " + def2.cost, infoX, infoY + 52);
+      ctx.font = "bold " + infoTitle2 + "px Fredoka, sans-serif";
+      ctx.fillText(ellipsizeToWidth("⚡ " + def2.cost, infoW - 2), infoX, infoY + infoTitle2 + infoBody2 * 2 + 18);
     }
+    ctx.restore();
   }
 
   function drawGhost() {
@@ -32579,8 +33047,7 @@
       var x = VW / 2 - w / 2;
       ctx.fillStyle = "rgba(0,0,0,0.55)";
       ctx.globalAlpha = alpha * 0.6;
-      roundRect(x, FIELD_TOP + 12, w, 36, 0);
-      ctx.fill();
+      fillSlot(x, FIELD_TOP + 12, w, 36);
       ctx.globalAlpha = alpha;
       ctx.fillStyle = "#fff";
       ctx.textAlign = "center";
@@ -32595,12 +33062,10 @@
     ctx.fillStyle = "rgba(0,0,0,0.55)";
     ctx.fillRect(0, 0, VW, VH);
     ctx.fillStyle = "#2a1a22";
-    roundRect(UI.modal.x, UI.modal.y, UI.modal.w, UI.modal.h, 0);
-    ctx.fill();
+    fillSlot(UI.modal.x, UI.modal.y, UI.modal.w, UI.modal.h);
     ctx.strokeStyle = "#5a3540";
     ctx.lineWidth = 2;
-    roundRect(UI.modal.x, UI.modal.y, UI.modal.w, UI.modal.h, 0);
-    ctx.stroke();
+    strokeSlot(UI.modal.x, UI.modal.y, UI.modal.w, UI.modal.h);
     ctx.fillStyle = "#fff";
     ctx.font = "bold 18px Fredoka, sans-serif";
     ctx.textAlign = "center";
@@ -32670,12 +33135,10 @@
     var btn = { x: VW / 2 - btnW / 2, y: sy + stats.length * lineH + 24, w: btnW, h: btnH };
     UI.transitionBtn = btn;
     ctx.fillStyle = state.finalScreen ? "#2C3E50" : "#1f8a4c";
-    roundRect(btn.x, btn.y, btn.w, btn.h, 0);
-    ctx.fill();
+    fillSlot(btn.x, btn.y, btn.w, btn.h);
     ctx.strokeStyle = "rgba(0,0,0,0.4)";
     ctx.lineWidth = 1.5;
-    roundRect(btn.x, btn.y, btn.w, btn.h, 0);
-    ctx.stroke();
+    strokeSlot(btn.x, btn.y, btn.w, btn.h);
     ctx.fillStyle = "#fff";
     ctx.font = 'bold 16px Fredoka, sans-serif';
     ctx.fillText(
@@ -32746,7 +33209,7 @@
     // Tarjeta plana estilo overlay: fondo oscuro semitransparente, sin borde
     // ni sombra. Antes era cream + borde negro grueso + sombra → "bocadillo".
     ctx.fillStyle = "rgba(15, 12, 18, 0.92)";
-    ctx.fillRect(x, y, W, H);
+    fillSlot(x, y, W, H);
     // Dibujo por filas: cada fila centrada en su franja (baseline middle).
     var cyc = y + ttPad;
     for (var r2 = 0; r2 < ttRows.length; r2++) {
@@ -32825,7 +33288,7 @@
     ctx.save();
     // Clip al cuadrado de la fila del preview para que decoraciones (flagelos,
     // protrusiones, escudos extendidos) no salgan del marco del tooltip.
-    var clipR = R * 1.8;
+    var clipR = R * 1.25;
     ctx.beginPath();
     ctx.rect(cx - clipR, cy - clipR, clipR * 2, clipR * 2);
     ctx.clip();
@@ -32897,13 +33360,13 @@
     grad.addColorStop(0.5, "#4A0000");
     grad.addColorStop(1, "#1A0000");
     ctx.fillStyle = grad;
-    ctx.fillRect(bx, by, bw, bh);
+    fillSlot(bx, by, bw, bh);
     // Glow border
     ctx.shadowColor = "rgba(231, 76, 60, 0.85)";
     ctx.shadowBlur = 20;
     ctx.strokeStyle = "#E74C3C";
     ctx.lineWidth = 3;
-    ctx.strokeRect(bx, by, bw, bh);
+    strokeSlot(bx, by, bw, bh);
     ctx.shadowBlur = 0;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
@@ -32968,9 +33431,9 @@
         var ccy = cy + dh * 0.06;
         var lit = bp > 0.82;
         ctx.fillStyle = lit ? "rgba(183,156,224,0.35)" : "rgba(255,255,255,0.08)";
-        ctx.fillRect(cx - cardW2 / 2, ccy - cardH2 / 2, cardW2, cardH2);
+        fillSlot(cx - cardW2 / 2, ccy - cardH2 / 2, cardW2, cardH2);
         ctx.strokeStyle = "rgba(255,255,255,0.5)"; ctx.lineWidth = 1.5;
-        ctx.strokeRect(cx - cardW2 / 2, ccy - cardH2 / 2, cardW2, cardH2);
+        strokeSlot(cx - cardW2 / 2, ccy - cardH2 / 2, cardW2, cardH2);
         drawTowerPreview("neutrofilo", cx, ccy, cardH2 * 0.30, true);
         // Dedo bajando y subiendo (bumerang) sobre la tarjeta.
         var fingerY = ccy - cardH2 * 1.5 + bp * (cardH2 * 1.35);
@@ -32984,11 +33447,11 @@
       } else if (type === "placeCell") {
         var dockX = cx - dw * 0.30, fieldX = cx + dw * 0.30;
         ctx.fillStyle = "rgba(255,255,255,0.08)";
-        ctx.fillRect(dockX - dw * 0.12, cy - dh * 0.30, dw * 0.24, dh * 0.60);
-        ctx.fillRect(fieldX - dw * 0.18, cy - dh * 0.30, dw * 0.36, dh * 0.60);
+        fillSlot(dockX - dw * 0.12, cy - dh * 0.30, dw * 0.24, dh * 0.60);
+        fillSlot(fieldX - dw * 0.18, cy - dh * 0.30, dw * 0.36, dh * 0.60);
         ctx.strokeStyle = "rgba(255,255,255,0.30)"; ctx.lineWidth = 1;
-        ctx.strokeRect(dockX - dw * 0.12, cy - dh * 0.30, dw * 0.24, dh * 0.60);
-        ctx.strokeRect(fieldX - dw * 0.18, cy - dh * 0.30, dw * 0.36, dh * 0.60);
+        strokeSlot(dockX - dw * 0.12, cy - dh * 0.30, dw * 0.24, dh * 0.60);
+        strokeSlot(fieldX - dw * 0.18, cy - dh * 0.30, dw * 0.36, dh * 0.60);
         var travelX = dockX + (fieldX - dockX) * bp;
         var arcY = cy - Math.sin(bp * Math.PI) * dh * 0.22;
         drawTowerPreview("neutrofilo", travelX, arcY, dh * 0.15, true);
@@ -33007,12 +33470,11 @@
           ctx.fillStyle = "#7CFC9E";
           ctx.beginPath(); ctx.arc(mx + dh * 0.28, my - dh * 0.05, dh * 0.07 * (1 - eatT), 0, Math.PI * 2); ctx.fill();
         }
-        // Macrófago REAL (drawGuardian: 11 pseudópodos, núcleo riñón,
-        // lisosomas, receptores de membrana) escalado para entrar en la
-        // mini-pantalla — nada de un círculo genérico.
+        // Macrófago REAL (5 lóbulos, núcleo riñón, lisosomas) escalado
+        // para entrar en la mini-pantalla — nada de un círculo genérico.
         var fakeG = {
           x: mx, y: my,
-          scale: (dh * 0.20) / (24 * U),
+          scale: (dh * 0.20) / (32 * U),
           wobble: state.time * 5, shape: 0, alpha: 1,
           mouthOpen: 0, swallow: 0, attackAnim: 0, hitFlash: 0, tongueExtend: 0,
           blinkTimer: 0, nextBlink: state.time + 999, state: "roaming"
@@ -33219,16 +33681,16 @@
     ctx.globalAlpha = a;
     // Sombra dura manga (drop shadow desplazado)
     ctx.fillStyle = "rgba(0,0,0,0.45)";
-    ctx.fillRect(x + 4, y + 5, w, h);
+    fillSlot(x + 4, y + 5, w, h);
     // Marco grueso negro
     ctx.fillStyle = "#1a0e12";
-    ctx.fillRect(x - 3, y - 3, w + 6, h + 6);
+    fillSlot(x - 3, y - 3, w + 6, h + 6);
     // Imagen recortada (clip + drawImage manualmente)
     var img = introImgs[cfg.srcIdx];
     if (img && img.complete && img.naturalWidth) {
       ctx.save();
       ctx.beginPath();
-      ctx.rect(x, y, w, h);
+      roundRect(x, y, w, h, uiSlotRadius(w, h));
       ctx.clip();
       var iw = img.naturalWidth, ih = img.naturalHeight;
       var sx = iw * cfg.cropX, sy = ih * cfg.cropY;
@@ -33240,7 +33702,7 @@
       ctx.drawImage(img, sx, sy, sw, sh, dx, dy, dw, dh);
       ctx.restore();
     } else {
-      ctx.fillStyle = "#33212e"; ctx.fillRect(x, y, w, h);
+      ctx.fillStyle = "#33212e"; fillSlot(x, y, w, h);
     }
     // Etiqueta de esquina (label manga tipo "ZOOM", "CURA", etc)
     if (cfg.label) {
@@ -33249,7 +33711,7 @@
       ctx.textAlign = "left"; ctx.textBaseline = "top";
       var lblW = ctx.measureText(cfg.label).width + lblPad * 2;
       ctx.fillStyle = "#ffd24a";
-      ctx.fillRect(x - 3, y - 3, lblW, 16);
+      fillSlot(x - 3, y - 3, lblW, 16);
       ctx.fillStyle = "#1a0e12";
       ctx.fillText(cfg.label, x - 3 + lblPad, y - 1);
     }
@@ -33358,15 +33820,20 @@
     var bx = 16, by = VH - bh - 20;
     // Sombra dura manga
     ctx.fillStyle = "rgba(0,0,0,0.55)";
-    ctx.fillRect(bx + 4, by + 5, bw, bh);
+    fillSlot(bx + 4, by + 5, bw, bh);
     // Fondo crema con borde negro grueso (estilo caja narrativa manga)
     ctx.fillStyle = "#fff8e7";
-    ctx.fillRect(bx, by, bw, bh);
+    fillSlot(bx, by, bw, bh);
     ctx.strokeStyle = "#1a0e12"; ctx.lineWidth = 3;
-    ctx.strokeRect(bx, by, bw, bh);
+    strokeSlot(bx, by, bw, bh);
     // Acento de color en esquina sup-izq (banda manga)
+    ctx.save();
+    ctx.beginPath();
+    roundRect(bx, by, bw, bh, uiSlotRadius(bw, bh));
+    ctx.clip();
     ctx.fillStyle = "#d61f1f";
     ctx.fillRect(bx, by, 8, bh);
+    ctx.restore();
     // Texto
     ctx.fillStyle = "#1a0e12";
     ctx.font = "bold 16px Fredoka, sans-serif";
@@ -33412,22 +33879,19 @@
       var card = TUTORIAL_CARDS[i];
       var cx = marginX + i * (cardW + gap) - scroll;
       if (cx + cardW < marginX - 20 || cx > marginX + stripW + 20) continue;
-      // Cuadro 100% plano — esquinas a 90°, sin radio. Nada de forma de
-      // globo de diálogo (esos quedan solo para los diálogos de personajes).
       ctx.fillStyle = "rgba(255,255,255,0.06)";
-      ctx.fillRect(cx, stripY, cardW, cardH);
+      fillSlot(cx, stripY, cardW, cardH);
       ctx.strokeStyle = "rgba(255,255,255,0.30)"; ctx.lineWidth = 1.5;
-      ctx.strokeRect(cx, stripY, cardW, cardH);
+      strokeSlot(cx, stripY, cardW, cardH);
 
-      // "Pantallita" con la mini-demo animada del paso (recorte propio).
       var demoX = cx + 8, demoY = stripY + 8;
       var demoW = cardW - 16, demoH = cardH * 0.48;
       ctx.fillStyle = "rgba(0,0,0,0.35)";
-      ctx.fillRect(demoX, demoY, demoW, demoH);
+      fillSlot(demoX, demoY, demoW, demoH);
       ctx.strokeStyle = "rgba(255,255,255,0.18)"; ctx.lineWidth = 1;
-      ctx.strokeRect(demoX, demoY, demoW, demoH);
+      strokeSlot(demoX, demoY, demoW, demoH);
       ctx.save();
-      ctx.beginPath(); ctx.rect(demoX, demoY, demoW, demoH); ctx.clip();
+      clipSlot(demoX, demoY, demoW, demoH);
       drawTutorialDemo(card.demo, demoX, demoY, demoW, demoH);
       ctx.restore();
 
@@ -33455,9 +33919,9 @@
     // Botón "Cerrar".
     var csw = 110, csh = 36, csx = VW / 2 - csw / 2, csy = VH - 56;
     UI.tutorialClose = { x: csx, y: csy, w: csw, h: csh };
-    ctx.fillStyle = "#1a1a22"; roundRect(csx, csy, csw, csh, 8); ctx.fill();
+    ctx.fillStyle = "#1a1a22"; fillSlot(csx, csy, csw, csh);
     ctx.strokeStyle = "rgba(255,255,255,0.40)"; ctx.lineWidth = 1.5;
-    roundRect(csx, csy, csw, csh, 8); ctx.stroke();
+    strokeSlot(csx, csy, csw, csh);
     ctx.fillStyle = "#fff"; ctx.font = "bold 14px Fredoka, sans-serif";
     ctx.fillText("Cerrar", csx + csw / 2, csy + csh / 2);
 
@@ -33526,7 +33990,7 @@
     // Puntos de progreso (rectángulo sólido para que se lea limpio).
     var nd = INTRO_DUR.length, dx0 = VW / 2 - (nd - 1) * 6;
     ctx.fillStyle = "rgba(20,15,18,0.85)";
-    roundRect(dx0 - 12, 12, (nd - 1) * 12 + 24, 16, 4); ctx.fill();
+    fillSlot(dx0 - 12, 12, (nd - 1) * 12 + 24, 16);
     for (var s2 = 0; s2 < nd; s2++) {
       ctx.fillStyle = s2 === sc ? "#ffffff" : "rgba(255,255,255,0.45)";
       ctx.beginPath(); ctx.arc(dx0 + s2 * 12, 20, 4, 0, Math.PI * 2); ctx.fill();
@@ -33535,9 +33999,9 @@
     // Botón "Saltar" — rectángulo sólido, esquinas suaves, texto centrado.
     var sw = 86, sh = 30, sx = VW - sw - 12, sy = 12;
     UI.introSkip = { x: sx, y: sy, w: sw, h: sh };
-    ctx.fillStyle = "#1a1a22"; roundRect(sx, sy, sw, sh, 0); ctx.fill();
+    ctx.fillStyle = "#1a1a22"; fillSlot(sx, sy, sw, sh);
     ctx.strokeStyle = "rgba(255,255,255,0.40)"; ctx.lineWidth = 1.5;
-    roundRect(sx, sy, sw, sh, 0); ctx.stroke();
+    strokeSlot(sx, sy, sw, sh);
     ctx.fillStyle = "#fff"; ctx.font = "bold 13px Fredoka, sans-serif";
     ctx.textAlign = "center"; ctx.textBaseline = "middle";
     ctx.fillText("Saltar", sx + sw / 2, sy + sh / 2);
@@ -33546,9 +34010,9 @@
     // Botón "Tutorial" — mismo estilo, debajo del de Saltar.
     var tsy = sy + sh + 8;
     UI.tutorialBtn = { x: sx, y: tsy, w: sw, h: sh };
-    ctx.fillStyle = "#1a1a22"; roundRect(sx, tsy, sw, sh, 0); ctx.fill();
+    ctx.fillStyle = "#1a1a22"; fillSlot(sx, tsy, sw, sh);
     ctx.strokeStyle = "rgba(255,255,255,0.40)"; ctx.lineWidth = 1.5;
-    roundRect(sx, tsy, sw, sh, 0); ctx.stroke();
+    strokeSlot(sx, tsy, sw, sh);
     ctx.fillStyle = "#fff"; ctx.font = "bold 13px Fredoka, sans-serif";
     ctx.fillText("Tutorial", sx + sw / 2, tsy + sh / 2);
 
@@ -33567,14 +34031,16 @@
     var modalX = (VW - modalW) / 2;
     var modalY = Math.max(safeTop + 12, (VH - modalH) / 2);
     ctx.fillStyle = "rgba(27, 14, 20, 0.98)";
-    roundRect(modalX, modalY, modalW, modalH, 0); ctx.fill();
+    fillSlot(modalX, modalY, modalW, modalH);
     ctx.strokeStyle = "rgba(255, 210, 74, 0.55)"; ctx.lineWidth = 1.5;
-    roundRect(modalX, modalY, modalW, modalH, 0); ctx.stroke();
+    strokeSlot(modalX, modalY, modalW, modalH);
+    ctx.save();
+    clipSlot(modalX, modalY, modalW, modalH);
 
     var closeW = 76, closeH = 34;
     UI.achievementClose = { x: modalX + modalW - closeW - 14, y: modalY + 14, w: closeW, h: closeH };
-    ctx.fillStyle = "#24171b"; ctx.fillRect(UI.achievementClose.x, UI.achievementClose.y, closeW, closeH);
-    ctx.strokeStyle = "rgba(255,255,255,0.38)"; ctx.lineWidth = 1; ctx.strokeRect(UI.achievementClose.x, UI.achievementClose.y, closeW, closeH);
+    ctx.fillStyle = "#24171b"; fillSlot(UI.achievementClose.x, UI.achievementClose.y, closeW, closeH);
+    ctx.strokeStyle = "rgba(255,255,255,0.38)"; ctx.lineWidth = 1; strokeSlot(UI.achievementClose.x, UI.achievementClose.y, closeW, closeH);
     ctx.fillStyle = "#fff"; ctx.font = "bold 13px Fredoka, sans-serif";
     ctx.textAlign = "center"; ctx.textBaseline = "middle";
     ctx.fillText("CERRAR", UI.achievementClose.x + closeW / 2, UI.achievementClose.y + closeH / 2);
@@ -33591,8 +34057,8 @@
     var statY = modalY + 76;
     var statH = 42;
     ctx.fillStyle = "rgba(10, 5, 9, 0.62)";
-    ctx.fillRect(modalX + 14, statY, modalW - 28, statH);
-    ctx.strokeStyle = "rgba(255,255,255,0.12)"; ctx.strokeRect(modalX + 14, statY, modalW - 28, statH);
+    fillSlot(modalX + 14, statY, modalW - 28, statH);
+    ctx.strokeStyle = "rgba(255,255,255,0.12)"; strokeSlot(modalX + 14, statY, modalW - 28, statH);
     ctx.font = "bold 11px Fredoka, sans-serif";
     ctx.fillStyle = "#f5d79a"; ctx.textAlign = "left";
     ctx.fillText("ESTADÍSTICAS GLOBALES", modalX + 24, statY + 13);
@@ -33617,9 +34083,9 @@
       UI.achievementCards.push(card);
       var unlocked = !!ACHIEVEMENTS_UNLOCKED[a.id];
       ctx.fillStyle = unlocked ? "rgba(73, 53, 22, 0.72)" : "rgba(18, 15, 21, 0.82)";
-      roundRect(card.x, card.y, card.w, card.h, 0); ctx.fill();
+      fillSlot(card.x, card.y, card.w, card.h);
       ctx.strokeStyle = unlocked ? "rgba(255,210,74,0.62)" : "rgba(150,150,165,0.28)";
-      ctx.lineWidth = unlocked ? 1.4 : 1; roundRect(card.x, card.y, card.w, card.h, 0); ctx.stroke();
+      ctx.lineWidth = unlocked ? 1.4 : 1; strokeSlot(card.x, card.y, card.w, card.h);
       ctx.globalAlpha = unlocked ? 1 : 0.62;
       ctx.font = "27px Fredoka, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
       ctx.fillText(unlocked ? a.icon : "?", card.x + 25, card.y + card.h / 2);
@@ -33644,6 +34110,7 @@
       ctx.fillStyle = "rgba(255,245,230,0.52)";
       ctx.fillText("Los logros se guardan en este dispositivo", modalX + modalW / 2, modalY + modalH - 18);
     }
+    ctx.restore();
     ctx.restore();
   }
 
@@ -33741,9 +34208,9 @@
       ctx.fillStyle = fill;
       ctx.shadowColor = colorAlpha(fill, 0.45);
       ctx.shadowBlur = 12;
-      ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+      fillSlot(rect.x, rect.y, rect.w, rect.h);
       ctx.shadowBlur = 0;
-      if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = 1.5; ctx.strokeRect(rect.x, rect.y, rect.w, rect.h); }
+      if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = 1.5; strokeSlot(rect.x, rect.y, rect.w, rect.h); }
       ctx.fillStyle = fg || "#fff";
       ctx.font = "900 " + Math.round(rect.h * 0.36) + "px Fredoka, sans-serif";
       ctx.textAlign = "center"; ctx.textBaseline = "middle";
@@ -33754,9 +34221,9 @@
       // Tarjeta compacta de estado de campaña.
       var cardW = Math.min(VW * 0.82, 380), cardH = 66, cardX = cx - cardW / 2, cardY = VH * 0.50;
       ctx.fillStyle = "rgba(18, 8, 10, 0.72)";
-      roundRect(cardX, cardY, cardW, cardH, 0); ctx.fill();
+      fillSlot(cardX, cardY, cardW, cardH);
       ctx.strokeStyle = "rgba(255,210,74,0.35)"; ctx.lineWidth = 1;
-      roundRect(cardX, cardY, cardW, cardH, 0); ctx.stroke();
+      strokeSlot(cardX, cardY, cardW, cardH);
       ctx.fillStyle = "#ffd24a"; ctx.font = "bold " + Math.max(12, Math.round(VW * 0.034)) + "px Fredoka, sans-serif";
       ctx.fillText("Progreso guardado", cx, cardY + 18);
       ctx.fillStyle = "rgba(255,245,230,0.86)"; ctx.font = Math.max(10, Math.round(VW * 0.029)) + "px Fredoka, sans-serif";
@@ -34133,10 +34600,10 @@
       ctx.translate(btn.x + btn.w / 2, btn.y + btn.h / 2);
       ctx.scale(bp, bp);
       ctx.fillStyle = "#fff";
-      ctx.fillRect(-btn.w / 2, -btn.h / 2, btn.w, btn.h);
+      fillSlot(-btn.w / 2, -btn.h / 2, btn.w, btn.h);
       ctx.strokeStyle = "#1a1a22";
       ctx.lineWidth = 3;
-      ctx.strokeRect(-btn.w / 2, -btn.h / 2, btn.w, btn.h);
+      strokeSlot(-btn.w / 2, -btn.h / 2, btn.w, btn.h);
       ctx.fillStyle = "#1a1a22";
       ctx.font = "bold 16px Fredoka, sans-serif";
       ctx.textAlign = "center";
@@ -34196,24 +34663,20 @@
     var btn = UI.endRestartBtn;
     if (state.victory) {
       ctx.fillStyle = "#2C3E50";
-      roundRect(btn.x, btn.y, btn.w, btn.h, 0);
-      ctx.fill();
+      fillSlot(btn.x, btn.y, btn.w, btn.h);
       ctx.strokeStyle = "#1a2b3a";
       ctx.lineWidth = 1.5;
-      roundRect(btn.x, btn.y, btn.w, btn.h, 0);
-      ctx.stroke();
+      strokeSlot(btn.x, btn.y, btn.w, btn.h);
       ctx.fillStyle = "#fff";
       ctx.font = 'bold 15px Fredoka, sans-serif';
       ctx.textBaseline = "middle";
       ctx.fillText("Jugar de nuevo", btn.x + btn.w / 2, btn.y + btn.h / 2);
     } else {
       ctx.fillStyle = "#C0392B";
-      roundRect(btn.x, btn.y, btn.w, btn.h, 0);
-      ctx.fill();
+      fillSlot(btn.x, btn.y, btn.w, btn.h);
       ctx.strokeStyle = "#7d2419";
       ctx.lineWidth = 1.5;
-      roundRect(btn.x, btn.y, btn.w, btn.h, 0);
-      ctx.stroke();
+      strokeSlot(btn.x, btn.y, btn.w, btn.h);
       ctx.fillStyle = "#fff";
       ctx.font = 'bold 15px Fredoka, sans-serif';
       ctx.textBaseline = "middle";
@@ -34239,10 +34702,10 @@
       var y = baseY + i * (h + 6);
       ctx.globalAlpha = a;
       ctx.fillStyle = "rgba(12, 28, 18, 0.92)";
-      roundRect(x, y, w, h, 0); ctx.fill();
+      fillSlot(x, y, w, h);
       ctx.strokeStyle = "rgba(120, 220, 160, 0.55)";
       ctx.lineWidth = 1.2;
-      roundRect(x, y, w, h, 0); ctx.stroke();
+      strokeSlot(x, y, w, h);
       ctx.fillStyle = "#a8f0c0";
       ctx.font = "bold 11px Fredoka, sans-serif";
       ctx.textAlign = "left"; ctx.textBaseline = "top";
@@ -34282,11 +34745,11 @@
         ctx.shadowColor = "rgba(255, 210, 74, 0.35)";
         ctx.shadowBlur = 14;
       }
-      roundRect(x, y, w, h, 0); ctx.fill();
+      fillSlot(x, y, w, h);
       ctx.shadowBlur = 0;
       ctx.strokeStyle = "rgba(255, 210, 74, 0.60)";
       ctx.lineWidth = 1.4;
-      roundRect(x, y, w, h, 0); ctx.stroke();
+      strokeSlot(x, y, w, h);
       ctx.fillStyle = "#ffd24a";
       ctx.font = "bold 11px Fredoka, sans-serif";
       ctx.textAlign = "left"; ctx.textBaseline = "top";
@@ -34402,9 +34865,11 @@
         safeDraw("Fase1Bg", function () {
           ctx.drawImage(fase1Bg, FIELD_LEFT, FIELD_TOP, FIELD_W, FIELD_H);
         });
+        safeDraw("TissueDepth", drawTissueDepth);
       } else {
         safeDraw("SkinZone", drawSkinZone);
         safeDraw("SkinLayers", drawSkinLayers);
+        safeDraw("TissueDepth", drawTissueDepth);
         safeDraw("CirculatoryZone", drawCirculatoryZone);
       }
     }
@@ -35912,8 +36377,7 @@
     var rows = 2 + (cfg.cartilageMax ? 1 : 0) + (cfg.mechanic === "tormenta" ? 1 : 0);
     var panelH = rows * (barH + 16 * U) + 8 * U;
     ctx.fillStyle = "rgba(12, 8, 14, 0.55)";
-    roundRect(x - 6 * U, y - 14 * U, barW + 12 * U, panelH, 4 * U);
-    ctx.fill();
+    fillSlot(x - 6 * U, y - 14 * U, barW + 12 * U, panelH);
     // Integridad del órgano.
     ctx.font = "bold " + Math.floor(10 * U) + "px Fredoka, sans-serif";
     ctx.textAlign = "left"; ctx.textBaseline = "bottom";
@@ -36321,7 +36785,7 @@
     var cntY = y - ry - 11 * U;
     var cntW = ctx.measureText(cntTxt).width + 12 * U;
     ctx.fillStyle = "rgba(12, 6, 10, 0.85)";
-    roundRect(x - cntW / 2, cntY - 8 * U, cntW, 16 * U, 5 * U); ctx.fill();
+    fillSlot(x - cntW / 2, cntY - 8 * U, cntW, 16 * U);
     var loadColor = pct >= 0.7 ? "#ff7a7a" : (pct >= 0.4 ? "#ffd24a" : "#f0dcc8");
     ctx.fillStyle = loadColor;
     ctx.fillText(cntTxt, x, cntY);
@@ -36560,11 +37024,13 @@
       ctx.save();
       ctx.globalAlpha = miniAlpha;
       ctx.fillStyle = "#0a0c0a";
-      ctx.fillRect(panelX - 4 * U, panelY - 4 * U, panelW + 8 * U, panelH + 8 * U);
+      fillSlot(panelX - 4 * U, panelY - 4 * U, panelW + 8 * U, panelH + 8 * U);
       ctx.fillStyle = "#16121a";
-      ctx.fillRect(panelX, panelY, panelW, panelH);
+      fillSlot(panelX, panelY, panelW, panelH);
       ctx.save();
-      ctx.beginPath(); ctx.rect(panelX, panelY, panelW, panelH); ctx.clip();
+      ctx.beginPath();
+      roundRect(panelX, panelY, panelW, panelH, uiSlotRadius(panelW, panelH));
+      ctx.clip();
       var barrierY = panelY + panelH * 0.30;
       ctx.strokeStyle = "rgba(255, 90, 70, 0.55)";
       ctx.setLineDash([4 * U, 3 * U]);
@@ -36589,7 +37055,7 @@
       ctx.restore(); // fin clip
       ctx.strokeStyle = "rgba(130, 210, 150, 0.55)";
       ctx.lineWidth = 1.6 * U;
-      ctx.strokeRect(panelX, panelY, panelW, panelH);
+      strokeSlot(panelX, panelY, panelW, panelH);
       ctx.restore();
       ctx.save();
       ctx.globalAlpha = miniAlpha;

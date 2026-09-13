@@ -2925,11 +2925,14 @@
     UI.compendiumModal = { x: modalX, y: modalY, w: modalW, h: modalH };
     ctx.fillStyle = "#241620";
     fillSlot(modalX, modalY, modalW, modalH);
+    ctx.save();
+    clipSlot(modalX, modalY, modalW, modalH);
 
-    // Header
+    // Header — franja recta; el clip del modal le da las puntas de arriba
+    // sin convertir la barra en una burbuja suelta.
     var headerH = 40;
     ctx.fillStyle = "#33212e";
-    fillSlot(modalX, modalY, modalW, headerH);
+    ctx.fillRect(modalX, modalY, modalW, headerH);
     ctx.fillStyle = "#ffd24a";
     ctx.font = "bold 15px Fredoka, sans-serif";
     ctx.textAlign = "left";
@@ -2944,7 +2947,7 @@
                        "  ·  Tanques " + lo.tanks.length + "/" + LOADOUT_LIMITS.tanks +
                        "  ·  Barrera " + lo.barriers.length + "/" + LOADOUT_LIMITS.barriers;
       ctx.fillStyle = "rgba(20, 12, 18, 0.85)";
-      fillSlot(modalX, counterY, modalW, 22);
+      ctx.fillRect(modalX, counterY, modalW, 22);
       ctx.fillStyle = "#ffd24a";
       ctx.font = "bold 11px Fredoka, sans-serif";
       ctx.textAlign = "center"; ctx.textBaseline = "middle";
@@ -2977,7 +2980,7 @@
       var active = (state.compendiumTab === tabs[ti].key);
       UI.compendiumTabs.push({ key: tabs[ti].key, x: tx, y: tabY, w: tw, h: tabH });
       ctx.fillStyle = active ? "#241620" : "#1a1018";
-      fillSlot(tx, tabY, tw, tabH);
+      ctx.fillRect(tx, tabY, tw, tabH);
       if (active) {
         ctx.fillStyle = "#ffd24a";
         ctx.fillRect(tx, tabY + tabH - 3, tw, 3);
@@ -3039,9 +3042,7 @@
       ctx.fillStyle = bgFill;
       fillSlot(cx, cy, cardW, cardH);
       ctx.save();
-      ctx.beginPath();
-      ctx.rect(cx + 1, cy + 1, cardW - 2, cardH - 2);
-      ctx.clip();
+      clipSlot(cx, cy, cardW, cardH);
       if (selected && !locked) {
         ctx.strokeStyle = def.color || "#888";
         ctx.lineWidth = 2;
@@ -3080,9 +3081,7 @@
       var iconCy = iconBoxY + iconBoxH * 0.52;
       var isGerm = !!ENEMY_DEFS[typeId];
       ctx.save();
-      ctx.beginPath();
-      ctx.rect(cx + 3, iconBoxY, cardW - 6, iconBoxH);
-      ctx.clip();
+      clipSlot(cx + 3, iconBoxY, cardW - 6, iconBoxH);
       if (locked) {
         ctx.globalAlpha = 0.40;
         ctx.filter = "grayscale(100%) brightness(0.50)";
@@ -3161,9 +3160,7 @@
       var lore = compendiumGetLore(sel);
       var isGerm = !!ENEMY_DEFS[sel];
       ctx.save();
-      ctx.beginPath();
-      ctx.rect(detailX + 2, detailY + 2, detailW - 4, detailH - 4);
-      ctx.clip();
+      clipSlot(detailX, detailY, detailW, detailH);
       var detailBottom = detailY + detailH - 6;
       // Nombre + sprite (ajustado: nombres largos como "Staphylococcus aureus"
       // o "Célula Dendrítica Plasmocitoide" no deben salirse del recuadro).
@@ -3175,23 +3172,17 @@
       // Sprite icon
       if (isGerm) {
         ctx.save();
-        ctx.beginPath();
-        ctx.rect(detailX + 8, detailY + 8, 44, 44);
-        ctx.clip();
+        clipSlot(detailX + 8, detailY + 8, 44, 44);
         drawTooltipSprite(def2, detailX + 30, detailY + 30, 14);
         ctx.restore();
       } else if (sel === "macrofagoLibre") {
         ctx.save();
-        ctx.beginPath();
-        ctx.rect(detailX + 8, detailY + 8, 44, 44);
-        ctx.clip();
+        clipSlot(detailX + 8, detailY + 8, 44, 44);
         drawMacrofagoMini(detailX + 30, detailY + 30, 16, state.time || 0);
         ctx.restore();
       } else {
         ctx.save();
-        ctx.beginPath();
-        ctx.rect(detailX + 8, detailY + 8, 44, 44);
-        ctx.clip();
+        clipSlot(detailX + 8, detailY + 8, 44, 44);
         drawTowerPreview(sel, detailX + 30, detailY + 30, 16, true);
         ctx.restore();
       }
@@ -3280,6 +3271,7 @@
       ctx.restore();
     }
 
+    ctx.restore();
     ctx.restore();
   }
   // ============ FIN COMPENDIO ============
@@ -12815,21 +12807,17 @@
     var pillsW = Math.max(20, pillsR - pillsX);
     var segW = (pillsW - (segs - 1) * gapS) / segs;
     var innerY = v.y + 5, innerH = v.h - 10;
-    var segR = Math.min(3, innerH * 0.28);
     for (var si = 0; si < segs; si++) {
       var sx = pillsX + si * (segW + gapS);
       if (si < n) {
         ctx.fillStyle = ready ? "#7CFC9E" : "#6af0a0";
-        roundRect(sx, innerY, segW, innerH, segR);
-        ctx.fill();
+        fillSlot(sx, innerY, segW, innerH);
       } else {
         ctx.fillStyle = "rgba(255,255,255,0.10)";
-        roundRect(sx, innerY, segW, innerH, segR);
-        ctx.fill();
+        fillSlot(sx, innerY, segW, innerH);
         ctx.strokeStyle = "rgba(124, 252, 158, 0.40)";
         ctx.lineWidth = 1;
-        roundRect(sx, innerY, segW, innerH, segR);
-        ctx.stroke();
+        strokeSlot(sx, innerY, segW, innerH);
       }
     }
     ctx.restore();
@@ -32642,14 +32630,15 @@
     ctx.fillText(value, x, y + fontLabel + 4);
   }
 
-  // Casillas/casilleros: cuadrado o rectángulo de vértices apenas romos.
-  // Radio chico a propósito: si crece con la altura, las barras anchas
-  // se leen como burbuja de diálogo / chat. Ni esquina viva ni píldora.
+  // Casillas/casilleros a todo nivel: cuadrado o rectángulo de puntas romas.
+  // Radio chico también en fichas internas (Dex, C3b, detalle). Si crece
+  // con el lado, se leen como burbuja de diálogo.
   function uiSlotRadius(w, h) {
     var aw = Math.abs(w), ah = Math.abs(h);
     var m = Math.min(aw, ah);
-    var r = Math.min(5, Math.max(2.5, m * 0.07));
-    if (aw > ah * 1.8) r = Math.min(r, 3.5);
+    var r = Math.min(4, Math.max(2, m * 0.05));
+    if (aw > ah * 1.5 || ah > aw * 1.5) r = Math.min(r, 2.5);
+    if (m < 72) r = Math.min(r, 2.5);
     return r;
   }
   function fillSlot(x, y, w, h) {
@@ -32659,6 +32648,10 @@
   function strokeSlot(x, y, w, h) {
     roundRect(x, y, w, h, uiSlotRadius(w, h));
     ctx.stroke();
+  }
+  function clipSlot(x, y, w, h) {
+    roundRect(x, y, w, h, uiSlotRadius(w, h));
+    ctx.clip();
   }
   function drawButton(r, text, fill, stroke, enabled) {
     ctx.fillStyle = fill;
@@ -33898,7 +33891,7 @@
       ctx.strokeStyle = "rgba(255,255,255,0.18)"; ctx.lineWidth = 1;
       strokeSlot(demoX, demoY, demoW, demoH);
       ctx.save();
-      ctx.beginPath(); ctx.rect(demoX, demoY, demoW, demoH); ctx.clip();
+      clipSlot(demoX, demoY, demoW, demoH);
       drawTutorialDemo(card.demo, demoX, demoY, demoW, demoH);
       ctx.restore();
 
@@ -34041,6 +34034,8 @@
     fillSlot(modalX, modalY, modalW, modalH);
     ctx.strokeStyle = "rgba(255, 210, 74, 0.55)"; ctx.lineWidth = 1.5;
     strokeSlot(modalX, modalY, modalW, modalH);
+    ctx.save();
+    clipSlot(modalX, modalY, modalW, modalH);
 
     var closeW = 76, closeH = 34;
     UI.achievementClose = { x: modalX + modalW - closeW - 14, y: modalY + 14, w: closeW, h: closeH };
@@ -34115,6 +34110,7 @@
       ctx.fillStyle = "rgba(255,245,230,0.52)";
       ctx.fillText("Los logros se guardan en este dispositivo", modalX + modalW / 2, modalY + modalH - 18);
     }
+    ctx.restore();
     ctx.restore();
   }
 

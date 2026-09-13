@@ -92,10 +92,40 @@ await page.evaluate(() => {
 });
 await sleep(80);
 await page.screenshot({ path: join(ART, "slots_dex.png") });
+const dex = await page.evaluate(() => {
+  const m = window.__game.ui.compendiumModal;
+  return { x: m.x - 6, y: m.y - 6, width: m.w + 12, height: m.h + 12 };
+});
+await page.screenshot({ path: join(ART, "slots_dex_closeup.png"), clip: dex });
+const grid = await page.evaluate(() => {
+  const g = window.__game.ui.compendiumGrid;
+  return { x: g.x - 4, y: g.y - 4, width: g.w + 8, height: Math.min(220, g.h + 8) };
+});
+await page.screenshot({ path: join(ART, "slots_dex_cards.png"), clip: grid });
+
+await page.evaluate(() => {
+  const g = window.__game;
+  g.state.compendiumSelected = "neutrofilo";
+  g.relayout();
+  g.hold(true);
+});
+await sleep(80);
+await page.screenshot({ path: join(ART, "slots_dex_detail.png"), clip: dex });
 
 await page.evaluate(() => {
   const g = window.__game;
   g.state.compendiumOpen = false;
+  g.state.loadoutEditing = false;
+  g.state.achievementsOpen = true;
+  g.relayout();
+  g.hold(true);
+});
+await sleep(80);
+await page.screenshot({ path: join(ART, "slots_achievements.png") });
+
+await page.evaluate(() => {
+  const g = window.__game;
+  g.state.achievementsOpen = false;
   g.state.loadoutEditing = false;
   g.state.paused = false;
   g.state.gameHints = [{

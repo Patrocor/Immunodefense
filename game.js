@@ -11774,8 +11774,11 @@
     ctx.fill();
     ctx.fillStyle = "#3a1818";
     ctx.beginPath();
-    ctx.ellipse(0, R * 0.22, Math.max(2.4, R * 0.24), Math.max(1.8, R * 0.18), 0, 0, Math.PI * 2);
+    ctx.ellipse(0, R * 0.26, Math.max(3.0, R * 0.30), Math.max(2.4, R * 0.24), 0, 0, Math.PI * 2);
     ctx.fill();
+    ctx.strokeStyle = "#ff9bb0";
+    ctx.lineWidth = Math.max(1, R * 0.08);
+    ctx.stroke();
     ctx.restore();
   }
   function drawC3bMark(cx, cy, R, ready) {

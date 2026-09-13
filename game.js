@@ -4476,6 +4476,19 @@
       if (key) return ORGAN_IDENTITY[key] || null;
       return organKit(f2Cfg());
     },
+    f2Markers: function () {
+      if (!state.f2 || !PATH.wounds) return [];
+      var cfg = state.f2.cfg;
+      var out = [];
+      for (var i = 0; i < PATH.wounds.length; i++) {
+        out.push({
+          x: PATH.wounds[i].x, y: PATH.wounds[i].y,
+          doorX: PATH.organDoors[i].x, doorY: PATH.organDoors[i].y,
+          label: cfg.foci[i] || ""
+        });
+      }
+      return out;
+    },
     goMap: function () { state.showTitle = false; state.showIntro = false; enterBodyMapForState(); },
     saveCampaign: saveCampaignProgress,
     clearCampaign: clearCampaignProgress,
@@ -17867,30 +17880,28 @@
     ctx.save();
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
-    ctx.strokeStyle = p.outer;
-    ctx.lineWidth = 28 * U * swell;
+    ctx.strokeStyle = colorAlpha(p.mid, 0.20);
+    ctx.lineWidth = 34 * U * swell;
     strokeAllPaths();
-    ctx.strokeStyle = p.mid;
-    ctx.lineWidth = 20 * U * swell;
+    ctx.strokeStyle = p.outer;
+    ctx.lineWidth = 16 * U * swell;
     strokeAllPaths();
     ctx.strokeStyle = p.lumen;
-    ctx.lineWidth = 12 * U * swell;
+    ctx.lineWidth = 8 * U * swell;
+    strokeAllPaths();
+    ctx.strokeStyle = colorAlpha(p.mid, 0.38);
+    ctx.lineWidth = 3.2 * U;
     strokeAllPaths();
     if (PATH.confluence) {
       ctx.fillStyle = p.confluence || p.mid;
       ctx.beginPath();
-      ctx.arc(PATH.confluence.x, PATH.confluence.y, 14 * U * swell, 0, Math.PI * 2);
+      ctx.arc(PATH.confluence.x, PATH.confluence.y, 12 * U * swell, 0, Math.PI * 2);
       ctx.fill();
       ctx.fillStyle = p.confluenceInner || p.outer;
       ctx.beginPath();
-      ctx.arc(PATH.confluence.x, PATH.confluence.y, 9 * U * swell, 0, Math.PI * 2);
+      ctx.arc(PATH.confluence.x, PATH.confluence.y, 7 * U * swell, 0, Math.PI * 2);
       ctx.fill();
     }
-    ctx.strokeStyle = p.dash || "rgba(255,255,255,0.30)";
-    ctx.lineWidth = 2.2 * U;
-    ctx.setLineDash([5 * U, 8 * U]);
-    strokeAllPaths();
-    ctx.setLineDash([]);
     if (!QUALITY.low && p.tick) {
       ctx.strokeStyle = p.tick;
       ctx.lineWidth = Math.max(1.0, 1.25 * U);
@@ -34482,6 +34493,7 @@
     else safeDraw("Tissue", drawTissue);
     safeDraw("Inflammation", drawInflammation);
     safeDraw("Path", drawPath);
+    if (state.f2) safeDraw("F2Identity", drawF2IdentityMarkers);
     if (!state.dissemination) {
       safeDraw("PlasmaFlow", drawPlasmaFlow);
       safeDraw("Wound", drawWound);
@@ -35290,16 +35302,38 @@
       ctx.closePath();
       ctx.stroke();
     }
-    // Entradas (siembra hematógena) y focos del órgano.
+    // Entradas y focos genéricos. Si el órgano tiene kit, se pintan
+    // DESPUÉS del carril (drawF2IdentityMarkers) para no quedar tapados.
+    if (!organKit(cfg)) {
+      for (var k = 0; k < PATH.wounds.length; k++) {
+        var w = PATH.wounds[k];
+        var d = PATH.organDoors[k];
+        drawF2Entry(w.x, w.y, cfg);
+        ctx.save();
+        ctx.font = "bold " + Math.floor(10 * U) + "px Fredoka, sans-serif";
+        ctx.fillStyle = colorAlpha(cfg.colorLight, 0.9);
+        ctx.textAlign = "center"; ctx.textBaseline = "top";
+        ctx.fillText(cfg.foci[k] || "", w.x, w.y + 16 * U);
+        ctx.restore();
+        drawF2Focus(d.x, d.y, cfg, f.focusFlash[k] || 0, k);
+      }
+    }
+  }
+
+  function drawF2IdentityMarkers() {
+    if (!state.f2 || !PATH.wounds) return;
+    var cfg = state.f2.cfg;
+    if (!organKit(cfg)) return;
+    var f = state.f2;
     for (var k = 0; k < PATH.wounds.length; k++) {
       var w = PATH.wounds[k];
       var d = PATH.organDoors[k];
       drawF2Entry(w.x, w.y, cfg);
       ctx.save();
       ctx.font = "bold " + Math.floor(10 * U) + "px Fredoka, sans-serif";
-      ctx.fillStyle = colorAlpha(cfg.colorLight, 0.9);
+      ctx.fillStyle = colorAlpha(cfg.colorLight, 0.92);
       ctx.textAlign = "center"; ctx.textBaseline = "top";
-      ctx.fillText(cfg.foci[k] || "", w.x, w.y + 16 * U);
+      ctx.fillText(cfg.foci[k] || "", w.x, w.y + 18 * U);
       ctx.restore();
       drawF2Focus(d.x, d.y, cfg, f.focusFlash[k] || 0, k);
     }
@@ -35320,7 +35354,7 @@
     var sist = (f && f.inSystole) ? 1 : 0;
     ctx.save();
     ctx.translate(x, y);
-    var rx = 15 * U, ry = 8.2 * U * (1 - sist * 0.16);
+    var rx = 20 * U, ry = 11 * U * (1 - sist * 0.18);
     var halo = ctx.createRadialGradient(0, -ry * 0.15, 0, 0, 0, rx * 1.45);
     halo.addColorStop(0, colorAlpha(cfg.colorLight, 0.38 + sist * 0.18));
     halo.addColorStop(0.55, colorAlpha(cfg.color, 0.50));
@@ -35349,7 +35383,7 @@
   }
 
   function drawF2FocusVelo(x, y, cfg, flash, idx) {
-    var r = 24 * U;
+    var r = 28 * U;
     var kind = (idx === 2) ? "cuerda" : ((idx === 1 || idx === 3) ? "comisura" : "velo");
     var fl = Math.min(1, (flash || 0) / 0.6);
     ctx.save();

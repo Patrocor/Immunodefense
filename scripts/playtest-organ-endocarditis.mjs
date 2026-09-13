@@ -75,23 +75,23 @@ await page.screenshot({ path: join(ART, "organ_endocarditis_systole_top.png") })
 const clips = await page.evaluate(() => {
   const g = window.__game;
   const st = g.state;
-  const F = g.metrics.FIELD;
   const canvas = document.getElementById("canvas");
   const rect = canvas.getBoundingClientRect();
-  const w0 = st /* PATH not exposed */;
   const sx = (x) => rect.left + (x / g.metrics.VW) * rect.width;
   const sy = (y) => rect.top + ((y - (st.dsScrollY || 0)) / g.metrics.VH) * rect.height;
-  const entryX = F.left + F.w * 0.50;
-  const entryY = F.top + F.h * 0.08;
+  const marks = g.f2Markers();
+  const mid = marks[2] || marks[0];
   return {
+    n: marks.length,
     entryClip: {
-      x: Math.round(sx(entryX) - 220),
-      y: Math.round(sy(entryY) - 80),
-      width: 440,
-      height: 280,
+      x: Math.max(0, Math.round(sx(mid.x) - 200)),
+      y: Math.max(0, Math.round(sy(mid.y) - 90)),
+      width: 400,
+      height: 260,
     },
   };
 });
+console.log("Entry clip:", clips);
 await page.screenshot({ path: join(ART, "organ_endocarditis_entry_clip.png"), clip: clips.entryClip });
 
 await page.evaluate(() => {
@@ -99,10 +99,29 @@ await page.evaluate(() => {
   const st = g.state;
   const F = g.metrics.FIELD;
   st.dsScrollY = Math.max(0, F.h * ((st.f2.cfg.stretchY || 1) - 1));
+  st.f2.focusFlash[0] = 0.8;
+  st.f2.focusFlash[2] = 0.8;
   g.hold(true);
 });
 await sleep(80);
 await page.screenshot({ path: join(ART, "organ_endocarditis_systole_valve.png") });
+const focusClip = await page.evaluate(() => {
+  const g = window.__game;
+  const st = g.state;
+  const canvas = document.getElementById("canvas");
+  const rect = canvas.getBoundingClientRect();
+  const sx = (x) => rect.left + (x / g.metrics.VW) * rect.width;
+  const sy = (y) => rect.top + ((y - (st.dsScrollY || 0)) / g.metrics.VH) * rect.height;
+  const marks = g.f2Markers();
+  const door = marks[2] || marks[0];
+  return {
+    x: Math.max(0, Math.round(sx(door.doorX) - 180)),
+    y: Math.max(0, Math.round(sy(door.doorY) - 140)),
+    width: 360,
+    height: 260,
+  };
+});
+await page.screenshot({ path: join(ART, "organ_endocarditis_focus_clip.png"), clip: focusClip });
 
 await page.evaluate(() => {
   const g = window.__game;

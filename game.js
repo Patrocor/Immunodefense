@@ -3037,6 +3037,10 @@
       var bgFill = locked ? "#15101a" : (selected ? colorAlpha(def.color || "#888", 0.30) : "#1f1219");
       ctx.fillStyle = bgFill;
       ctx.fillRect(cx, cy, cardW, cardH);
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(cx + 1, cy + 1, cardW - 2, cardH - 2);
+      ctx.clip();
       if (selected && !locked) {
         ctx.strokeStyle = def.color || "#888";
         ctx.lineWidth = 2;
@@ -3070,62 +3074,38 @@
         ctx.stroke();
       }
       // Ícono / sprite — bloqueados se ven en GRIS con alpha reducido.
+      var nameBand = Math.max(12, Math.min(18, cardH * 0.26));
+      var iconBoxY = cy + 3;
+      var iconBoxH = cardH - nameBand - 4;
       var iconCx = cx + cardW / 2;
-      var iconCy = cy + cardW * 0.50;
+      var iconCy = iconBoxY + iconBoxH * 0.52;
       var isGerm = !!ENEMY_DEFS[typeId];
       ctx.save();
+      ctx.beginPath();
+      ctx.rect(cx + 3, iconBoxY, cardW - 6, iconBoxH);
+      ctx.clip();
       if (locked) {
         ctx.globalAlpha = 0.40;
         ctx.filter = "grayscale(100%) brightness(0.50)";
       }
       if (isGerm) {
-        ctx.save();
-        ctx.beginPath();
-        ctx.rect(cx + 4, cy + 4, cardW - 8, cardW - 8);
-        ctx.clip();
-        drawTooltipSprite(def, iconCx, iconCy, iconR);
-        ctx.restore();
+        drawTooltipSprite(def, iconCx, iconCy, Math.min(iconR, iconBoxH * 0.38));
       } else if (typeId === "macrofagoLibre") {
-        // Sprite simplificado del macrófago libre.
-        ctx.save();
-        ctx.translate(iconCx, iconCy);
-        ctx.fillStyle = def.color;
-        ctx.strokeStyle = def.colorDark;
-        ctx.lineWidth = 2;
-        ctx.beginPath(); ctx.arc(0, 0, iconR, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-        // Bumps (clipeados)
-        ctx.beginPath(); ctx.arc(0, 0, iconR, 0, Math.PI * 2); ctx.clip();
-        for (var bb = 0; bb < 5; bb++) {
-          var ba = bb * Math.PI * 2 / 5;
-          ctx.beginPath();
-          ctx.arc(Math.cos(ba) * iconR * 0.85, Math.sin(ba) * iconR * 0.85, iconR * 0.30, 0, Math.PI * 2);
-          ctx.fill();
-        }
-        ctx.restore();
-        // Ojos pequeños
-        ctx.fillStyle = "#fff";
-        ctx.beginPath(); ctx.arc(iconCx - iconR * 0.25, iconCy - iconR * 0.05, iconR * 0.16, 0, Math.PI * 2);
-        ctx.arc(iconCx + iconR * 0.25, iconCy - iconR * 0.05, iconR * 0.16, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = "#1a1a22";
-        ctx.beginPath(); ctx.arc(iconCx - iconR * 0.25, iconCy - iconR * 0.05, iconR * 0.09, 0, Math.PI * 2);
-        ctx.arc(iconCx + iconR * 0.25, iconCy - iconR * 0.05, iconR * 0.09, 0, Math.PI * 2);
-        ctx.fill();
+        drawMacrofagoMini(iconCx, iconCy, Math.min(iconR, iconBoxH * 0.40), state.time || 0);
       } else {
-        // Preview de la TORRE REAL (snowman neutrofilo, LGL nk, etc).
-        drawTowerPreview(typeId, iconCx, iconCy, iconR, true);
+        drawTowerPreview(typeId, iconCx, iconCy, Math.min(iconR, iconBoxH * 0.38), true);
       }
-      ctx.restore();   // cierra el save del filtro de locked
-      // Nombre abajo. Bloqueado → "???" en gris.
+      ctx.restore();
       if (locked) {
         ctx.fillStyle = "rgba(170, 170, 180, 0.75)";
       } else {
         ctx.fillStyle = def.color || "#fff";
       }
       var dexMaxW = cardW - 6, dName = locked ? "???" : (def.shortName || def.name);
-      fitFont(dName, dexMaxW, Math.max(8, Math.min(11, cardW * 0.14)), 7);
       ctx.textAlign = "center"; ctx.textBaseline = "middle";
-      ctx.fillText(ellipsizeToWidth(dName, dexMaxW), cx + cardW / 2, cy + cardH - 10);
+      fitFont(dName, dexMaxW, Math.max(8, Math.min(11, cardW * 0.14)), 7);
+      ctx.fillText(ellipsizeToWidth(dName, dexMaxW), cx + cardW / 2, cy + cardH - nameBand * 0.48);
+      ctx.restore();
       // Badge rojo de "nuevo" en esquina sup. derecha (solo si está desbloqueado)
       if (!locked && state.dexNew && state.dexNew[typeId]) {
         var dotPulse = 0.5 + 0.5 * Math.sin(state.time * 5);
@@ -3181,6 +3161,11 @@
       var def2 = compendiumGetDef(sel);
       var lore = compendiumGetLore(sel);
       var isGerm = !!ENEMY_DEFS[sel];
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(detailX + 2, detailY + 2, detailW - 4, detailH - 4);
+      ctx.clip();
+      var detailBottom = detailY + detailH - 6;
       // Nombre + sprite (ajustado: nombres largos como "Staphylococcus aureus"
       // o "Célula Dendrítica Plasmocitoide" no deben salirse del recuadro).
       ctx.fillStyle = def2.color || "#fff";
@@ -3197,17 +3182,19 @@
         drawTooltipSprite(def2, detailX + 30, detailY + 30, 14);
         ctx.restore();
       } else if (sel === "macrofagoLibre") {
-        var dexG = {
-          x: detailX + 30, y: detailY + 30,
-          scale: 18 / (24 * U),
-          wobble: (state.time || 0) * 4, shape: 0, alpha: 1,
-          mouthOpen: 0, swallow: 0, attackAnim: 0, hitFlash: 0, tongueExtend: 0,
-          blinkTimer: 0, nextBlink: (state.time || 0) + 999, state: "roaming"
-        };
-        drawGuardian(dexG);
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(detailX + 8, detailY + 8, 44, 44);
+        ctx.clip();
+        drawMacrofagoMini(detailX + 30, detailY + 30, 16, state.time || 0);
+        ctx.restore();
       } else {
-        // Detail panel del dex: preview grande de la torre real.
-        drawTowerPreview(sel, detailX + 30, detailY + 30, 18, true);
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(detailX + 8, detailY + 8, 44, 44);
+        ctx.clip();
+        drawTowerPreview(sel, detailX + 30, detailY + 30, 16, true);
+        ctx.restore();
       }
       // Costo + stats
       var lvl2 = (def2.levels && def2.levels[0]) || {};
@@ -3220,7 +3207,7 @@
       ctx.fillStyle = (def2.currency === "complement") ? "#7CFC9E" : "#f5d76e";
       ctx.font = "bold 11px Fredoka, sans-serif";
       ctx.textAlign = "left"; ctx.textBaseline = "top";
-      ctx.fillText(line2, detailX + 60, detailY + 32);
+      ctx.fillText(ellipsizeToWidth(line2, nameMaxW), detailX + 60, detailY + 32);
       // Stats / hp / vel
       var sparts = [];
       if (isGerm) {
@@ -3240,17 +3227,19 @@
       ctx.font = "9px Fredoka, sans-serif";
       var sLines = wrapText(sparts.join("  ·  "), detailW - 22, 9);
       for (var sli = 0; sli < Math.min(2, sLines.length); sli++) {
-        ctx.fillText(sLines[sli], detailX + 10, detailY + 60 + sli * 14);
+        if (detailY + 60 + sli * 14 > detailBottom) break;
+        ctx.fillText(ellipsizeToWidth(sLines[sli], detailW - 22), detailX + 10, detailY + 60 + sli * 14);
       }
 
       // Descripción
       var descY = detailY + 92;
-      if (def2.desc || def2.tooltip) {
+      if ((def2.desc || def2.tooltip) && descY < detailBottom) {
         ctx.fillStyle = "rgba(255,255,255,0.85)";
         ctx.font = "10px Fredoka, sans-serif";
         var descTxt = def2.tooltip || def2.desc || "";
         var descLines = wrapText(descTxt, detailW - 22, 10);
-        var dN = Math.min(3, descLines.length);
+        var roomDesc = Math.max(0, Math.floor((detailBottom - descY) / 14));
+        var dN = Math.min(3, descLines.length, roomDesc);
         for (var dli = 0; dli < dN; dli++) {
           var dTxt = descLines[dli];
           if (dli === dN - 1 && descLines.length > dN) dTxt += " …";
@@ -3264,16 +3253,17 @@
         var labelW = 74;        // ancho reservado para la etiqueta
         var lineH = 12;         // alto de línea compacto
         function drawLoreRow(emoji, label, labelColor, valueText) {
-          if (!valueText) return;
+          if (!valueText || descY + lineH > detailBottom) return;
           ctx.fillStyle = labelColor;
           ctx.font = "bold 9px Fredoka, sans-serif";
           ctx.textAlign = "left"; ctx.textBaseline = "top";
-          ctx.fillText(emoji + " " + label, detailX + 10, descY);
+          ctx.fillText(ellipsizeToWidth(emoji + " " + label, labelW - 4), detailX + 10, descY);
           ctx.fillStyle = "rgba(255,255,255,0.85)";
           ctx.font = "9px Fredoka, sans-serif";
-          var vMaxW = detailW - labelW - 14;   // gutter derecho para no tocar el borde
+          var vMaxW = detailW - labelW - 14;
           var vw = wrapText(valueText, vMaxW, 9);
-          var n = Math.min(2, vw.length);
+          var room = Math.max(1, Math.floor((detailBottom - descY) / lineH));
+          var n = Math.min(2, vw.length, room);
           for (var vi = 0; vi < n; vi++) {
             var lineTxt = vw[vi];
             if (vi === n - 1 && vw.length > n) lineTxt += " …";   // hay más: indica recorte
@@ -3288,6 +3278,7 @@
         drawLoreRow("🌍", "Mejor en:", "#8ec5d0", compendiumMediumLabels(lore.bestIn));
         drawLoreRow("🧬", "Afinidad:", "#c0a0e0", lore.affinity);
       }
+      ctx.restore();
     }
 
     ctx.restore();
@@ -4741,25 +4732,11 @@
     var spriteCx = bxFinal + 5 + spriteSize / 2;
     var spriteCy = by + bh / 2;
     if (bi.typeId === "macrofagoLibre") {
-      // Mini macrófago: cuerpo amber con dedos
       ctx.save();
-      ctx.translate(spriteCx, spriteCy);
-      var miniR = spriteSize * 0.36;
-      ctx.fillStyle = "#E8923A";
-      ctx.beginPath(); ctx.arc(0, 0, miniR, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = "#A8581A";
-      ctx.lineWidth = 1.3;
-      ctx.stroke();
-      // 4 mini-dedos
-      for (var mf = 0; mf < 4; mf++) {
-        var mfA = mf * Math.PI / 2 + 0.4;
-        ctx.fillStyle = "#E8923A";
-        ctx.beginPath();
-        ctx.arc(Math.cos(mfA) * miniR * 1.25, Math.sin(mfA) * miniR * 1.25, miniR * 0.30, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.strokeStyle = "#A8581A";
-        ctx.stroke();
-      }
+      ctx.beginPath();
+      ctx.rect(bxFinal + 4, by + 5, spriteSize, spriteSize);
+      ctx.clip();
+      drawMacrofagoMini(spriteCx, spriteCy, spriteSize * 0.36, state.time || 0);
       ctx.restore();
     } else {
       var def = ENEMY_DEFS[bi.typeId];
@@ -4777,15 +4754,14 @@
     ctx.fillStyle = isAlly ? "#7ad05b" : "#ffd24a";
     ctx.font = "bold 9px Fredoka, sans-serif";
     ctx.textAlign = "left"; ctx.textBaseline = "top";
-    ctx.fillText(isAlly ? "ALIADO" : "NUEVO INVASOR", bxFinal + spriteSize + 14, by + 5);
-    // Nombre
+    var introMaxW = bw - spriteSize - 22;
+    ctx.fillText(ellipsizeToWidth(isAlly ? "ALIADO" : "NUEVO INVASOR", introMaxW), bxFinal + spriteSize + 14, by + 5);
     ctx.fillStyle = "#fff";
     ctx.font = "bold 13px Fredoka, sans-serif";
-    ctx.fillText(info.name, bxFinal + spriteSize + 14, by + 16);
-    // Descripción
+    ctx.fillText(ellipsizeToWidth(info.name, introMaxW), bxFinal + spriteSize + 14, by + 16);
     ctx.fillStyle = "rgba(220, 220, 230, 0.78)";
     ctx.font = "10px Fredoka, sans-serif";
-    ctx.fillText(info.desc, bxFinal + spriteSize + 14, by + 30);
+    ctx.fillText(ellipsizeToWidth(info.desc, introMaxW), bxFinal + spriteSize + 14, by + 30);
     ctx.restore();
   }
 
@@ -11651,6 +11627,82 @@
     ctx.restore();
   }
 
+  // Silueta ameboide de 5 lóbulos: se lee como macrófago a escala de juego
+  // (no como un óvalo ámbar). Un solo path relleno, no 11 trazos finos.
+  function macrophageLobeRadius(ang, R, time, seed, reach) {
+    var lobes = 5;
+    var lobe = Math.pow(0.5 + 0.5 * Math.cos(ang * lobes - time * 0.9 + seed * 0.35), 1.35);
+    var breathe = 1 + Math.sin(time * 1.5 + seed + ang * 2) * 0.035;
+    return R * (0.70 + 0.42 * reach * lobe) * breathe;
+  }
+  function macrophageBodyPath(R, time, seed, reach) {
+    ctx.beginPath();
+    var steps = 28;
+    for (var i = 0; i <= steps; i++) {
+      var ang = (i / steps) * Math.PI * 2 + seed * 0.15;
+      var r = macrophageLobeRadius(ang, R, time, seed, reach);
+      var px = Math.cos(ang) * r, py = Math.sin(ang) * r;
+      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+  }
+  function drawMacrofagoMini(cx, cy, R, time) {
+    ctx.save();
+    ctx.translate(cx, cy);
+    var t0 = time || 0;
+    var body = ctx.createRadialGradient(-R * 0.3, -R * 0.3, R * 0.2, 0, 0, R * 1.08);
+    body.addColorStop(0, "#f7cf95");
+    body.addColorStop(0.55, GUARDIAN_COL);
+    body.addColorStop(1, GUARDIAN_COLD);
+    ctx.fillStyle = body;
+    ctx.strokeStyle = GUARDIAN_COLD;
+    ctx.lineWidth = Math.max(1, R * 0.12);
+    ctx.lineJoin = "round";
+    macrophageBodyPath(R, t0, 0, 1);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "rgba(110, 60, 140, 0.82)";
+    ctx.beginPath();
+    ctx.ellipse(-R * 0.14, -R * 0.02, R * 0.30, R * 0.22, -0.45, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#fff";
+    ctx.beginPath();
+    ctx.arc(-R * 0.22, -R * 0.10, R * 0.15, 0, Math.PI * 2);
+    ctx.arc(R * 0.22, -R * 0.10, R * 0.15, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#1a1a22";
+    ctx.beginPath();
+    ctx.arc(-R * 0.18, -R * 0.10, R * 0.08, 0, Math.PI * 2);
+    ctx.arc(R * 0.26, -R * 0.10, R * 0.08, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+  function drawC3bMark(cx, cy, R, ready) {
+    ctx.save();
+    ctx.translate(cx, cy);
+    var pulse = ready ? (0.92 + 0.08 * Math.sin(state.time * 6)) : 1;
+    ctx.scale(pulse, pulse);
+    var g = ctx.createRadialGradient(0, 0, 1, 0, 0, R * 1.7);
+    g.addColorStop(0, ready ? "rgba(124,252,158,0.55)" : "rgba(124,252,158,0.22)");
+    g.addColorStop(1, "rgba(124,252,158,0)");
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(0, 0, R * 1.7, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = ready ? "#c8ffd8" : "#aef7c4";
+    ctx.strokeStyle = ready ? "#1f8a4c" : "#3fa86a";
+    ctx.lineWidth = Math.max(1.2, R * 0.22);
+    ctx.lineJoin = "round";
+    ctx.beginPath();
+    for (var k = 0; k < 3; k++) {
+      var ang = -Math.PI / 2 + k * 2.094;
+      var px = Math.cos(ang) * R, py = Math.sin(ang) * R;
+      if (k === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+  }
+
   function drawGuardian(g) {
     if (g.kind === "dendriticT") {
       var alpha = g.age > g.ttl - 1 ? Math.max(0, 1 - (g.age - (g.ttl - 1))) : 1;
@@ -11678,107 +11730,61 @@
     ctx.save();
     ctx.globalAlpha = Math.max(0, g.alpha);
     drawShadow(g.x, g.y + 18 * U * g.scale, 18 * U * g.scale, 5 * U * g.scale);
-    var gl = ctx.createRadialGradient(g.x, g.y, R * 0.4, g.x, g.y, R * 2.2);
-    gl.addColorStop(0, "rgba(245, 180, 110, 0.30)");
+    var gl = ctx.createRadialGradient(g.x, g.y, R * 0.4, g.x, g.y, R * 1.55);
+    gl.addColorStop(0, "rgba(245, 180, 110, 0.22)");
     gl.addColorStop(1, "rgba(245, 180, 110, 0)");
     ctx.fillStyle = gl;
-    ctx.beginPath(); ctx.arc(g.x, g.y, R * 2.2, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(g.x, g.y, R * 1.55, 0, Math.PI * 2); ctx.fill();
     ctx.translate(g.x, g.y);
     // Gulp: squash-stretch al tragar (se ensancha y achata).
     if (swallow > 0) { var sw = swallow / 0.6; ctx.scale(1 + sw * 0.40, 1 - sw * 0.22); }
-    // PSEUDÓPODOS TISSUE-RESIDENT: 11 pseudópodos cortos en movimiento
-    // ameboide constante. Cada uno se extiende y retrae con un ciclo de
-    // pulso INDEPENDIENTE (basado en su seed). Da la sensación de un
-    // macrófago tisular vivo que está sintiendo el entorno constantemente.
-    var reach = (maw > 0.05 || g.attackAnim > 0 || g.harpoonPhase) ? 1.42 : 1.0;
+    // Cinco lóbulos gordos en un solo path: a 48 px se leen como dedos, no como pelusa.
+    var reach = (maw > 0.05 || g.attackAnim > 0 || g.harpoonPhase) ? 1.32 : 1.0;
     ctx.lineCap = "round"; ctx.lineJoin = "round";
-    var nF = 11, b0 = R * 0.62;
-    for (var f = 0; f < nF; f++) {
-      var fSeed = f * 1.73 + seed * 0.5;
-      // Movimiento ameboide: cada pseudópodo pulsa con su propia fase
-      var pulseT = state.time * 1.4 + fSeed;
-      var pulse = (Math.sin(pulseT) + 1) * 0.5;   // 0..1 cyclical
-      // Posición angular SUTILMENTE móvil (no perfectamente equidistantes)
-      var fa = f / nF * Math.PI * 2 + Math.sin(state.time * 0.8 + f) * 0.12;
-      // Longitud corta + variación independiente
-      var fl = R * (0.20 + pulse * 0.35) * reach;
-      var bend = Math.sin(state.time * 2.5 + f * 1.5) * R * 0.10;
-      var bx = Math.cos(fa) * b0, by = Math.sin(fa) * b0;
-      var tx = Math.cos(fa) * (b0 + fl), ty = Math.sin(fa) * (b0 + fl);
-      var nx = -Math.sin(fa), ny = Math.cos(fa);
-      var mx = (bx + tx) / 2 + nx * bend, my = (by + ty) / 2 + ny * bend;
-      // Stroke principal (más fino que antes para que se vean varios)
-      ctx.strokeStyle = COLD; ctx.lineWidth = R * 0.36;
-      ctx.beginPath(); ctx.moveTo(bx, by); ctx.quadraticCurveTo(mx, my, tx, ty); ctx.stroke();
-      ctx.strokeStyle = (g.hitFlash > 0) ? "#ffd0d0" : COL; ctx.lineWidth = R * 0.28;
-      ctx.beginPath(); ctx.moveTo(bx, by); ctx.quadraticCurveTo(mx, my, tx, ty); ctx.stroke();
-      // Yema redondeada al final del pseudópodo
-      ctx.fillStyle = (g.hitFlash > 0) ? "#ffd0d0" : COL;
-      ctx.strokeStyle = COLD; ctx.lineWidth = 1.1 * U;
-      ctx.beginPath(); ctx.arc(tx, ty, R * 0.14, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-    }
-    // Cuerpo central AMEBOIDE — contorno ondulado, no perfectamente redondo.
-    // Membrana viva que se ondula sutilmente con el tiempo.
-    var body = ctx.createRadialGradient(-R * 0.3, -R * 0.3, R * 0.2, 0, 0, R * 0.95);
+    var body = ctx.createRadialGradient(-R * 0.3, -R * 0.3, R * 0.2, 0, 0, R * 1.05);
     body.addColorStop(0, "#f7cf95");
-    body.addColorStop(0.6, COL);
+    body.addColorStop(0.55, COL);
     body.addColorStop(1, COLD);
     ctx.fillStyle = g.hitFlash > 0 ? "#ffd0d0" : body;
-    ctx.beginPath();
-    var nWaves = 14;
-    for (var bw = 0; bw <= nWaves; bw++) {
-      var bwAng = (bw / nWaves) * Math.PI * 2 + seed * 0.3;
-      var bwBump = 1 + Math.sin(bwAng * 4 + state.time * 1.3 + seed) * 0.05;
-      var bwR = R * 0.80 * bwBump;
-      var bwX = Math.cos(bwAng) * bwR;
-      var bwY = Math.sin(bwAng) * bwR;
-      if (bw === 0) ctx.moveTo(bwX, bwY); else ctx.lineTo(bwX, bwY);
-    }
-    ctx.closePath();
+    macrophageBodyPath(R, state.time, seed, reach);
     ctx.fill();
-    ctx.strokeStyle = COLD; ctx.lineWidth = 1.6 * U; ctx.stroke();
-    // RECEPTORES DE SUPERFICIE — pequeños bumps en la membrana (TLR, Fc, CR3).
-    // Signature de la membrana del macrófago: muchos receptores sensando.
-    ctx.fillStyle = "rgba(120, 60, 20, 0.65)";
+    ctx.strokeStyle = COLD; ctx.lineWidth = Math.max(1.6, 2.0 * U); ctx.stroke();
+    // Receptores en los valles entre lóbulos (no tapan los dedos).
+    ctx.fillStyle = "rgba(120, 60, 20, 0.70)";
     ctx.strokeStyle = COLD;
     ctx.lineWidth = 0.9 * U;
-    for (var rc = 0; rc < 7; rc++) {
-      var rcA = (rc * Math.PI * 2 / 7) + state.time * 0.15 + seed;
-      var rcX = Math.cos(rcA) * R * 0.80;
-      var rcY = Math.sin(rcA) * R * 0.80;
+    for (var rc = 0; rc < 5; rc++) {
+      var rcA = (rc + 0.5) * Math.PI * 2 / 5 + seed * 0.15;
+      var rcR = macrophageLobeRadius(rcA, R, state.time, seed, reach) * 0.92;
       ctx.beginPath();
-      ctx.arc(rcX, rcY, R * 0.07, 0, Math.PI * 2);
+      ctx.arc(Math.cos(rcA) * rcR, Math.sin(rcA) * rcR, R * 0.08, 0, Math.PI * 2);
       ctx.fill();
       ctx.stroke();
     }
-    // NÚCLEO KIDNEY (forma de riñón) — signature del macrófago. Lóbulo
-    // grande con concavidad de un lado.
-    ctx.fillStyle = "rgba(110, 60, 140, 0.85)";
-    ctx.strokeStyle = "rgba(60, 30, 90, 0.85)";
-    ctx.lineWidth = 1.1 * U;
+    // Núcleo riñón, más grande y lateral para que se lea a escala de juego.
+    ctx.fillStyle = "rgba(110, 60, 140, 0.88)";
+    ctx.strokeStyle = "rgba(60, 30, 90, 0.90)";
+    ctx.lineWidth = 1.2 * U;
     ctx.beginPath();
-    var kNX = -R * 0.06, kNY = -R * 0.10;
-    var kR = R * 0.28;
-    ctx.moveTo(kNX + kR, kNY);
-    ctx.quadraticCurveTo(kNX + kR, kNY - kR * 1.1, kNX, kNY - kR * 0.9);
-    ctx.quadraticCurveTo(kNX - kR * 1.2, kNY - kR * 0.5, kNX - kR * 0.95, kNY + kR * 0.4);
-    ctx.quadraticCurveTo(kNX - kR * 0.4, kNY + kR * 0.95, kNX + kR * 0.4, kNY + kR * 0.85);
-    ctx.quadraticCurveTo(kNX + kR * 1.05, kNY + kR * 0.35, kNX + kR, kNY);
+    var kNX = -R * 0.18, kNY = -R * 0.04;
+    var kR = R * 0.38;
+    ctx.moveTo(kNX + kR * 0.85, kNY);
+    ctx.quadraticCurveTo(kNX + kR * 0.85, kNY - kR * 1.05, kNX, kNY - kR * 0.85);
+    ctx.quadraticCurveTo(kNX - kR * 1.15, kNY - kR * 0.35, kNX - kR * 0.90, kNY + kR * 0.45);
+    ctx.quadraticCurveTo(kNX - kR * 0.25, kNY + kR * 0.95, kNX + kR * 0.35, kNY + kR * 0.72);
+    ctx.quadraticCurveTo(kNX + kR * 0.95, kNY + kR * 0.22, kNX + kR * 0.85, kNY);
     ctx.closePath();
     ctx.fill();
     ctx.stroke();
-    // LISOSOMAS — pequeñas vesículas oscuras (orgánulos de digestión)
-    // signature del fagocito.
-    ctx.fillStyle = "rgba(70, 30, 100, 0.75)";
-    for (var ly = 0; ly < 5; ly++) {
+    ctx.fillStyle = "rgba(70, 30, 100, 0.78)";
+    for (var ly = 0; ly < 4; ly++) {
       var lyAng = ly * 1.7 + seed * 0.5 + state.time * 0.1;
-      var lyDist = R * (0.45 + (ly % 3) * 0.08);
+      var lyDist = R * (0.42 + (ly % 3) * 0.07);
       var lyX = Math.cos(lyAng) * lyDist;
-      var lyY = Math.sin(lyAng) * lyDist + R * 0.18;
-      // Skip si choca con el núcleo
-      if (Math.hypot(lyX - kNX, lyY - kNY) < kR + R * 0.10) continue;
+      var lyY = Math.sin(lyAng) * lyDist + R * 0.16;
+      if (Math.hypot(lyX - kNX, lyY - kNY) < kR + R * 0.08) continue;
       ctx.beginPath();
-      ctx.arc(lyX, lyY, R * 0.06, 0, Math.PI * 2);
+      ctx.arc(lyX, lyY, R * 0.07, 0, Math.PI * 2);
       ctx.fill();
     }
     // Sombra interna sutil (volumen)
@@ -12154,23 +12160,10 @@
       roundRect(v.x, v.y, v.w, v.h, Math.min(8, v.h * 0.28));
       ctx.stroke();
     }
-    // Mini macrófago en el centro
     ctx.globalAlpha = enabled ? 1 : 0.45;
     var cx = v.x + v.w / 2, cy = v.y + v.h * 0.42;
-    var mR = v.h * 0.18;
-    ctx.fillStyle = "#E8923A";
-    ctx.strokeStyle = "#A8581A";
-    ctx.lineWidth = 1.2;
-    ctx.beginPath(); ctx.arc(cx, cy, mR, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-    // 4 dedos
-    for (var f = 0; f < 4; f++) {
-      var fa = f * Math.PI / 2 + 0.4;
-      ctx.fillStyle = "#E8923A";
-      ctx.beginPath();
-      ctx.arc(cx + Math.cos(fa) * mR * 1.30, cy + Math.sin(fa) * mR * 1.30, mR * 0.32, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
-    }
+    var mR = v.h * 0.22;
+    drawMacrofagoMini(cx, cy, mR, state.time);
     // Costo abajo — gota ATP, no emoji.
     var costStr = String(MACROFAGO_MANUAL_COST);
     ctx.font = "bold " + Math.max(9, Math.min(11, v.h * 0.26)) + "px Fredoka, sans-serif";
@@ -12635,51 +12628,42 @@
 
   function drawComplementMeter() {
     var n = state.complement || 0;
-    if (n <= 0 && (!state.fragments || !state.fragments.length)) return;
-    // Usa UI.c3bMeter (fila inferior, a la derecha del medvial). Si no existe,
-    // fallback al sitio anterior para no romper layouts antiguos.
     var v = UI.c3bMeter;
     if (!v) {
       v = { x: FIELD_LEFT + 6, y: (UI.topicalVial ? UI.topicalVial.y + UI.topicalVial.h + 6 : FIELD_TOP + 6), w: 100, h: 22 };
     }
     var ready = n >= MAC_COST;
+    var pct = Math.max(0, Math.min(1, n / MAC_COST));
     ctx.save();
-    // Fondo (mismo tono base que medvial/topical, con tinte verde sutil del color del poder).
-    ctx.fillStyle = "rgba(20,8,12,0.55)";
-    ctx.fillRect(v.x, v.y, v.w, v.h);
-    ctx.fillStyle = "rgba(124,252,158,0.10)";
-    ctx.fillRect(v.x + 1, v.y + 1, v.w - 2, v.h - 2);
-    ctx.strokeStyle = ready ? "rgba(124,252,158,0.95)" : "rgba(255,255,255,0.45)";
-    ctx.lineWidth = ready ? 2 : 1;
-    ctx.strokeRect(v.x, v.y, v.w, v.h);
-    // Label "C3b"
-    ctx.textBaseline = "middle";
-    ctx.textAlign = "left";
-    ctx.fillStyle = "#aef7c4";
-    var label = ready ? "▸ C3b" : "C3b";
-    var pad = 7;
-    var c3bPx = Math.max(10, Math.min(14, Math.min(v.h * 0.40, v.w * 0.20)));
-    ctx.font = "bold " + fitFont(label, v.w * 0.42, c3bPx, 8) + "px Fredoka, sans-serif";
-    ctx.fillText(ellipsizeToWidth(label, v.w * 0.42), v.x + pad, v.y + v.h / 2);
-    var lw = ctx.measureText(label).width;
-    // Dots a la derecha del label, calculados para NUNCA salirse del rect.
-    var dotsStart = v.x + pad + lw + 6;
-    var dotsEnd = v.x + v.w - pad;
-    var dotsArea = Math.max(20, dotsEnd - dotsStart);
-    // Mínimo 1.5px de gap entre dots; el radio se calcula al revés para que
-    // todo entre en dotsArea (con un poco de aire al final).
-    var minGap = 1.5;
-    var maxRByArea = (dotsArea - (MAC_COST - 1) * minGap) / (MAC_COST * 2);
-    var dotR = Math.max(2.5, Math.min(4.5, maxRByArea));
-    var totalDotsW = MAC_COST * (dotR * 2);
-    var gapDots = Math.max(minGap, (dotsArea - totalDotsW) / Math.max(1, MAC_COST - 1));
-    for (var i = 0; i < MAC_COST; i++) {
-      var cx = dotsStart + dotR + i * (dotR * 2 + gapDots);
-      ctx.beginPath();
-      ctx.arc(cx, v.y + v.h / 2, dotR, 0, Math.PI * 2);
-      ctx.fillStyle = i < n ? "#7CFC9E" : "rgba(255,255,255,0.20)";
+    if (ready) {
+      var gp = 0.5 + 0.5 * Math.sin(state.time * 5);
+      ctx.shadowColor = "rgba(124,252,158,0.90)";
+      ctx.shadowBlur = 8 + 8 * gp;
+    }
+    drawSerumShell(v.x, v.y, v.w, v.h, ready);
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = "rgba(80, 200, 120, 0.10)";
+    roundRect(v.x + 1, v.y + 1, v.w - 2, v.h - 2, Math.min(7, v.h * 0.24));
+    ctx.fill();
+    if (pct > 0) {
+      ctx.fillStyle = ready ? "#7CFC9E" : "rgba(124, 252, 158, 0.58)";
+      roundRect(v.x + 2, v.y + 2, Math.max(4, (v.w - 4) * pct), v.h - 4, Math.min(6, v.h * 0.22));
       ctx.fill();
     }
+    var iconR = Math.max(5, Math.min(8, v.h * 0.28));
+    var ix = v.x + 6 + iconR;
+    drawC3bMark(ix, v.y + v.h / 2, iconR, ready);
+    var label = ready ? "▸ C3b LISTO" : ("C3b " + n + "/" + MAC_COST);
+    var textX = ix + iconR + 6;
+    var textMax = Math.max(20, v.x + v.w - 6 - textX);
+    ctx.textBaseline = "middle";
+    ctx.textAlign = "left";
+    ctx.fillStyle = ready
+      ? "rgba(20,40,18," + (0.90 + 0.10 * (0.5 + 0.5 * Math.sin(state.time * 6))) + ")"
+      : "#e8fff0";
+    var c3bPx = Math.max(10, Math.min(13, Math.min(v.h * 0.38, textMax * 0.22)));
+    ctx.font = "bold " + fitFont(label, textMax, c3bPx, 8) + "px Fredoka, sans-serif";
+    ctx.fillText(ellipsizeToWidth(label, textMax), textX, v.y + v.h / 2);
     ctx.restore();
   }
 
@@ -19668,46 +19652,26 @@
     var R = 20 * U * pulse;
     ctx.save();
     ctx.translate(x, y);
-    // Pseudópodos cortos + cuerpo ameboide (misma familia que drawGuardian).
-    ctx.fillStyle = t.def.color;
-    var bumps = 8;
-    for (var i = 0; i < bumps; i++) {
-      var a = i * Math.PI * 2 / bumps + state.time * 0.5;
-      var bx = Math.cos(a) * R * 0.95;
-      var by = Math.sin(a) * R * 0.95;
-      var br = R * (0.28 + Math.sin(state.time * 2 + i) * 0.06);
-      ctx.beginPath();
-      ctx.arc(bx, by, br, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    var grad = ctx.createRadialGradient(-R * 0.3, -R * 0.3, R * 0.2, 0, 0, R);
+    // Misma silueta de 5 lóbulos que drawGuardian.
+    var grad = ctx.createRadialGradient(-R * 0.3, -R * 0.3, R * 0.2, 0, 0, R * 1.05);
     grad.addColorStop(0, "#f7cf95");
-    grad.addColorStop(0.6, t.def.color);
+    grad.addColorStop(0.55, t.def.color);
     grad.addColorStop(1, t.def.colorDark);
     ctx.fillStyle = grad;
-    ctx.beginPath();
-    var nWavesM = 12;
-    for (var mw = 0; mw <= nWavesM; mw++) {
-      var mAng = (mw / nWavesM) * Math.PI * 2;
-      var mBump = 1 + Math.sin(mAng * 4 + state.time * 1.2) * 0.05;
-      var mR = R * 0.92 * mBump;
-      if (mw === 0) ctx.moveTo(Math.cos(mAng) * mR, Math.sin(mAng) * mR);
-      else ctx.lineTo(Math.cos(mAng) * mR, Math.sin(mAng) * mR);
-    }
-    ctx.closePath();
+    ctx.lineJoin = "round";
+    macrophageBodyPath(R, state.time, t.idlePhase || 0, 1);
     ctx.fill();
     ctx.strokeStyle = t.def.colorDark;
-    ctx.lineWidth = Math.max(1.2, 1.5 * U);
+    ctx.lineWidth = Math.max(1.4, 1.8 * U);
     ctx.stroke();
-    // Núcleo riñón detrás de la cara (no tapa los ojos).
-    ctx.fillStyle = "rgba(110, 60, 140, 0.62)";
-    ctx.strokeStyle = "rgba(60, 30, 90, 0.70)";
+    ctx.fillStyle = "rgba(110, 60, 140, 0.78)";
+    ctx.strokeStyle = "rgba(60, 30, 90, 0.80)";
     ctx.lineWidth = 1 * U;
     ctx.beginPath();
-    ctx.moveTo(-R * 0.22, R * 0.02);
-    ctx.quadraticCurveTo(-R * 0.38, -R * 0.18, -R * 0.10, -R * 0.22);
-    ctx.quadraticCurveTo(R * 0.12, -R * 0.08, R * 0.06, R * 0.16);
-    ctx.quadraticCurveTo(-R * 0.06, R * 0.28, -R * 0.22, R * 0.02);
+    ctx.moveTo(-R * 0.08, -R * 0.02);
+    ctx.quadraticCurveTo(-R * 0.42, -R * 0.28, -R * 0.22, -R * 0.32);
+    ctx.quadraticCurveTo(R * 0.06, -R * 0.12, R * 0.02, R * 0.22);
+    ctx.quadraticCurveTo(-R * 0.16, R * 0.32, -R * 0.08, -R * 0.02);
     ctx.closePath();
     ctx.fill();
     ctx.stroke();
@@ -31914,11 +31878,11 @@
     var pulse = (R / (18 * U)) * factor;
     ctx.save();
     if (!enabled) ctx.globalAlpha = 0.45;
-    // Clip al área del icon (radio R*1.5) para que decoraciones que
+    // Clip al área del icon (radio R*1.12) para que decoraciones que
     // sobresalen (dendritas, anticuerpos, aura) no contaminen cards
-    // vecinas.
+    // vecinas ni se salgan de la casilla.
     ctx.beginPath();
-    ctx.rect(cx - R * 1.5, cy - R * 1.5, R * 3, R * 3);
+    ctx.rect(cx - R * 1.12, cy - R * 1.12, R * 2.24, R * 2.24);
     ctx.clip();
     // Trasladamos para que el dibujo de torre arranque en (cx, cy).
     ctx.translate(cx, cy);
@@ -32582,7 +32546,7 @@
       var hintX = strip.x + strip.w / 2;
       var maxHintW = strip.w - 4;
       var pulseH = 0.5 + 0.5 * Math.sin(state.time * 2.5);
-      var linePx = fitFont("Y ELEGÍ TU", maxHintW, Math.floor(11 * U), 7);
+      var linePx = fitFont("ELEGÍ TU", maxHintW, Math.floor(11 * U), 7);
       var lineGap = linePx + 6;
       var iconPx = Math.floor(Math.min(28 * U, strip.h * 0.22));
       var bloqueH = iconPx + lineGap * 3 + 4;
@@ -32596,8 +32560,8 @@
       ctx.fillStyle = "#ffd24a";
       ctx.font = "bold " + linePx + "px Fredoka, sans-serif";
       var hy = hintY + iconPx * 0.6 + lineGap;
-      ctx.fillText(ellipsizeToWidth("PAUSÁ", maxHintW), hintX, hy);
-      ctx.fillText(ellipsizeToWidth("Y ELEGÍ TU", maxHintW), hintX, hy + lineGap);
+      ctx.fillText(ellipsizeToWidth("PAUSÁ Y", maxHintW), hintX, hy);
+      ctx.fillText(ellipsizeToWidth("ELEGÍ TU", maxHintW), hintX, hy + lineGap);
       ctx.fillText(ellipsizeToWidth("LOADOUT", maxHintW), hintX, hy + lineGap * 2);
       if (conDetalle) {
         ctx.fillStyle = "rgba(255,255,255,0.55)";
@@ -32701,7 +32665,12 @@
 
         var iconCy = cardY + nameBand + iconBand * 0.5;
         var iconR = Math.min(iconBand * 0.44, cw * 0.40) * (canAfford ? 1 : 0.6);
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(cardX + 3, cardY + nameBand, cw - 6, iconBand);
+        ctx.clip();
         drawTowerPreview(typeId, cardCenterX, iconCy, iconR, canAfford);
+        ctx.restore();
 
         var isComp = def.currency === "complement";
         ctx.fillStyle = canAfford ? (isComp ? "#7CFC9E" : "#f5d76e") : "#d9534f";
@@ -33161,7 +33130,7 @@
     ctx.save();
     // Clip al cuadrado de la fila del preview para que decoraciones (flagelos,
     // protrusiones, escudos extendidos) no salgan del marco del tooltip.
-    var clipR = R * 1.8;
+    var clipR = R * 1.25;
     ctx.beginPath();
     ctx.rect(cx - clipR, cy - clipR, clipR * 2, clipR * 2);
     ctx.clip();
@@ -33343,9 +33312,8 @@
           ctx.fillStyle = "#7CFC9E";
           ctx.beginPath(); ctx.arc(mx + dh * 0.28, my - dh * 0.05, dh * 0.07 * (1 - eatT), 0, Math.PI * 2); ctx.fill();
         }
-        // Macrófago REAL (drawGuardian: 11 pseudópodos, núcleo riñón,
-        // lisosomas, receptores de membrana) escalado para entrar en la
-        // mini-pantalla — nada de un círculo genérico.
+        // Macrófago REAL (5 lóbulos, núcleo riñón, lisosomas) escalado
+        // para entrar en la mini-pantalla — nada de un círculo genérico.
         var fakeG = {
           x: mx, y: my,
           scale: (dh * 0.20) / (24 * U),

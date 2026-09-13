@@ -35,6 +35,10 @@ assert.ok(src.includes("Copa fagocítica"), "el Arpón cierra en copa");
 assert.ok(src.includes("function drawAtpDrop"), "ATP usa gota canvas");
 assert.ok(src.includes("function drawSerumShell"), "HUD abajo es tira de suero");
 assert.ok(src.includes("function drawDexBookIcon"), "Dex usa libro canvas");
+assert.ok(src.includes("function macrophageBodyPath"), "macrófago usa silueta de lóbulos");
+assert.ok(src.includes("function drawC3bMark"), "C3b tiene marca de complemento");
+assert.ok(src.includes("C3b LISTO"), "C3b listo se lee en el medidor");
+assert.ok(src.includes("detailBottom"), "el Dex recorta el texto a la casilla");
 
 const game = createTestGame();
 const g = game.__game;

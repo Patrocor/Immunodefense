@@ -11629,9 +11629,9 @@
 
   // Habichuela + 4 seudópodos en cápsula. Los dedos se pintan aparte:
   // si se interpolan en un solo path, a escala de juego se leen como papa.
-  var MACRO_LOBE_ANG = [0.38, 1.72, 3.42, 5.18];
-  var MACRO_LOBE_W = [0.36, 0.30, 0.38, 0.28];
-  var MACRO_LOBE_LEN = [0.92, 0.76, 0.86, 0.72];
+  var MACRO_LOBE_ANG = [0.38, 1.95, 3.42, 5.18];
+  var MACRO_LOBE_W = [0.36, 0.34, 0.38, 0.28];
+  var MACRO_LOBE_LEN = [0.92, 0.86, 0.86, 0.72];
   function macrophageLobeTip(i, time, seed) {
     return MACRO_LOBE_ANG[i] + seed * 0.10 + Math.sin(time * 0.7 + i * 1.3) * 0.05;
   }
@@ -11724,7 +11724,7 @@
     ctx.strokeStyle = "rgba(50, 24, 80, 0.92)";
     ctx.lineWidth = Math.max(1, R * 0.04);
     ctx.beginPath();
-    var kNX = -R * 0.08, kNY = 0.02 * R, kR = R * 0.24;
+    var kNX = -R * 0.16, kNY = 0.04 * R, kR = R * 0.22;
     ctx.moveTo(kNX + kR * 0.70, kNY - kR * 0.15);
     ctx.quadraticCurveTo(kNX + kR * 0.15, kNY - kR * 1.05, kNX - kR * 0.55, kNY - kR * 0.55);
     ctx.quadraticCurveTo(kNX - kR * 1.05, kNY + kR * 0.15, kNX - kR * 0.45, kNY + kR * 0.75);

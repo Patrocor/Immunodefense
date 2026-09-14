@@ -30,7 +30,7 @@ await page.evaluate(() => {
   st.germIntroQueue = [];
   st.towers = [];
   st.effects = [];
-  st.f2.atheromas.forEach((a) => { a.excavated = 0.18; a.mineT = 1.2; });
+  st.f2.atheromas.forEach((a, i) => { a.excavated = 0.12; a.mineT = 0.52 + i * 0.4; });
   const def = window.ImmunoDefenseData.enemyDefs;
   function germ(typeId, frac, lane) {
     const d = def[typeId];
@@ -47,8 +47,6 @@ await page.evaluate(() => {
   st.enemies = [
     germ("viridans", 0.78, 2),
     germ("enterococo", 0.74, 1),
-    germ("viridans", 0.34, 1),
-    germ("viridans", 0.48, 3),
   ];
   const F = g.metrics.FIELD;
   st.dsScrollY = Math.max(0, F.h * ((st.f2.cfg.stretchY || 1) - 1));
@@ -83,10 +81,27 @@ await page.evaluate(() => {
   const g = window.__game;
   const st = g.state;
   const F = g.metrics.FIELD;
+  const def = window.ImmunoDefenseData.enemyDefs;
+  function germ(typeId, frac, lane) {
+    const d = def[typeId];
+    const tot = g.pathLen(lane);
+    const p = g.pathPos(tot * frac, lane);
+    return {
+      def: d, state: "walking", enteringTimer: 0, heridaIdx: lane,
+      progress: tot * frac, progAtLastBeat: tot * frac,
+      x: p.x, y: p.y, hp: d.hp, maxHp: d.hp,
+      hitFlash: 0, dying: false, dead: false, absorbing: false,
+      wobble: 0, radiusScale: 1.25,
+    };
+  }
   st.f2.pulseT = 1.4;
   st.f2.inSystole = false;
   st.f2.valveSlap = 0;
-  st.dsScrollY = F.h * 0.28;
+  st.enemies = [
+    germ("viridans", 0.24, 1),
+    germ("viridans", 0.38, 3),
+  ];
+  st.dsScrollY = F.h * 0.22;
   g.hold(false);
   g.step(0.04, 0.02);
   g.hold(true);
@@ -124,10 +139,10 @@ const minersClip = await page.evaluate(() => {
   const sx = (x) => rect.left + (x / g.metrics.VW) * rect.width;
   const sy = (y) => rect.top + ((y - (st.dsScrollY || 0)) / g.metrics.VH) * rect.height;
   return {
-    x: Math.max(0, Math.round(sx(p.x) - 150)),
-    y: Math.max(0, Math.round(sy(p.y) - 130)),
-    width: 300,
-    height: 250,
+    x: Math.max(0, Math.round(sx(p.x) - 180)),
+    y: Math.max(0, Math.round(sy(p.y) - 160)),
+    width: 360,
+    height: 300,
   };
 });
 await page.screenshot({ path: join(ART, "organ_endocarditis_miners_clip.png"), clip: minersClip });

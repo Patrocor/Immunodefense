@@ -34642,6 +34642,9 @@
       var ej = state.enemies[j];
       if (!ej.absorbing) safeDraw("Enemy:" + (ej.def && ej.def.id), function () { drawEnemy(ej); });
     }
+    if (state.f2 && state.f2.cfg && state.f2.cfg.key === "endocarditis") {
+      safeDraw("EndocarditisLiving", drawEndocarditisLivingOverlay);
+    }
     // drawVessel canvas (con label "TORRENTE") solo si el bg pictórico NO
     // está cargado. Cuando el PNG está, el vaso ya viene pintado y el
     // overlay canvas duplicaba/desalineaba.
@@ -35645,13 +35648,39 @@
 
   function drawEndocarditisLiving() {
     var f = state.f2; if (!f) return;
+    var list = f.atheromas || [];
+    for (var i = 0; i < list.length; i++) drawAtheromaPlaque(list[i]);
+  }
+
+  function drawEndocarditisLivingOverlay() {
+    var f = state.f2; if (!f) return;
     var slap = f.valveSlap || 0;
     var sist = f.inSystole ? 1 : 0;
     var charge = f.pulseCharge || 0;
-    var close = Math.max(0.14, sist, slap, charge * 0.9);
+    var close = Math.max(0.16, sist, slap, charge * 0.9);
     drawValveLeafletSweep(close, slap);
     var list = f.atheromas || [];
-    for (var i = 0; i < list.length; i++) drawAtheromaAndMine(list[i]);
+    for (var i = 0; i < list.length; i++) drawAtheromaMine(list[i]);
+  }
+
+  function atheromaGeom(ath) {
+    var tot = PATH.totalForBranch[ath.lane] || PATH.total || 1;
+    var apex = pathPos(ath.atFrac * tot, ath.lane);
+    var a = apex.angle || 0;
+    var nx = -Math.sin(a), ny = Math.cos(a);
+    var dug = ath.excavated || 0;
+    var remain = Math.max(0, 1 - dug);
+    var bulge = (ath.bulge || 30) * remain;
+    var side = ath.side || 1;
+    var mouth = pathPos(Math.max(0.02, ath.atFrac - ath.half * 0.72) * tot, ath.lane);
+    return {
+      tot: tot, apex: apex, a: a, nx: nx, ny: ny, dug: dug, remain: remain,
+      bulge: bulge, side: side,
+      cx: apex.x + nx * side * (22 + bulge * 0.42) * U,
+      cy: apex.y + ny * side * (22 + bulge * 0.42) * U,
+      mx: mouth.x + nx * side * 28 * U,
+      my: mouth.y + ny * side * 28 * U
+    };
   }
 
   // Velos vivos en el tercio distal: se cierran en sístole y manotean
@@ -35661,119 +35690,121 @@
     ctx.save();
     for (var lane = 0; lane < PATH.branches.length; lane++) {
       var tot = PATH.totalForBranch[lane] || PATH.total || 1;
-      var L0 = tot * 0.70, L1 = tot * 0.96;
+      var L0 = tot * 0.68, L1 = tot * 0.96;
       var mid = pathPos(L0 + (L1 - L0) * 0.55, lane);
-      var a = mid.a || mid.angle || 0;
+      var a = mid.angle || 0;
       var nx = -Math.sin(a), ny = Math.cos(a);
-      var spanOpen = 28 * U;
-      var spanShut = 6 * U;
+      var spanOpen = 34 * U;
+      var spanShut = 5 * U;
       var span = spanOpen + (spanShut - spanOpen) * close;
-      ctx.globalAlpha = 0.38 + close * 0.42 + slap * 0.12;
+      var thick = (18 + close * 8) * U;
+      ctx.globalAlpha = 0.52 + close * 0.38 + slap * 0.10;
       for (var side = -1; side <= 1; side += 2) {
         var hinge = pathPos(L1, lane);
         var tip = pathPos(L0, lane);
-        var hx = hinge.x + nx * side * 7 * U;
-        var hy = hinge.y + ny * side * 7 * U;
+        var hx = hinge.x + nx * side * 8 * U;
+        var hy = hinge.y + ny * side * 8 * U;
         var tx = tip.x + nx * side * span;
         var ty = tip.y + ny * side * span;
-        var belly = (14 + close * 16 + slap * 8) * U;
+        var belly = (18 + close * 20 + slap * 10) * U;
         var c1x = (hx + tx) * 0.5 + nx * side * belly;
         var c1y = (hy + ty) * 0.5 + ny * side * belly;
         ctx.beginPath();
         ctx.moveTo(hx, hy);
         ctx.quadraticCurveTo(c1x, c1y, tx, ty);
-        ctx.lineTo(tx - nx * side * 9 * U, ty - ny * side * 9 * U);
+        ctx.lineTo(tx - nx * side * thick, ty - ny * side * thick);
         ctx.quadraticCurveTo(
-          c1x - nx * side * 7 * U, c1y - ny * side * 7 * U,
-          hx - nx * side * 3 * U, hy - ny * side * 3 * U
+          c1x - nx * side * thick * 0.7, c1y - ny * side * thick * 0.7,
+          hx - nx * side * 5 * U, hy - ny * side * 5 * U
         );
         ctx.closePath();
-        ctx.fillStyle = side < 0 ? "rgba(255, 214, 176, 0.90)" : "rgba(232, 176, 142, 0.88)";
+        ctx.fillStyle = side < 0 ? "rgba(255, 214, 176, 0.94)" : "rgba(232, 168, 132, 0.92)";
         ctx.fill();
-        ctx.strokeStyle = "rgba(88, 36, 28, 0.55)";
-        ctx.lineWidth = 1.4;
+        ctx.strokeStyle = "rgba(88, 36, 28, 0.62)";
+        ctx.lineWidth = 2.1;
         ctx.stroke();
         ctx.beginPath();
         ctx.moveTo(tx, ty);
-        ctx.lineTo(tx + nx * side * 16 * U, ty + ny * side * 16 * U + 8 * U);
-        ctx.strokeStyle = "rgba(196, 132, 108, 0.72)";
-        ctx.lineWidth = 1.6;
+        ctx.lineTo(tx + nx * side * 20 * U, ty + ny * side * 20 * U + 10 * U);
+        ctx.strokeStyle = "rgba(196, 132, 108, 0.78)";
+        ctx.lineWidth = 2.2;
         ctx.stroke();
       }
     }
     ctx.restore();
   }
 
-  function drawAtheromaAndMine(ath) {
-    var tot = PATH.totalForBranch[ath.lane] || PATH.total || 1;
-    var apex = pathPos(ath.atFrac * tot, ath.lane);
-    var a = apex.a || apex.angle || 0;
-    var nx = -Math.sin(a), ny = Math.cos(a);
-    var dug = ath.excavated || 0;
-    if (dug >= 0.98) return;
-    var remain = 1 - dug;
-    var bulge = ath.bulge * remain;
-    var side = ath.side || 1;
-    var cx = apex.x + nx * side * (18 + bulge * 0.35) * U;
-    var cy = apex.y + ny * side * (18 + bulge * 0.35) * U;
-    var rx = (22 + bulge * 0.55) * U;
-    var ry = (16 + bulge * 0.28) * U;
+  function drawAtheromaPlaque(ath) {
+    var g = atheromaGeom(ath);
+    if (g.dug >= 0.98) return;
+    var rx = (28 + g.bulge * 0.62) * U;
+    var ry = (20 + g.bulge * 0.34) * U;
     ctx.save();
-    ctx.translate(cx, cy);
-    ctx.rotate(a + (side > 0 ? 0.35 : -0.35));
-    ctx.globalAlpha = 0.55 + remain * 0.4;
-    var g = ctx.createRadialGradient(-rx * 0.2, -ry * 0.3, ry * 0.1, 0, 0, rx);
-    g.addColorStop(0, "#F4E0B8");
-    g.addColorStop(0.45, "#C9A06A");
-    g.addColorStop(0.82, "#8B5A3C");
-    g.addColorStop(1, "rgba(72, 36, 24, 0.0)");
-    ctx.fillStyle = g;
+    ctx.translate(g.cx, g.cy);
+    ctx.rotate(g.a + (g.side > 0 ? 0.32 : -0.32));
+    ctx.globalAlpha = 0.72 + g.remain * 0.26;
+    var grad = ctx.createRadialGradient(-rx * 0.2, -ry * 0.3, ry * 0.12, 0, 0, rx);
+    grad.addColorStop(0, "#F8E8C0");
+    grad.addColorStop(0.4, "#D4A060");
+    grad.addColorStop(0.78, "#8B4A28");
+    grad.addColorStop(1, "rgba(72, 36, 24, 0.0)");
+    ctx.fillStyle = grad;
     ctx.beginPath();
     ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
     ctx.fill();
-    ctx.fillStyle = "rgba(232, 220, 196, 0.55)";
+    ctx.fillStyle = "rgba(244, 232, 208, 0.72)";
     ctx.beginPath();
-    ctx.ellipse(-rx * 0.15, -ry * 0.1, rx * 0.42, ry * 0.28, 0.4, 0, Math.PI * 2);
+    ctx.ellipse(-rx * 0.12, -ry * 0.12, rx * 0.46, ry * 0.32, 0.35, 0, Math.PI * 2);
     ctx.fill();
-    ctx.restore();
-
-    var mouth = pathPos(Math.max(0.02, ath.atFrac - ath.half * 0.72) * tot, ath.lane);
-    var mx = mouth.x + nx * side * 22 * U;
-    var my = mouth.y + ny * side * 22 * U;
-    ctx.save();
-    ctx.globalAlpha = 0.88;
-    // Boca de mina: marco fibroso + túnel oscuro.
-    ctx.strokeStyle = "#6B3A22";
-    ctx.lineWidth = 2.4 * U;
+    ctx.strokeStyle = "rgba(92, 44, 24, 0.45)";
+    ctx.lineWidth = 1.8;
     ctx.beginPath();
-    ctx.moveTo(mx - 8 * U, my + 9 * U);
-    ctx.lineTo(mx, my - 10 * U);
-    ctx.lineTo(mx + 8 * U, my + 9 * U);
+    ctx.ellipse(0, 0, rx * 0.92, ry * 0.92, 0, 0, Math.PI * 2);
     ctx.stroke();
-    ctx.fillStyle = "#4A2A18";
+    ctx.restore();
+  }
+
+  function drawAtheromaMine(ath) {
+    var g = atheromaGeom(ath);
+    if (g.dug >= 0.98) return;
+    var mx = g.mx, my = g.my, a = g.a;
+    ctx.save();
+    ctx.globalAlpha = 0.95;
+    ctx.strokeStyle = "#5A2E16";
+    ctx.lineWidth = 3.4 * U;
+    ctx.lineJoin = "round";
     ctx.beginPath();
-    ctx.ellipse(mx, my, 9 * U, 7 * U, a, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = "#1A0C08";
+    ctx.moveTo(mx - 14 * U, my + 14 * U);
+    ctx.lineTo(mx, my - 16 * U);
+    ctx.lineTo(mx + 14 * U, my + 14 * U);
+    ctx.stroke();
+    ctx.fillStyle = "#3D2416";
     ctx.beginPath();
-    ctx.ellipse(mx + Math.cos(a) * 2 * U, my + Math.sin(a) * 2 * U, 5.2 * U, 3.8 * U, a, 0, Math.PI * 2);
+    ctx.ellipse(mx, my + 2 * U, 13 * U, 10 * U, a, 0, Math.PI * 2);
     ctx.fill();
-    var cartX = mx - Math.cos(a) * 16 * U + nx * side * 6 * U;
-    var cartY = my - Math.sin(a) * 16 * U + ny * side * 6 * U;
+    ctx.fillStyle = "#120806";
+    ctx.beginPath();
+    ctx.ellipse(mx + Math.cos(a) * 3 * U, my + Math.sin(a) * 3 * U, 8 * U, 5.6 * U, a, 0, Math.PI * 2);
+    ctx.fill();
+    var cartX = mx - Math.cos(a) * 22 * U + g.nx * g.side * 10 * U;
+    var cartY = my - Math.sin(a) * 22 * U + g.ny * g.side * 10 * U;
     ctx.fillStyle = "#6B3A22";
     ctx.beginPath();
-    ctx.moveTo(cartX - 7 * U, cartY + 3 * U);
-    ctx.lineTo(cartX + 7 * U, cartY + 2 * U);
-    ctx.lineTo(cartX + 5 * U, cartY - 5 * U);
-    ctx.lineTo(cartX - 5 * U, cartY - 4 * U);
+    ctx.moveTo(cartX - 11 * U, cartY + 5 * U);
+    ctx.lineTo(cartX + 11 * U, cartY + 4 * U);
+    ctx.lineTo(cartX + 8 * U, cartY - 8 * U);
+    ctx.lineTo(cartX - 8 * U, cartY - 7 * U);
     ctx.closePath();
     ctx.fill();
+    ctx.fillStyle = "#2A1810";
+    ctx.beginPath(); ctx.arc(cartX - 6 * U, cartY + 7 * U, 3.2 * U, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(cartX + 6 * U, cartY + 7 * U, 3.2 * U, 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = "#E8C888";
     ctx.beginPath();
-    ctx.arc(cartX - 1 * U, cartY - 6 * U, 3.2 * U, 0, Math.PI * 2);
+    ctx.arc(cartX, cartY - 10 * U, 5 * U, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
-    drawFoamMiners(ath, mx, my, a, nx, ny, side);
+    drawFoamMiners(ath, mx, my, a, g.nx, g.ny, g.side);
   }
 
   function drawFoamMiners(ath, mx, my, a, nx, ny, side) {
@@ -35782,36 +35813,39 @@
     for (var i = 0; i < n; i++) {
       var phase = t + i * 1.7;
       var peck = Math.max(0, Math.sin(phase * 3.1));
-      var along = (i - (n - 1) * 0.5) * 11 * U;
-      var px = mx - Math.cos(a) * (10 * U + along * 0.15) + nx * side * (4 + i * 5) * U;
-      var py = my - Math.sin(a) * (10 * U + along * 0.15) + ny * side * (4 + i * 5) * U;
-      px += Math.cos(a) * peck * 3.5 * U;
-      py += Math.sin(a) * peck * 3.5 * U;
+      var along = (i - (n - 1) * 0.5) * 16 * U;
+      var px = mx - Math.cos(a) * (14 * U + along * 0.2) + nx * side * (6 + i * 8) * U;
+      var py = my - Math.sin(a) * (14 * U + along * 0.2) + ny * side * (6 + i * 8) * U;
+      px += Math.cos(a) * peck * 5 * U;
+      py += Math.sin(a) * peck * 5 * U;
       ctx.save();
       ctx.translate(px, py);
-      ctx.fillStyle = "rgba(255, 232, 196, 0.95)";
+      ctx.fillStyle = "rgba(255, 236, 204, 0.98)";
       ctx.beginPath();
-      ctx.ellipse(0, 0, 7.2 * U, 5.6 * U, a * 0.3, 0, Math.PI * 2);
+      ctx.ellipse(0, 0, 13 * U, 10.5 * U, a * 0.25, 0, Math.PI * 2);
       ctx.fill();
-      ctx.strokeStyle = "rgba(140, 80, 48, 0.55)";
-      ctx.lineWidth = 1.2;
+      ctx.strokeStyle = "rgba(140, 80, 48, 0.7)";
+      ctx.lineWidth = 1.8;
       ctx.stroke();
-      ctx.fillStyle = "rgba(232, 176, 96, 0.7)";
-      ctx.beginPath(); ctx.arc(-2 * U, -1 * U, 1.8 * U, 0, Math.PI * 2); ctx.fill();
-      ctx.beginPath(); ctx.arc(2.2 * U, 0.6 * U, 1.4 * U, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = "rgba(255, 252, 240, 0.95)";
+      ctx.beginPath(); ctx.arc(-4.2 * U, -2.2 * U, 3.4 * U, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(4.4 * U, -1.6 * U, 3.1 * U, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = "#3A2014";
+      ctx.beginPath(); ctx.arc(-4.2 * U, -2.0 * U, 1.35 * U, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(4.4 * U, -1.4 * U, 1.25 * U, 0, Math.PI * 2); ctx.fill();
       ctx.fillStyle = "#C45A6A";
-      ctx.beginPath(); ctx.arc(0.4 * U, 0.8 * U, 1.7 * U, 0, Math.PI * 2); ctx.fill();
-      var glow = 0.45 + peck * 0.5;
-      ctx.fillStyle = "rgba(255, 220, 80, " + glow.toFixed(2) + ")";
+      ctx.beginPath(); ctx.arc(0.6 * U, 3.2 * U, 2.6 * U, 0, Math.PI * 2); ctx.fill();
+      var glow = 0.55 + peck * 0.45;
+      ctx.fillStyle = "rgba(255, 220, 70, " + glow.toFixed(2) + ")";
       ctx.beginPath();
-      ctx.arc(Math.cos(a) * 6.5 * U, Math.sin(a) * 6.5 * U, 2.1 * U, 0, Math.PI * 2);
+      ctx.arc(Math.cos(a) * 11 * U, Math.sin(a) * 11 * U - 8 * U, 3.6 * U, 0, Math.PI * 2);
       ctx.fill();
-      ctx.strokeStyle = "rgba(200, 140, 80, 0.8)";
-      ctx.lineWidth = 1.6;
+      ctx.strokeStyle = "rgba(200, 140, 80, 0.9)";
+      ctx.lineWidth = 2.4;
       ctx.lineCap = "round";
       ctx.beginPath();
-      ctx.moveTo(Math.cos(a) * 6 * U, Math.sin(a) * 6 * U);
-      ctx.lineTo(Math.cos(a) * (10 + peck * 4) * U, Math.sin(a) * (10 + peck * 4) * U);
+      ctx.moveTo(Math.cos(a) * 9 * U, Math.sin(a) * 9 * U);
+      ctx.lineTo(Math.cos(a) * (16 + peck * 6) * U, Math.sin(a) * (16 + peck * 6) * U);
       ctx.stroke();
       ctx.restore();
     }

@@ -35777,10 +35777,10 @@
       d = Math.abs(t - ath.atFrac);
       k = d >= g.half ? 0 : Math.cos((d / g.half) * Math.PI * 0.5);
       k = k * k;
-      lump = (atheromaNoise(g.seed, i) - 0.42) * 11;
-      var taper = Math.sin(u * Math.PI);
-      outerR = (7 + g.bulge * k * 0.95 + lump) * taper * g.remain * U;
-      innerR = (4.5 + (atheromaNoise(g.seed, i + 20) - 0.5) * 3.5) * U;
+      lump = (atheromaNoise(g.seed, i) - 0.38) * 18;
+      var taper = 0.38 + 0.62 * Math.sin(u * Math.PI);
+      outerR = (6 + g.bulge * k * 0.9 + lump) * taper * g.remain * U;
+      innerR = (3.2 + (atheromaNoise(g.seed, i + 20) - 0.5) * 5.5) * U;
       outer.push({
         x: p.x + nx * g.side * (8 * U + outerR),
         y: p.y + ny * g.side * (8 * U + outerR)
@@ -35799,11 +35799,22 @@
     ctx.closePath();
     ctx.fillStyle = "#C4A878";
     ctx.fill();
-    ctx.strokeStyle = "rgba(90, 58, 32, 0.55)";
-    ctx.lineWidth = 1.6;
+    ctx.strokeStyle = "rgba(90, 58, 32, 0.62)";
+    ctx.lineWidth = 1.4;
     ctx.lineJoin = "round";
     ctx.stroke();
-    // Capas sucias y calcáreas: no un óvalo, costras encima.
+    // Grumos que rompen el contorno: sarro, no cinta.
+    ctx.fillStyle = "#B89868";
+    for (i = 1; i < n - 1; i++) {
+      if (atheromaNoise(g.seed, i + 3) < 0.34) continue;
+      fillAmorphBlob(
+        outer[i].x, outer[i].y,
+        (5 + atheromaNoise(g.seed, i + 5) * 8) * U,
+        (3.5 + atheromaNoise(g.seed, i + 6) * 6) * U,
+        i * 0.9, g.seed + i * 5, 8
+      );
+    }
+    // Capas sucias y calcáreas.
     ctx.fillStyle = "#A88858";
     for (i = 1; i < n - 1; i += QUALITY.low ? 3 : 2) {
       if (atheromaNoise(g.seed, i + 40) < 0.28) continue;

@@ -80,6 +80,20 @@ await page.screenshot({ path: join(ART, "organ_endocarditis_valve_clip.png"), cl
 await page.evaluate(() => {
   const g = window.__game;
   const st = g.state;
+  st.f2.pulseT = 1.35;
+  st.f2.inSystole = false;
+  st.f2.valveSlap = 0;
+  g.hold(false);
+  g.step(0.04, 0.02);
+  g.hold(true);
+});
+await sleep(80);
+await page.screenshot({ path: join(ART, "organ_endocarditis_valve_open.png") });
+await page.screenshot({ path: join(ART, "organ_endocarditis_valve_open_clip.png"), clip: valveClip });
+
+await page.evaluate(() => {
+  const g = window.__game;
+  const st = g.state;
   const F = g.metrics.FIELD;
   const def = window.ImmunoDefenseData.enemyDefs;
   function germ(typeId, frac, lane) {

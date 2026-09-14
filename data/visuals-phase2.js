@@ -15,7 +15,7 @@
         tick: "rgba(255, 214, 222, 0.55)"
       },
       entry: "auricula",
-      focus: "velo",
+      focus: "plato",
       hudAccent: true,
       ambient: "camara-mitral"
     }

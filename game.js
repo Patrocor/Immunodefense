@@ -35534,12 +35534,6 @@
       var w = PATH.wounds[k];
       var d = PATH.organDoors[k];
       drawF2Entry(w.x, w.y, cfg);
-      ctx.save();
-      ctx.font = "bold " + Math.floor(10 * U) + "px Fredoka, sans-serif";
-      ctx.fillStyle = colorAlpha(cfg.colorLight, 0.92);
-      ctx.textAlign = "center"; ctx.textBaseline = "top";
-      ctx.fillText(cfg.foci[k] || "", w.x, w.y + 18 * U);
-      ctx.restore();
       drawF2Focus(d.x, d.y, cfg, f.focusFlash[k] || 0, k);
     }
     if (cfg.key === "endocarditis") drawEndocarditisLiving();
@@ -35585,76 +35579,6 @@
     ctx.beginPath();
     ctx.ellipse(0, 0, rx * 0.78, ry * 0.86, 0, 0, Math.PI * 2);
     ctx.stroke();
-    ctx.restore();
-  }
-
-  function drawF2FocusVelo(x, y, cfg, flash, idx) {
-    var r = 28 * U;
-    var kind = (idx === 2) ? "cuerda" : ((idx === 1 || idx === 3) ? "comisura" : "velo");
-    var fl = Math.min(1, (flash || 0) / 0.6);
-    ctx.save();
-    ctx.translate(x, y);
-    if (kind === "velo") {
-      ctx.beginPath();
-      ctx.moveTo(-r * 0.95, -r * 0.32);
-      ctx.quadraticCurveTo(0, r * 1.08, r * 0.95, -r * 0.32);
-      ctx.quadraticCurveTo(0, -r * 0.12, -r * 0.95, -r * 0.32);
-      ctx.closePath();
-      ctx.fillStyle = colorAlpha(cfg.colorDark, 0.94);
-      ctx.fill();
-      ctx.strokeStyle = colorAlpha(cfg.colorLight, 0.48 + fl * 0.47);
-      ctx.lineWidth = 2;
-      ctx.stroke();
-      ctx.fillStyle = colorAlpha("#000000", 0.52);
-      ctx.beginPath();
-      ctx.ellipse(0, r * 0.14, r * 0.40, r * 0.15, 0, 0, Math.PI * 2);
-      ctx.fill();
-      if (fl > 0) {
-        ctx.fillStyle = colorAlpha(cfg.colorLight, 0.32 * fl);
-        ctx.beginPath();
-        ctx.ellipse(0, r * 0.14, r * 0.40, r * 0.15, 0, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    } else if (kind === "comisura") {
-      ctx.beginPath();
-      ctx.moveTo(-r * 0.85, -r * 0.42);
-      ctx.lineTo(0, r * 0.72);
-      ctx.lineTo(r * 0.85, -r * 0.42);
-      ctx.quadraticCurveTo(0, -r * 0.08, -r * 0.85, -r * 0.42);
-      ctx.closePath();
-      ctx.fillStyle = colorAlpha(cfg.colorDark, 0.94);
-      ctx.fill();
-      ctx.strokeStyle = colorAlpha(cfg.colorLight, 0.48 + fl * 0.47);
-      ctx.lineWidth = 2;
-      ctx.stroke();
-      ctx.fillStyle = colorAlpha("#000000", 0.52);
-      ctx.beginPath();
-      ctx.moveTo(-r * 0.22, -r * 0.08);
-      ctx.lineTo(0, r * 0.38);
-      ctx.lineTo(r * 0.22, -r * 0.08);
-      ctx.closePath();
-      ctx.fill();
-    } else {
-      ctx.strokeStyle = colorAlpha(cfg.colorLight, 0.55 + fl * 0.40);
-      ctx.lineWidth = 3.2 * U;
-      ctx.beginPath();
-      ctx.arc(0, 0, r * 0.62, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.fillStyle = colorAlpha(cfg.colorDark, 0.90);
-      ctx.beginPath();
-      ctx.arc(0, 0, r * 0.38, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = colorAlpha("#000000", 0.45);
-      ctx.lineWidth = 1.4 * U;
-      ctx.beginPath();
-      ctx.moveTo(0, -r * 0.72);
-      ctx.lineTo(0, r * 0.72);
-      ctx.stroke();
-      ctx.fillStyle = colorAlpha("#000000", 0.50);
-      ctx.beginPath();
-      ctx.arc(0, 0, r * 0.16, 0, Math.PI * 2);
-      ctx.fill();
-    }
     ctx.restore();
   }
 
@@ -36027,15 +35951,10 @@
 
   // Foco del órgano: la estructura al final de cada carril. Recibe el impacto.
   function drawF2Focus(x, y, cfg, flash, idx) {
-    var kit = organKit(cfg);
-    if (kit && kit.focus === "velo") {
-      drawF2FocusVelo(x, y, cfg, flash, idx);
-      return;
-    }
     var r = 22 * U;
     ctx.save();
     ctx.translate(x, y);
-    // Plato receptor (plano, radio 4 — convención visual del juego).
+    // Misma casilla que Fase 1: plato receptor, radio 4. No globo de diálogo.
     ctx.fillStyle = colorAlpha(cfg.colorDark, 0.95);
     roundRect(-r, -r * 0.55, r * 2, r * 1.1, 4 * U);
     ctx.fill();
@@ -36043,7 +35962,6 @@
     ctx.lineWidth = 2;
     roundRect(-r, -r * 0.55, r * 2, r * 1.1, 4 * U);
     ctx.stroke();
-    // Boca del foco (por donde entra el germen).
     ctx.fillStyle = colorAlpha("#000000", 0.55);
     roundRect(-r * 0.6, -r * 0.28, r * 1.2, r * 0.56, 4 * U);
     ctx.fill();
@@ -36051,6 +35969,36 @@
       ctx.fillStyle = colorAlpha(cfg.colorLight, 0.35 * Math.min(1, flash / 0.6));
       roundRect(-r * 0.6, -r * 0.28, r * 1.2, r * 0.56, 4 * U);
       ctx.fill();
+    }
+    ctx.restore();
+    // Nombre sobre el plato (no debajo: eso lee como globo con pie, y se
+    // recorta en el borde inferior de la valva). Solo el kit de endocarditis
+    // etiqueta acá; el resto de órganos sigue rotulando la entrada.
+    if (!organKit(cfg)) return;
+    var label = (cfg.foci && cfg.foci[idx]) || "";
+    if (!label) return;
+    var maxW = r * 2.05;
+    var px = Math.max(8, Math.floor(8 * U));
+    ctx.save();
+    ctx.font = "bold " + px + "px Fredoka, sans-serif";
+    var lines = wrapTextLines(label, maxW);
+    if (lines.length > 2) {
+      lines = [lines[0], ellipsizeToWidth(lines.slice(1).join(" "), maxW)];
+    }
+    var i;
+    for (i = 0; i < lines.length; i++) lines[i] = ellipsizeToWidth(lines[i], maxW);
+    ctx.textAlign = "center";
+    ctx.textBaseline = "bottom";
+    var lineH = px + 2;
+    var ly = y - r * 0.62;
+    ctx.strokeStyle = "rgba(12, 6, 10, 0.88)";
+    ctx.lineWidth = Math.max(2.5, 3 * U);
+    ctx.lineJoin = "round";
+    ctx.fillStyle = colorAlpha(cfg.colorLight, 0.95);
+    for (i = 0; i < lines.length; i++) {
+      var ty = ly - (lines.length - 1 - i) * lineH;
+      ctx.strokeText(lines[i], x, ty);
+      ctx.fillText(lines[i], x, ty);
     }
     ctx.restore();
   }
@@ -36745,13 +36693,14 @@
     }
     ctx.stroke();
     ctx.restore();
-    // Etiqueta debajo.
     ctx.save();
-    ctx.font = "bold " + Math.floor(10 * U) + "px Fredoka, sans-serif";
+    var pName = ready ? cfg.basePowerName : (cfg.baseShort + " · " + Math.ceil(f.baseCd) + "s");
+    var pMax = Math.max(72 * U, r * 4.2);
+    var pPx = fitFont(pName, pMax, Math.floor(10 * U), 7);
+    ctx.font = "bold " + pPx + "px Fredoka, sans-serif";
     ctx.fillStyle = colorAlpha(ready ? cfg.colorLight : "#8a8a8a", 0.95);
     ctx.textAlign = "center"; ctx.textBaseline = "bottom";
-    ctx.fillText(ready ? cfg.basePowerName : (cfg.baseShort + " · " + Math.ceil(f.baseCd) + "s"),
-                 f.baseX, f.baseY - f.baseR * 0.95);
+    ctx.fillText(ellipsizeToWidth(pName, pMax), f.baseX, f.baseY - f.baseR * 0.95);
     ctx.restore();
   }
   // HUD de Fase 2: integridad del órgano, cartílago (si aplica) y oleada.
@@ -36781,7 +36730,7 @@
     ctx.font = "bold " + Math.floor(10 * U) + "px Fredoka, sans-serif";
     ctx.textAlign = "left"; ctx.textBaseline = "bottom";
     ctx.fillStyle = colorAlpha(cfg.colorLight, 0.95);
-    ctx.fillText(cfg.integrityLabel + "  " + Math.ceil(f.integrity) + "%", x, y - 2 * U);
+    ctx.fillText(ellipsizeToWidth(cfg.integrityLabel + "  " + Math.ceil(f.integrity) + "%", barW), x, y - 2 * U);
     ctx.fillStyle = "rgba(0,0,0,0.45)";
     roundRect(x, y, barW, barH, 4 * U); ctx.fill();
     var iFrac = Math.max(0, f.integrity / cfg.integrityMax);
@@ -36817,8 +36766,8 @@
     // Oleadas + filtrados.
     ctx.font = "bold " + Math.floor(9 * U) + "px Fredoka, sans-serif";
     ctx.fillStyle = "rgba(255,255,255,0.62)";
-    ctx.fillText("OLEADA " + Math.min(f.waveIdx, cfg.waves.length) + "/" + cfg.waves.length +
-                 "   ·   FILTRADOS " + f.leakedTotal, x, y);
+    ctx.fillText(ellipsizeToWidth("OLEADA " + Math.min(f.waveIdx, cfg.waves.length) + "/" + cfg.waves.length +
+                 "   ·   FILTRADOS " + f.leakedTotal, barW), x, y);
     ctx.restore();
   }
 

@@ -5657,8 +5657,8 @@
         var ang = apex.angle || 0;
         var nx = -Math.sin(ang), ny = Math.cos(ang);
         var side = a.side || 1;
-        var ox = apex.x + nx * side * (30 + (a.bulge || 30) * 0.35) * U;
-        var oy = apex.y + ny * side * (30 + (a.bulge || 30) * 0.35) * U;
+        var ox = apex.x + nx * side * (52 + (a.bulge || 30) * 0.45) * U;
+        var oy = apex.y + ny * side * (52 + (a.bulge || 30) * 0.45) * U;
         pushEffect({
           kind: "particle",
           x: ox, y: oy,
@@ -35862,7 +35862,7 @@
     var p = pathPos(t * g.tot, ath.lane);
     var ang = p.angle || 0;
     var nx = -Math.sin(ang), ny = Math.cos(ang);
-    var stand = (30 + g.bulge * 0.42) * U;
+    var stand = (52 + g.bulge * 0.65) * U;
     return {
       x: p.x + nx * g.side * stand,
       y: p.y + ny * g.side * stand,
@@ -35935,7 +35935,7 @@
   }
 
   function drawMinerArms(inx, iny, peck, tool, phase) {
-    var reach = (11 + peck * 6) * U;
+    var reach = (8 + peck * 4) * U;
     var pxp = -iny, pyp = inx;
     var shL = { x: pxp * 6.2 * U, y: pyp * 6.2 * U };
     var shR = { x: -pxp * 6.2 * U, y: -pyp * 6.2 * U };
@@ -35969,7 +35969,7 @@
   }
 
   function drawMinerShovel(hx, hy, inx, iny, peck) {
-    var len = (9 + peck * 2) * U;
+    var len = (7 + peck * 2) * U;
     var tx = hx + inx * len, ty = hy + iny * len;
     ctx.strokeStyle = "#6B4A28";
     ctx.lineWidth = 1.8 * U;
@@ -35988,7 +35988,7 @@
   }
 
   function drawMinerDrill(hx, hy, inx, iny, phase) {
-    var len = 10 * U;
+    var len = 8 * U;
     var tx = hx + inx * len, ty = hy + iny * len;
     ctx.strokeStyle = "#5A6470";
     ctx.lineWidth = 3.2 * U;
@@ -36009,7 +36009,7 @@
   }
 
   function drawMinerPick(hx, hy, inx, iny, peck) {
-    var len = (8 + peck * 3) * U;
+    var len = (7 + peck * 2) * U;
     var tx = hx + inx * len, ty = hy + iny * len;
     ctx.strokeStyle = "#6B4A28";
     ctx.lineWidth = 1.8 * U;

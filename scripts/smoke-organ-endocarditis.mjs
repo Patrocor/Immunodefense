@@ -43,7 +43,7 @@ ath.excavated = 0;
 const outer = g.atheromaOuter(0, 0.5);
 assert.ok(outer, "la cuadrilla expone un punto exterior");
 assert.ok(
-  Math.hypot(outer.x - outer.pathX, outer.y - outer.pathY) > 22,
+  Math.hypot(outer.x - outer.pathX, outer.y - outer.pathY) > 36,
   "la cuadrilla cava fuera del carril"
 );
 g.step(2.0, 0.05);

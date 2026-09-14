@@ -9781,10 +9781,12 @@
       if (t.engulfPhase === "lick") {
         t.tongueExtend = Math.min(1, t.engulfT / 0.32);
         t.mouthOpen = 0.22;
+        e.engulfScale = 1 - 0.18 * Math.min(1, t.engulfT / 0.32);
         if (t.engulfT >= 0.32) { t.engulfPhase = "lift"; t.engulfT = 0; }
       } else if (t.engulfPhase === "lift") {
         t.mouthOpen = 0.45 + 0.35 * Math.min(1, t.engulfT / 0.22);
         t.tongueExtend = Math.max(0, 1 - t.engulfT / 0.22);
+        e.engulfScale = 0.82 - 0.22 * Math.min(1, t.engulfT / 0.22);
         if (t.engulfT >= 0.22) { t.engulfPhase = "engulf"; t.engulfT = 0; }
       } else {
         var frac = Math.min(1, t.engulfT / 0.85);
@@ -11519,6 +11521,11 @@
       var held = false;
       for (var rg = 0; rg < state.guardians.length; rg++) {
         if (state.guardians[rg].engulfTarget === re) { held = true; break; }
+      }
+      if (!held) {
+        for (var rt = 0; rt < state.towers.length; rt++) {
+          if (state.towers[rt].engulfTarget === re) { held = true; break; }
+        }
       }
       if (!held) { re.beingEngulfed = false; re.engulfScale = null; }
     }
@@ -29043,6 +29050,7 @@
   // Vegetación valvular: capas de fibrina-plaquetas que envuelven al germen
   // adherido. Se dibuja ANTES del cuerpo para que el germen quede encima.
   function drawVegetationLayers(e, R) {
+    if (e.beingEngulfed) return;
     var layers = e.vegLayers || 0;
     if (layers <= 0.05) return;
     var t = state.time;
@@ -29110,6 +29118,8 @@
     }
     // Adhesinas FimA: cuantas más capas teje, más se AGARRAN. De hilitos
     // sueltos que ondean a cables tensos y rectos clavados al endotelio.
+    // Mientras lo engulle el MΦ, se recogen: si no, la jaula tapa la boca.
+    if (!e.beingEngulfed) {
     var agarre = Math.min(1, capas / 3);
     var nAdh = 6 + Math.round(agarre * 4);
     ctx.strokeStyle = colorAlpha(e.def.colorLight, 0.55 + agarre * 0.35);
@@ -29124,9 +29134,10 @@
       ctx.quadraticCurveTo(px2 + sway, R * 0.85, px2 + sway * 1.6, largo);
       ctx.stroke();
     }
+    }
     // Maduro: costra de fibrina endurecida por encima de todo. Ya no es un
     // coco más de la cadena, es un problema instalado en la valva.
-    if (maduro) {
+    if (maduro && !e.beingEngulfed) {
       ctx.strokeStyle = "rgba(245,232,214,0.85)";
       ctx.lineWidth = Math.max(1.5, 2.2 * U);
       ctx.beginPath();

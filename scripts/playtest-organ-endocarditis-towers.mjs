@@ -66,11 +66,11 @@ const dockClip = await page.evaluate(() => {
   const canvas = document.getElementById("canvas");
   const rect = canvas.getBoundingClientRect();
   const F = g.metrics.FIELD;
-  const x = Math.max(0, Math.round(rect.left + (F.right / g.metrics.VW) * rect.width) - 8);
+  const x = Math.max(0, Math.round(rect.left + (F.right / g.metrics.VW) * rect.width) - 18);
   return {
     x,
     y: Math.max(0, Math.round(rect.top + (F.top / g.metrics.VH) * rect.height)),
-    width: Math.min(rect.width - x, Math.round((g.metrics.SIDE_W / g.metrics.VW) * rect.width) + 16),
+    width: Math.min(rect.width - x + 8, Math.round((g.metrics.SIDE_W / g.metrics.VW) * rect.width) + 36),
     height: Math.min(rect.height - 20, 620),
   };
 });

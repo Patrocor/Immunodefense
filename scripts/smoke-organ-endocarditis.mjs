@@ -22,6 +22,12 @@ g.step(0.05, 0.05);
 assert.equal(g.f2Markers().length, 5, "cinco ostia/focos de la mitral");
 assert.equal(game.__lerr, null, "render de endocarditis con kit no debe fallar");
 assert.equal(g.state.f2.inSystole, true, "pulseT bajo debe estar en sístole");
+assert.equal(g.state.f2.ambient.v, 2, "ambiente mitral v2");
+assert.ok(g.state.f2.ambient.motas.length >= 28, "sangre con motas suficientes");
+assert.ok(g.state.f2.ambient.streamers && g.state.f2.ambient.streamers.length >= 5, "chorros de plasma");
+g.state.f2.integrity = 40;
+g.step(0.05, 0.05);
+assert.equal(game.__lerr, null, "render con válvula erosionada no debe fallar");
 
 g.goF2("osteomielitis");
 g.state.f2.introTimer = 0;

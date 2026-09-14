@@ -16,7 +16,8 @@
       },
       entry: "auricula",
       focus: "velo",
-      hudAccent: true
+      hudAccent: true,
+      ambient: "camara-mitral"
     }
   };
 })(window.ImmunoDefenseData);

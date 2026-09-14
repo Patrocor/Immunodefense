@@ -34754,7 +34754,7 @@
     var seed = 4211;
     function rnd() { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; }
     var a = { motas: [], eventos: [], t: 0 };
-    var n = amb === "corazon" ? (QUALITY.low ? 28 : 68)
+    var n = amb === "corazon" ? (QUALITY.low ? 36 : 92)
           : amb === 'hueso' ? 34
           : (amb === 'tormenta' || amb === 'colapso') ? 58
           : (amb === 'sangre') ? 52
@@ -34762,7 +34762,7 @@
     for (var i = 0; i < n; i++) {
       a.motas.push({
         nx: rnd(), ny: rnd(),
-        r: (2.5 + rnd() * 5),
+        r: amb === "corazon" ? (4.4 + rnd() * 6.2) : (2.5 + rnd() * 5),
         fase: rnd() * Math.PI * 2,
         vel: 0.35 + rnd() * 0.9,
         tipo: rnd(),
@@ -34807,10 +34807,10 @@
         var x2 = FIELD_LEFT + nx2 * W, y2 = FIELD_TOP + ny2 * H;
         var sg = ctx.createLinearGradient(x, y, x2, y2);
         sg.addColorStop(0, "rgba(255, 150, 170, 0)");
-        sg.addColorStop(0.45, "rgba(220, 70, 90, " + (0.10 + sist * 0.16 + carga * 0.10) + ")");
+        sg.addColorStop(0.45, "rgba(220, 70, 90, " + (0.22 + sist * 0.22 + carga * 0.12) + ")");
         sg.addColorStop(1, "rgba(220, 70, 90, 0)");
         ctx.strokeStyle = sg;
-        ctx.lineWidth = (1.6 + sist * 1.4) * U;
+        ctx.lineWidth = (3.2 + sist * 2.2) * U;
         ctx.lineCap = "round";
         ctx.beginPath();
         ctx.moveTo(x, y);
@@ -34828,38 +34828,38 @@
       }
       x = FIELD_LEFT + nx * W;
       y = FIELD_TOP + m.ny * H;
-      rr = m.r * U * (1 + sist * 0.10);
+      rr = m.r * U * (1.55 + sist * 0.18);
       if (m.tipo < 0.56) {
         ctx.save();
         ctx.translate(x, y);
         ctx.rotate((nx - 0.5) * 0.7);
         ctx.scale(1 + sist * 0.38, 1 - sist * 0.32);
-        ctx.fillStyle = "rgba(190, 48, 62, 0.62)";
+        ctx.fillStyle = "rgba(200, 46, 64, 0.82)";
         ctx.beginPath();
-        ctx.ellipse(0, 0, rr * 1.20, rr * 0.78, 0, 0, Math.PI * 2);
+        ctx.ellipse(0, 0, rr * 1.35, rr * 0.88, 0, 0, Math.PI * 2);
         ctx.fill();
-        ctx.fillStyle = "rgba(110, 18, 32, 0.50)";
+        ctx.fillStyle = "rgba(110, 18, 32, 0.58)";
         ctx.beginPath();
-        ctx.ellipse(0, 0, rr * 0.48, rr * 0.28, 0, 0, Math.PI * 2);
+        ctx.ellipse(0, 0, rr * 0.52, rr * 0.30, 0, 0, Math.PI * 2);
         ctx.fill();
-        ctx.fillStyle = "rgba(255, 190, 190, 0.28)";
+        ctx.fillStyle = "rgba(255, 190, 190, 0.38)";
         ctx.beginPath();
-        ctx.ellipse(-rr * 0.28, -rr * 0.18, rr * 0.22, rr * 0.12, 0, 0, Math.PI * 2);
+        ctx.ellipse(-rr * 0.28, -rr * 0.18, rr * 0.24, rr * 0.14, 0, 0, Math.PI * 2);
         ctx.fill();
         ctx.restore();
       } else if (m.tipo < 0.72) {
-        ctx.fillStyle = "rgba(236, 214, 196, " + (0.42 + sist * 0.12) + ")";
+        ctx.fillStyle = "rgba(236, 214, 196, " + (0.62 + sist * 0.14) + ")";
         ctx.beginPath();
-        ctx.ellipse(x, y, rr * 0.55, rr * 0.38, m.fase, 0, Math.PI * 2);
+        ctx.ellipse(x, y, rr * 0.70, rr * 0.48, m.fase, 0, Math.PI * 2);
         ctx.fill();
       } else if (m.tipo < 0.86) {
-        ctx.fillStyle = "rgba(236, 228, 232, 0.40)";
+        ctx.fillStyle = "rgba(236, 228, 232, 0.62)";
         ctx.beginPath();
-        ctx.arc(x, y, rr * 1.15, 0, Math.PI * 2);
+        ctx.arc(x, y, rr * 1.35, 0, Math.PI * 2);
         ctx.fill();
-        ctx.fillStyle = "rgba(92, 48, 78, 0.45)";
+        ctx.fillStyle = "rgba(92, 48, 78, 0.58)";
         ctx.beginPath();
-        ctx.arc(x - rr * 0.12, y - rr * 0.08, rr * 0.48, 0, Math.PI * 2);
+        ctx.arc(x - rr * 0.12, y - rr * 0.08, rr * 0.55, 0, Math.PI * 2);
         ctx.fill();
       } else {
         var ciclo = (a.t * 0.22 + m.fase) % 1;
@@ -35591,13 +35591,13 @@
         left ? FIELD_LEFT + wallW : FIELD_LEFT + worldW - wallW,
         0
       );
-      wg.addColorStop(0, colorAlpha(cfg.color, 0.38 + beat * 0.10));
+      wg.addColorStop(0, colorAlpha(cfg.color, 0.58 + beat * 0.12));
       wg.addColorStop(1, colorAlpha(cfg.colorDark, 0));
       ctx.fillStyle = wg;
       ctx.fillRect(left ? FIELD_LEFT : FIELD_LEFT + worldW - wallW, FIELD_TOP, wallW, worldH);
     }
-    ctx.strokeStyle = colorAlpha(cfg.color, 0.22 + beat * 0.10);
-    ctx.lineWidth = 3.2 * U;
+    ctx.strokeStyle = colorAlpha(cfg.color, 0.34 + beat * 0.14);
+    ctx.lineWidth = 5.2 * U;
     for (ww = 0; ww < 7; ww++) {
       wy = FIELD_TOP + worldH * (0.10 + ww * 0.13);
       var dip = worldH * 0.028 * (beat ? 1.7 : 1);
@@ -35618,11 +35618,11 @@
     ctx.ellipse(cxV, FIELD_TOP + worldH * 0.038, worldW * 0.44, worldH * 0.028, 0, 0, Math.PI * 2);
     ctx.stroke();
     // Músculos papilares (anclaje de las cuerdas).
-    var papY = FIELD_TOP + worldH * 0.942;
-    var papR = 22 * U * pulseAmp;
+    var papY = FIELD_TOP + worldH * 0.918;
+    var papR = 36 * U * pulseAmp;
     var pap = [];
     for (var ladoP = -1; ladoP <= 1; ladoP += 2) {
-      var pxp = cxV + ladoP * worldW * 0.16 * (1 - conv * 0.35);
+      var pxp = cxV + ladoP * worldW * 0.22 * (1 - conv * 0.25);
       pap.push({ x: pxp, y: papY });
       var pg = ctx.createRadialGradient(pxp - papR * 0.2, papY - papR * 0.3, papR * 0.1, pxp, papY, papR * 1.15);
       pg.addColorStop(0, colorAlpha(cfg.colorLight, 0.38 + beat * 0.12));
@@ -35643,8 +35643,8 @@
       var xx = FIELD_LEFT + worldW * (0.08 + tC * 0.84);
       var dest = pap[tC < 0.5 ? 0 : 1];
       var sway = Math.sin(f.fxT * 1.5 + i) * (beat ? 2.2 : 6.5) * U;
-      ctx.strokeStyle = colorAlpha("#f0d4d8", 0.28 + beat * 0.16);
-      ctx.lineWidth = (1.7 + (i % 3) * 0.45) * U;
+      ctx.strokeStyle = colorAlpha("#f6dde2", 0.48 + beat * 0.18);
+      ctx.lineWidth = (2.8 + (i % 3) * 0.7) * U;
       ctx.beginPath();
       ctx.moveTo(xx, FIELD_TOP + worldH * 0.085);
       ctx.quadraticCurveTo(

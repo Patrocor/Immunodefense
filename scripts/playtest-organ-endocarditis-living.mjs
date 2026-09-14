@@ -30,7 +30,7 @@ await page.evaluate(() => {
   st.germIntroQueue = [];
   st.towers = [];
   st.effects = [];
-  st.f2.atheromas.forEach((a, i) => { a.excavated = 0.12; a.mineT = 0.52 + i * 0.4; });
+  st.f2.atheromas.forEach((a, i) => { a.excavated = 0.06; a.mineT = 0.52 + i * 0.4; });
   const def = window.ImmunoDefenseData.enemyDefs;
   function germ(typeId, frac, lane) {
     const d = def[typeId];
@@ -121,7 +121,7 @@ await page.evaluate(() => {
   g.hold(true);
 });
 await sleep(80);
-await page.screenshot({ path: join(ART, "organ_endocarditis_atheroma.png") });
+await page.screenshot({ path: join(ART, "organ_endocarditis_sarro.png") });
 
 const atheromaClip = await page.evaluate(() => {
   const g = window.__game;
@@ -140,7 +140,7 @@ const atheromaClip = await page.evaluate(() => {
     height: 280,
   };
 });
-await page.screenshot({ path: join(ART, "organ_endocarditis_atheroma_clip.png"), clip: atheromaClip });
+await page.screenshot({ path: join(ART, "organ_endocarditis_sarro_clip.png"), clip: atheromaClip });
 
 const minersClip = await page.evaluate(() => {
   const g = window.__game;
@@ -159,7 +159,7 @@ const minersClip = await page.evaluate(() => {
     height: 300,
   };
 });
-await page.screenshot({ path: join(ART, "organ_endocarditis_miners_clip.png"), clip: minersClip });
+await page.screenshot({ path: join(ART, "organ_endocarditis_sarro_miners.png"), clip: minersClip });
 
 const info = await page.evaluate(() => {
   const g = window.__game;

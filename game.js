@@ -35663,24 +35663,52 @@
     for (var i = 0; i < list.length; i++) drawAtheromaMine(list[i]);
   }
 
+  function atheromaNoise(seed, i) {
+    var x = Math.sin(seed * 127.1 + i * 311.7) * 43758.5453;
+    return x - Math.floor(x);
+  }
+
   function atheromaGeom(ath) {
     var tot = PATH.totalForBranch[ath.lane] || PATH.total || 1;
-    var apex = pathPos(ath.atFrac * tot, ath.lane);
-    var a = apex.angle || 0;
-    var nx = -Math.sin(a), ny = Math.cos(a);
     var dug = ath.excavated || 0;
     var remain = Math.max(0, 1 - dug);
     var bulge = (ath.bulge || 30) * remain;
     var side = ath.side || 1;
-    var mouth = pathPos(Math.max(0.02, ath.atFrac - ath.half * 0.72) * tot, ath.lane);
+    var half = ath.half || 0.10;
+    var t0 = ath.atFrac - half + dug * half * 2;
+    var t1 = ath.atFrac + half;
+    var workFrac = Math.min(t1, Math.max(ath.atFrac - half, t0));
+    var apex = pathPos(ath.atFrac * tot, ath.lane);
+    var a = apex.angle || 0;
+    var nx = -Math.sin(a), ny = Math.cos(a);
+    var mouth = pathPos(workFrac * tot, ath.lane);
+    var ma = mouth.angle || a;
+    var mnx = -Math.sin(ma), mny = Math.cos(ma);
     return {
       tot: tot, apex: apex, a: a, nx: nx, ny: ny, dug: dug, remain: remain,
-      bulge: bulge, side: side,
-      cx: apex.x + nx * side * (22 + bulge * 0.42) * U,
-      cy: apex.y + ny * side * (22 + bulge * 0.42) * U,
-      mx: mouth.x + nx * side * 28 * U,
-      my: mouth.y + ny * side * 28 * U
+      bulge: bulge, side: side, half: half, t0: t0, t1: t1, workFrac: workFrac,
+      seed: (ath.lane | 0) * 19 + Math.round((ath.atFrac || 0) * 100),
+      cx: apex.x + nx * side * (16 + bulge * 0.35) * U,
+      cy: apex.y + ny * side * (16 + bulge * 0.35) * U,
+      mx: mouth.x + mnx * side * (14 + bulge * 0.22) * U,
+      my: mouth.y + mny * side * (14 + bulge * 0.22) * U
     };
+  }
+
+  function fillAmorphBlob(cx, cy, rx, ry, rot, seed, n) {
+    n = n || 8;
+    ctx.beginPath();
+    var i, ang, r, x, y;
+    for (i = 0; i <= n; i++) {
+      ang = rot + (i / n) * Math.PI * 2;
+      r = 0.58 + atheromaNoise(seed, i) * 0.62;
+      x = cx + Math.cos(ang) * rx * r;
+      y = cy + Math.sin(ang) * ry * r;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+    ctx.fill();
   }
 
   // Velos vivos en el tercio distal: se cierran en sístole y manotean
@@ -35736,58 +35764,87 @@
 
   function drawAtheromaPlaque(ath) {
     var g = atheromaGeom(ath);
-    if (g.dug >= 0.98) return;
-    var rx = (28 + g.bulge * 0.62) * U;
-    var ry = (20 + g.bulge * 0.34) * U;
+    if (g.dug >= 0.98 || g.t0 >= g.t1 - 0.008) return;
+    var n = QUALITY.low ? 9 : 16;
+    var outer = [], inner = [];
+    var i, t, u, p, ang, nx, ny, k, d, lump, outerR, innerR;
+    for (i = 0; i < n; i++) {
+      u = i / (n - 1);
+      t = g.t0 + (g.t1 - g.t0) * u;
+      p = pathPos(t * g.tot, ath.lane);
+      ang = p.angle || 0;
+      nx = -Math.sin(ang); ny = Math.cos(ang);
+      d = Math.abs(t - ath.atFrac);
+      k = d >= g.half ? 0 : Math.cos((d / g.half) * Math.PI * 0.5);
+      k = k * k;
+      lump = (atheromaNoise(g.seed, i) - 0.42) * 11;
+      var taper = Math.sin(u * Math.PI);
+      outerR = (7 + g.bulge * k * 0.95 + lump) * taper * g.remain * U;
+      innerR = (4.5 + (atheromaNoise(g.seed, i + 20) - 0.5) * 3.5) * U;
+      outer.push({
+        x: p.x + nx * g.side * (8 * U + outerR),
+        y: p.y + ny * g.side * (8 * U + outerR)
+      });
+      inner.push({
+        x: p.x + nx * g.side * innerR,
+        y: p.y + ny * g.side * innerR
+      });
+    }
     ctx.save();
-    ctx.translate(g.cx, g.cy);
-    ctx.rotate(g.a + (g.side > 0 ? 0.32 : -0.32));
-    ctx.globalAlpha = 0.72 + g.remain * 0.26;
-    var grad = ctx.createRadialGradient(-rx * 0.2, -ry * 0.3, ry * 0.12, 0, 0, rx);
-    grad.addColorStop(0, "#F8E8C0");
-    grad.addColorStop(0.4, "#D4A060");
-    grad.addColorStop(0.78, "#8B4A28");
-    grad.addColorStop(1, "rgba(72, 36, 24, 0.0)");
-    ctx.fillStyle = grad;
+    ctx.globalAlpha = 0.78 + g.remain * 0.2;
     ctx.beginPath();
-    ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
+    ctx.moveTo(outer[0].x, outer[0].y);
+    for (i = 1; i < n; i++) ctx.lineTo(outer[i].x, outer[i].y);
+    for (i = n - 1; i >= 0; i--) ctx.lineTo(inner[i].x, inner[i].y);
+    ctx.closePath();
+    ctx.fillStyle = "#C4A878";
     ctx.fill();
-    ctx.fillStyle = "rgba(244, 232, 208, 0.72)";
-    ctx.beginPath();
-    ctx.ellipse(-rx * 0.12, -ry * 0.12, rx * 0.46, ry * 0.32, 0.35, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = "rgba(92, 44, 24, 0.45)";
-    ctx.lineWidth = 1.8;
-    ctx.beginPath();
-    ctx.ellipse(0, 0, rx * 0.92, ry * 0.92, 0, 0, Math.PI * 2);
+    ctx.strokeStyle = "rgba(90, 58, 32, 0.55)";
+    ctx.lineWidth = 1.6;
+    ctx.lineJoin = "round";
     ctx.stroke();
+    // Capas sucias y calcáreas: no un óvalo, costras encima.
+    ctx.fillStyle = "#A88858";
+    for (i = 1; i < n - 1; i += QUALITY.low ? 3 : 2) {
+      if (atheromaNoise(g.seed, i + 40) < 0.28) continue;
+      fillAmorphBlob(
+        (outer[i].x + inner[i].x) * 0.5,
+        (outer[i].y + inner[i].y) * 0.5,
+        (6 + atheromaNoise(g.seed, i + 7) * 9) * U,
+        (4 + atheromaNoise(g.seed, i + 9) * 6) * U,
+        (outer[i].x - inner[i].x) ? Math.atan2(outer[i].y - inner[i].y, outer[i].x - inner[i].x) : 0,
+        g.seed + i * 3,
+        7
+      );
+    }
+    ctx.fillStyle = "rgba(232, 220, 190, 0.78)";
+    for (i = 2; i < n - 2; i++) {
+      if (atheromaNoise(g.seed, i + 80) < 0.58) continue;
+      fillAmorphBlob(
+        outer[i].x * 0.35 + inner[i].x * 0.65,
+        outer[i].y * 0.35 + inner[i].y * 0.65,
+        (2.2 + atheromaNoise(g.seed, i + 11) * 3.4) * U,
+        (1.6 + atheromaNoise(g.seed, i + 13) * 2.4) * U,
+        i * 0.7,
+        g.seed + i * 11,
+        6
+      );
+    }
     ctx.restore();
   }
 
   function drawAtheromaMine(ath) {
     var g = atheromaGeom(ath);
-    if (g.dug >= 0.98) return;
+    if (g.dug >= 0.98 || g.t0 >= g.t1 - 0.008) return;
     var mx = g.mx, my = g.my, a = g.a;
     ctx.save();
-    ctx.globalAlpha = 0.95;
-    ctx.strokeStyle = "#5A2E16";
-    ctx.lineWidth = 3.4 * U;
-    ctx.lineJoin = "round";
-    ctx.beginPath();
-    ctx.moveTo(mx - 14 * U, my + 14 * U);
-    ctx.lineTo(mx, my - 16 * U);
-    ctx.lineTo(mx + 14 * U, my + 14 * U);
-    ctx.stroke();
-    ctx.fillStyle = "#3D2416";
-    ctx.beginPath();
-    ctx.ellipse(mx, my + 2 * U, 13 * U, 10 * U, a, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = "#120806";
-    ctx.beginPath();
-    ctx.ellipse(mx + Math.cos(a) * 3 * U, my + Math.sin(a) * 3 * U, 8 * U, 5.6 * U, a, 0, Math.PI * 2);
-    ctx.fill();
-    var cartX = mx - Math.cos(a) * 22 * U + g.nx * g.side * 10 * U;
-    var cartY = my - Math.sin(a) * 22 * U + g.ny * g.side * 10 * U;
+    ctx.globalAlpha = 0.94;
+    ctx.fillStyle = "#4A3220";
+    fillAmorphBlob(mx, my, 12 * U, 9 * U, a, g.seed + 4, 8);
+    ctx.fillStyle = "#140A06";
+    fillAmorphBlob(mx + g.nx * g.side * 2 * U, my + g.ny * g.side * 2 * U, 7 * U, 5 * U, a + 0.2, g.seed + 9, 7);
+    var cartX = mx - Math.cos(a) * 20 * U + g.nx * g.side * 8 * U;
+    var cartY = my - Math.sin(a) * 20 * U + g.ny * g.side * 8 * U;
     ctx.fillStyle = "#6B3A22";
     ctx.beginPath();
     ctx.moveTo(cartX - 11 * U, cartY + 5 * U);
@@ -35799,10 +35856,8 @@
     ctx.fillStyle = "#2A1810";
     ctx.beginPath(); ctx.arc(cartX - 6 * U, cartY + 7 * U, 3.2 * U, 0, Math.PI * 2); ctx.fill();
     ctx.beginPath(); ctx.arc(cartX + 6 * U, cartY + 7 * U, 3.2 * U, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = "#E8C888";
-    ctx.beginPath();
-    ctx.arc(cartX, cartY - 10 * U, 5 * U, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.fillStyle = "#D8C090";
+    fillAmorphBlob(cartX, cartY - 9 * U, 5.5 * U, 4.2 * U, 0.4, g.seed + 21, 6);
     ctx.restore();
     drawFoamMiners(ath, mx, my, a, g.nx, g.ny, g.side);
   }

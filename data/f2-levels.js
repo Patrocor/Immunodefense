@@ -24,8 +24,8 @@ var F2_LEVELS = {
     ambient: "corazon",
     mechanic: "pulso",
     // Identidad v1 (data/visuals-phase2.js organIdentity.endocarditis).
-    // Ateromas fijos: tuercen un poco el carril. La cuadrilla celular
-    // los excava desde arriba (el extremo proximal) como una mina.
+    // Ateromas fijos: sarro amorfo que tuerce un poco el carril. La
+    // cuadrilla celular lo excava desde arriba (extremo proximal).
     atheromas: [
       { lane: 1, atFrac: 0.34, side: 1,  half: 0.10, bulge: 32, crew: 3 },
       { lane: 3, atFrac: 0.48, side: -1, half: 0.11, bulge: 36, crew: 3 },

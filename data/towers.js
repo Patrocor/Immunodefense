@@ -292,17 +292,17 @@ var TOWER_DEFS = {
     upgradeCost: [90, 155]
   },
   macrofagoCardiaco: {
-    id: "macrofagoCardiaco", name: "Macrófago Cardíaco Residente", shortName: "MΦ cardíaco",
-    color: "#c9634f", colorDark: "#6a2618", cost: 110,
+    id: "macrofagoCardiaco", name: "Macrófago Valvular", shortName: "MΦ valvular",
+    color: "#e09048", colorDark: "#9a4a22", cost: 110,
     f2Organ: "endocarditis",
-    desc: "Macrófago CCR2− de origen embrionario: fagocita y además CONDUCE el impulso, acelerando la cadencia de las torres vecinas (+25%). Ultimate: descarga de conducción — todas las torres en rango disparan a la vez.",
-    conductionAura: 0.25,
-    specialChargeSec: 30,
-    specialName: "Descarga de conducción",
+    desc: "Primo del Libre de Fase 1, plantado en el velo. No persigue: ENGULLE gérmenes clavados (con vegetación o en el tercio distal). Al tragar, se lleva el gérmen y TODAS sus capas. HACEK se le escapa si corre. Ultimate: Digestión — se traga al más maduro.",
+    engulfAdhered: true,
+    specialChargeSec: 28,
+    specialName: "Digestión",
     levels: [
-      { range: 145, damage: 34, fireRate: 0.8, projectileSpeed: 340, splash: 26, hp: 210 },
-      { range: 165, damage: 52, fireRate: 0.95, projectileSpeed: 370, splash: 32, hp: 275 },
-      { range: 190, damage: 76, fireRate: 1.1, projectileSpeed: 400, splash: 40, hp: 350 }
+      { range: 125, damage: 40, fireRate: 0.55, projectileSpeed: 0, splash: 0, hp: 240 },
+      { range: 145, damage: 58, fireRate: 0.65, projectileSpeed: 0, splash: 0, hp: 310 },
+      { range: 165, damage: 82, fireRate: 0.75, projectileSpeed: 0, splash: 0, hp: 390 }
     ],
     upgradeCost: [115, 185]
   },
@@ -499,10 +499,16 @@ var TOWER_GROUPS = [
   { id: "tanques",       label: "Tanques",       towers: ["complemento", "osteoblasto"] }
 ];
 var LOADOUT_LIMITS = { towers: 5, tanks: 2, barriers: 1 };
+// En endocarditis el velo no es piel: estas cartas no salen en el dock.
+var ORGAN_DOCK_BLOCKED = {
+  endocarditis: ["langerhans", "queratinocito", "sebocito", "eosinofilo",
+                 "mastocito", "pdc", "linfocitogd", "nk"]
+};
   root.towerDefs = TOWER_DEFS;
   root.macCost = MAC_COST;
   root.towerList = TOWER_LIST;
   root.f2OrganTowers = F2_ORGAN_TOWERS;
   root.towerGroups = TOWER_GROUPS;
   root.loadoutLimits = LOADOUT_LIMITS;
+  root.organDockBlocked = ORGAN_DOCK_BLOCKED;
 })(window.ImmunoDefenseData);

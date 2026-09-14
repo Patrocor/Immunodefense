@@ -23,6 +23,14 @@ var F2_LEVELS = {
     arrivalDamage: 7,          // cuánta integridad cuesta cada germen que llega
     ambient: "corazon",
     mechanic: "pulso",
+    // Identidad v1 (data/visuals-phase2.js organIdentity.endocarditis).
+    // Ateromas fijos: sarro amorfo que tuerce un poco el carril. La
+    // cuadrilla cava por FUERA, en el hombro contrario al tránsito.
+    atheromas: [
+      { lane: 1, atFrac: 0.34, side: 1,  half: 0.10, bulge: 32, crew: 3 },
+      { lane: 3, atFrac: 0.48, side: -1, half: 0.11, bulge: 36, crew: 3 },
+      { lane: 2, atFrac: 0.62, side: 1,  half: 0.09, bulge: 28, crew: 2 }
+    ],
     // Latido lento y contable: ~23 lpm. Avisa medio segundo antes (telegraph)
     // y pega fuerte. Entre sístole y sístole hay tiempo real para decidir.
     pulseCycle: 2.6,

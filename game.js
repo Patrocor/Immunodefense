@@ -401,6 +401,10 @@
   // DOS ejes — se navega arrastrando hacia abajo y hacia los costados. Cada
   // nivel define su propio stretch en F2_LEVELS[key].stretchX / stretchY.
   function f2Cfg() { return (state && state.f2) ? state.f2.cfg : null; }
+  function organKit(cfg) {
+    var key = cfg ? cfg.key : (f2Cfg() && f2Cfg().key);
+    return (key && ORGAN_IDENTITY[key]) || null;
+  }
   function worldStretchY() {
     var c = f2Cfg(); if (c) return c.stretchY || 1;
     return (state && state.dissemination) ? DS_STRETCH : 1;
@@ -952,14 +956,36 @@
     if (!PATH.branches.length) return { x: 0, y: 0, angle: 0 };
     var branch = PATH.branches[heridaIdx];
     if (progress <= branch.length) {
-      return sampleBeziers(branch.beziers, progress);
+      return applyF2PathDeform(sampleBeziers(branch.beziers, progress), progress, heridaIdx);
     }
     // En diseminación PATH.main está vacío: nos quedamos al final de la rama.
     if (!PATH.main || !PATH.main.beziers || !PATH.main.beziers.length) {
-      return sampleBeziers(branch.beziers, branch.length);
+      return applyF2PathDeform(sampleBeziers(branch.beziers, branch.length), progress, heridaIdx);
     }
     var mainProgress = progress - branch.length;
-    return sampleBeziers(PATH.main.beziers, mainProgress);
+    return applyF2PathDeform(sampleBeziers(PATH.main.beziers, mainProgress), progress, heridaIdx);
+  }
+
+  function applyF2PathDeform(p, progress, lane) {
+    var f2 = state && state.f2;
+    if (!p || !f2 || !f2.atheromas || !f2.atheromas.length) return p;
+    var total = (PATH.totalForBranch && PATH.totalForBranch[lane]) || PATH.total || 1;
+    var t = progress / total;
+    var ang = p.angle || 0;
+    var nx = -Math.sin(ang), ny = Math.cos(ang);
+    var x = p.x, y = p.y;
+    for (var i = 0; i < f2.atheromas.length; i++) {
+      var ath = f2.atheromas[i];
+      if ((ath.lane | 0) !== (lane | 0) || (ath.excavated || 0) >= 0.98) continue;
+      var d = Math.abs(t - ath.atFrac);
+      if (d >= ath.half) continue;
+      var k = Math.cos((d / ath.half) * Math.PI * 0.5);
+      k = k * k;
+      var mag = (ath.bulge || 28) * U * k * (1 - (ath.excavated || 0));
+      x += nx * ath.side * mag;
+      y += ny * ath.side * mag;
+    }
+    return { x: x, y: y, angle: ang };
   }
 
   function distPointToPath(x, y) {
@@ -1105,6 +1131,12 @@
   var F2_ORGAN_TOWERS = gameData("f2OrganTowers");
   var TOWER_GROUPS = gameData("towerGroups");
   var LOADOUT_LIMITS = gameData("loadoutLimits");
+  var ORGAN_DOCK_BLOCKED = gameData("organDockBlocked") || {};
+  function organBlocksTower(typeId) {
+    var organ = state && state.f2 && state.f2.key;
+    if (!organ || !ORGAN_DOCK_BLOCKED[organ]) return false;
+    return ORGAN_DOCK_BLOCKED[organ].indexOf(typeId) >= 0;
+  }
   function loadoutCategory(typeId) {
     for (var g = 0; g < TOWER_GROUPS.length; g++) {
       var grp = TOWER_GROUPS[g];
@@ -1128,6 +1160,7 @@
     if (!state || !state.loadout) return "noop";
     var td = TOWER_DEFS[typeId];
     if (td && td.retired) return "noop";
+    if (organBlocksTower(typeId)) return "noop";
     var c = loadoutCategory(typeId);
     var arr = c === "tower" ? state.loadout.towers
             : c === "tank"  ? state.loadout.tanks
@@ -1177,6 +1210,7 @@
   var ENEMY_DEFS = gameData("enemyDefs");
   var SIGNATURE_ATTACK_DEFS = gameData("signatureAttackDefs");
   var PHASE1_TOWER_VISUALS = gameData("phase1TowerVisuals");
+  var ORGAN_IDENTITY = gameData("organIdentity");
   var GERM_KIND_FRAMES = gameData("germKindFrames");
   var GERM_COUNTER_GLYPHS = gameData("germCounterGlyphs");
   var PHASE1_GERM_HINTS = gameData("phase1GermHints");
@@ -4467,6 +4501,42 @@
     },
     // Salto directo a un nivel de Fase 2 (pruebas): __game.goF2("artritis").
     goF2: function (key) { state.showTitle = false; state.showIntro = false; enterF2TD(key); },
+    organIdentity: function (key) {
+      if (key) return ORGAN_IDENTITY[key] || null;
+      return organKit(f2Cfg());
+    },
+    f2DockAllows: function (typeId) {
+      return !organBlocksTower(typeId);
+    },
+    dockTypeIds: function () {
+      return (UI.cards || []).map(function (c) { return c.typeId; });
+    },
+    relayout: function () { layoutUI(); },
+    f2Markers: function () {
+      if (!state.f2 || !PATH.wounds) return [];
+      var cfg = state.f2.cfg;
+      var out = [];
+      for (var i = 0; i < PATH.wounds.length; i++) {
+        out.push({
+          x: PATH.wounds[i].x, y: PATH.wounds[i].y,
+          doorX: PATH.organDoors[i].x, doorY: PATH.organDoors[i].y,
+          label: cfg.foci[i] || ""
+        });
+      }
+      return out;
+    },
+    pathPos: pathPos,
+    pathLen: function (lane) {
+      return (PATH.totalForBranch && PATH.totalForBranch[lane | 0]) || PATH.total || 1;
+    },
+    atheromaOuter: function (i, along) {
+      if (!state.f2 || !state.f2.atheromas || !state.f2.atheromas[i]) return null;
+      var ath = state.f2.atheromas[i];
+      var p = atheromaOuterPoint(ath, along == null ? 0.5 : along);
+      var tot = (PATH.totalForBranch && PATH.totalForBranch[ath.lane]) || PATH.total || 1;
+      var mid = pathPos(ath.atFrac * tot, ath.lane);
+      return { x: p.x, y: p.y, pathX: mid.x, pathY: mid.y, side: ath.side };
+    },
     goMap: function () { state.showTitle = false; state.showIntro = false; enterBodyMapForState(); },
     saveCampaign: saveCampaignProgress,
     clearCampaign: clearCampaignProgress,
@@ -4991,6 +5061,7 @@
       if (d && d.disseminationOnly && !inDiss) return false;
       // Torres residentes de tejido: solo existen en SU órgano/familia.
       if (d && d.f2Organ && d.f2Organ !== curOrgan && d.f2Organ !== curMech) return false;
+      if (organBlocksTower(typeId)) return false;
       return true;
     }
     // Dock = SOLO las torres dentro del loadout (5+2+1). Si está vacío,
@@ -5504,6 +5575,7 @@
     rebuildPath();
     layoutF2Base();
     if (cfg.mechanic === "secuestro") seedSequestra();
+    if (cfg.key === "endocarditis") seedEndocarditisStructures();
     if (state.lymph) state.lymph.drop = null;
     if (state.lymphR) state.lymphR.drop = null;
     layoutDrip();
@@ -5550,6 +5622,64 @@
           y: FIELD_TOP + yn * worldH,
           r: (26 + Math.random() * 12) * U,
           hp: 120, maxHp: 120, lane: i, broken: false, flash: 0
+        });
+      }
+    }
+  }
+
+  function seedEndocarditisStructures() {
+    var f = state.f2, cfg = f.cfg;
+    f.atheromas = [];
+    f.valveSlap = 0;
+    var src = cfg.atheromas || [];
+    for (var i = 0; i < src.length; i++) {
+      var d = src[i];
+      f.atheromas.push({
+        lane: d.lane | 0,
+        atFrac: d.atFrac,
+        side: d.side || 1,
+        half: d.half || 0.10,
+        bulge: d.bulge || 30,
+        crew: d.crew || 3,
+        excavated: 0,
+        mineT: i * 0.4
+      });
+    }
+  }
+
+  function f2EndotelialNear(x, y) {
+    for (var i = 0; i < state.towers.length; i++) {
+      var tw = state.towers[i];
+      if (!tw || tw.dead || !tw.def || tw.def.id !== "endotelial") continue;
+      if (Math.hypot(tw.x - x, tw.y - y) < 88 * U) return true;
+    }
+    return false;
+  }
+
+  function updateEndocarditisAtheromas(dt) {
+    var f = state.f2;
+    if (!f || !f.atheromas) return;
+    for (var i = 0; i < f.atheromas.length; i++) {
+      var a = f.atheromas[i];
+      if (a.excavated >= 1) continue;
+      a.mineT = (a.mineT || 0) + dt;
+      var tot = PATH.totalForBranch[a.lane] || PATH.total || 1;
+      var apex = pathPos(a.atFrac * tot, a.lane);
+      var rate = 1 / 46;
+      if (f2EndotelialNear(apex.x, apex.y)) rate = 1 / 24;
+      a.excavated = Math.min(1, (a.excavated || 0) + dt * rate);
+      if (!QUALITY.low && Math.random() < dt * 3.2) {
+        var ang = apex.angle || 0;
+        var nx = -Math.sin(ang), ny = Math.cos(ang);
+        var side = a.side || 1;
+        var ox = apex.x + nx * side * (52 + (a.bulge || 30) * 0.45) * U;
+        var oy = apex.y + ny * side * (52 + (a.bulge || 30) * 0.45) * U;
+        pushEffect({
+          kind: "particle",
+          x: ox, y: oy,
+          vx: nx * side * (18 + Math.random() * 16) * U,
+          vy: ny * side * (18 + Math.random() * 16) * U - 6 * U,
+          life: 0.35, max: 0.45, color: "rgba(232, 196, 140, 0.85)"
         });
       }
     }
@@ -5792,6 +5922,18 @@
           }
           en.progAtLastBeat = en.progress;
         }
+        // VELOS: manotazo extra solo cerca de la valva. Empuja un poco —
+        // nunca tanto como para anclar al germen. El pulso global ya hizo
+        // el trabajo grande; esto se LEE como la mitral cerrándose.
+        f.valveSlap = 1;
+        for (var evp = 0; evp < state.enemies.length; evp++) {
+          var evl = state.enemies[evp];
+          if (evl.dead || evl.absorbing) continue;
+          if (evl.def && evl.def.bloodSurf) continue;
+          var totV = PATH.totalForBranch[evl.heridaIdx | 0] || PATH.total || 1;
+          if (evl.progress / totV < 0.68) continue;
+          evl.progress = Math.max(totV * 0.52, evl.progress - 18 * U);
+        }
         // La vegetación se teje LATIDO A LATIDO, no por goteo continuo: el
         // germen que aguanta adherido varias sístoles es el que se blinda.
         var perLayer = cfg.vegBeatsPerLayer || 2;
@@ -5832,6 +5974,11 @@
           f2DamageIntegrity(6 * dt, ev.heridaIdx | 0);
         }
       }
+    }
+
+    if (cfg.key === "endocarditis") {
+      if (f.valveSlap > 0) f.valveSlap = Math.max(0, f.valveSlap - dt * 1.8);
+      updateEndocarditisAtheromas(dt);
     }
 
     // --- HUESO: secuestros que blindan a quien los pisa ------------------
@@ -6371,21 +6518,46 @@
       return true;
     }
     if (id === "macrofagoCardiaco") {
-      // DESCARGA DE CONDUCCIÓN: todas las torres en rango disparan YA.
-      // Visual: rayos de conducción reales, uno por torre despertada —
-      // el sistema de conducción cardíaco propagándose célula a célula,
-      // no un anillo abstracto.
-      var n = 0;
-      for (var c = 0; c < state.towers.length; c++) {
-        var tw = state.towers[c];
-        if (tw === t || tw.dead || !inRange(tw)) continue;
-        tw.cooldown = 0;
-        tw.conductionBoost = 6;      // 6s de cadencia acelerada
-        n++;
-        pushEffect({ kind: "conductionBolt", x1: t.x, y1: t.y, x2: tw.x, y2: tw.y, life: 0.5, max: 0.5 });
+      // DIGESTIÓN: se traga al gérmen más maduro (más capas) en rango.
+      // Si nadie está clavado, derrite capas a los que ya llegaron al velo.
+      var bestE = null, bestL = -1, bestP = -1;
+      var melted = 0;
+      for (var vg = 0; vg < state.enemies.length; vg++) {
+        var evg = state.enemies[vg];
+        if (evg.dead || evg.dying || evg.absorbing || !inRange(evg)) continue;
+        if (evg.def.bloodSurf && !(evg.slowTimer > 0) && !(evg.stunTimer > 0)) continue;
+        var layers = evg.vegLayers || 0;
+        if (layers > bestL || (layers === bestL && evg.progress > bestP)) {
+          bestL = layers; bestP = evg.progress; bestE = evg;
+        }
       }
-      pushEffect({ kind: "novaRing", x: t.x, y: t.y, r: rng * 0.35, color: "#f0946a", life: 0.5, max: 0.5 });
-      consume(1.5, "CONDUCCIÓN — " + n + " células disparan a la vez");
+      if (bestE && bestL >= 1) {
+        if (t.engulfTarget && t.engulfTarget !== bestE) releaseValvularEngulf(t);
+        bestE.beingEngulfed = true;
+        t.engulfTarget = bestE;
+        t.engulfPhase = "engulf";
+        t.engulfT = 0;
+        t.mouthOpen = 1;
+        t.tongueExtend = 0;
+        t.swallow = 0.7;
+        t.attackAnim = 1.0;
+        pushEffect({ kind: "novaRing", x: t.x, y: t.y, r: rng * 0.4, color: "#e8c090", life: 0.45, max: 0.45 });
+        consume(1.4, "DIGESTIÓN — se traga la vegetación madura");
+        return true;
+      }
+      for (var dm = 0; dm < state.enemies.length; dm++) {
+        var edm = state.enemies[dm];
+        if (edm.dead || !inRange(edm)) continue;
+        if ((edm.vegLayers || 0) > 0) {
+          edm.vegLayers = Math.max(0, edm.vegLayers - 2);
+          melted++;
+        }
+      }
+      t.swallow = 0.5;
+      t.mouthOpen = 0.85;
+      t.attackAnim = 0.8;
+      pushEffect({ kind: "novaRing", x: t.x, y: t.y, r: rng * 0.55, color: "#d4783c", life: 0.5, max: 0.5 });
+      consume(1.3, melted ? ("DIGESTIÓN — " + melted + " costras disueltas") : "DIGESTIÓN — el velo queda limpio");
       return true;
     }
     if (id === "osteoclasto") {
@@ -8844,6 +9016,7 @@
   function placeTower(x, y, typeId) {
     var def = TOWER_DEFS[typeId];
     if (!def || def.retired) return;
+    if (organBlocksTower(typeId)) return;
     state.towers.push({
       x: x, y: y,
       nx: FIELD_W > 0 ? (x - FIELD_LEFT) / FIELD_W : 0,
@@ -8858,6 +9031,8 @@
       blinkTimer: 0,
       nextBlink: state.time + 2 + Math.random() * 3,
       placedAt: state.time,
+      homeX: x,
+      homeY: y,
       maxHp: Math.round(def.levels[0].hp * comboMult("def")),
       hp: Math.round(def.levels[0].hp * comboMult("def")),
       hitFlash: 0,
@@ -9558,6 +9733,114 @@
     }
   }
 
+  function updateOrganPatrol(t, dt) {
+    var pr = t.def.patrols;
+    if (!pr) return;
+    if (t.homeX == null) { t.homeX = t.x; t.homeY = t.y; }
+    t.patrolA = (t.patrolA != null ? t.patrolA : (t.idlePhase || 0)) + dt * (pr.speed / Math.max(12, pr.radius));
+    t.x = t.homeX + Math.cos(t.patrolA) * pr.radius * U;
+    t.y = t.homeY + Math.sin(t.patrolA) * pr.radius * U * 0.55;
+  }
+
+  function germStuckOnValve(e) {
+    if (!e || e.dead) return false;
+    if ((e.vegLayers || 0) > 0) return true;
+    if (e.def && e.def.bloodSurf && !(e.slowTimer > 0) && !(e.stunTimer > 0)) return false;
+    var lane = e.heridaIdx || 0;
+    var tot = (PATH.totalForBranch && PATH.totalForBranch[lane]) || PATH.total || 1;
+    return tot > 0 && (e.progress / tot) > 0.68;
+  }
+
+  function releaseValvularEngulf(t) {
+    var e = t.engulfTarget;
+    if (e && !e.dead) {
+      e.beingEngulfed = false;
+      e.engulfScale = null;
+    }
+    t.engulfTarget = null;
+    t.engulfPhase = null;
+    t.engulfT = 0;
+    t.mouthOpen = 0;
+    t.tongueExtend = 0;
+  }
+
+  function updateValvularMac(t, dt, rangePx) {
+    if ((t.digestCd || 0) > 0) t.digestCd -= dt;
+    if ((t.swallow || 0) > 0) t.swallow = Math.max(0, t.swallow - dt);
+    if (t.engulfTarget) {
+      var e = t.engulfTarget;
+      if (!e || e.dead || e.dying || e.absorbing) {
+        releaseValvularEngulf(t);
+        return;
+      }
+      e.beingEngulfed = true;
+      e.x += (t.x - e.x) * Math.min(1, dt * 6);
+      e.y += (t.y + 10 * U - e.y) * Math.min(1, dt * 6);
+      t.engulfT = (t.engulfT || 0) + dt;
+      t.attackAnim = 0.25;
+      if (t.engulfPhase === "lick") {
+        t.tongueExtend = Math.min(1, t.engulfT / 0.32);
+        t.mouthOpen = 0.22;
+        e.engulfScale = 1 - 0.18 * Math.min(1, t.engulfT / 0.32);
+        if (t.engulfT >= 0.32) { t.engulfPhase = "lift"; t.engulfT = 0; }
+      } else if (t.engulfPhase === "lift") {
+        t.mouthOpen = 0.45 + 0.35 * Math.min(1, t.engulfT / 0.22);
+        t.tongueExtend = Math.max(0, 1 - t.engulfT / 0.22);
+        e.engulfScale = 0.82 - 0.22 * Math.min(1, t.engulfT / 0.22);
+        if (t.engulfT >= 0.22) { t.engulfPhase = "engulf"; t.engulfT = 0; }
+      } else {
+        var frac = Math.min(1, t.engulfT / 0.85);
+        t.mouthOpen = 1;
+        t.tongueExtend = 0;
+        e.engulfScale = 1 - frac * 0.85;
+        if (frac >= 1) {
+          e.vegLayers = 0;
+          e.beingEngulfed = false;
+          e.engulfScale = null;
+          if (!e.dying) {
+            e.dead = true;
+            state.pathogensDefeated += 1;
+            META.totalPathogensDefeated += 1;
+            state.atp += MACROFAGO_DROP_REWARD;
+            pushEffect({ kind: "atpText", x: t.x, y: t.y - 12 * U, vy: -36 * U,
+              text: "+" + MACROFAGO_DROP_REWARD + " ATP", life: 0.85, max: 0.85, color: "#FFD93D" });
+          }
+          t.swallow = 0.6;
+          t.mouthOpen = 0;
+          t.engulfTarget = null;
+          t.engulfPhase = null;
+          t.digestCd = 0.55;
+          pushDamageNumber(t.x, t.y - 24 * U, "¡ÑAM!", "#ffd24a");
+          sfx("sell");
+        }
+      }
+      return;
+    }
+    if (t.mouthOpen > 0) t.mouthOpen = Math.max(0, t.mouthOpen - dt * 2.4);
+    if ((t.digestCd || 0) > 0) return;
+    var best = null, bestL = -1, bestD = Infinity;
+    var i, en, d, layers;
+    for (i = 0; i < state.enemies.length; i++) {
+      en = state.enemies[i];
+      if (en.dead || en.dying || en.absorbing || en.beingEngulfed || en.beingDropped) continue;
+      if (en.state === "falling" || en.state === "entering") continue;
+      if (!germStuckOnValve(en)) continue;
+      d = Math.hypot(en.x - t.x, en.y - t.y);
+      if (d > rangePx) continue;
+      layers = en.vegLayers || 0;
+      if (layers > bestL || (layers === bestL && d < bestD)) {
+        bestL = layers; bestD = d; best = en;
+      }
+    }
+    if (!best) return;
+    best.beingEngulfed = true;
+    t.engulfTarget = best;
+    t.engulfPhase = "lick";
+    t.engulfT = 0;
+    t.attackAnim = 0.3;
+    sfx("macroAttack");
+  }
+
   function updateTowers(dt) {
     // Recalcula sinergias por proximidad al inicio del frame (O(n²)
     // pero con n<20 es trivial).
@@ -9872,6 +10155,7 @@
             timer: db.delay, max: db.delay
           });
         }
+        if (t.engulfTarget) releaseValvularEngulf(t);
         // Médula: Célula de Reserva — la torre se reconstruye con 25% HP.
         if ((state.medCelulaReserva || 0) > 0 && !t.isGhostCell) {
           state.medCelulaReserva -= 1;
@@ -9896,6 +10180,11 @@
       if (t.stunTimer > 0) t.stunTimer -= dt;
       if (t.slowFireTimer > 0) t.slowFireTimer -= dt;
       if (t.stunTimer > 0 || t.devouredBy) continue;   // paralizada / siendo devorada
+      if (t.def.patrols) updateOrganPatrol(t, dt);
+      if (t.def.engulfAdhered) {
+        updateValvularMac(t, dt, towerStats(t).range * U);
+        continue;
+      }
       if (t.def.id === "langerhans") {
         var langStatsEarly = towerStats(t);
         langerUpdatePassives(t, dt, langStatsEarly, langStatsEarly.range * U);
@@ -11232,6 +11521,11 @@
       var held = false;
       for (var rg = 0; rg < state.guardians.length; rg++) {
         if (state.guardians[rg].engulfTarget === re) { held = true; break; }
+      }
+      if (!held) {
+        for (var rt = 0; rt < state.towers.length; rt++) {
+          if (state.towers[rt].engulfTarget === re) { held = true; break; }
+        }
       }
       if (!held) { re.beingEngulfed = false; re.engulfScale = null; }
     }
@@ -17847,13 +18141,87 @@
     ctx.restore();
   }
 
-  function drawPath() {
-    if (state.dissemination) {
-      drawDisseminationPathStroke();
+  function strokeOrganLivePaths() {
+    var f2 = state && state.f2;
+    if (!f2 || !f2.atheromas || !f2.atheromas.length || !PATH.branches) {
+      strokeAllPaths();
       return;
     }
+    ctx.beginPath();
+    for (var b = 0; b < PATH.branches.length; b++) {
+      var len = PATH.totalForBranch[b] || PATH.branches[b].length || 1;
+      var n = QUALITY.low ? 18 : 36;
+      for (var s = 0; s <= n; s++) {
+        var pt = pathPos(len * s / n, b);
+        if (s === 0) ctx.moveTo(pt.x, pt.y);
+        else ctx.lineTo(pt.x, pt.y);
+      }
+    }
+    ctx.stroke();
+  }
+
+  function drawPathOrganKit(kit) {
+    // Carril de órgano con paleta propia. No usa el rosa de F1 ni el
+    // trazo fino del puente. El grosor late en sístole (corazón).
+    var p = kit.path;
+    if (!p) { drawDisseminationPathStroke(); return; }
+    drawPathInflammation();
+    var beat = (state.f2 && state.f2.inSystole) ? 1 : 0;
+    var swell = 1 + beat * 0.07;
+    ctx.save();
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.strokeStyle = colorAlpha(p.mid, 0.20);
+    ctx.lineWidth = 34 * U * swell;
+    strokeOrganLivePaths();
+    ctx.strokeStyle = p.outer;
+    ctx.lineWidth = 16 * U * swell;
+    strokeOrganLivePaths();
+    ctx.strokeStyle = p.lumen;
+    ctx.lineWidth = 8 * U * swell;
+    strokeOrganLivePaths();
+    ctx.strokeStyle = colorAlpha(p.mid, 0.38);
+    ctx.lineWidth = 3.2 * U;
+    strokeOrganLivePaths();
+    if (PATH.confluence) {
+      ctx.fillStyle = p.confluence || p.mid;
+      ctx.beginPath();
+      ctx.arc(PATH.confluence.x, PATH.confluence.y, 12 * U * swell, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = p.confluenceInner || p.outer;
+      ctx.beginPath();
+      ctx.arc(PATH.confluence.x, PATH.confluence.y, 7 * U * swell, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    if (!QUALITY.low && p.tick) {
+      ctx.strokeStyle = p.tick;
+      ctx.lineWidth = Math.max(1.0, 1.25 * U);
+      walkPathSamples(function (x, y, nx, ny, seed) {
+        var j = ((seed * 9301 + 49297) % 233280) / 233280;
+        if (j < 0.55) return;
+        var side = (seed % 2) ? 1 : -1;
+        var x0 = x + nx * 11.5 * U * side;
+        var y0 = y + ny * 11.5 * U * side;
+        var flen = (2.6 + j * 3.4) * U;
+        var tx = -ny, ty = nx;
+        ctx.beginPath();
+        ctx.moveTo(x0 - tx * flen * 0.5, y0 - ty * flen * 0.5);
+        ctx.lineTo(x0 + tx * flen * 0.5, y0 + ty * flen * 0.5);
+        ctx.stroke();
+      }, 3);
+    }
+    ctx.restore();
+  }
+
+  function drawPath() {
     if (state.f2) {
-      drawPathHighway();
+      var kit = organKit(f2Cfg());
+      if (kit && kit.path) drawPathOrganKit(kit);
+      else drawDisseminationPathStroke();
+      return;
+    }
+    if (state.dissemination) {
+      drawDisseminationPathStroke();
       return;
     }
     drawPathWoundChannel();
@@ -21835,72 +22203,64 @@
 
   // --- Célula endotelial valvular: pavimento que sella la valva ----------
   function drawEndotelial(t, pulse, expression, blink) {
-    var R = 15 * U * pulse, time = state.time, w = (t.idlePhase || 0);
-    // Telegraph de carga: la monocapa se va SELLANDO a medida que junta
-    // Reendotelización. El jugador ve la reparación venir en el cuerpo.
+    var R = 16 * U * pulse, time = state.time, w = (t.idlePhase || 0);
     var cf = Math.max(0, Math.min(1, t.specialCharge || 0));
     var firing = (t.specialAnim || 0) > 0;
     ctx.save();
     ctx.translate(t.x, t.y);
-    // (3) Halo de monocapa nueva asomando ANTES del estallido post-disparo.
     if (cf > 0.15 && !firing) {
-      ctx.strokeStyle = "rgba(168,224,234," + (0.30 * cf) + ")";
-      ctx.lineWidth = Math.max(1, (1 + cf * 2.4) * U);
+      ctx.strokeStyle = "rgba(200,245,255," + (0.42 * cf) + ")";
+      ctx.lineWidth = Math.max(1, (1.2 + cf * 2.6) * U);
       ctx.beginPath();
-      ctx.ellipse(0, 0, R * (1.5 + cf * 0.35), R * (1.0 + cf * 0.25), 0, 0, Math.PI * 2);
+      ctx.ellipse(0, 0, R * (1.55 + cf * 0.35), R * (1.02 + cf * 0.22), 0, 0, Math.PI * 2);
       ctx.stroke();
     }
-    // Onda de reendotelización al disparar.
     if (firing) {
       var fa = Math.min(1, t.specialAnim);
-      ctx.strokeStyle = "rgba(200,245,255," + (0.75 * fa) + ")";
-      ctx.lineWidth = Math.max(2, 3.2 * U * fa);
+      ctx.strokeStyle = "rgba(230,255,255," + (0.8 * fa) + ")";
+      ctx.lineWidth = Math.max(2, 3.4 * U * fa);
       ctx.beginPath();
-      ctx.ellipse(0, 0, R * (1.4 + (1 - fa) * 2.6), R * (0.95 + (1 - fa) * 1.8), 0, 0, Math.PI * 2);
+      ctx.ellipse(0, 0, R * (1.35 + (1 - fa) * 2.4), R * (0.9 + (1 - fa) * 1.6), 0, 0, Math.PI * 2);
       ctx.stroke();
     }
-    // Monocapa: la célula endotelial es aplanada y poligonal, no redonda.
+    // Pavimento: hexos claros que se leen sobre el rojo de la cámara.
     var g = ctx.createLinearGradient(-R, -R, R, R);
-    g.addColorStop(0, "#a8e0ea");
-    g.addColorStop(0.5, "#5fa8b8");
-    g.addColorStop(1, "#25525e");
+    g.addColorStop(0, "#e7fbff");
+    g.addColorStop(0.45, "#8fd4e2");
+    g.addColorStop(1, "#2d6a78");
     ctx.fillStyle = g;
     ctx.beginPath();
     for (var a = 0; a < 6; a++) {
       var ang = (a / 6) * Math.PI * 2 + 0.25;
-      var rr = R * (1 + 0.10 * Math.sin(a * 2.1 + time * 0.8));
-      var px = Math.cos(ang) * rr * 1.22, py = Math.sin(ang) * rr * 0.78;
+      var rr = R * (1 + 0.08 * Math.sin(a * 2.1 + time * 0.8));
+      var px = Math.cos(ang) * rr * 1.24, py = Math.sin(ang) * rr * 0.76;
       if (a === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
     }
     ctx.closePath();
     ctx.fill();
-    ctx.strokeStyle = "#14343d"; ctx.lineWidth = Math.max(1.6, 2.2 * U); ctx.stroke();
-    // (1) Uniones estrechas: los guiones se CIERRAN con la carga. De borde
-    // punteado y flojo a sello continuo — la barrera se está reconstruyendo.
-    var hueco = (2.5 - cf * 2.2) * U;
-    ctx.strokeStyle = "rgba(200,245,255," + (0.65 + cf * 0.30) + ")";
-    ctx.lineWidth = Math.max(1, (1.3 + cf * 1.1) * U);
-    ctx.setLineDash([(2.5 + cf * 3) * U, Math.max(0.1, hueco)]);
-    ctx.beginPath(); ctx.ellipse(0, 0, R * 1.30, R * 0.86, 0, 0, Math.PI * 2); ctx.stroke();
-    ctx.setLineDash([]);
-    // (2) Cuerpos de Weibel-Palade: con la carga crecen, brillan y vibran.
-    // Son los gránulos que la célula está por volcar.
-    for (var k = 0; k < 4; k++) {
-      var ka = w + k * 1.57 + time * (0.5 + cf * 1.8);
-      var jit = cf * (Math.random() - 0.5) * R * 0.09;
-      ctx.fillStyle = "rgba(255,255,255," + (0.55 + cf * 0.42) + ")";
-      ctx.save();
-      ctx.translate(Math.cos(ka) * R * 0.45 + jit, Math.sin(ka) * R * 0.3 + jit);
-      ctx.rotate(ka);
-      var gw = R * (0.44 + cf * 0.22), gh = R * (0.12 + cf * 0.07);
-      roundRect(-gw / 2, -gh / 2, gw, gh, R * 0.06);
-      ctx.fill();
-      ctx.restore();
+    ctx.strokeStyle = "#d8f6fb";
+    ctx.lineWidth = Math.max(1.8, 2.4 * U);
+    ctx.stroke();
+    ctx.strokeStyle = "#14343d";
+    ctx.lineWidth = Math.max(1.2, 1.6 * U);
+    ctx.stroke();
+    // Losetas internas (uniones estrechas).
+    ctx.strokeStyle = "rgba(255,255,255," + (0.55 + cf * 0.35) + ")";
+    ctx.lineWidth = Math.max(1, (1.1 + cf * 1.2) * U);
+    var hx;
+    for (hx = -1; hx <= 1; hx++) {
+      ctx.beginPath();
+      ctx.moveTo(hx * R * 0.42, -R * 0.52);
+      ctx.lineTo(hx * R * 0.42, R * 0.52);
+      ctx.stroke();
     }
-    // Núcleo aplanado.
+    ctx.beginPath();
+    ctx.moveTo(-R * 0.7, 0);
+    ctx.lineTo(R * 0.7, 0);
+    ctx.stroke();
     ctx.fillStyle = "#0e2a32";
-    ctx.beginPath(); ctx.ellipse(0, R * 0.05, R * 0.42, R * 0.26, 0, 0, Math.PI * 2); ctx.fill();
-    towerFace(R * 0.55, expression, blink);
+    ctx.beginPath(); ctx.ellipse(0, R * 0.04, R * 0.40, R * 0.24, 0, 0, Math.PI * 2); ctx.fill();
+    towerFace(R * 0.52, expression, blink);
     ctx.restore();
   }
 
@@ -21946,18 +22306,21 @@
     g.addColorStop(0.55, "#8a7fc8");
     g.addColorStop(1, "#3b3470");
     ctx.fillStyle = g;
-    ctx.beginPath(); ctx.ellipse(0, 0, R * 1.28, R * 0.86, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(0, 0, R * 1.32, R * 0.78, t.patrolA || 0, 0, Math.PI * 2); ctx.fill();
     ctx.strokeStyle = "#231d4a"; ctx.lineWidth = Math.max(1.8, 2.4 * U); ctx.stroke();
     // Bandas de rodamiento (tread) en la cara inferior: el rasgo que la
     // separa de un óvalo genérico y lee como "rueda que avanza".
-    ctx.strokeStyle = "rgba(35,29,74,0.55)";
-    ctx.lineWidth = Math.max(1, 1.3 * U);
+    ctx.save();
+    ctx.rotate(t.patrolA || 0);
+    ctx.strokeStyle = "rgba(35,29,74,0.62)";
+    ctx.lineWidth = Math.max(1.2, 1.6 * U);
     for (var tr = -2; tr <= 2; tr++) {
       ctx.beginPath();
-      ctx.moveTo(tr * R * 0.42, R * 0.62);
-      ctx.lineTo(tr * R * 0.42 + R * 0.14, R * 0.82);
+      ctx.moveTo(tr * R * 0.38, R * 0.42);
+      ctx.lineTo(tr * R * 0.38 + R * 0.16, R * 0.74);
       ctx.stroke();
     }
+    ctx.restore();
     // Núcleo en herradura.
     ctx.fillStyle = "#372c6e";
     ctx.beginPath();
@@ -21982,81 +22345,99 @@
     ctx.restore();
   }
 
-  // --- Macrófago cardíaco residente: fagocita y CONDUCE ------------------
+  // --- Macrófago valvular: primo del Libre de F1, plantado en el velo -----
   function drawMacrofagoCardiaco(t, pulse, expression, blink) {
-    var R = 16 * U * pulse, time = state.time, w = (t.idlePhase || 0);
+    var R = 17 * U * pulse, time = state.time, w = (t.idlePhase || 0);
     var cf = Math.max(0, Math.min(1, t.specialCharge || 0));
     var firing = (t.specialAnim || 0) > 0;
+    var maw = t.mouthOpen || 0;
+    var swallow = t.swallow || 0;
+    var COL = "#e09048", COLD = "#9a4a22";
     ctx.save();
     ctx.translate(t.x, t.y);
-    // Onda de conducción atada al latido REAL del nivel. Antes usaba un ciclo
-    // fijo de 1.15s y quedaba desfasada del corazón, que ahora late a 2.6s:
-    // el macrófago cardíaco conduce el impulso, tiene que ir con la sístole.
-    var f2 = state.f2;
-    var ciclo = (f2 && f2.cfg && f2.cfg.pulseCycle) ? f2.cfg.pulseCycle : 1.15;
-    var reloj = (f2 && f2.pulseT != null) ? f2.pulseT : time;
-    var beat = (reloj % ciclo) / ciclo;
-    ctx.strokeStyle = "rgba(240,140,110," + (0.42 * (1 - beat)) + ")";
-    ctx.lineWidth = Math.max(1.4, 2 * U);
-    ctx.beginPath(); ctx.arc(0, 0, R * (1.2 + beat * 1.5), 0, Math.PI * 2); ctx.stroke();
-    // (3) Con la carga aparece un segundo anillo, más apretado y dorado.
+    ctx.scale(1.06, 0.90);
+    if (swallow > 0) {
+      var sw = swallow / 0.6;
+      ctx.scale(1 + sw * 0.32, 1 - sw * 0.18);
+    }
     if (cf > 0.15 && !firing) {
-      ctx.strokeStyle = "rgba(255,225,150," + (0.35 * cf) + ")";
-      ctx.lineWidth = Math.max(1, (1 + cf * 2.2) * U);
-      ctx.beginPath(); ctx.arc(0, 0, R * (1.15 + cf * 0.5), 0, Math.PI * 2); ctx.stroke();
+      ctx.strokeStyle = "rgba(232, 192, 140," + (0.28 * cf) + ")";
+      ctx.lineWidth = Math.max(1, (1 + cf * 2) * U);
+      ctx.beginPath(); ctx.arc(0, 0, R * (1.35 + cf * 0.35), 0, Math.PI * 2); ctx.stroke();
     }
-    if (firing) {
-      var fa = Math.min(1, t.specialAnim);
-      ctx.strokeStyle = "rgba(255,240,180," + (0.8 * fa) + ")";
-      ctx.lineWidth = Math.max(2, 3.4 * U * fa);
-      ctx.beginPath(); ctx.arc(0, 0, R * (1.2 + (1 - fa) * 3), 0, Math.PI * 2); ctx.stroke();
+    if (firing || maw > 0.6) {
+      var fa = firing ? Math.min(1, t.specialAnim) : maw;
+      ctx.fillStyle = "rgba(80, 28, 16," + (0.22 * fa) + ")";
+      ctx.beginPath(); ctx.ellipse(0, R * 0.18, R * (0.7 + fa * 0.35), R * (0.45 + fa * 0.25), 0, 0, Math.PI * 2); ctx.fill();
     }
-    // Cuerpo ameboide con prolongaciones (macrófago residente ramificado).
-    var g = ctx.createRadialGradient(-R * 0.3, -R * 0.3, R * 0.1, 0, 0, R * 1.05);
-    g.addColorStop(0, "#f0a08c");
-    g.addColorStop(0.55, "#c9634f");
-    g.addColorStop(1, "#6a2618");
-    ctx.fillStyle = g;
+    var reach = (maw > 0.05 || (t.attackAnim || 0) > 0) ? 1.28 : 1.0;
+    ctx.lineCap = "round";
+    var nF = 10, b0 = R * 0.60, f;
+    for (f = 0; f < nF; f++) {
+      var pulseT = time * 1.3 + f * 1.73 + w;
+      var fl = R * (0.18 + ((Math.sin(pulseT) + 1) * 0.5) * 0.32) * reach;
+      var fa2 = f / nF * Math.PI * 2 + Math.sin(time * 0.7 + f) * 0.10;
+      var bx = Math.cos(fa2) * b0, by = Math.sin(fa2) * b0;
+      var tx = Math.cos(fa2) * (b0 + fl), ty = Math.sin(fa2) * (b0 + fl);
+      ctx.strokeStyle = COLD; ctx.lineWidth = R * 0.32;
+      ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(tx, ty); ctx.stroke();
+      ctx.strokeStyle = (t.hitFlash > 0) ? "#ffd0d0" : COL; ctx.lineWidth = R * 0.24;
+      ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(tx, ty); ctx.stroke();
+      ctx.fillStyle = COL;
+      ctx.beginPath(); ctx.arc(tx, ty, R * 0.12, 0, Math.PI * 2); ctx.fill();
+    }
+    var body = ctx.createRadialGradient(-R * 0.28, -R * 0.28, R * 0.18, 0, 0, R * 0.92);
+    body.addColorStop(0, "#f7cf95");
+    body.addColorStop(0.55, COL);
+    body.addColorStop(1, COLD);
+    ctx.fillStyle = (t.hitFlash > 0) ? "#ffd0d0" : body;
     ctx.beginPath();
-    for (var a = 0; a <= 18; a++) {
-      var ang = (a / 18) * Math.PI * 2;
-      var lobe = 1 + 0.16 * Math.sin(ang * 4 + time * 1.5 + w);
-      var px = Math.cos(ang) * R * lobe, py = Math.sin(ang) * R * lobe;
-      if (a === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    var bw;
+    for (bw = 0; bw <= 14; bw++) {
+      var bwAng = (bw / 14) * Math.PI * 2;
+      var bwR = R * 0.78 * (1 + Math.sin(bwAng * 4 + time * 1.2 + w) * 0.05);
+      if (bw === 0) ctx.moveTo(Math.cos(bwAng) * bwR, Math.sin(bwAng) * bwR);
+      else ctx.lineTo(Math.cos(bwAng) * bwR, Math.sin(bwAng) * bwR);
     }
     ctx.closePath();
     ctx.fill();
-    ctx.strokeStyle = "#4a1a10"; ctx.lineWidth = Math.max(1.8, 2.4 * U); ctx.stroke();
-    // Vacuolas fagocíticas.
-    ctx.fillStyle = "rgba(255,220,200,0.5)";
-    for (var v = 0; v < 3; v++) {
-      var va = w + v * 2.1 + time * 0.4;
+    ctx.strokeStyle = COLD; ctx.lineWidth = Math.max(1.6, 2 * U); ctx.stroke();
+    ctx.fillStyle = "rgba(120, 60, 20, 0.62)";
+    var rc;
+    for (rc = 0; rc < 6; rc++) {
+      var rcA = rc * Math.PI * 2 / 6 + time * 0.12 + w;
       ctx.beginPath();
-      ctx.arc(Math.cos(va) * R * 0.42, Math.sin(va) * R * 0.42, R * (0.15 + 0.03 * Math.sin(time * 3 + v)), 0, Math.PI * 2);
+      ctx.arc(Math.cos(rcA) * R * 0.76, Math.sin(rcA) * R * 0.76, R * 0.065, 0, Math.PI * 2);
       ctx.fill();
     }
-    // (1)(2) Chispa de conducción: con la carga se engorda, se ramifica y
-    // tiembla. Es la descarga acumulándose antes de soltarse.
-    ctx.strokeStyle = "rgba(255,235,160," + (0.9 * (0.7 + cf * 0.3)) + ")";
-    ctx.lineWidth = Math.max(1.2, (1.6 + cf * 2.2) * U);
-    var jx = function () { return cf * (Math.random() - 0.5) * R * 0.12; };
+    ctx.fillStyle = "rgba(110, 60, 140, 0.88)";
     ctx.beginPath();
-    ctx.moveTo(-R * 0.30 + jx(), R * 0.10 + jx());
-    ctx.lineTo(-R * 0.06 + jx(), -R * 0.14 + jx());
-    ctx.lineTo(R * 0.04 + jx(), R * 0.06 + jx());
-    ctx.lineTo(R * 0.28 + jx(), -R * 0.18 + jx());
-    ctx.stroke();
-    if (cf > 0.4) {
-      ctx.lineWidth = Math.max(0.8, 1.1 * U);
-      ctx.strokeStyle = "rgba(255,250,210," + (0.6 * cf) + ")";
+    ctx.ellipse(-R * 0.06, -R * 0.10, R * 0.26, R * 0.20, -0.4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "rgba(70, 30, 100, 0.75)";
+    var ly;
+    for (ly = 0; ly < 4; ly++) {
+      var lyA = ly * 1.6 + w;
       ctx.beginPath();
-      ctx.moveTo(-R * 0.06, -R * 0.14);
-      ctx.lineTo(-R * 0.20 + jx(), -R * 0.34 + jx());
-      ctx.moveTo(R * 0.04, R * 0.06);
-      ctx.lineTo(R * 0.16 + jx(), R * 0.30 + jx());
-      ctx.stroke();
+      ctx.arc(Math.cos(lyA) * R * 0.42, Math.sin(lyA) * R * 0.36 + R * 0.16, R * 0.055, 0, Math.PI * 2);
+      ctx.fill();
     }
-    towerFace(R * 0.55, expression, blink);
+    // Migas de fibrina: lo que lo distingue del Libre (come vegetación).
+    ctx.fillStyle = "rgba(236, 214, 190, 0.72)";
+    ctx.beginPath(); ctx.arc(R * 0.28, R * 0.22, R * 0.08, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(-R * 0.22, R * 0.30, R * 0.06, 0, Math.PI * 2); ctx.fill();
+    if (maw > 0.45) {
+      ctx.fillStyle = "rgba(15, 25, 45, 0.92)";
+      ctx.beginPath();
+      ctx.ellipse(0, R * 0.26, R * (0.32 + 0.48 * maw), R * (0.20 + 0.48 * maw), 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "#ff9bb0"; ctx.lineWidth = 2 * U;
+      ctx.beginPath();
+      ctx.ellipse(0, R * 0.26, R * (0.32 + 0.48 * maw), R * (0.20 + 0.48 * maw), 0, 0, Math.PI * 2);
+      ctx.stroke();
+    } else {
+      towerFace(R * 0.52, (t.attackAnim || 0) > 0 ? "attacking" : expression, blink);
+    }
     ctx.restore();
   }
 
@@ -24019,7 +24400,7 @@
     // Shield overlay (drawn on top of body but under HP bar).
     // S. aureus dibuja su cápsula como casco irregular del racimo;
     // el anillo circular genérico lo volvería otra vez un círculo dorado.
-    if (def.shield && def.id !== "saureus" && def.id !== "dermatofito" && def.id !== "hpv" && def.id !== "candida" && def.id !== "pseudomonas" && def.id !== "bossPyogenes" && def.id !== "bossPseudomonas" && def.id !== "bossClostridium" && def.id !== "bossMRSA" &&
+    if (def.shield && def.id !== "saureus" && def.id !== "dermatofito" && def.id !== "hpv" && def.id !== "candida" && def.id !== "pseudomonas" && def.id !== "bossPyogenes" && def.id !== "bossPseudomonas" && def.id !== "bossClostridium" && def.id !== "bossMRSA" && def.id !== "enterococo" &&
         (e.shieldHP > 0 || e.shieldShatterTimer > 0)) {
       drawShield(e, rad * scale);
     }
@@ -28669,6 +29050,7 @@
   // Vegetación valvular: capas de fibrina-plaquetas que envuelven al germen
   // adherido. Se dibuja ANTES del cuerpo para que el germen quede encima.
   function drawVegetationLayers(e, R) {
+    if (e.beingEngulfed) return;
     var layers = e.vegLayers || 0;
     if (layers <= 0.05) return;
     var t = state.time;
@@ -28697,181 +29079,258 @@
     }
   }
 
+  function trackGermHeading(e, lerp) {
+    lerp = lerp == null ? 0.12 : lerp;
+    if (e._lastPosX == null) { e._lastPosX = e.x; e._lastPosY = e.y; e._heading = 0; }
+    var dxM = e.x - e._lastPosX, dyM = e.y - e._lastPosY;
+    if (Math.hypot(dxM, dyM) > 0.5) {
+      var targetAng = Math.atan2(dyM, dxM);
+      var diffAng = targetAng - (e._heading || 0);
+      while (diffAng >  Math.PI) diffAng -= Math.PI * 2;
+      while (diffAng < -Math.PI) diffAng += Math.PI * 2;
+      e._heading = (e._heading || 0) + diffAng * lerp;
+    }
+    e._lastPosX = e.x; e._lastPosY = e.y;
+    return e._heading || 0;
+  }
+
   // --- Streptococcus viridans: CADENA de cocos + vegetación --------------
+  // Estreptococo = división en un plano: cuentas en hilo, no racimo ni
+  // sonrisa compacta. Cada coco lleva su propia membrana circular.
   function drawViridans(e, rad, expression, blink) {
     var R = rad, t = state.time, w = e.wobble || 0, hit = e.hitFlash > 0;
-    // Estados que este germen SÍ tiene y hasta ahora no se veían en el cuerpo:
-    // cuántas capas de vegetación lleva tejidas, si ya maduró, y si el
-    // corazón está en sístole empujándolo hacia atrás.
     var capas = e.vegLayers || 0;
     var maduro = !!e.vegMature;
     var sist = !!(state.f2 && state.f2.inSystole);
+    var heading = trackGermHeading(e, 0.12);
+    var n = 5;
+    var cocoR = R * 0.34;
+    var spacing = cocoR * 1.62;
+    var mid = (n - 1) / 2;
+    var beads = [];
+    var i, cx, cy, rr, g;
+    for (i = 0; i < n; i++) {
+      cx = (i - mid) * spacing;
+      cy = Math.sin((i - mid) * 0.85 + t * 1.15 + w) * cocoR * 0.22;
+      rr = cocoR * (1 - Math.abs(i - mid) * 0.06);
+      beads.push({ x: cx, y: cy, r: rr });
+    }
     ctx.save();
     ctx.translate(e.x, e.y);
-    // En sístole se AGACHA y se aplasta contra el endotelio para aguantar el
-    // chorro. Es la lectura visual de por qué unos resisten y otros no.
-    if (sist) ctx.scale(1.10, 0.88);
-    drawVegetationLayers(e, R);
-    // Cadena de 5 cocos en arco (los estreptococos crecen en cadena).
-    var n = 5;
-    var arc = 1.5 + Math.sin(t * 1.2 + w) * 0.25;
-    for (var i = 0; i < n; i++) {
-      var f = (i / (n - 1)) - 0.5;
-      var ang = f * arc;
-      var cx = Math.sin(ang) * R * 0.95;
-      var cy = -Math.cos(ang) * R * 0.28 + R * 0.22;
-      var rr = R * (0.44 - Math.abs(f) * 0.08);
-      var g = ctx.createRadialGradient(cx - rr * 0.3, cy - rr * 0.35, rr * 0.1, cx, cy, rr);
+    if (sist) ctx.scale(1.08, 0.86);
+    drawVegetationLayers(e, R * 1.05);
+    ctx.save();
+    ctx.rotate(heading);
+    if (maduro && !e.beingEngulfed) {
+      ctx.strokeStyle = "rgba(245,232,214,0.80)";
+      ctx.lineWidth = Math.max(1.4, 1.8 * U);
+      ctx.beginPath();
+      for (i = 0; i < n; i++) {
+        ctx.moveTo(beads[i].x + beads[i].r * 0.92, beads[i].y);
+        ctx.arc(beads[i].x, beads[i].y, beads[i].r * 1.12, 0, Math.PI * 2);
+      }
+      ctx.stroke();
+    }
+    for (i = 0; i < n; i++) {
+      cx = beads[i].x; cy = beads[i].y; rr = beads[i].r;
+      g = ctx.createRadialGradient(cx - rr * 0.32, cy - rr * 0.36, rr * 0.12, cx, cy, rr);
       g.addColorStop(0, e.def.colorLight);
-      g.addColorStop(0.6, e.def.color);
+      g.addColorStop(0.58, e.def.color);
       g.addColorStop(1, e.def.colorDark);
       ctx.fillStyle = hit ? "#fff" : g;
       ctx.beginPath(); ctx.arc(cx, cy, rr, 0, Math.PI * 2); ctx.fill();
       ctx.strokeStyle = e.def.colorDark;
-      ctx.lineWidth = Math.max(1, 1.2 * U);
+      ctx.lineWidth = Math.max(1.1, 1.4 * U);
       ctx.stroke();
-      // Brillo.
-      ctx.fillStyle = "rgba(255,255,255,0.35)";
-      ctx.beginPath(); ctx.arc(cx - rr * 0.28, cy - rr * 0.32, rr * 0.26, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = "rgba(255,255,255,0.38)";
+      ctx.beginPath(); ctx.arc(cx - rr * 0.28, cy - rr * 0.32, rr * 0.24, 0, Math.PI * 2); ctx.fill();
     }
-    // Adhesinas FimA: cuantas más capas teje, más se AGARRAN. De hilitos
-    // sueltos que ondean a cables tensos y rectos clavados al endotelio.
-    var agarre = Math.min(1, capas / 3);
-    var nAdh = 6 + Math.round(agarre * 4);
-    ctx.strokeStyle = colorAlpha(e.def.colorLight, 0.55 + agarre * 0.35);
-    ctx.lineWidth = Math.max(0.7, (0.9 + agarre * 1.3) * U);
-    for (var p = 0; p < nAdh; p++) {
-      var px2 = (-0.5 + p / (nAdh - 1)) * R * (1.5 + agarre * 0.5);
-      // Con agarre alto casi no ondean: están tensas.
-      var sway = Math.sin(t * 3 + p) * R * 0.10 * (1 - agarre * 0.85);
-      var largo = R * (1.10 + agarre * 0.45);
-      ctx.beginPath();
-      ctx.moveTo(px2, R * 0.55);
-      ctx.quadraticCurveTo(px2 + sway, R * 0.85, px2 + sway * 1.6, largo);
-      ctx.stroke();
-    }
-    // Maduro: costra de fibrina endurecida por encima de todo. Ya no es un
-    // coco más de la cadena, es un problema instalado en la valva.
-    if (maduro) {
-      ctx.strokeStyle = "rgba(245,232,214,0.85)";
-      ctx.lineWidth = Math.max(1.5, 2.2 * U);
-      ctx.beginPath();
-      for (var cr = 0; cr <= 16; cr++) {
-        var ca = (cr / 16) * Math.PI * 2;
-        var crr = R * (1.02 + 0.09 * Math.sin(ca * 5 + t * 0.6));
-        var cxp = Math.cos(ca) * crr * 1.15, cyp = Math.sin(ca) * crr * 0.85;
-        if (cr === 0) ctx.moveTo(cxp, cyp); else ctx.lineTo(cxp, cyp);
+    ctx.restore();
+    // FimA: hilitos cortos hacia la valva (+Y). Con vegetación se tensan;
+    // nunca una jaula que tape la cadena.
+    if (!e.beingEngulfed) {
+      var agarre = Math.min(1, capas / 3);
+      var ch = Math.cos(heading), sh = Math.sin(heading);
+      ctx.lineCap = "round";
+      for (i = 0; i < n; i++) {
+        var bx = beads[i].x * ch - beads[i].y * sh;
+        var by = beads[i].x * sh + beads[i].y * ch;
+        var nPili = 1 + (agarre > 0.2 ? 1 : 0);
+        var p;
+        for (p = 0; p < nPili; p++) {
+          var sway = Math.sin(t * (3.2 - agarre * 2) + i + p) * R * 0.10 * (1 - agarre * 0.8);
+          var largo = beads[i].r * (0.85 + agarre * 0.55);
+          ctx.strokeStyle = colorAlpha(e.def.colorLight, 0.42 + agarre * 0.40);
+          ctx.lineWidth = Math.max(0.7, (0.9 + agarre * 0.7) * U);
+          ctx.beginPath();
+          ctx.moveTo(bx, by + beads[i].r * 0.55);
+          ctx.quadraticCurveTo(bx + sway, by + beads[i].r * 0.9, bx + sway * 0.6, by + largo);
+          ctx.stroke();
+        }
       }
-      ctx.closePath(); ctx.stroke();
     }
-    germFace(R * 0.70, expression, blink, R * 0.28);
+    germFace(R * 0.55, expression, blink, R * 0.22);
     ctx.restore();
   }
 
   // --- Enterococcus faecalis: diplococo coriáceo que se auto-repara ------
+  // Dos cocos ovoides con cintura. La pared gram+ va EN cada coco, no como
+  // un anillo circular (eso lo leía como patata). El escudo "wall" genérico
+  // se omite: el peptidoglicano sigue la silueta de cacahuete.
   function drawEnterococo(e, rad, expression, blink) {
     var R = rad, t = state.time, w = e.wobble || 0, hit = e.hitFlash > 0;
-    // Su identidad es "coriáceo que se auto-repara", pero el daño no se veía
-    // en ningún lado: la pared se agrieta con las heridas y las grietas se
-    // cierran solas al regenerar. Ahora el jugador ve si está ganando.
     var vida = Math.max(0, Math.min(1, e.hp / (e.maxHp || e.def.hp)));
     var dano = 1 - vida;
     var sist = !!(state.f2 && state.f2.inSystole);
+    var heading = trackGermHeading(e, 0.10);
+    var sd = e.def.shield;
+    var wall = sd && sd.maxHP > 0 ? Math.max(0, Math.min(1, (e.shieldHP || 0) / sd.maxHP)) : 1;
+    var sep = R * 0.50;
+    var rx = R * 0.50, ry = R * 0.58;
     ctx.save();
     ctx.translate(e.x, e.y);
-    if (sist) ctx.scale(1.08, 0.92);
+    if (sist) ctx.scale(1.06, 0.90);
     drawVegetationLayers(e, R);
-    // Pared celular gruesa gram-positiva: anillo exterior mate.
-    ctx.fillStyle = colorAlpha(e.def.colorDark, 0.45);
-    ctx.beginPath(); ctx.arc(0, 0, R * 1.06, 0, Math.PI * 2); ctx.fill();
-    // Grietas en la pared: más y más abiertas cuanto peor está.
-    if (dano > 0.12) {
-      var ng = 1 + Math.round(dano * 5);
-      ctx.strokeStyle = "rgba(40,26,6," + (0.35 + dano * 0.5) + ")";
-      ctx.lineWidth = Math.max(1, (1 + dano * 1.8) * U);
-      ctx.lineCap = "round";
-      for (var cg = 0; cg < ng; cg++) {
-        var ga = w + cg * 2.4;
-        var g0 = R * 0.55, g1 = R * (0.75 + dano * 0.32);
+    ctx.save();
+    ctx.rotate(heading);
+    // Casco céreo que SIGUE el par, no un círculo.
+    if (wall > 0.08) {
+      ctx.fillStyle = "rgba(197, 225, 165," + (0.22 * wall) + ")";
+      ctx.strokeStyle = "rgba(120, 160, 90," + (0.55 * wall) + ")";
+      ctx.lineWidth = Math.max(2.2, (2.4 + wall * 1.6) * U);
+      ctx.beginPath();
+      ctx.ellipse(-sep, 0, rx * 1.18, ry * 1.16, 0, 0, Math.PI * 2);
+      ctx.fill(); ctx.stroke();
+      ctx.beginPath();
+      ctx.ellipse(sep, 0, rx * 1.18, ry * 1.16, 0, 0, Math.PI * 2);
+      ctx.fill(); ctx.stroke();
+      var gran;
+      ctx.fillStyle = "rgba(140, 175, 100," + (0.55 * wall) + ")";
+      for (gran = 0; gran < 8; gran++) {
+        var ga = gran * 0.8 + t * 0.2;
+        var side = gran % 2 === 0 ? -1 : 1;
         ctx.beginPath();
-        ctx.moveTo(Math.cos(ga) * g0, Math.sin(ga) * g0);
-        ctx.lineTo(Math.cos(ga + 0.18) * g1, Math.sin(ga + 0.18) * g1);
-        ctx.lineTo(Math.cos(ga - 0.10) * g1 * 1.12, Math.sin(ga - 0.10) * g1 * 1.12);
-        ctx.stroke();
+        ctx.arc(side * sep + Math.cos(ga) * rx * 0.92, Math.sin(ga) * ry * 0.92, R * 0.05, 0, Math.PI * 2);
+        ctx.fill();
       }
     }
-    // Par de cocos ovoides, uno arriba y otro abajo.
-    var throb = 1 + Math.sin(t * 2.2 + w) * 0.05;
-    for (var s = -1; s <= 1; s += 2) {
+    var s;
+    for (s = -1; s <= 1; s += 2) {
       ctx.save();
-      ctx.translate(0, s * R * 0.36);
-      ctx.scale(throb, throb);
-      var g = ctx.createRadialGradient(-R * 0.18, -R * 0.20, R * 0.05, 0, 0, R * 0.66);
+      ctx.translate(s * sep, 0);
+      var g = ctx.createRadialGradient(-rx * 0.28, -ry * 0.32, rx * 0.08, 0, 0, rx);
       g.addColorStop(0, e.def.colorLight);
       g.addColorStop(0.55, e.def.color);
       g.addColorStop(1, e.def.colorDark);
       ctx.fillStyle = hit ? "#fff" : g;
-      ctx.beginPath(); ctx.ellipse(0, 0, R * 0.62, R * 0.50, 0, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = e.def.colorDark; ctx.lineWidth = Math.max(1, 1.5 * U); ctx.stroke();
+      ctx.beginPath(); ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = e.def.colorDark;
+      ctx.lineWidth = Math.max(1.4, (1.6 + wall * 0.8) * U);
+      ctx.stroke();
+      ctx.fillStyle = "rgba(255,255,255,0.32)";
+      ctx.beginPath(); ctx.ellipse(-rx * 0.28, -ry * 0.30, rx * 0.28, ry * 0.18, 0, 0, Math.PI * 2); ctx.fill();
       ctx.restore();
     }
-    // Señal de regeneración: chispas verdes cuando está curándose.
-    if ((e.healingPulse || 0) > 0 || (e.def.selfHeal && !e.recentlyHit)) {
-      ctx.fillStyle = "rgba(150, 235, 140, 0.75)";
-      for (var k = 0; k < 4; k++) {
-        var ka = t * 2 + k * 1.57;
-        var kr = R * (1.1 + 0.12 * Math.sin(t * 3 + k));
+    // Septo: la cintura que lo hace diplococo y no patata.
+    ctx.strokeStyle = e.def.colorDark;
+    ctx.lineWidth = Math.max(1.3, 1.6 * U);
+    ctx.beginPath();
+    ctx.moveTo(0, -ry * 0.42);
+    ctx.lineTo(0, ry * 0.42);
+    ctx.stroke();
+    if (dano > 0.12) {
+      var ng = 1 + Math.round(dano * 4);
+      ctx.strokeStyle = "rgba(40,26,6," + (0.35 + dano * 0.5) + ")";
+      ctx.lineWidth = Math.max(1, (1 + dano * 1.6) * U);
+      ctx.lineCap = "round";
+      var cg;
+      for (cg = 0; cg < ng; cg++) {
+        var sideC = cg % 2 === 0 ? -sep : sep;
+        var ga2 = w + cg * 1.1;
         ctx.beginPath();
-        ctx.arc(Math.cos(ka) * kr, Math.sin(ka) * kr, R * 0.09, 0, Math.PI * 2);
+        ctx.moveTo(sideC + Math.cos(ga2) * rx * 0.35, Math.sin(ga2) * ry * 0.35);
+        ctx.lineTo(sideC + Math.cos(ga2 + 0.2) * rx * 0.95, Math.sin(ga2 + 0.2) * ry * 0.95);
+        ctx.stroke();
+      }
+    }
+    ctx.restore();
+    if (dano > 0.18) {
+      ctx.fillStyle = "rgba(150, 235, 140, 0.70)";
+      var k;
+      for (k = 0; k < 4; k++) {
+        var ka = t * 2 + k * 1.57;
+        var kr = R * (1.05 + 0.10 * Math.sin(t * 3 + k));
+        ctx.beginPath();
+        ctx.arc(Math.cos(ka) * kr, Math.sin(ka) * kr, R * 0.07, 0, Math.PI * 2);
         ctx.fill();
       }
     }
-    germFace(R * 0.72, expression, blink, R * 0.30);
+    germFace(R * 0.58, expression, blink, R * 0.24);
     ctx.restore();
   }
 
   // --- HACEK: bacilo pequeño y veloz que surfea la sístole ---------------
+  // Cocobacilo gramnegativo: estadio corto, doble membrana, flagelo polar
+  // y ESTELA de plasma. Cuando el corazón se contrae, la estela se dispara.
   function drawHacek(e, rad, expression, blink) {
     var R = rad, t = state.time, hit = e.hitFlash > 0;
-    var ang = Math.atan2(e.vy || 0, e.vx || 1);
-    if (!e.vx && !e.vy) ang = Math.PI / 2;
-    ctx.save();
-    ctx.translate(e.x, e.y);
-    ctx.rotate(ang + Math.sin(t * 7) * 0.12);
-    // Estela de flujo: este bicho SURFEA la sístole en vez de sufrirla, así
-    // que cuando el corazón se contrae su estela se dispara. Es la lectura de
-    // por qué avanza justo cuando los demás retroceden.
+    var heading = trackGermHeading(e, 0.18);
     var surf = (state.f2 && state.f2.inSystole) ? 1 : 0;
     var carga = (state.f2 && state.f2.pulseCharge) ? state.f2.pulseCharge : 0;
-    var emp = surf ? 1 : carga * 0.5;
+    var emp = surf ? 1 : carga * 0.55;
+    ctx.save();
+    ctx.translate(e.x, e.y);
+    ctx.save();
+    ctx.rotate(heading);
+    if (surf) ctx.scale(1.16, 0.86);
     var nEst = 3 + Math.round(emp * 3);
-    ctx.strokeStyle = colorAlpha(e.def.colorLight, 0.4 + emp * 0.45);
-    ctx.lineWidth = Math.max(0.8, (1.1 + emp * 1.2) * U);
-    for (var s = 0; s < nEst; s++) {
-      var off = (s - (nEst - 1) / 2) * R * 0.35;
+    ctx.strokeStyle = colorAlpha(e.def.colorLight, 0.38 + emp * 0.50);
+    ctx.lineWidth = Math.max(0.8, (1.1 + emp * 1.3) * U);
+    ctx.lineCap = "round";
+    var s;
+    for (s = 0; s < nEst; s++) {
+      var off = (s - (nEst - 1) / 2) * R * 0.28;
       ctx.beginPath();
-      ctx.moveTo(-R * 1.1, off);
-      ctx.lineTo(-R * (2.0 + emp * 1.8 + 0.4 * Math.sin(t * 8 + s)), off * 1.5);
+      ctx.moveTo(-R * 0.95, off);
+      ctx.lineTo(-R * (1.85 + emp * 1.9 + 0.35 * Math.sin(t * 9 + s)), off * 1.35);
       ctx.stroke();
     }
-    // Cuerpo: bacilo corto (cocobacilo).
-    var g = ctx.createLinearGradient(0, -R * 0.5, 0, R * 0.5);
+    if (emp > 0.15) {
+      ctx.fillStyle = colorAlpha(e.def.colorLight, 0.28 + emp * 0.35);
+      var drop;
+      for (drop = 0; drop < 3; drop++) {
+        var dx = -R * (1.4 + drop * 0.45 + emp * 0.5);
+        var dy = Math.sin(t * 7 + drop) * R * 0.22;
+        ctx.beginPath(); ctx.arc(dx, dy, R * (0.10 - drop * 0.02), 0, Math.PI * 2); ctx.fill();
+      }
+    }
+    // Cuerpo: estadio (cocobacilo), no pastilla vertical genérica.
+    var g = ctx.createLinearGradient(-R * 0.8, -R * 0.4, R * 0.8, R * 0.4);
     g.addColorStop(0, e.def.colorLight);
     g.addColorStop(0.5, e.def.color);
     g.addColorStop(1, e.def.colorDark);
     ctx.fillStyle = hit ? "#fff" : g;
-    roundRect(-R * 0.95, -R * 0.48, R * 1.9, R * 0.96, R * 0.48);
+    roundRect(-R * 1.05, -R * 0.42, R * 2.10, R * 0.84, R * 0.42);
     ctx.fill();
-    ctx.strokeStyle = e.def.colorDark; ctx.lineWidth = Math.max(1, 1.3 * U); ctx.stroke();
-    // Brillo superior.
-    ctx.fillStyle = "rgba(255,255,255,0.30)";
-    roundRect(-R * 0.7, -R * 0.34, R * 1.1, R * 0.24, R * 0.12);
+    ctx.strokeStyle = e.def.colorDark; ctx.lineWidth = Math.max(1.1, 1.4 * U); ctx.stroke();
+    // Membrana externa gramnegativa (segundo trazo, más claro).
+    ctx.strokeStyle = colorAlpha(e.def.colorLight, 0.55);
+    ctx.lineWidth = Math.max(0.8, 1.0 * U);
+    roundRect(-R * 1.14, -R * 0.50, R * 2.28, R * 1.00, R * 0.50);
+    ctx.stroke();
+    ctx.fillStyle = "rgba(255,255,255,0.32)";
+    roundRect(-R * 0.72, -R * 0.28, R * 1.05, R * 0.20, R * 0.10);
     ctx.fill();
+    // Flagelo polar a popa: el remo con el que surfea.
+    ctx.strokeStyle = e.def.colorDark;
+    ctx.lineWidth = Math.max(1.0, 1.3 * U);
+    ctx.beginPath();
+    ctx.moveTo(-R * 1.05, 0);
+    ctx.quadraticCurveTo(-R * (1.55 + emp * 0.4), Math.sin(t * 10) * R * 0.35,
+                         -R * (1.95 + emp * 0.5), Math.sin(t * 10 + 0.6) * R * 0.55);
+    ctx.stroke();
     ctx.restore();
-    // Cara sin rotar (para que se lea siempre).
-    ctx.save();
-    ctx.translate(e.x, e.y);
-    germFace(R * 0.52, expression, blink, R * 0.24);
+    germFace(R * 0.48, expression, blink, R * 0.20);
     ctx.restore();
   }
 
@@ -32871,7 +33330,7 @@
     else if (kind === "virus") drawVirus(fakeEnemy, R, "idle", false);
     else if (kind === "hongo") drawHongo(fakeEnemy, R, "idle", false);
     else drawBoss(fakeEnemy, R, "idle", false);
-    if (def.shield && def.id !== "saureus" && def.id !== "dermatofito" && def.id !== "hpv" && def.id !== "candida" && def.id !== "pseudomonas" && def.id !== "bossPyogenes" && def.id !== "bossPseudomonas" && def.id !== "bossClostridium" && def.id !== "bossMRSA") drawShield(fakeEnemy, R);
+    if (def.shield && def.id !== "saureus" && def.id !== "dermatofito" && def.id !== "hpv" && def.id !== "candida" && def.id !== "pseudomonas" && def.id !== "bossPyogenes" && def.id !== "bossPseudomonas" && def.id !== "bossClostridium" && def.id !== "bossMRSA" && def.id !== "enterococo") drawShield(fakeEnemy, R);
     ctx.restore();
   }
 
@@ -34416,6 +34875,7 @@
     else safeDraw("Tissue", drawTissue);
     safeDraw("Inflammation", drawInflammation);
     safeDraw("Path", drawPath);
+    if (state.f2) safeDraw("F2Identity", drawF2IdentityMarkers);
     if (!state.dissemination) {
       safeDraw("PlasmaFlow", drawPlasmaFlow);
       safeDraw("Wound", drawWound);
@@ -34446,6 +34906,9 @@
     for (var j = 0; j < state.enemies.length; j++) {
       var ej = state.enemies[j];
       if (!ej.absorbing) safeDraw("Enemy:" + (ej.def && ej.def.id), function () { drawEnemy(ej); });
+    }
+    if (state.f2 && state.f2.cfg && state.f2.cfg.key === "endocarditis") {
+      safeDraw("EndocarditisLiving", drawEndocarditisLivingOverlay);
     }
     // drawVessel canvas (con label "TORRENTE") solo si el bg pictórico NO
     // está cargado. Cuando el PNG está, el vaso ya viene pintado y el
@@ -34670,29 +35133,136 @@
   function ensureOrganAmbient() {
     var f = state.f2;
     if (!f || !f.cfg.ambient) return null;
-    if (f.ambient) return f.ambient;
+    var amb = f.cfg.ambient;
+    if (f.ambient && (amb !== "corazon" || (f.ambient.v || 0) >= 2)) return f.ambient;
     // Semilla estable: el ambiente no baila entre frames ni entre partidas.
     var seed = 4211;
     function rnd() { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; }
-    var W = dsWorldW(), H = dsWorldH();
     var a = { motas: [], eventos: [], t: 0 };
-    var amb = f.cfg.ambient;
-    var n = amb === 'hueso' ? 34
+    var n = amb === "corazon" ? (QUALITY.low ? 36 : 92)
+          : amb === 'hueso' ? 34
           : (amb === 'tormenta' || amb === 'colapso') ? 58
           : (amb === 'sangre') ? 52
           : 42;
     for (var i = 0; i < n; i++) {
       a.motas.push({
         nx: rnd(), ny: rnd(),
-        r: (2.5 + rnd() * 5),
+        r: amb === "corazon" ? (4.4 + rnd() * 6.2) : (2.5 + rnd() * 5),
         fase: rnd() * Math.PI * 2,
         vel: 0.35 + rnd() * 0.9,
         tipo: rnd(),
         giro: (rnd() - 0.5) * 1.4
       });
     }
+    if (amb === "corazon") {
+      a.v = 2;
+      a.streamers = [];
+      var ns = QUALITY.low ? 5 : 10;
+      for (var s = 0; s < ns; s++) {
+        a.streamers.push({
+          nx: 0.10 + rnd() * 0.80,
+          ny: rnd(),
+          len: 0.08 + rnd() * 0.12,
+          fase: rnd() * Math.PI * 2,
+          vel: 0.6 + rnd() * 0.8
+        });
+      }
+    }
     f.ambient = a;
     return a;
+  }
+
+  function drawCorazonAmbient(a, W, H, cfg, f) {
+    // Cámara de sangre: el flujo sigue el embudo mitral y late con la sístole.
+    var sist = f.inSystole ? 1 : 0;
+    var carga = f.pulseCharge || 0;
+    var conv = cfg.converge || 0;
+    var move = QUALITY.motion > 0;
+    var erosion = cfg.integrityMax ? Math.max(0, Math.min(1, 1 - (f.integrity / cfg.integrityMax))) : 0;
+    var i, m, x, y, rr, nx, flow;
+    if (a.streamers && !QUALITY.low) {
+      for (i = 0; i < a.streamers.length; i++) {
+        var st = a.streamers[i];
+        if (move) st.ny = (st.ny + st.vel * (0.004 + sist * 0.018 + carga * 0.006)) % 1;
+        nx = 0.5 + (st.nx - 0.5) * (1 - conv * st.ny * 0.88);
+        var ny2 = (st.ny + st.len) % 1;
+        var nx2 = 0.5 + (st.nx - 0.5) * (1 - conv * ny2 * 0.88);
+        x = FIELD_LEFT + nx * W;
+        y = FIELD_TOP + st.ny * H;
+        var x2 = FIELD_LEFT + nx2 * W, y2 = FIELD_TOP + ny2 * H;
+        var sg = ctx.createLinearGradient(x, y, x2, y2);
+        sg.addColorStop(0, "rgba(255, 150, 170, 0)");
+        sg.addColorStop(0.45, "rgba(220, 70, 90, " + (0.22 + sist * 0.22 + carga * 0.12) + ")");
+        sg.addColorStop(1, "rgba(220, 70, 90, 0)");
+        ctx.strokeStyle = sg;
+        ctx.lineWidth = (3.2 + sist * 2.2) * U;
+        ctx.lineCap = "round";
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.lineTo(x2, y2);
+        ctx.stroke();
+      }
+    }
+    for (i = 0; i < a.motas.length; i++) {
+      m = a.motas[i];
+      flow = m.vel * (0.45 + sist * 2.6 + carga * 0.55);
+      if (move) m.ny = (m.ny + flow * 0.0017) % 1;
+      nx = 0.5 + (m.nx - 0.5) * (1 - conv * m.ny * 0.88);
+      if (erosion > 0.35 && m.ny > 0.78) {
+        nx += Math.sin(a.t * 3.2 + m.fase) * 0.018 * erosion;
+      }
+      x = FIELD_LEFT + nx * W;
+      y = FIELD_TOP + m.ny * H;
+      rr = m.r * U * (1.55 + sist * 0.18);
+      if (m.tipo < 0.56) {
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.rotate((nx - 0.5) * 0.7);
+        ctx.scale(1 + sist * 0.38, 1 - sist * 0.32);
+        ctx.fillStyle = "rgba(200, 46, 64, 0.82)";
+        ctx.beginPath();
+        ctx.ellipse(0, 0, rr * 1.35, rr * 0.88, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "rgba(110, 18, 32, 0.58)";
+        ctx.beginPath();
+        ctx.ellipse(0, 0, rr * 0.52, rr * 0.30, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "rgba(255, 190, 190, 0.38)";
+        ctx.beginPath();
+        ctx.ellipse(-rr * 0.28, -rr * 0.18, rr * 0.24, rr * 0.14, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      } else if (m.tipo < 0.72) {
+        ctx.fillStyle = "rgba(236, 214, 196, " + (0.62 + sist * 0.14) + ")";
+        ctx.beginPath();
+        ctx.ellipse(x, y, rr * 0.70, rr * 0.48, m.fase, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (m.tipo < 0.86) {
+        ctx.fillStyle = "rgba(236, 228, 232, 0.62)";
+        ctx.beginPath();
+        ctx.arc(x, y, rr * 1.35, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "rgba(92, 48, 78, 0.58)";
+        ctx.beginPath();
+        ctx.arc(x - rr * 0.12, y - rr * 0.08, rr * 0.55, 0, Math.PI * 2);
+        ctx.fill();
+      } else {
+        var ciclo = (a.t * 0.22 + m.fase) % 1;
+        var vida = Math.sin(ciclo * Math.PI);
+        if (vida > 0.06) {
+          ctx.fillStyle = "rgba(214, 186, 176, " + (0.28 * vida) + ")";
+          ctx.beginPath();
+          for (var k = 0; k <= 7; k++) {
+            var ka = (k / 7) * Math.PI * 2;
+            var kr = rr * (1.45 + 0.32 * Math.sin(ka * 3 + m.fase)) * vida;
+            var px = x + Math.cos(ka) * kr, py = y + Math.sin(ka) * kr;
+            if (k === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+          }
+          ctx.closePath();
+          ctx.fill();
+        }
+      }
+    }
   }
 
   function drawOrganAmbient() {
@@ -34705,41 +35275,7 @@
     ctx.save();
 
     if (cfg.ambient === 'corazon') {
-      // SANGRE: globulos rojos arrastrados por el flujo. En sistole el chorro
-      // los ACELERA de golpe -- el ambiente late con el organo.
-      var sist = f.inSystole ? 1 : 0;
-      var carga = f.pulseCharge || 0;
-      for (var i = 0; i < a.motas.length; i++) {
-        var m = a.motas[i];
-        var vy = m.vel * (0.5 + sist * 3.2 + carga * 0.6);
-        m.ny = (m.ny + vy * 0.0016) % 1;
-        var x = FIELD_LEFT + m.nx * W, y = FIELD_TOP + m.ny * H;
-        var rr = m.r * U * (1 + sist * 0.12);
-        if (m.tipo < 0.72) {
-          // Eritrocito: disco biconcavo, se estira con la corriente.
-          ctx.save(); ctx.translate(x, y); ctx.scale(1, 1 - sist * 0.28);
-          ctx.fillStyle = 'rgba(176,44,54,0.50)';
-          ctx.beginPath(); ctx.arc(0, 0, rr, 0, Math.PI * 2); ctx.fill();
-          ctx.fillStyle = 'rgba(120,20,30,0.45)';
-          ctx.beginPath(); ctx.arc(0, 0, rr * 0.45, 0, Math.PI * 2); ctx.fill();
-          ctx.restore();
-        } else {
-          // MICROTROMBO: se agrega, viaja y se disuelve. Ciclo propio.
-          var ciclo = (a.t * 0.25 + m.fase) % 1;
-          var vida = Math.sin(ciclo * Math.PI);
-          if (vida > 0.05) {
-            ctx.fillStyle = 'rgba(210,180,170,' + (0.30 * vida) + ')';
-            ctx.beginPath();
-            for (var k = 0; k <= 7; k++) {
-              var ka = (k / 7) * Math.PI * 2;
-              var kr = rr * (1.5 + 0.35 * Math.sin(ka * 3 + m.fase)) * vida;
-              var px = x + Math.cos(ka) * kr, py = y + Math.sin(ka) * kr;
-              if (k === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
-            }
-            ctx.closePath(); ctx.fill();
-          }
-        }
-      }
+      drawCorazonAmbient(a, W, H, cfg, f);
     } else if (cfg.ambient === 'hueso') {
       // MEDULA OSEA: adipocitos casi quietos, precursores que se dividen y
       // cristales de hidroxiapatita. El metabolismo del hueso a la vista.
@@ -35224,27 +35760,465 @@
       ctx.closePath();
       ctx.stroke();
     }
-    // Entradas (siembra hematógena) y focos del órgano.
+    // Entradas y focos genéricos. Si el órgano tiene kit, se pintan
+    // DESPUÉS del carril (drawF2IdentityMarkers) para no quedar tapados.
+    if (!organKit(cfg)) {
+      for (var k = 0; k < PATH.wounds.length; k++) {
+        var w = PATH.wounds[k];
+        var d = PATH.organDoors[k];
+        drawF2Entry(w.x, w.y, cfg);
+        ctx.save();
+        ctx.font = "bold " + Math.floor(10 * U) + "px Fredoka, sans-serif";
+        ctx.fillStyle = colorAlpha(cfg.colorLight, 0.9);
+        ctx.textAlign = "center"; ctx.textBaseline = "top";
+        ctx.fillText(cfg.foci[k] || "", w.x, w.y + 16 * U);
+        ctx.restore();
+        drawF2Focus(d.x, d.y, cfg, f.focusFlash[k] || 0, k);
+      }
+    }
+  }
+
+  function drawF2IdentityMarkers() {
+    if (!state.f2 || !PATH.wounds) return;
+    var cfg = state.f2.cfg;
+    if (!organKit(cfg)) return;
+    var f = state.f2;
     for (var k = 0; k < PATH.wounds.length; k++) {
       var w = PATH.wounds[k];
       var d = PATH.organDoors[k];
-      drawDisseminationCrack(w.x, w.y);
-      ctx.save();
-      ctx.font = "bold " + Math.floor(10 * U) + "px Fredoka, sans-serif";
-      ctx.fillStyle = colorAlpha(cfg.colorLight, 0.9);
-      ctx.textAlign = "center"; ctx.textBaseline = "top";
-      ctx.fillText(cfg.foci[k] || "", w.x, w.y + 16 * U);
-      ctx.restore();
-      drawF2Focus(d.x, d.y, cfg, f.focusFlash[k] || 0, k);
+      drawF2Entry(w.x, w.y, cfg);
+      // En endocarditis los focos se pintan DESPUÉS de los velos
+      // (drawEndocarditisLivingOverlay): si quedan debajo, el tejido deja
+      // un hueco que se lee como globo de diálogo.
+      if (cfg.key !== "endocarditis") {
+        drawF2Focus(d.x, d.y, cfg, f.focusFlash[k] || 0, k);
+      }
     }
+    if (cfg.key === "endocarditis") drawEndocarditisLiving();
+  }
+
+  function drawF2Entry(x, y, cfg) {
+    var kit = organKit(cfg);
+    if (kit && kit.entry === "auricula") {
+      drawF2EntryAuricula(x, y, cfg);
+      return;
+    }
+    drawDisseminationCrack(x, y);
+  }
+
+  function drawF2EntryAuricula(x, y, cfg) {
+    // Ostium auricular: boca vascular, no grieta de piel.
+    var f = state.f2;
+    var sist = (f && f.inSystole) ? 1 : 0;
+    ctx.save();
+    ctx.translate(x, y);
+    var rx = 20 * U, ry = 11 * U * (1 - sist * 0.18);
+    var halo = ctx.createRadialGradient(0, -ry * 0.15, 0, 0, 0, rx * 1.45);
+    halo.addColorStop(0, colorAlpha(cfg.colorLight, 0.38 + sist * 0.18));
+    halo.addColorStop(0.55, colorAlpha(cfg.color, 0.50));
+    halo.addColorStop(1, colorAlpha(cfg.colorDark, 0));
+    ctx.fillStyle = halo;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, rx * 1.38, ry * 1.58, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = colorAlpha("#140308", 0.84);
+    ctx.beginPath();
+    ctx.ellipse(0, 0, rx * 0.70, ry * 0.76, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = colorAlpha(cfg.colorLight, 0.42 + sist * 0.28);
+    ctx.beginPath();
+    ctx.moveTo(-rx * 0.62, ry * 0.12);
+    ctx.quadraticCurveTo(-rx * 0.12, ry * 0.88, 0, ry * 0.22);
+    ctx.quadraticCurveTo(rx * 0.12, ry * 0.88, rx * 0.62, ry * 0.12);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = colorAlpha(cfg.colorLight, 0.80);
+    ctx.lineWidth = Math.max(1.2, 1.5 * U);
+    ctx.beginPath();
+    ctx.ellipse(0, 0, rx * 0.78, ry * 0.86, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawEndocarditisLiving() {
+    var f = state.f2; if (!f) return;
+    var list = f.atheromas || [];
+    for (var i = 0; i < list.length; i++) drawAtheromaPlaque(list[i]);
+  }
+
+  function drawEndocarditisLivingOverlay() {
+    var f = state.f2; if (!f) return;
+    var slap = f.valveSlap || 0;
+    var sist = f.inSystole ? 1 : 0;
+    var charge = f.pulseCharge || 0;
+    var close = Math.max(0.16, sist, slap, charge * 0.9);
+    drawValveLeafletSweep(close, slap);
+    var list = f.atheromas || [];
+    for (var i = 0; i < list.length; i++) drawAtheromaMine(list[i]);
+    if (!PATH.organDoors) return;
+    for (var k = 0; k < PATH.organDoors.length; k++) {
+      var d = PATH.organDoors[k];
+      drawF2Focus(d.x, d.y, f.cfg, f.focusFlash[k] || 0, k);
+    }
+  }
+
+  function atheromaNoise(seed, i) {
+    var x = Math.sin(seed * 127.1 + i * 311.7) * 43758.5453;
+    return x - Math.floor(x);
+  }
+
+  function atheromaGeom(ath) {
+    var tot = PATH.totalForBranch[ath.lane] || PATH.total || 1;
+    var dug = ath.excavated || 0;
+    var remain = Math.max(0, 1 - dug);
+    var bulge = (ath.bulge || 30) * remain;
+    var side = ath.side || 1;
+    var half = ath.half || 0.10;
+    var t0 = ath.atFrac - half + dug * half * 2;
+    var t1 = ath.atFrac + half;
+    var workFrac = Math.min(t1, Math.max(ath.atFrac - half, t0));
+    var apex = pathPos(ath.atFrac * tot, ath.lane);
+    var a = apex.angle || 0;
+    var nx = -Math.sin(a), ny = Math.cos(a);
+    var mouth = pathPos(workFrac * tot, ath.lane);
+    var ma = mouth.angle || a;
+    var mnx = -Math.sin(ma), mny = Math.cos(ma);
+    return {
+      tot: tot, apex: apex, a: a, nx: nx, ny: ny, dug: dug, remain: remain,
+      bulge: bulge, side: side, half: half, t0: t0, t1: t1, workFrac: workFrac,
+      seed: (ath.lane | 0) * 19 + Math.round((ath.atFrac || 0) * 100),
+      cx: apex.x + nx * side * (16 + bulge * 0.35) * U,
+      cy: apex.y + ny * side * (16 + bulge * 0.35) * U,
+      mx: mouth.x + mnx * side * (30 + bulge * 0.45) * U,
+      my: mouth.y + mny * side * (30 + bulge * 0.45) * U
+    };
+  }
+
+  function fillAmorphBlob(cx, cy, rx, ry, rot, seed, n) {
+    n = n || 8;
+    ctx.beginPath();
+    var i, ang, r, x, y;
+    for (i = 0; i <= n; i++) {
+      ang = rot + (i / n) * Math.PI * 2;
+      r = 0.58 + atheromaNoise(seed, i) * 0.62;
+      x = cx + Math.cos(ang) * rx * r;
+      y = cy + Math.sin(ang) * ry * r;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // Velos vivos en el tercio distal: se cierran en sístole y manotean
+  // a los gérmenes que ya llegaron cerca de la valva.
+  function drawValveLeafletSweep(close, slap) {
+    if (!PATH.branches) return;
+    ctx.save();
+    for (var lane = 0; lane < PATH.branches.length; lane++) {
+      var tot = PATH.totalForBranch[lane] || PATH.total || 1;
+      var L0 = tot * 0.68, L1 = tot * 0.88;
+      var mid = pathPos(L0 + (L1 - L0) * 0.55, lane);
+      var a = mid.angle || 0;
+      var nx = -Math.sin(a), ny = Math.cos(a);
+      var spanOpen = 34 * U;
+      var spanShut = 5 * U;
+      var span = spanOpen + (spanShut - spanOpen) * close;
+      var thick = (18 + close * 8) * U;
+      ctx.globalAlpha = 0.52 + close * 0.38 + slap * 0.10;
+      for (var side = -1; side <= 1; side += 2) {
+        var hinge = pathPos(L1, lane);
+        var tip = pathPos(L0, lane);
+        var hx = hinge.x + nx * side * 8 * U;
+        var hy = hinge.y + ny * side * 8 * U;
+        var tx = tip.x + nx * side * span;
+        var ty = tip.y + ny * side * span;
+        var belly = (18 + close * 20 + slap * 10) * U;
+        var c1x = (hx + tx) * 0.5 + nx * side * belly;
+        var c1y = (hy + ty) * 0.5 + ny * side * belly;
+        ctx.beginPath();
+        ctx.moveTo(hx, hy);
+        ctx.quadraticCurveTo(c1x, c1y, tx, ty);
+        ctx.lineTo(tx - nx * side * thick, ty - ny * side * thick);
+        ctx.quadraticCurveTo(
+          c1x - nx * side * thick * 0.7, c1y - ny * side * thick * 0.7,
+          hx - nx * side * 5 * U, hy - ny * side * 5 * U
+        );
+        ctx.closePath();
+        ctx.fillStyle = side < 0 ? "rgba(255, 214, 176, 0.94)" : "rgba(232, 168, 132, 0.92)";
+        ctx.fill();
+        ctx.strokeStyle = "rgba(88, 36, 28, 0.62)";
+        ctx.lineWidth = 2.1;
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(tx, ty);
+        ctx.lineTo(tx + nx * side * 20 * U, ty + ny * side * 20 * U + 10 * U);
+        ctx.strokeStyle = "rgba(196, 132, 108, 0.78)";
+        ctx.lineWidth = 2.2;
+        ctx.stroke();
+      }
+    }
+    ctx.restore();
+  }
+
+  function drawAtheromaPlaque(ath) {
+    var g = atheromaGeom(ath);
+    if (g.dug >= 0.98 || g.t0 >= g.t1 - 0.008) return;
+    var n = QUALITY.low ? 9 : 16;
+    var outer = [], inner = [];
+    var i, t, u, p, ang, nx, ny, k, d, lump, outerR, innerR;
+    for (i = 0; i < n; i++) {
+      u = i / (n - 1);
+      t = g.t0 + (g.t1 - g.t0) * u;
+      p = pathPos(t * g.tot, ath.lane);
+      ang = p.angle || 0;
+      nx = -Math.sin(ang); ny = Math.cos(ang);
+      d = Math.abs(t - ath.atFrac);
+      k = d >= g.half ? 0 : Math.cos((d / g.half) * Math.PI * 0.5);
+      k = k * k;
+      lump = (atheromaNoise(g.seed, i) - 0.38) * 18;
+      var taper = 0.38 + 0.62 * Math.sin(u * Math.PI);
+      outerR = (6 + g.bulge * k * 0.9 + lump) * taper * g.remain * U;
+      innerR = (3.2 + (atheromaNoise(g.seed, i + 20) - 0.5) * 5.5) * U;
+      outer.push({
+        x: p.x + nx * g.side * (8 * U + outerR),
+        y: p.y + ny * g.side * (8 * U + outerR)
+      });
+      inner.push({
+        x: p.x + nx * g.side * innerR,
+        y: p.y + ny * g.side * innerR
+      });
+    }
+    ctx.save();
+    ctx.globalAlpha = 0.78 + g.remain * 0.2;
+    ctx.beginPath();
+    ctx.moveTo(outer[0].x, outer[0].y);
+    for (i = 1; i < n; i++) ctx.lineTo(outer[i].x, outer[i].y);
+    for (i = n - 1; i >= 0; i--) ctx.lineTo(inner[i].x, inner[i].y);
+    ctx.closePath();
+    ctx.fillStyle = "#C4A878";
+    ctx.fill();
+    ctx.strokeStyle = "rgba(90, 58, 32, 0.62)";
+    ctx.lineWidth = 1.4;
+    ctx.lineJoin = "round";
+    ctx.stroke();
+    // Grumos que rompen el contorno: sarro, no cinta.
+    ctx.fillStyle = "#B89868";
+    for (i = 1; i < n - 1; i++) {
+      if (atheromaNoise(g.seed, i + 3) < 0.34) continue;
+      fillAmorphBlob(
+        outer[i].x, outer[i].y,
+        (5 + atheromaNoise(g.seed, i + 5) * 8) * U,
+        (3.5 + atheromaNoise(g.seed, i + 6) * 6) * U,
+        i * 0.9, g.seed + i * 5, 8
+      );
+    }
+    // Capas sucias y calcáreas.
+    ctx.fillStyle = "#A88858";
+    for (i = 1; i < n - 1; i += QUALITY.low ? 3 : 2) {
+      if (atheromaNoise(g.seed, i + 40) < 0.28) continue;
+      fillAmorphBlob(
+        (outer[i].x + inner[i].x) * 0.5,
+        (outer[i].y + inner[i].y) * 0.5,
+        (6 + atheromaNoise(g.seed, i + 7) * 9) * U,
+        (4 + atheromaNoise(g.seed, i + 9) * 6) * U,
+        (outer[i].x - inner[i].x) ? Math.atan2(outer[i].y - inner[i].y, outer[i].x - inner[i].x) : 0,
+        g.seed + i * 3,
+        7
+      );
+    }
+    ctx.fillStyle = "rgba(232, 220, 190, 0.78)";
+    for (i = 2; i < n - 2; i++) {
+      if (atheromaNoise(g.seed, i + 80) < 0.58) continue;
+      fillAmorphBlob(
+        outer[i].x * 0.35 + inner[i].x * 0.65,
+        outer[i].y * 0.35 + inner[i].y * 0.65,
+        (2.2 + atheromaNoise(g.seed, i + 11) * 3.4) * U,
+        (1.6 + atheromaNoise(g.seed, i + 13) * 2.4) * U,
+        i * 0.7,
+        g.seed + i * 11,
+        6
+      );
+    }
+    ctx.restore();
+  }
+
+  function atheromaOuterPoint(ath, along) {
+    var g = atheromaGeom(ath);
+    var t = g.t0 + (g.t1 - g.t0) * along;
+    var p = pathPos(t * g.tot, ath.lane);
+    var ang = p.angle || 0;
+    var nx = -Math.sin(ang), ny = Math.cos(ang);
+    var stand = (52 + g.bulge * 0.65) * U;
+    return {
+      x: p.x + nx * g.side * stand,
+      y: p.y + ny * g.side * stand,
+      a: ang, nx: nx, ny: ny, side: g.side, g: g
+    };
+  }
+
+  function drawAtheromaMine(ath) {
+    var g = atheromaGeom(ath);
+    if (g.dug >= 0.98 || g.t0 >= g.t1 - 0.008) return;
+    var cart = atheromaOuterPoint(ath, 0.08);
+    var cx = cart.x + cart.nx * cart.side * 8 * U;
+    var cy = cart.y + cart.ny * cart.side * 8 * U;
+    ctx.save();
+    ctx.globalAlpha = 0.92;
+    ctx.fillStyle = "#6B3A22";
+    ctx.beginPath();
+    ctx.moveTo(cx - 9 * U, cy + 4 * U);
+    ctx.lineTo(cx + 9 * U, cy + 3 * U);
+    ctx.lineTo(cx + 7 * U, cy - 7 * U);
+    ctx.lineTo(cx - 7 * U, cy - 6 * U);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = "#2A1810";
+    ctx.beginPath(); ctx.arc(cx - 5 * U, cy + 6 * U, 2.6 * U, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(cx + 5 * U, cy + 6 * U, 2.6 * U, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "#D8C090";
+    fillAmorphBlob(cx, cy - 8 * U, 4.6 * U, 3.4 * U, 0.4, g.seed + 21, 6);
+    ctx.restore();
+    drawFoamMiners(ath);
+  }
+
+  function drawFoamMiners(ath) {
+    var n = ath.crew || 2;
+    var t = ath.mineT || 0;
+    var i, along, st, phase, peck, tool;
+    for (i = 0; i < n; i++) {
+      along = (i + 0.55) / (n + 0.2);
+      st = atheromaOuterPoint(ath, along);
+      phase = t + i * 1.7;
+      peck = 0.45 + 0.55 * Math.max(0, Math.sin(phase * 3.1));
+      tool = i % 3;
+      drawMinerCell(st, peck, tool, phase);
+    }
+  }
+
+  function drawMinerCell(st, peck, tool, phase) {
+    var inx = -st.nx * st.side, iny = -st.ny * st.side;
+    var px = st.x + st.nx * st.side * 2 * U;
+    var py = st.y + st.ny * st.side * 2 * U;
+    ctx.save();
+    ctx.translate(px, py);
+    ctx.fillStyle = "rgba(255, 236, 204, 0.98)";
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 10 * U, 8.4 * U, st.a * 0.15, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "rgba(140, 80, 48, 0.7)";
+    ctx.lineWidth = 1.6;
+    ctx.stroke();
+    ctx.fillStyle = "rgba(255, 252, 240, 0.95)";
+    ctx.beginPath(); ctx.arc(-3.6 * U, -2.0 * U, 2.8 * U, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(3.6 * U, -1.6 * U, 2.6 * U, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "#3A2014";
+    ctx.beginPath(); ctx.arc(-3.6 * U, -1.8 * U, 1.15 * U, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(3.6 * U, -1.4 * U, 1.05 * U, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "#C45A6A";
+    ctx.beginPath(); ctx.arc(0.2 * U, 2.6 * U, 2.1 * U, 0, Math.PI * 2); ctx.fill();
+    drawMinerArms(inx, iny, peck, tool, phase);
+    ctx.restore();
+  }
+
+  function drawMinerArms(inx, iny, peck, tool, phase) {
+    var reach = (8 + peck * 4) * U;
+    var pxp = -iny, pyp = inx;
+    var shL = { x: pxp * 6.2 * U, y: pyp * 6.2 * U };
+    var shR = { x: -pxp * 6.2 * U, y: -pyp * 6.2 * U };
+    var handL = {
+      x: inx * reach * 0.82 + pxp * 3.5 * U,
+      y: iny * reach * 0.82 + pyp * 3.5 * U
+    };
+    var handR = {
+      x: inx * reach + pxp * -1.2 * U,
+      y: iny * reach + pyp * -1.2 * U
+    };
+    ctx.strokeStyle = "rgba(255, 220, 180, 0.95)";
+    ctx.lineWidth = 2.5 * U;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(shL.x, shL.y);
+    ctx.lineTo(handL.x * 0.55, handL.y * 0.55);
+    ctx.lineTo(handL.x, handL.y);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(shR.x, shR.y);
+    ctx.lineTo(handR.x * 0.5, handR.y * 0.5);
+    ctx.lineTo(handR.x, handR.y);
+    ctx.stroke();
+    ctx.fillStyle = "rgba(255, 224, 186, 0.96)";
+    ctx.beginPath(); ctx.arc(handL.x, handL.y, 1.8 * U, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(handR.x, handR.y, 1.9 * U, 0, Math.PI * 2); ctx.fill();
+    if (tool === 1) drawMinerDrill(handR.x, handR.y, inx, iny, phase);
+    else if (tool === 2) drawMinerPick(handR.x, handR.y, inx, iny, peck);
+    else drawMinerShovel(handR.x, handR.y, inx, iny, peck);
+  }
+
+  function drawMinerShovel(hx, hy, inx, iny, peck) {
+    var len = (7 + peck * 2) * U;
+    var tx = hx + inx * len, ty = hy + iny * len;
+    ctx.strokeStyle = "#6B4A28";
+    ctx.lineWidth = 1.8 * U;
+    ctx.beginPath(); ctx.moveTo(hx, hy); ctx.lineTo(tx, ty); ctx.stroke();
+    var pxp = -iny, pyp = inx;
+    ctx.fillStyle = "#8A9AA8";
+    ctx.beginPath();
+    ctx.moveTo(tx + pxp * 4.2 * U, ty + pyp * 4.2 * U);
+    ctx.lineTo(tx + inx * 4.5 * U, ty + iny * 4.5 * U);
+    ctx.lineTo(tx - pxp * 4.2 * U, ty - pyp * 4.2 * U);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = "#4A5A68";
+    ctx.lineWidth = 1.1;
+    ctx.stroke();
+  }
+
+  function drawMinerDrill(hx, hy, inx, iny, phase) {
+    var len = 8 * U;
+    var tx = hx + inx * len, ty = hy + iny * len;
+    ctx.strokeStyle = "#5A6470";
+    ctx.lineWidth = 3.2 * U;
+    ctx.beginPath(); ctx.moveTo(hx, hy); ctx.lineTo(tx, ty); ctx.stroke();
+    ctx.save();
+    ctx.translate(tx, ty);
+    ctx.rotate(Math.atan2(iny, inx) + phase * 10);
+    ctx.fillStyle = "#C0C8D0";
+    ctx.beginPath();
+    ctx.moveTo(0, -2.6 * U);
+    ctx.lineTo(5.5 * U, 0);
+    ctx.lineTo(0, 2.6 * U);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = "#8A9098";
+    ctx.beginPath(); ctx.arc(0, 0, 2.1 * U, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  }
+
+  function drawMinerPick(hx, hy, inx, iny, peck) {
+    var len = (7 + peck * 2) * U;
+    var tx = hx + inx * len, ty = hy + iny * len;
+    ctx.strokeStyle = "#6B4A28";
+    ctx.lineWidth = 1.8 * U;
+    ctx.beginPath(); ctx.moveTo(hx, hy); ctx.lineTo(tx, ty); ctx.stroke();
+    var pxp = -iny, pyp = inx;
+    ctx.strokeStyle = "#7A8A98";
+    ctx.lineWidth = 2.4 * U;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(tx + pxp * 5.5 * U - inx * 1.5 * U, ty + pyp * 5.5 * U - iny * 1.5 * U);
+    ctx.lineTo(tx, ty);
+    ctx.lineTo(tx - pxp * 4.2 * U + inx * 2 * U, ty - pyp * 4.2 * U + iny * 2 * U);
+    ctx.stroke();
   }
 
   // Foco del órgano: la estructura al final de cada carril. Recibe el impacto.
   function drawF2Focus(x, y, cfg, flash, idx) {
     var r = 22 * U;
+    var kit = organKit(cfg);
     ctx.save();
     ctx.translate(x, y);
-    // Plato receptor (plano, radio 4 — convención visual del juego).
+    // Misma casilla que Fase 1: plato receptor, radio 4. No globo de diálogo.
     ctx.fillStyle = colorAlpha(cfg.colorDark, 0.95);
     roundRect(-r, -r * 0.55, r * 2, r * 1.1, 4 * U);
     ctx.fill();
@@ -35252,14 +36226,38 @@
     ctx.lineWidth = 2;
     roundRect(-r, -r * 0.55, r * 2, r * 1.1, 4 * U);
     ctx.stroke();
-    // Boca del foco (por donde entra el germen).
+    // Boca: radio chico (slot, no cápsula). El nombre vive ADENTRO, como
+    // las casillas del dock de Fase 1 — no cuelga como pie de globo.
+    var mx = -r * 0.82, my = -r * 0.38, mw = r * 1.64, mh = r * 0.76;
     ctx.fillStyle = colorAlpha("#000000", 0.55);
-    roundRect(-r * 0.6, -r * 0.28, r * 1.2, r * 0.56, 4 * U);
+    roundRect(mx, my, mw, mh, 2 * U);
     ctx.fill();
     if (flash > 0) {
       ctx.fillStyle = colorAlpha(cfg.colorLight, 0.35 * Math.min(1, flash / 0.6));
-      roundRect(-r * 0.6, -r * 0.28, r * 1.2, r * 0.56, 4 * U);
+      roundRect(mx, my, mw, mh, 2 * U);
       ctx.fill();
+    }
+    if (kit) {
+      var label = (cfg.foci && cfg.foci[idx]) || "";
+      if (label) {
+        var maxW = mw - 4 * U;
+        var px = Math.max(7, Math.floor(6.5 * U));
+        ctx.font = "bold " + px + "px Fredoka, sans-serif";
+        var lines = wrapTextLines(label, maxW);
+        if (lines.length > 2) {
+          lines = [lines[0], ellipsizeToWidth(lines.slice(1).join(" "), maxW)];
+        }
+        var i;
+        for (i = 0; i < lines.length; i++) lines[i] = ellipsizeToWidth(lines[i], maxW);
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillStyle = colorAlpha(cfg.colorLight, 0.95);
+        var lineH = px + 1;
+        var ty0 = -((lines.length - 1) * lineH) / 2;
+        for (i = 0; i < lines.length; i++) {
+          ctx.fillText(lines[i], 0, ty0 + i * lineH);
+        }
+      }
     }
     ctx.restore();
   }
@@ -35269,29 +36267,99 @@
   function drawValveAnatomy(worldW, worldH, cfg) {
     var f = state.f2;
     var beat = f.inSystole ? 1 : 0;
-    var pulseAmp = 1 + (f.inSystole ? 0.035 : 0);
-    ctx.save();
-    // Anillo valvular arriba (de donde cuelgan los velos).
-    ctx.strokeStyle = colorAlpha(cfg.colorLight, 0.22);
-    ctx.lineWidth = 4 * U * pulseAmp;
-    ctx.beginPath();
-    ctx.ellipse(FIELD_LEFT + worldW * 0.5, FIELD_TOP + worldH * 0.035,
-                worldW * 0.44, worldH * 0.03, 0, 0, Math.PI * 2);
-    ctx.stroke();
-    // Cuerdas tendinosas: cuelgan del anillo y CONVERGEN hacia la valva,
-    // igual que los carriles. Son las que sostienen el embudo.
+    var pulseAmp = 1 + (f.inSystole ? 0.045 : 0);
     var conv = cfg.converge || 0;
     var cxV = FIELD_LEFT + worldW * 0.5;
-    ctx.strokeStyle = colorAlpha("#f0d0d8", 0.10);
-    ctx.lineWidth = 1;
-    for (var i = 0; i < 26; i++) {
-      var xx = FIELD_LEFT + worldW * (0.04 + (i / 25) * 0.92);
-      var xxBot = cxV + (xx - cxV) * (1 - conv);
-      var sway = Math.sin(f.fxT * 1.6 + i) * 5 * U * (beat ? 2.2 : 1);
+    ctx.save();
+    // Aurícula (arriba, más clara) vs ventrículo (abajo, más oscuro).
+    var ch = ctx.createLinearGradient(0, FIELD_TOP, 0, FIELD_TOP + worldH);
+    ch.addColorStop(0, "rgba(120, 32, 52, 0.22)");
+    ch.addColorStop(0.18, "rgba(90, 20, 38, 0.08)");
+    ch.addColorStop(0.72, "rgba(40, 8, 18, 0.10)");
+    ch.addColorStop(1, "rgba(28, 6, 14, 0.28)");
+    ctx.fillStyle = ch;
+    ctx.fillRect(FIELD_LEFT, FIELD_TOP, worldW, worldH);
+    if (beat) {
+      var glow = ctx.createRadialGradient(cxV, FIELD_TOP + worldH * 0.42, worldW * 0.08,
+                                          cxV, FIELD_TOP + worldH * 0.42, worldW * 0.62);
+      glow.addColorStop(0, "rgba(220, 70, 96, 0.16)");
+      glow.addColorStop(1, "rgba(220, 70, 96, 0)");
+      ctx.fillStyle = glow;
+      ctx.fillRect(FIELD_LEFT, FIELD_TOP, worldW, worldH);
+    }
+    // Paredes de miocardio a los costados (fibras que laten).
+    var wallW = worldW * 0.13;
+    var wf, wy, ww;
+    for (wf = 0; wf < 2; wf++) {
+      var left = wf === 0;
+      var wg = ctx.createLinearGradient(
+        left ? FIELD_LEFT : FIELD_LEFT + worldW,
+        0,
+        left ? FIELD_LEFT + wallW : FIELD_LEFT + worldW - wallW,
+        0
+      );
+      wg.addColorStop(0, colorAlpha(cfg.color, 0.58 + beat * 0.12));
+      wg.addColorStop(1, colorAlpha(cfg.colorDark, 0));
+      ctx.fillStyle = wg;
+      ctx.fillRect(left ? FIELD_LEFT : FIELD_LEFT + worldW - wallW, FIELD_TOP, wallW, worldH);
+    }
+    ctx.strokeStyle = colorAlpha(cfg.color, 0.34 + beat * 0.14);
+    ctx.lineWidth = 5.2 * U;
+    for (ww = 0; ww < 7; ww++) {
+      wy = FIELD_TOP + worldH * (0.10 + ww * 0.13);
+      var dip = worldH * 0.028 * (beat ? 1.7 : 1);
       ctx.beginPath();
-      ctx.moveTo(xx, FIELD_TOP + worldH * 0.10);
-      ctx.quadraticCurveTo(xx + (xxBot - xx) * 0.45 + sway, FIELD_TOP + worldH * 0.55,
-                           xxBot + sway * 0.4, FIELD_TOP + worldH * 0.90);
+      ctx.moveTo(FIELD_LEFT, wy);
+      ctx.quadraticCurveTo(cxV, wy + dip, FIELD_LEFT + worldW, wy);
+      ctx.stroke();
+    }
+    // Anillo fibroso de la mitral (aurícula → velos).
+    ctx.strokeStyle = colorAlpha(cfg.colorLight, 0.42 + beat * 0.12);
+    ctx.lineWidth = 6 * U * pulseAmp;
+    ctx.beginPath();
+    ctx.ellipse(cxV, FIELD_TOP + worldH * 0.038, worldW * 0.46, worldH * 0.034, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.strokeStyle = colorAlpha("#f4d4dc", 0.28);
+    ctx.lineWidth = 2 * U;
+    ctx.beginPath();
+    ctx.ellipse(cxV, FIELD_TOP + worldH * 0.038, worldW * 0.44, worldH * 0.028, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    // Músculos papilares (anclaje de las cuerdas).
+    var papY = FIELD_TOP + worldH * 0.918;
+    var papR = 36 * U * pulseAmp;
+    var pap = [];
+    for (var ladoP = -1; ladoP <= 1; ladoP += 2) {
+      var pxp = cxV + ladoP * worldW * 0.22 * (1 - conv * 0.25);
+      pap.push({ x: pxp, y: papY });
+      var pg = ctx.createRadialGradient(pxp - papR * 0.2, papY - papR * 0.3, papR * 0.1, pxp, papY, papR * 1.15);
+      pg.addColorStop(0, colorAlpha(cfg.colorLight, 0.38 + beat * 0.12));
+      pg.addColorStop(0.55, colorAlpha(cfg.color, 0.40));
+      pg.addColorStop(1, colorAlpha(cfg.colorDark, 0));
+      ctx.fillStyle = pg;
+      ctx.beginPath();
+      ctx.ellipse(pxp, papY, papR * 1.15, papR * 0.78, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = colorAlpha(cfg.colorLight, 0.40);
+      ctx.lineWidth = 1.6 * U;
+      ctx.stroke();
+    }
+    // Cuerdas tendinosas: grupos visibles que tensan en sístole.
+    var nCord = QUALITY.low ? 8 : 14;
+    for (var i = 0; i < nCord; i++) {
+      var tC = i / (nCord - 1);
+      var xx = FIELD_LEFT + worldW * (0.08 + tC * 0.84);
+      var dest = pap[tC < 0.5 ? 0 : 1];
+      var sway = Math.sin(f.fxT * 1.5 + i) * (beat ? 2.2 : 6.5) * U;
+      ctx.strokeStyle = colorAlpha("#f6dde2", 0.48 + beat * 0.18);
+      ctx.lineWidth = (2.8 + (i % 3) * 0.7) * U;
+      ctx.beginPath();
+      ctx.moveTo(xx, FIELD_TOP + worldH * 0.085);
+      ctx.quadraticCurveTo(
+        (xx + dest.x) * 0.5 + sway,
+        FIELD_TOP + worldH * 0.52,
+        dest.x + sway * 0.25,
+        dest.y - papR * 0.35
+      );
       ctx.stroke();
     }
     // LOS VELOS. En el extremo angosto del embudo, donde todo converge.
@@ -35319,10 +36387,16 @@
       ctx.lineTo(xIn, vy + caida * 0.92 - 2 * U);
       ctx.quadraticCurveTo(cxV + lado * boca * 0.6, vy + caida * 0.5, xOut, vy - 2 * U);
       ctx.closePath();
-      ctx.fillStyle = colorAlpha(cfg.colorLight, 0.10 + cierre * 0.10);
+      ctx.fillStyle = colorAlpha(cfg.colorLight, 0.22 + cierre * 0.16);
       ctx.fill();
-      ctx.strokeStyle = colorAlpha(cfg.colorLight, 0.26 + cierre * 0.22);
-      ctx.lineWidth = 2 * U;
+      ctx.strokeStyle = colorAlpha(cfg.colorLight, 0.42 + cierre * 0.28);
+      ctx.lineWidth = 2.4 * U;
+      ctx.stroke();
+      ctx.strokeStyle = colorAlpha("#f8dde4", 0.18 + cierre * 0.10);
+      ctx.lineWidth = 1.1 * U;
+      ctx.beginPath();
+      ctx.moveTo(xOut * 0.15 + cxV * 0.85, vy - 1 * U);
+      ctx.quadraticCurveTo(cpx, cpy - 4 * U, xIn, vy + caida * 0.7);
       ctx.stroke();
       // Mordidas de erosión sobre el BORDE LIBRE (la curva xOut→xIn de
       // arriba, donde asienta la vegetación real): mismo patrón que el
@@ -35342,17 +36416,6 @@
           ctx.fill();
         }
       }
-    }
-    // Miocardio de fondo latiendo (bandas curvas).
-    ctx.strokeStyle = colorAlpha(cfg.color, 0.13 + beat * 0.06);
-    ctx.lineWidth = 8 * U;
-    for (var b = 0; b < 4; b++) {
-      var yy = FIELD_TOP + worldH * (0.20 + b * 0.20);
-      ctx.beginPath();
-      ctx.moveTo(FIELD_LEFT, yy);
-      ctx.quadraticCurveTo(FIELD_LEFT + worldW * 0.5, yy + worldH * 0.035 * (beat ? 1.6 : 1),
-                           FIELD_LEFT + worldW, yy);
-      ctx.stroke();
     }
     ctx.restore();
   }
@@ -35889,13 +36952,22 @@
     }
     ctx.stroke();
     ctx.restore();
-    // Etiqueta debajo.
     ctx.save();
-    ctx.font = "bold " + Math.floor(10 * U) + "px Fredoka, sans-serif";
+    var pName = ready ? cfg.basePowerName : (cfg.baseShort + " · " + Math.ceil(f.baseCd) + "s");
+    var pMax = r * 1.7;
+    var pPx = Math.max(6, Math.floor(6.5 * U));
+    ctx.font = "bold " + pPx + "px Fredoka, sans-serif";
+    var pLines = wrapTextLines(pName, pMax);
+    if (pLines.length > 2) pLines = [pLines[0], ellipsizeToWidth(pLines.slice(1).join(" "), pMax)];
+    var pi;
+    for (pi = 0; pi < pLines.length; pi++) pLines[pi] = ellipsizeToWidth(pLines[pi], pMax);
     ctx.fillStyle = colorAlpha(ready ? cfg.colorLight : "#8a8a8a", 0.95);
-    ctx.textAlign = "center"; ctx.textBaseline = "bottom";
-    ctx.fillText(ready ? cfg.basePowerName : (cfg.baseShort + " · " + Math.ceil(f.baseCd) + "s"),
-                 f.baseX, f.baseY - f.baseR * 0.95);
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    var pH = pPx + 1;
+    var pY = f.baseY + r * 0.38 - ((pLines.length - 1) * pH) / 2;
+    for (pi = 0; pi < pLines.length; pi++) {
+      ctx.fillText(pLines[pi], f.baseX, pY + pi * pH);
+    }
     ctx.restore();
   }
   // HUD de Fase 2: integridad del órgano, cartílago (si aplica) y oleada.
@@ -35914,11 +36986,18 @@
     ctx.fillStyle = "rgba(12, 8, 14, 0.55)";
     roundRect(x - 6 * U, y - 14 * U, barW + 12 * U, panelH, 4 * U);
     ctx.fill();
+    var hudKit = organKit(cfg);
+    if (hudKit && hudKit.hudAccent) {
+      ctx.strokeStyle = colorAlpha(cfg.colorLight, 0.50 + ((f.inSystole ? 1 : 0) * 0.28));
+      ctx.lineWidth = 1.4;
+      roundRect(x - 6 * U, y - 14 * U, barW + 12 * U, panelH, 4 * U);
+      ctx.stroke();
+    }
     // Integridad del órgano.
     ctx.font = "bold " + Math.floor(10 * U) + "px Fredoka, sans-serif";
     ctx.textAlign = "left"; ctx.textBaseline = "bottom";
     ctx.fillStyle = colorAlpha(cfg.colorLight, 0.95);
-    ctx.fillText(cfg.integrityLabel + "  " + Math.ceil(f.integrity) + "%", x, y - 2 * U);
+    ctx.fillText(ellipsizeToWidth(cfg.integrityLabel + "  " + Math.ceil(f.integrity) + "%", barW), x, y - 2 * U);
     ctx.fillStyle = "rgba(0,0,0,0.45)";
     roundRect(x, y, barW, barH, 4 * U); ctx.fill();
     var iFrac = Math.max(0, f.integrity / cfg.integrityMax);
@@ -35954,8 +37033,8 @@
     // Oleadas + filtrados.
     ctx.font = "bold " + Math.floor(9 * U) + "px Fredoka, sans-serif";
     ctx.fillStyle = "rgba(255,255,255,0.62)";
-    ctx.fillText("OLEADA " + Math.min(f.waveIdx, cfg.waves.length) + "/" + cfg.waves.length +
-                 "   ·   FILTRADOS " + f.leakedTotal, x, y);
+    ctx.fillText(ellipsizeToWidth("OLEADA " + Math.min(f.waveIdx, cfg.waves.length) + "/" + cfg.waves.length +
+                 "   ·   FILTRADOS " + f.leakedTotal, barW), x, y);
     ctx.restore();
   }
 

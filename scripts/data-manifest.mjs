@@ -4,6 +4,7 @@ export const GAME_DATA_FILES = [
   "data/towers.js",
   "data/enemies.js",
   "data/visuals-phase1.js",
+  "data/visuals-phase2.js",
   "data/waves-phase1.js",
   "data/dissemination.js",
   "data/f2-levels.js",

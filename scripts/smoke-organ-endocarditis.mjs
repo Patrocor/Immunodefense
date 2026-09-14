@@ -184,6 +184,17 @@ assert.ok(
   "el monocito rueda alrededor de su casilla"
 );
 
+g.state.towers = [];
+g.state.enemies = [
+  germAt("viridans", 0.46, 1, { vegLayers: 0 }),
+  germAt("enterococo", 0.50, 2, { vegLayers: 0, shieldHP: 4 }),
+  germAt("hacek", 0.54, 3, { vegLayers: 0 })
+];
+g.state.f2.pulseT = 1.4;
+g.step(0.08, 0.02);
+assert.equal(game.__lerr, null, "las tres siluetas de endocarditis renderizan");
+assert.equal(g.state.enemies.length, 3, "los tres gérmenes siguen en el carril");
+
 g.goF2("osteomielitis");
 g.state.f2.introTimer = 0;
 g.step(0.05, 0.05);

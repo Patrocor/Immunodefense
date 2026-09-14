@@ -24400,7 +24400,7 @@
     // Shield overlay (drawn on top of body but under HP bar).
     // S. aureus dibuja su cápsula como casco irregular del racimo;
     // el anillo circular genérico lo volvería otra vez un círculo dorado.
-    if (def.shield && def.id !== "saureus" && def.id !== "dermatofito" && def.id !== "hpv" && def.id !== "candida" && def.id !== "pseudomonas" && def.id !== "bossPyogenes" && def.id !== "bossPseudomonas" && def.id !== "bossClostridium" && def.id !== "bossMRSA" &&
+    if (def.shield && def.id !== "saureus" && def.id !== "dermatofito" && def.id !== "hpv" && def.id !== "candida" && def.id !== "pseudomonas" && def.id !== "bossPyogenes" && def.id !== "bossPseudomonas" && def.id !== "bossClostridium" && def.id !== "bossMRSA" && def.id !== "enterococo" &&
         (e.shieldHP > 0 || e.shieldShatterTimer > 0)) {
       drawShield(e, rad * scale);
     }
@@ -29079,184 +29079,258 @@
     }
   }
 
+  function trackGermHeading(e, lerp) {
+    lerp = lerp == null ? 0.12 : lerp;
+    if (e._lastPosX == null) { e._lastPosX = e.x; e._lastPosY = e.y; e._heading = 0; }
+    var dxM = e.x - e._lastPosX, dyM = e.y - e._lastPosY;
+    if (Math.hypot(dxM, dyM) > 0.5) {
+      var targetAng = Math.atan2(dyM, dxM);
+      var diffAng = targetAng - (e._heading || 0);
+      while (diffAng >  Math.PI) diffAng -= Math.PI * 2;
+      while (diffAng < -Math.PI) diffAng += Math.PI * 2;
+      e._heading = (e._heading || 0) + diffAng * lerp;
+    }
+    e._lastPosX = e.x; e._lastPosY = e.y;
+    return e._heading || 0;
+  }
+
   // --- Streptococcus viridans: CADENA de cocos + vegetación --------------
+  // Estreptococo = división en un plano: cuentas en hilo, no racimo ni
+  // sonrisa compacta. Cada coco lleva su propia membrana circular.
   function drawViridans(e, rad, expression, blink) {
     var R = rad, t = state.time, w = e.wobble || 0, hit = e.hitFlash > 0;
-    // Estados que este germen SÍ tiene y hasta ahora no se veían en el cuerpo:
-    // cuántas capas de vegetación lleva tejidas, si ya maduró, y si el
-    // corazón está en sístole empujándolo hacia atrás.
     var capas = e.vegLayers || 0;
     var maduro = !!e.vegMature;
     var sist = !!(state.f2 && state.f2.inSystole);
+    var heading = trackGermHeading(e, 0.12);
+    var n = 5;
+    var cocoR = R * 0.34;
+    var spacing = cocoR * 1.62;
+    var mid = (n - 1) / 2;
+    var beads = [];
+    var i, cx, cy, rr, g;
+    for (i = 0; i < n; i++) {
+      cx = (i - mid) * spacing;
+      cy = Math.sin((i - mid) * 0.85 + t * 1.15 + w) * cocoR * 0.22;
+      rr = cocoR * (1 - Math.abs(i - mid) * 0.06);
+      beads.push({ x: cx, y: cy, r: rr });
+    }
     ctx.save();
     ctx.translate(e.x, e.y);
-    // En sístole se AGACHA y se aplasta contra el endotelio para aguantar el
-    // chorro. Es la lectura visual de por qué unos resisten y otros no.
-    if (sist) ctx.scale(1.10, 0.88);
-    drawVegetationLayers(e, R);
-    // Cadena de 5 cocos en arco (los estreptococos crecen en cadena).
-    var n = 5;
-    var arc = 1.5 + Math.sin(t * 1.2 + w) * 0.25;
-    for (var i = 0; i < n; i++) {
-      var f = (i / (n - 1)) - 0.5;
-      var ang = f * arc;
-      var cx = Math.sin(ang) * R * 0.95;
-      var cy = -Math.cos(ang) * R * 0.28 + R * 0.22;
-      var rr = R * (0.44 - Math.abs(f) * 0.08);
-      var g = ctx.createRadialGradient(cx - rr * 0.3, cy - rr * 0.35, rr * 0.1, cx, cy, rr);
+    if (sist) ctx.scale(1.08, 0.86);
+    drawVegetationLayers(e, R * 1.05);
+    ctx.save();
+    ctx.rotate(heading);
+    if (maduro && !e.beingEngulfed) {
+      ctx.strokeStyle = "rgba(245,232,214,0.80)";
+      ctx.lineWidth = Math.max(1.4, 1.8 * U);
+      ctx.beginPath();
+      for (i = 0; i < n; i++) {
+        ctx.moveTo(beads[i].x + beads[i].r * 0.92, beads[i].y);
+        ctx.arc(beads[i].x, beads[i].y, beads[i].r * 1.12, 0, Math.PI * 2);
+      }
+      ctx.stroke();
+    }
+    for (i = 0; i < n; i++) {
+      cx = beads[i].x; cy = beads[i].y; rr = beads[i].r;
+      g = ctx.createRadialGradient(cx - rr * 0.32, cy - rr * 0.36, rr * 0.12, cx, cy, rr);
       g.addColorStop(0, e.def.colorLight);
-      g.addColorStop(0.6, e.def.color);
+      g.addColorStop(0.58, e.def.color);
       g.addColorStop(1, e.def.colorDark);
       ctx.fillStyle = hit ? "#fff" : g;
       ctx.beginPath(); ctx.arc(cx, cy, rr, 0, Math.PI * 2); ctx.fill();
       ctx.strokeStyle = e.def.colorDark;
-      ctx.lineWidth = Math.max(1, 1.2 * U);
+      ctx.lineWidth = Math.max(1.1, 1.4 * U);
       ctx.stroke();
-      // Brillo.
-      ctx.fillStyle = "rgba(255,255,255,0.35)";
-      ctx.beginPath(); ctx.arc(cx - rr * 0.28, cy - rr * 0.32, rr * 0.26, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = "rgba(255,255,255,0.38)";
+      ctx.beginPath(); ctx.arc(cx - rr * 0.28, cy - rr * 0.32, rr * 0.24, 0, Math.PI * 2); ctx.fill();
     }
-    // Adhesinas FimA: cuantas más capas teje, más se AGARRAN. De hilitos
-    // sueltos que ondean a cables tensos y rectos clavados al endotelio.
-    // Mientras lo engulle el MΦ, se recogen: si no, la jaula tapa la boca.
+    ctx.restore();
+    // FimA: hilitos cortos hacia la valva (+Y). Con vegetación se tensan;
+    // nunca una jaula que tape la cadena.
     if (!e.beingEngulfed) {
-    var agarre = Math.min(1, capas / 3);
-    var nAdh = 6 + Math.round(agarre * 4);
-    ctx.strokeStyle = colorAlpha(e.def.colorLight, 0.55 + agarre * 0.35);
-    ctx.lineWidth = Math.max(0.7, (0.9 + agarre * 1.3) * U);
-    for (var p = 0; p < nAdh; p++) {
-      var px2 = (-0.5 + p / (nAdh - 1)) * R * (1.5 + agarre * 0.5);
-      // Con agarre alto casi no ondean: están tensas.
-      var sway = Math.sin(t * 3 + p) * R * 0.10 * (1 - agarre * 0.85);
-      var largo = R * (1.10 + agarre * 0.45);
-      ctx.beginPath();
-      ctx.moveTo(px2, R * 0.55);
-      ctx.quadraticCurveTo(px2 + sway, R * 0.85, px2 + sway * 1.6, largo);
-      ctx.stroke();
-    }
-    }
-    // Maduro: costra de fibrina endurecida por encima de todo. Ya no es un
-    // coco más de la cadena, es un problema instalado en la valva.
-    if (maduro && !e.beingEngulfed) {
-      ctx.strokeStyle = "rgba(245,232,214,0.85)";
-      ctx.lineWidth = Math.max(1.5, 2.2 * U);
-      ctx.beginPath();
-      for (var cr = 0; cr <= 16; cr++) {
-        var ca = (cr / 16) * Math.PI * 2;
-        var crr = R * (1.02 + 0.09 * Math.sin(ca * 5 + t * 0.6));
-        var cxp = Math.cos(ca) * crr * 1.15, cyp = Math.sin(ca) * crr * 0.85;
-        if (cr === 0) ctx.moveTo(cxp, cyp); else ctx.lineTo(cxp, cyp);
+      var agarre = Math.min(1, capas / 3);
+      var ch = Math.cos(heading), sh = Math.sin(heading);
+      ctx.lineCap = "round";
+      for (i = 0; i < n; i++) {
+        var bx = beads[i].x * ch - beads[i].y * sh;
+        var by = beads[i].x * sh + beads[i].y * ch;
+        var nPili = 1 + (agarre > 0.2 ? 1 : 0);
+        var p;
+        for (p = 0; p < nPili; p++) {
+          var sway = Math.sin(t * (3.2 - agarre * 2) + i + p) * R * 0.10 * (1 - agarre * 0.8);
+          var largo = beads[i].r * (0.85 + agarre * 0.55);
+          ctx.strokeStyle = colorAlpha(e.def.colorLight, 0.42 + agarre * 0.40);
+          ctx.lineWidth = Math.max(0.7, (0.9 + agarre * 0.7) * U);
+          ctx.beginPath();
+          ctx.moveTo(bx, by + beads[i].r * 0.55);
+          ctx.quadraticCurveTo(bx + sway, by + beads[i].r * 0.9, bx + sway * 0.6, by + largo);
+          ctx.stroke();
+        }
       }
-      ctx.closePath(); ctx.stroke();
     }
-    germFace(R * 0.70, expression, blink, R * 0.28);
+    germFace(R * 0.55, expression, blink, R * 0.22);
     ctx.restore();
   }
 
   // --- Enterococcus faecalis: diplococo coriáceo que se auto-repara ------
+  // Dos cocos ovoides con cintura. La pared gram+ va EN cada coco, no como
+  // un anillo circular (eso lo leía como patata). El escudo "wall" genérico
+  // se omite: el peptidoglicano sigue la silueta de cacahuete.
   function drawEnterococo(e, rad, expression, blink) {
     var R = rad, t = state.time, w = e.wobble || 0, hit = e.hitFlash > 0;
-    // Su identidad es "coriáceo que se auto-repara", pero el daño no se veía
-    // en ningún lado: la pared se agrieta con las heridas y las grietas se
-    // cierran solas al regenerar. Ahora el jugador ve si está ganando.
     var vida = Math.max(0, Math.min(1, e.hp / (e.maxHp || e.def.hp)));
     var dano = 1 - vida;
     var sist = !!(state.f2 && state.f2.inSystole);
+    var heading = trackGermHeading(e, 0.10);
+    var sd = e.def.shield;
+    var wall = sd && sd.maxHP > 0 ? Math.max(0, Math.min(1, (e.shieldHP || 0) / sd.maxHP)) : 1;
+    var sep = R * 0.50;
+    var rx = R * 0.50, ry = R * 0.58;
     ctx.save();
     ctx.translate(e.x, e.y);
-    if (sist) ctx.scale(1.08, 0.92);
+    if (sist) ctx.scale(1.06, 0.90);
     drawVegetationLayers(e, R);
-    // Pared celular gruesa gram-positiva: anillo exterior mate.
-    ctx.fillStyle = colorAlpha(e.def.colorDark, 0.45);
-    ctx.beginPath(); ctx.arc(0, 0, R * 1.06, 0, Math.PI * 2); ctx.fill();
-    // Grietas en la pared: más y más abiertas cuanto peor está.
-    if (dano > 0.12) {
-      var ng = 1 + Math.round(dano * 5);
-      ctx.strokeStyle = "rgba(40,26,6," + (0.35 + dano * 0.5) + ")";
-      ctx.lineWidth = Math.max(1, (1 + dano * 1.8) * U);
-      ctx.lineCap = "round";
-      for (var cg = 0; cg < ng; cg++) {
-        var ga = w + cg * 2.4;
-        var g0 = R * 0.55, g1 = R * (0.75 + dano * 0.32);
+    ctx.save();
+    ctx.rotate(heading);
+    // Casco céreo que SIGUE el par, no un círculo.
+    if (wall > 0.08) {
+      ctx.fillStyle = "rgba(197, 225, 165," + (0.22 * wall) + ")";
+      ctx.strokeStyle = "rgba(120, 160, 90," + (0.55 * wall) + ")";
+      ctx.lineWidth = Math.max(2.2, (2.4 + wall * 1.6) * U);
+      ctx.beginPath();
+      ctx.ellipse(-sep, 0, rx * 1.18, ry * 1.16, 0, 0, Math.PI * 2);
+      ctx.fill(); ctx.stroke();
+      ctx.beginPath();
+      ctx.ellipse(sep, 0, rx * 1.18, ry * 1.16, 0, 0, Math.PI * 2);
+      ctx.fill(); ctx.stroke();
+      var gran;
+      ctx.fillStyle = "rgba(140, 175, 100," + (0.55 * wall) + ")";
+      for (gran = 0; gran < 8; gran++) {
+        var ga = gran * 0.8 + t * 0.2;
+        var side = gran % 2 === 0 ? -1 : 1;
         ctx.beginPath();
-        ctx.moveTo(Math.cos(ga) * g0, Math.sin(ga) * g0);
-        ctx.lineTo(Math.cos(ga + 0.18) * g1, Math.sin(ga + 0.18) * g1);
-        ctx.lineTo(Math.cos(ga - 0.10) * g1 * 1.12, Math.sin(ga - 0.10) * g1 * 1.12);
-        ctx.stroke();
+        ctx.arc(side * sep + Math.cos(ga) * rx * 0.92, Math.sin(ga) * ry * 0.92, R * 0.05, 0, Math.PI * 2);
+        ctx.fill();
       }
     }
-    // Par de cocos ovoides, uno arriba y otro abajo.
-    var throb = 1 + Math.sin(t * 2.2 + w) * 0.05;
-    for (var s = -1; s <= 1; s += 2) {
+    var s;
+    for (s = -1; s <= 1; s += 2) {
       ctx.save();
-      ctx.translate(0, s * R * 0.36);
-      ctx.scale(throb, throb);
-      var g = ctx.createRadialGradient(-R * 0.18, -R * 0.20, R * 0.05, 0, 0, R * 0.66);
+      ctx.translate(s * sep, 0);
+      var g = ctx.createRadialGradient(-rx * 0.28, -ry * 0.32, rx * 0.08, 0, 0, rx);
       g.addColorStop(0, e.def.colorLight);
       g.addColorStop(0.55, e.def.color);
       g.addColorStop(1, e.def.colorDark);
       ctx.fillStyle = hit ? "#fff" : g;
-      ctx.beginPath(); ctx.ellipse(0, 0, R * 0.62, R * 0.50, 0, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = e.def.colorDark; ctx.lineWidth = Math.max(1, 1.5 * U); ctx.stroke();
+      ctx.beginPath(); ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = e.def.colorDark;
+      ctx.lineWidth = Math.max(1.4, (1.6 + wall * 0.8) * U);
+      ctx.stroke();
+      ctx.fillStyle = "rgba(255,255,255,0.32)";
+      ctx.beginPath(); ctx.ellipse(-rx * 0.28, -ry * 0.30, rx * 0.28, ry * 0.18, 0, 0, Math.PI * 2); ctx.fill();
       ctx.restore();
     }
-    // Señal de regeneración: chispas verdes cuando está curándose.
-    if ((e.healingPulse || 0) > 0 || (e.def.selfHeal && !e.recentlyHit)) {
-      ctx.fillStyle = "rgba(150, 235, 140, 0.75)";
-      for (var k = 0; k < 4; k++) {
-        var ka = t * 2 + k * 1.57;
-        var kr = R * (1.1 + 0.12 * Math.sin(t * 3 + k));
+    // Septo: la cintura que lo hace diplococo y no patata.
+    ctx.strokeStyle = e.def.colorDark;
+    ctx.lineWidth = Math.max(1.3, 1.6 * U);
+    ctx.beginPath();
+    ctx.moveTo(0, -ry * 0.42);
+    ctx.lineTo(0, ry * 0.42);
+    ctx.stroke();
+    if (dano > 0.12) {
+      var ng = 1 + Math.round(dano * 4);
+      ctx.strokeStyle = "rgba(40,26,6," + (0.35 + dano * 0.5) + ")";
+      ctx.lineWidth = Math.max(1, (1 + dano * 1.6) * U);
+      ctx.lineCap = "round";
+      var cg;
+      for (cg = 0; cg < ng; cg++) {
+        var sideC = cg % 2 === 0 ? -sep : sep;
+        var ga2 = w + cg * 1.1;
         ctx.beginPath();
-        ctx.arc(Math.cos(ka) * kr, Math.sin(ka) * kr, R * 0.09, 0, Math.PI * 2);
+        ctx.moveTo(sideC + Math.cos(ga2) * rx * 0.35, Math.sin(ga2) * ry * 0.35);
+        ctx.lineTo(sideC + Math.cos(ga2 + 0.2) * rx * 0.95, Math.sin(ga2 + 0.2) * ry * 0.95);
+        ctx.stroke();
+      }
+    }
+    ctx.restore();
+    if (dano > 0.18) {
+      ctx.fillStyle = "rgba(150, 235, 140, 0.70)";
+      var k;
+      for (k = 0; k < 4; k++) {
+        var ka = t * 2 + k * 1.57;
+        var kr = R * (1.05 + 0.10 * Math.sin(t * 3 + k));
+        ctx.beginPath();
+        ctx.arc(Math.cos(ka) * kr, Math.sin(ka) * kr, R * 0.07, 0, Math.PI * 2);
         ctx.fill();
       }
     }
-    germFace(R * 0.72, expression, blink, R * 0.30);
+    germFace(R * 0.58, expression, blink, R * 0.24);
     ctx.restore();
   }
 
   // --- HACEK: bacilo pequeño y veloz que surfea la sístole ---------------
+  // Cocobacilo gramnegativo: estadio corto, doble membrana, flagelo polar
+  // y ESTELA de plasma. Cuando el corazón se contrae, la estela se dispara.
   function drawHacek(e, rad, expression, blink) {
     var R = rad, t = state.time, hit = e.hitFlash > 0;
-    var ang = Math.atan2(e.vy || 0, e.vx || 1);
-    if (!e.vx && !e.vy) ang = Math.PI / 2;
-    ctx.save();
-    ctx.translate(e.x, e.y);
-    ctx.rotate(ang + Math.sin(t * 7) * 0.12);
-    // Estela de flujo: este bicho SURFEA la sístole en vez de sufrirla, así
-    // que cuando el corazón se contrae su estela se dispara. Es la lectura de
-    // por qué avanza justo cuando los demás retroceden.
+    var heading = trackGermHeading(e, 0.18);
     var surf = (state.f2 && state.f2.inSystole) ? 1 : 0;
     var carga = (state.f2 && state.f2.pulseCharge) ? state.f2.pulseCharge : 0;
-    var emp = surf ? 1 : carga * 0.5;
+    var emp = surf ? 1 : carga * 0.55;
+    ctx.save();
+    ctx.translate(e.x, e.y);
+    ctx.save();
+    ctx.rotate(heading);
+    if (surf) ctx.scale(1.16, 0.86);
     var nEst = 3 + Math.round(emp * 3);
-    ctx.strokeStyle = colorAlpha(e.def.colorLight, 0.4 + emp * 0.45);
-    ctx.lineWidth = Math.max(0.8, (1.1 + emp * 1.2) * U);
-    for (var s = 0; s < nEst; s++) {
-      var off = (s - (nEst - 1) / 2) * R * 0.35;
+    ctx.strokeStyle = colorAlpha(e.def.colorLight, 0.38 + emp * 0.50);
+    ctx.lineWidth = Math.max(0.8, (1.1 + emp * 1.3) * U);
+    ctx.lineCap = "round";
+    var s;
+    for (s = 0; s < nEst; s++) {
+      var off = (s - (nEst - 1) / 2) * R * 0.28;
       ctx.beginPath();
-      ctx.moveTo(-R * 1.1, off);
-      ctx.lineTo(-R * (2.0 + emp * 1.8 + 0.4 * Math.sin(t * 8 + s)), off * 1.5);
+      ctx.moveTo(-R * 0.95, off);
+      ctx.lineTo(-R * (1.85 + emp * 1.9 + 0.35 * Math.sin(t * 9 + s)), off * 1.35);
       ctx.stroke();
     }
-    // Cuerpo: bacilo corto (cocobacilo).
-    var g = ctx.createLinearGradient(0, -R * 0.5, 0, R * 0.5);
+    if (emp > 0.15) {
+      ctx.fillStyle = colorAlpha(e.def.colorLight, 0.28 + emp * 0.35);
+      var drop;
+      for (drop = 0; drop < 3; drop++) {
+        var dx = -R * (1.4 + drop * 0.45 + emp * 0.5);
+        var dy = Math.sin(t * 7 + drop) * R * 0.22;
+        ctx.beginPath(); ctx.arc(dx, dy, R * (0.10 - drop * 0.02), 0, Math.PI * 2); ctx.fill();
+      }
+    }
+    // Cuerpo: estadio (cocobacilo), no pastilla vertical genérica.
+    var g = ctx.createLinearGradient(-R * 0.8, -R * 0.4, R * 0.8, R * 0.4);
     g.addColorStop(0, e.def.colorLight);
     g.addColorStop(0.5, e.def.color);
     g.addColorStop(1, e.def.colorDark);
     ctx.fillStyle = hit ? "#fff" : g;
-    roundRect(-R * 0.95, -R * 0.48, R * 1.9, R * 0.96, R * 0.48);
+    roundRect(-R * 1.05, -R * 0.42, R * 2.10, R * 0.84, R * 0.42);
     ctx.fill();
-    ctx.strokeStyle = e.def.colorDark; ctx.lineWidth = Math.max(1, 1.3 * U); ctx.stroke();
-    // Brillo superior.
-    ctx.fillStyle = "rgba(255,255,255,0.30)";
-    roundRect(-R * 0.7, -R * 0.34, R * 1.1, R * 0.24, R * 0.12);
+    ctx.strokeStyle = e.def.colorDark; ctx.lineWidth = Math.max(1.1, 1.4 * U); ctx.stroke();
+    // Membrana externa gramnegativa (segundo trazo, más claro).
+    ctx.strokeStyle = colorAlpha(e.def.colorLight, 0.55);
+    ctx.lineWidth = Math.max(0.8, 1.0 * U);
+    roundRect(-R * 1.14, -R * 0.50, R * 2.28, R * 1.00, R * 0.50);
+    ctx.stroke();
+    ctx.fillStyle = "rgba(255,255,255,0.32)";
+    roundRect(-R * 0.72, -R * 0.28, R * 1.05, R * 0.20, R * 0.10);
     ctx.fill();
+    // Flagelo polar a popa: el remo con el que surfea.
+    ctx.strokeStyle = e.def.colorDark;
+    ctx.lineWidth = Math.max(1.0, 1.3 * U);
+    ctx.beginPath();
+    ctx.moveTo(-R * 1.05, 0);
+    ctx.quadraticCurveTo(-R * (1.55 + emp * 0.4), Math.sin(t * 10) * R * 0.35,
+                         -R * (1.95 + emp * 0.5), Math.sin(t * 10 + 0.6) * R * 0.55);
+    ctx.stroke();
     ctx.restore();
-    // Cara sin rotar (para que se lea siempre).
-    ctx.save();
-    ctx.translate(e.x, e.y);
-    germFace(R * 0.52, expression, blink, R * 0.24);
+    germFace(R * 0.48, expression, blink, R * 0.20);
     ctx.restore();
   }
 
@@ -33256,7 +33330,7 @@
     else if (kind === "virus") drawVirus(fakeEnemy, R, "idle", false);
     else if (kind === "hongo") drawHongo(fakeEnemy, R, "idle", false);
     else drawBoss(fakeEnemy, R, "idle", false);
-    if (def.shield && def.id !== "saureus" && def.id !== "dermatofito" && def.id !== "hpv" && def.id !== "candida" && def.id !== "pseudomonas" && def.id !== "bossPyogenes" && def.id !== "bossPseudomonas" && def.id !== "bossClostridium" && def.id !== "bossMRSA") drawShield(fakeEnemy, R);
+    if (def.shield && def.id !== "saureus" && def.id !== "dermatofito" && def.id !== "hpv" && def.id !== "candida" && def.id !== "pseudomonas" && def.id !== "bossPyogenes" && def.id !== "bossPseudomonas" && def.id !== "bossClostridium" && def.id !== "bossMRSA" && def.id !== "enterococo") drawShield(fakeEnemy, R);
     ctx.restore();
   }
 

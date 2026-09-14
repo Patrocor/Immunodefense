@@ -35534,7 +35534,12 @@
       var w = PATH.wounds[k];
       var d = PATH.organDoors[k];
       drawF2Entry(w.x, w.y, cfg);
-      drawF2Focus(d.x, d.y, cfg, f.focusFlash[k] || 0, k);
+      // En endocarditis los focos se pintan DESPUÉS de los velos
+      // (drawEndocarditisLivingOverlay): si quedan debajo, el tejido deja
+      // un hueco que se lee como globo de diálogo.
+      if (cfg.key !== "endocarditis") {
+        drawF2Focus(d.x, d.y, cfg, f.focusFlash[k] || 0, k);
+      }
     }
     if (cfg.key === "endocarditis") drawEndocarditisLiving();
   }
@@ -35597,6 +35602,11 @@
     drawValveLeafletSweep(close, slap);
     var list = f.atheromas || [];
     for (var i = 0; i < list.length; i++) drawAtheromaMine(list[i]);
+    if (!PATH.organDoors) return;
+    for (var k = 0; k < PATH.organDoors.length; k++) {
+      var d = PATH.organDoors[k];
+      drawF2Focus(d.x, d.y, f.cfg, f.focusFlash[k] || 0, k);
+    }
   }
 
   function atheromaNoise(seed, i) {
@@ -35654,7 +35664,7 @@
     ctx.save();
     for (var lane = 0; lane < PATH.branches.length; lane++) {
       var tot = PATH.totalForBranch[lane] || PATH.total || 1;
-      var L0 = tot * 0.68, L1 = tot * 0.96;
+      var L0 = tot * 0.68, L1 = tot * 0.88;
       var mid = pathPos(L0 + (L1 - L0) * 0.55, lane);
       var a = mid.angle || 0;
       var nx = -Math.sin(a), ny = Math.cos(a);
@@ -35952,6 +35962,7 @@
   // Foco del órgano: la estructura al final de cada carril. Recibe el impacto.
   function drawF2Focus(x, y, cfg, flash, idx) {
     var r = 22 * U;
+    var kit = organKit(cfg);
     ctx.save();
     ctx.translate(x, y);
     // Misma casilla que Fase 1: plato receptor, radio 4. No globo de diálogo.
@@ -35962,43 +35973,38 @@
     ctx.lineWidth = 2;
     roundRect(-r, -r * 0.55, r * 2, r * 1.1, 4 * U);
     ctx.stroke();
+    // Boca: radio chico (slot, no cápsula). El nombre vive ADENTRO, como
+    // las casillas del dock de Fase 1 — no cuelga como pie de globo.
+    var mx = -r * 0.82, my = -r * 0.38, mw = r * 1.64, mh = r * 0.76;
     ctx.fillStyle = colorAlpha("#000000", 0.55);
-    roundRect(-r * 0.6, -r * 0.28, r * 1.2, r * 0.56, 4 * U);
+    roundRect(mx, my, mw, mh, 2 * U);
     ctx.fill();
     if (flash > 0) {
       ctx.fillStyle = colorAlpha(cfg.colorLight, 0.35 * Math.min(1, flash / 0.6));
-      roundRect(-r * 0.6, -r * 0.28, r * 1.2, r * 0.56, 4 * U);
+      roundRect(mx, my, mw, mh, 2 * U);
       ctx.fill();
     }
-    ctx.restore();
-    // Nombre sobre el plato (no debajo: eso lee como globo con pie, y se
-    // recorta en el borde inferior de la valva). Solo el kit de endocarditis
-    // etiqueta acá; el resto de órganos sigue rotulando la entrada.
-    if (!organKit(cfg)) return;
-    var label = (cfg.foci && cfg.foci[idx]) || "";
-    if (!label) return;
-    var maxW = r * 2.05;
-    var px = Math.max(8, Math.floor(8 * U));
-    ctx.save();
-    ctx.font = "bold " + px + "px Fredoka, sans-serif";
-    var lines = wrapTextLines(label, maxW);
-    if (lines.length > 2) {
-      lines = [lines[0], ellipsizeToWidth(lines.slice(1).join(" "), maxW)];
-    }
-    var i;
-    for (i = 0; i < lines.length; i++) lines[i] = ellipsizeToWidth(lines[i], maxW);
-    ctx.textAlign = "center";
-    ctx.textBaseline = "bottom";
-    var lineH = px + 2;
-    var ly = y - r * 0.62;
-    ctx.strokeStyle = "rgba(12, 6, 10, 0.88)";
-    ctx.lineWidth = Math.max(2.5, 3 * U);
-    ctx.lineJoin = "round";
-    ctx.fillStyle = colorAlpha(cfg.colorLight, 0.95);
-    for (i = 0; i < lines.length; i++) {
-      var ty = ly - (lines.length - 1 - i) * lineH;
-      ctx.strokeText(lines[i], x, ty);
-      ctx.fillText(lines[i], x, ty);
+    if (kit) {
+      var label = (cfg.foci && cfg.foci[idx]) || "";
+      if (label) {
+        var maxW = mw - 4 * U;
+        var px = Math.max(7, Math.floor(6.5 * U));
+        ctx.font = "bold " + px + "px Fredoka, sans-serif";
+        var lines = wrapTextLines(label, maxW);
+        if (lines.length > 2) {
+          lines = [lines[0], ellipsizeToWidth(lines.slice(1).join(" "), maxW)];
+        }
+        var i;
+        for (i = 0; i < lines.length; i++) lines[i] = ellipsizeToWidth(lines[i], maxW);
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillStyle = colorAlpha(cfg.colorLight, 0.95);
+        var lineH = px + 1;
+        var ty0 = -((lines.length - 1) * lineH) / 2;
+        for (i = 0; i < lines.length; i++) {
+          ctx.fillText(lines[i], 0, ty0 + i * lineH);
+        }
+      }
     }
     ctx.restore();
   }
@@ -36695,12 +36701,20 @@
     ctx.restore();
     ctx.save();
     var pName = ready ? cfg.basePowerName : (cfg.baseShort + " · " + Math.ceil(f.baseCd) + "s");
-    var pMax = Math.max(72 * U, r * 4.2);
-    var pPx = fitFont(pName, pMax, Math.floor(10 * U), 7);
+    var pMax = r * 1.7;
+    var pPx = Math.max(6, Math.floor(6.5 * U));
     ctx.font = "bold " + pPx + "px Fredoka, sans-serif";
+    var pLines = wrapTextLines(pName, pMax);
+    if (pLines.length > 2) pLines = [pLines[0], ellipsizeToWidth(pLines.slice(1).join(" "), pMax)];
+    var pi;
+    for (pi = 0; pi < pLines.length; pi++) pLines[pi] = ellipsizeToWidth(pLines[pi], pMax);
     ctx.fillStyle = colorAlpha(ready ? cfg.colorLight : "#8a8a8a", 0.95);
-    ctx.textAlign = "center"; ctx.textBaseline = "bottom";
-    ctx.fillText(ellipsizeToWidth(pName, pMax), f.baseX, f.baseY - f.baseR * 0.95);
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    var pH = pPx + 1;
+    var pY = f.baseY + r * 0.38 - ((pLines.length - 1) * pH) / 2;
+    for (pi = 0; pi < pLines.length; pi++) {
+      ctx.fillText(pLines[pi], f.baseX, pY + pi * pH);
+    }
     ctx.restore();
   }
   // HUD de Fase 2: integridad del órgano, cartílago (si aplica) y oleada.

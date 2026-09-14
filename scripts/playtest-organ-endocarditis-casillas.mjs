@@ -88,13 +88,22 @@ await page.evaluate(() => {
       wobble: 0, radiusScale: 1.35,
     };
   }
-  st.dsScrollY = Math.round(F.h * 0.55);
+  st.atp = 999;
+  st.dsScrollY = Math.round(F.h * 0.42);
+  const worldW = F.w * ((st.f2.cfg.stretchX || 1));
+  const worldH = F.h * ((st.f2.cfg.stretchY || 1));
+  function nxy(x, y) {
+    return [(x - F.left) / worldW, (y - F.top) / worldH];
+  }
   const mid = g.pathPos(g.pathLen(2) * 0.52, 2);
   const left = g.pathPos(g.pathLen(1) * 0.48, 1);
   const right = g.pathPos(g.pathLen(3) * 0.50, 3);
-  g.place("endotelial", left.x + 48, left.y);
-  g.place("monocito", mid.x - 52, mid.y);
-  g.place("macrofagoCardiaco", right.x + 48, right.y);
+  const pe = nxy(left.x + 56, left.y);
+  const pm = nxy(mid.x - 56, mid.y);
+  const pc = nxy(right.x + 56, right.y);
+  g.place("endotelial", pe[0], pe[1]);
+  g.place("monocito", pm[0], pm[1]);
+  g.place("macrofagoCardiaco", pc[0], pc[1]);
   st.enemies = [
     germ("viridans", 0.50, 2),
     germ("enterococo", 0.46, 1),
@@ -111,6 +120,35 @@ await page.evaluate(() => {
 }).then((info) => console.log("Roster:", info));
 await sleep(80);
 await page.screenshot({ path: join(ART, "organ_endocarditis_roster.png") });
+
+const unitClips = await page.evaluate(() => {
+  const g = window.__game;
+  const st = g.state;
+  const canvas = document.getElementById("canvas");
+  const rect = canvas.getBoundingClientRect();
+  const sx = (x) => rect.left + (x / g.metrics.VW) * rect.width;
+  const sy = (y) => rect.top + ((y - (st.dsScrollY || 0)) / g.metrics.VH) * rect.height;
+  function clip(x, y, s) {
+    return {
+      x: Math.max(0, Math.round(sx(x) - s)),
+      y: Math.max(0, Math.round(sy(y) - s)),
+      width: s * 2,
+      height: s * 2,
+    };
+  }
+  const towers = {};
+  st.towers.forEach((t) => { if (t.def) towers[t.def.id] = clip(t.x, t.y, 90); });
+  const germs = {};
+  st.enemies.forEach((e) => { if (e.def) germs[e.def.id] = clip(e.x, e.y, 90); });
+  return { towers, germs, nT: st.towers.length, nE: st.enemies.length };
+});
+console.log("Unit clips:", unitClips);
+for (const [id, clip] of Object.entries(unitClips.towers)) {
+  await page.screenshot({ path: join(ART, "organ_endocarditis_tower_" + id + ".png"), clip });
+}
+for (const [id, clip] of Object.entries(unitClips.germs)) {
+  await page.screenshot({ path: join(ART, "organ_endocarditis_germ_" + id + ".png"), clip });
+}
 
 await browser.close();
 console.log("OK: endocarditis casillas in", ART);

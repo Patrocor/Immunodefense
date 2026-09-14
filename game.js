@@ -1131,6 +1131,12 @@
   var F2_ORGAN_TOWERS = gameData("f2OrganTowers");
   var TOWER_GROUPS = gameData("towerGroups");
   var LOADOUT_LIMITS = gameData("loadoutLimits");
+  var ORGAN_DOCK_BLOCKED = gameData("organDockBlocked") || {};
+  function organBlocksTower(typeId) {
+    var organ = state && state.f2 && state.f2.key;
+    if (!organ || !ORGAN_DOCK_BLOCKED[organ]) return false;
+    return ORGAN_DOCK_BLOCKED[organ].indexOf(typeId) >= 0;
+  }
   function loadoutCategory(typeId) {
     for (var g = 0; g < TOWER_GROUPS.length; g++) {
       var grp = TOWER_GROUPS[g];
@@ -1154,6 +1160,7 @@
     if (!state || !state.loadout) return "noop";
     var td = TOWER_DEFS[typeId];
     if (td && td.retired) return "noop";
+    if (organBlocksTower(typeId)) return "noop";
     var c = loadoutCategory(typeId);
     var arr = c === "tower" ? state.loadout.towers
             : c === "tank"  ? state.loadout.tanks
@@ -4498,6 +4505,13 @@
       if (key) return ORGAN_IDENTITY[key] || null;
       return organKit(f2Cfg());
     },
+    f2DockAllows: function (typeId) {
+      return !organBlocksTower(typeId);
+    },
+    dockTypeIds: function () {
+      return (UI.cards || []).map(function (c) { return c.typeId; });
+    },
+    relayout: function () { layoutUI(); },
     f2Markers: function () {
       if (!state.f2 || !PATH.wounds) return [];
       var cfg = state.f2.cfg;
@@ -5047,6 +5061,7 @@
       if (d && d.disseminationOnly && !inDiss) return false;
       // Torres residentes de tejido: solo existen en SU órgano/familia.
       if (d && d.f2Organ && d.f2Organ !== curOrgan && d.f2Organ !== curMech) return false;
+      if (organBlocksTower(typeId)) return false;
       return true;
     }
     // Dock = SOLO las torres dentro del loadout (5+2+1). Si está vacío,
@@ -6503,21 +6518,46 @@
       return true;
     }
     if (id === "macrofagoCardiaco") {
-      // DESCARGA DE CONDUCCIÓN: todas las torres en rango disparan YA.
-      // Visual: rayos de conducción reales, uno por torre despertada —
-      // el sistema de conducción cardíaco propagándose célula a célula,
-      // no un anillo abstracto.
-      var n = 0;
-      for (var c = 0; c < state.towers.length; c++) {
-        var tw = state.towers[c];
-        if (tw === t || tw.dead || !inRange(tw)) continue;
-        tw.cooldown = 0;
-        tw.conductionBoost = 6;      // 6s de cadencia acelerada
-        n++;
-        pushEffect({ kind: "conductionBolt", x1: t.x, y1: t.y, x2: tw.x, y2: tw.y, life: 0.5, max: 0.5 });
+      // DIGESTIÓN: se traga al gérmen más maduro (más capas) en rango.
+      // Si nadie está clavado, derrite capas a los que ya llegaron al velo.
+      var bestE = null, bestL = -1, bestP = -1;
+      var melted = 0;
+      for (var vg = 0; vg < state.enemies.length; vg++) {
+        var evg = state.enemies[vg];
+        if (evg.dead || evg.dying || evg.absorbing || !inRange(evg)) continue;
+        if (evg.def.bloodSurf && !(evg.slowTimer > 0) && !(evg.stunTimer > 0)) continue;
+        var layers = evg.vegLayers || 0;
+        if (layers > bestL || (layers === bestL && evg.progress > bestP)) {
+          bestL = layers; bestP = evg.progress; bestE = evg;
+        }
       }
-      pushEffect({ kind: "novaRing", x: t.x, y: t.y, r: rng * 0.35, color: "#f0946a", life: 0.5, max: 0.5 });
-      consume(1.5, "CONDUCCIÓN — " + n + " células disparan a la vez");
+      if (bestE && bestL >= 1) {
+        if (t.engulfTarget && t.engulfTarget !== bestE) releaseValvularEngulf(t);
+        bestE.beingEngulfed = true;
+        t.engulfTarget = bestE;
+        t.engulfPhase = "engulf";
+        t.engulfT = 0;
+        t.mouthOpen = 1;
+        t.tongueExtend = 0;
+        t.swallow = 0.7;
+        t.attackAnim = 1.0;
+        pushEffect({ kind: "novaRing", x: t.x, y: t.y, r: rng * 0.4, color: "#e8c090", life: 0.45, max: 0.45 });
+        consume(1.4, "DIGESTIÓN — se traga la vegetación madura");
+        return true;
+      }
+      for (var dm = 0; dm < state.enemies.length; dm++) {
+        var edm = state.enemies[dm];
+        if (edm.dead || !inRange(edm)) continue;
+        if ((edm.vegLayers || 0) > 0) {
+          edm.vegLayers = Math.max(0, edm.vegLayers - 2);
+          melted++;
+        }
+      }
+      t.swallow = 0.5;
+      t.mouthOpen = 0.85;
+      t.attackAnim = 0.8;
+      pushEffect({ kind: "novaRing", x: t.x, y: t.y, r: rng * 0.55, color: "#d4783c", life: 0.5, max: 0.5 });
+      consume(1.3, melted ? ("DIGESTIÓN — " + melted + " costras disueltas") : "DIGESTIÓN — el velo queda limpio");
       return true;
     }
     if (id === "osteoclasto") {
@@ -8976,6 +9016,7 @@
   function placeTower(x, y, typeId) {
     var def = TOWER_DEFS[typeId];
     if (!def || def.retired) return;
+    if (organBlocksTower(typeId)) return;
     state.towers.push({
       x: x, y: y,
       nx: FIELD_W > 0 ? (x - FIELD_LEFT) / FIELD_W : 0,
@@ -8990,6 +9031,8 @@
       blinkTimer: 0,
       nextBlink: state.time + 2 + Math.random() * 3,
       placedAt: state.time,
+      homeX: x,
+      homeY: y,
       maxHp: Math.round(def.levels[0].hp * comboMult("def")),
       hp: Math.round(def.levels[0].hp * comboMult("def")),
       hitFlash: 0,
@@ -9690,6 +9733,112 @@
     }
   }
 
+  function updateOrganPatrol(t, dt) {
+    var pr = t.def.patrols;
+    if (!pr) return;
+    if (t.homeX == null) { t.homeX = t.x; t.homeY = t.y; }
+    t.patrolA = (t.patrolA != null ? t.patrolA : (t.idlePhase || 0)) + dt * (pr.speed / Math.max(12, pr.radius));
+    t.x = t.homeX + Math.cos(t.patrolA) * pr.radius * U;
+    t.y = t.homeY + Math.sin(t.patrolA) * pr.radius * U * 0.55;
+  }
+
+  function germStuckOnValve(e) {
+    if (!e || e.dead) return false;
+    if ((e.vegLayers || 0) > 0) return true;
+    if (e.def && e.def.bloodSurf && !(e.slowTimer > 0) && !(e.stunTimer > 0)) return false;
+    var lane = e.heridaIdx || 0;
+    var tot = (PATH.totalForBranch && PATH.totalForBranch[lane]) || PATH.total || 1;
+    return tot > 0 && (e.progress / tot) > 0.68;
+  }
+
+  function releaseValvularEngulf(t) {
+    var e = t.engulfTarget;
+    if (e && !e.dead) {
+      e.beingEngulfed = false;
+      e.engulfScale = null;
+    }
+    t.engulfTarget = null;
+    t.engulfPhase = null;
+    t.engulfT = 0;
+    t.mouthOpen = 0;
+    t.tongueExtend = 0;
+  }
+
+  function updateValvularMac(t, dt, rangePx) {
+    if ((t.digestCd || 0) > 0) t.digestCd -= dt;
+    if ((t.swallow || 0) > 0) t.swallow = Math.max(0, t.swallow - dt);
+    if (t.engulfTarget) {
+      var e = t.engulfTarget;
+      if (!e || e.dead || e.dying || e.absorbing) {
+        releaseValvularEngulf(t);
+        return;
+      }
+      e.beingEngulfed = true;
+      e.x += (t.x - e.x) * Math.min(1, dt * 6);
+      e.y += (t.y + 10 * U - e.y) * Math.min(1, dt * 6);
+      t.engulfT = (t.engulfT || 0) + dt;
+      t.attackAnim = 0.25;
+      if (t.engulfPhase === "lick") {
+        t.tongueExtend = Math.min(1, t.engulfT / 0.32);
+        t.mouthOpen = 0.22;
+        if (t.engulfT >= 0.32) { t.engulfPhase = "lift"; t.engulfT = 0; }
+      } else if (t.engulfPhase === "lift") {
+        t.mouthOpen = 0.45 + 0.35 * Math.min(1, t.engulfT / 0.22);
+        t.tongueExtend = Math.max(0, 1 - t.engulfT / 0.22);
+        if (t.engulfT >= 0.22) { t.engulfPhase = "engulf"; t.engulfT = 0; }
+      } else {
+        var frac = Math.min(1, t.engulfT / 0.85);
+        t.mouthOpen = 1;
+        t.tongueExtend = 0;
+        e.engulfScale = 1 - frac * 0.85;
+        if (frac >= 1) {
+          e.vegLayers = 0;
+          e.beingEngulfed = false;
+          e.engulfScale = null;
+          if (!e.dying) {
+            e.dead = true;
+            state.pathogensDefeated += 1;
+            META.totalPathogensDefeated += 1;
+            state.atp += MACROFAGO_DROP_REWARD;
+            pushEffect({ kind: "atpText", x: t.x, y: t.y - 12 * U, vy: -36 * U,
+              text: "+" + MACROFAGO_DROP_REWARD + " ATP", life: 0.85, max: 0.85, color: "#FFD93D" });
+          }
+          t.swallow = 0.6;
+          t.mouthOpen = 0;
+          t.engulfTarget = null;
+          t.engulfPhase = null;
+          t.digestCd = 0.55;
+          pushDamageNumber(t.x, t.y - 24 * U, "¡ÑAM!", "#ffd24a");
+          sfx("sell");
+        }
+      }
+      return;
+    }
+    if (t.mouthOpen > 0) t.mouthOpen = Math.max(0, t.mouthOpen - dt * 2.4);
+    if ((t.digestCd || 0) > 0) return;
+    var best = null, bestL = -1, bestD = Infinity;
+    var i, en, d, layers;
+    for (i = 0; i < state.enemies.length; i++) {
+      en = state.enemies[i];
+      if (en.dead || en.dying || en.absorbing || en.beingEngulfed || en.beingDropped) continue;
+      if (en.state === "falling" || en.state === "entering") continue;
+      if (!germStuckOnValve(en)) continue;
+      d = Math.hypot(en.x - t.x, en.y - t.y);
+      if (d > rangePx) continue;
+      layers = en.vegLayers || 0;
+      if (layers > bestL || (layers === bestL && d < bestD)) {
+        bestL = layers; bestD = d; best = en;
+      }
+    }
+    if (!best) return;
+    best.beingEngulfed = true;
+    t.engulfTarget = best;
+    t.engulfPhase = "lick";
+    t.engulfT = 0;
+    t.attackAnim = 0.3;
+    sfx("macroAttack");
+  }
+
   function updateTowers(dt) {
     // Recalcula sinergias por proximidad al inicio del frame (O(n²)
     // pero con n<20 es trivial).
@@ -10004,6 +10153,7 @@
             timer: db.delay, max: db.delay
           });
         }
+        if (t.engulfTarget) releaseValvularEngulf(t);
         // Médula: Célula de Reserva — la torre se reconstruye con 25% HP.
         if ((state.medCelulaReserva || 0) > 0 && !t.isGhostCell) {
           state.medCelulaReserva -= 1;
@@ -10028,6 +10178,11 @@
       if (t.stunTimer > 0) t.stunTimer -= dt;
       if (t.slowFireTimer > 0) t.slowFireTimer -= dt;
       if (t.stunTimer > 0 || t.devouredBy) continue;   // paralizada / siendo devorada
+      if (t.def.patrols) updateOrganPatrol(t, dt);
+      if (t.def.engulfAdhered) {
+        updateValvularMac(t, dt, towerStats(t).range * U);
+        continue;
+      }
       if (t.def.id === "langerhans") {
         var langStatsEarly = towerStats(t);
         langerUpdatePassives(t, dt, langStatsEarly, langStatsEarly.range * U);
@@ -22041,72 +22196,64 @@
 
   // --- Célula endotelial valvular: pavimento que sella la valva ----------
   function drawEndotelial(t, pulse, expression, blink) {
-    var R = 15 * U * pulse, time = state.time, w = (t.idlePhase || 0);
-    // Telegraph de carga: la monocapa se va SELLANDO a medida que junta
-    // Reendotelización. El jugador ve la reparación venir en el cuerpo.
+    var R = 16 * U * pulse, time = state.time, w = (t.idlePhase || 0);
     var cf = Math.max(0, Math.min(1, t.specialCharge || 0));
     var firing = (t.specialAnim || 0) > 0;
     ctx.save();
     ctx.translate(t.x, t.y);
-    // (3) Halo de monocapa nueva asomando ANTES del estallido post-disparo.
     if (cf > 0.15 && !firing) {
-      ctx.strokeStyle = "rgba(168,224,234," + (0.30 * cf) + ")";
-      ctx.lineWidth = Math.max(1, (1 + cf * 2.4) * U);
+      ctx.strokeStyle = "rgba(200,245,255," + (0.42 * cf) + ")";
+      ctx.lineWidth = Math.max(1, (1.2 + cf * 2.6) * U);
       ctx.beginPath();
-      ctx.ellipse(0, 0, R * (1.5 + cf * 0.35), R * (1.0 + cf * 0.25), 0, 0, Math.PI * 2);
+      ctx.ellipse(0, 0, R * (1.55 + cf * 0.35), R * (1.02 + cf * 0.22), 0, 0, Math.PI * 2);
       ctx.stroke();
     }
-    // Onda de reendotelización al disparar.
     if (firing) {
       var fa = Math.min(1, t.specialAnim);
-      ctx.strokeStyle = "rgba(200,245,255," + (0.75 * fa) + ")";
-      ctx.lineWidth = Math.max(2, 3.2 * U * fa);
+      ctx.strokeStyle = "rgba(230,255,255," + (0.8 * fa) + ")";
+      ctx.lineWidth = Math.max(2, 3.4 * U * fa);
       ctx.beginPath();
-      ctx.ellipse(0, 0, R * (1.4 + (1 - fa) * 2.6), R * (0.95 + (1 - fa) * 1.8), 0, 0, Math.PI * 2);
+      ctx.ellipse(0, 0, R * (1.35 + (1 - fa) * 2.4), R * (0.9 + (1 - fa) * 1.6), 0, 0, Math.PI * 2);
       ctx.stroke();
     }
-    // Monocapa: la célula endotelial es aplanada y poligonal, no redonda.
+    // Pavimento: hexos claros que se leen sobre el rojo de la cámara.
     var g = ctx.createLinearGradient(-R, -R, R, R);
-    g.addColorStop(0, "#a8e0ea");
-    g.addColorStop(0.5, "#5fa8b8");
-    g.addColorStop(1, "#25525e");
+    g.addColorStop(0, "#e7fbff");
+    g.addColorStop(0.45, "#8fd4e2");
+    g.addColorStop(1, "#2d6a78");
     ctx.fillStyle = g;
     ctx.beginPath();
     for (var a = 0; a < 6; a++) {
       var ang = (a / 6) * Math.PI * 2 + 0.25;
-      var rr = R * (1 + 0.10 * Math.sin(a * 2.1 + time * 0.8));
-      var px = Math.cos(ang) * rr * 1.22, py = Math.sin(ang) * rr * 0.78;
+      var rr = R * (1 + 0.08 * Math.sin(a * 2.1 + time * 0.8));
+      var px = Math.cos(ang) * rr * 1.24, py = Math.sin(ang) * rr * 0.76;
       if (a === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
     }
     ctx.closePath();
     ctx.fill();
-    ctx.strokeStyle = "#14343d"; ctx.lineWidth = Math.max(1.6, 2.2 * U); ctx.stroke();
-    // (1) Uniones estrechas: los guiones se CIERRAN con la carga. De borde
-    // punteado y flojo a sello continuo — la barrera se está reconstruyendo.
-    var hueco = (2.5 - cf * 2.2) * U;
-    ctx.strokeStyle = "rgba(200,245,255," + (0.65 + cf * 0.30) + ")";
-    ctx.lineWidth = Math.max(1, (1.3 + cf * 1.1) * U);
-    ctx.setLineDash([(2.5 + cf * 3) * U, Math.max(0.1, hueco)]);
-    ctx.beginPath(); ctx.ellipse(0, 0, R * 1.30, R * 0.86, 0, 0, Math.PI * 2); ctx.stroke();
-    ctx.setLineDash([]);
-    // (2) Cuerpos de Weibel-Palade: con la carga crecen, brillan y vibran.
-    // Son los gránulos que la célula está por volcar.
-    for (var k = 0; k < 4; k++) {
-      var ka = w + k * 1.57 + time * (0.5 + cf * 1.8);
-      var jit = cf * (Math.random() - 0.5) * R * 0.09;
-      ctx.fillStyle = "rgba(255,255,255," + (0.55 + cf * 0.42) + ")";
-      ctx.save();
-      ctx.translate(Math.cos(ka) * R * 0.45 + jit, Math.sin(ka) * R * 0.3 + jit);
-      ctx.rotate(ka);
-      var gw = R * (0.44 + cf * 0.22), gh = R * (0.12 + cf * 0.07);
-      roundRect(-gw / 2, -gh / 2, gw, gh, R * 0.06);
-      ctx.fill();
-      ctx.restore();
+    ctx.strokeStyle = "#d8f6fb";
+    ctx.lineWidth = Math.max(1.8, 2.4 * U);
+    ctx.stroke();
+    ctx.strokeStyle = "#14343d";
+    ctx.lineWidth = Math.max(1.2, 1.6 * U);
+    ctx.stroke();
+    // Losetas internas (uniones estrechas).
+    ctx.strokeStyle = "rgba(255,255,255," + (0.55 + cf * 0.35) + ")";
+    ctx.lineWidth = Math.max(1, (1.1 + cf * 1.2) * U);
+    var hx;
+    for (hx = -1; hx <= 1; hx++) {
+      ctx.beginPath();
+      ctx.moveTo(hx * R * 0.42, -R * 0.52);
+      ctx.lineTo(hx * R * 0.42, R * 0.52);
+      ctx.stroke();
     }
-    // Núcleo aplanado.
+    ctx.beginPath();
+    ctx.moveTo(-R * 0.7, 0);
+    ctx.lineTo(R * 0.7, 0);
+    ctx.stroke();
     ctx.fillStyle = "#0e2a32";
-    ctx.beginPath(); ctx.ellipse(0, R * 0.05, R * 0.42, R * 0.26, 0, 0, Math.PI * 2); ctx.fill();
-    towerFace(R * 0.55, expression, blink);
+    ctx.beginPath(); ctx.ellipse(0, R * 0.04, R * 0.40, R * 0.24, 0, 0, Math.PI * 2); ctx.fill();
+    towerFace(R * 0.52, expression, blink);
     ctx.restore();
   }
 
@@ -22152,18 +22299,21 @@
     g.addColorStop(0.55, "#8a7fc8");
     g.addColorStop(1, "#3b3470");
     ctx.fillStyle = g;
-    ctx.beginPath(); ctx.ellipse(0, 0, R * 1.28, R * 0.86, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(0, 0, R * 1.32, R * 0.78, t.patrolA || 0, 0, Math.PI * 2); ctx.fill();
     ctx.strokeStyle = "#231d4a"; ctx.lineWidth = Math.max(1.8, 2.4 * U); ctx.stroke();
     // Bandas de rodamiento (tread) en la cara inferior: el rasgo que la
     // separa de un óvalo genérico y lee como "rueda que avanza".
-    ctx.strokeStyle = "rgba(35,29,74,0.55)";
-    ctx.lineWidth = Math.max(1, 1.3 * U);
+    ctx.save();
+    ctx.rotate(t.patrolA || 0);
+    ctx.strokeStyle = "rgba(35,29,74,0.62)";
+    ctx.lineWidth = Math.max(1.2, 1.6 * U);
     for (var tr = -2; tr <= 2; tr++) {
       ctx.beginPath();
-      ctx.moveTo(tr * R * 0.42, R * 0.62);
-      ctx.lineTo(tr * R * 0.42 + R * 0.14, R * 0.82);
+      ctx.moveTo(tr * R * 0.38, R * 0.42);
+      ctx.lineTo(tr * R * 0.38 + R * 0.16, R * 0.74);
       ctx.stroke();
     }
+    ctx.restore();
     // Núcleo en herradura.
     ctx.fillStyle = "#372c6e";
     ctx.beginPath();
@@ -22188,81 +22338,99 @@
     ctx.restore();
   }
 
-  // --- Macrófago cardíaco residente: fagocita y CONDUCE ------------------
+  // --- Macrófago valvular: primo del Libre de F1, plantado en el velo -----
   function drawMacrofagoCardiaco(t, pulse, expression, blink) {
-    var R = 16 * U * pulse, time = state.time, w = (t.idlePhase || 0);
+    var R = 17 * U * pulse, time = state.time, w = (t.idlePhase || 0);
     var cf = Math.max(0, Math.min(1, t.specialCharge || 0));
     var firing = (t.specialAnim || 0) > 0;
+    var maw = t.mouthOpen || 0;
+    var swallow = t.swallow || 0;
+    var COL = "#e09048", COLD = "#9a4a22";
     ctx.save();
     ctx.translate(t.x, t.y);
-    // Onda de conducción atada al latido REAL del nivel. Antes usaba un ciclo
-    // fijo de 1.15s y quedaba desfasada del corazón, que ahora late a 2.6s:
-    // el macrófago cardíaco conduce el impulso, tiene que ir con la sístole.
-    var f2 = state.f2;
-    var ciclo = (f2 && f2.cfg && f2.cfg.pulseCycle) ? f2.cfg.pulseCycle : 1.15;
-    var reloj = (f2 && f2.pulseT != null) ? f2.pulseT : time;
-    var beat = (reloj % ciclo) / ciclo;
-    ctx.strokeStyle = "rgba(240,140,110," + (0.42 * (1 - beat)) + ")";
-    ctx.lineWidth = Math.max(1.4, 2 * U);
-    ctx.beginPath(); ctx.arc(0, 0, R * (1.2 + beat * 1.5), 0, Math.PI * 2); ctx.stroke();
-    // (3) Con la carga aparece un segundo anillo, más apretado y dorado.
+    ctx.scale(1.06, 0.90);
+    if (swallow > 0) {
+      var sw = swallow / 0.6;
+      ctx.scale(1 + sw * 0.32, 1 - sw * 0.18);
+    }
     if (cf > 0.15 && !firing) {
-      ctx.strokeStyle = "rgba(255,225,150," + (0.35 * cf) + ")";
-      ctx.lineWidth = Math.max(1, (1 + cf * 2.2) * U);
-      ctx.beginPath(); ctx.arc(0, 0, R * (1.15 + cf * 0.5), 0, Math.PI * 2); ctx.stroke();
+      ctx.strokeStyle = "rgba(232, 192, 140," + (0.28 * cf) + ")";
+      ctx.lineWidth = Math.max(1, (1 + cf * 2) * U);
+      ctx.beginPath(); ctx.arc(0, 0, R * (1.35 + cf * 0.35), 0, Math.PI * 2); ctx.stroke();
     }
-    if (firing) {
-      var fa = Math.min(1, t.specialAnim);
-      ctx.strokeStyle = "rgba(255,240,180," + (0.8 * fa) + ")";
-      ctx.lineWidth = Math.max(2, 3.4 * U * fa);
-      ctx.beginPath(); ctx.arc(0, 0, R * (1.2 + (1 - fa) * 3), 0, Math.PI * 2); ctx.stroke();
+    if (firing || maw > 0.6) {
+      var fa = firing ? Math.min(1, t.specialAnim) : maw;
+      ctx.fillStyle = "rgba(80, 28, 16," + (0.22 * fa) + ")";
+      ctx.beginPath(); ctx.ellipse(0, R * 0.18, R * (0.7 + fa * 0.35), R * (0.45 + fa * 0.25), 0, 0, Math.PI * 2); ctx.fill();
     }
-    // Cuerpo ameboide con prolongaciones (macrófago residente ramificado).
-    var g = ctx.createRadialGradient(-R * 0.3, -R * 0.3, R * 0.1, 0, 0, R * 1.05);
-    g.addColorStop(0, "#f0a08c");
-    g.addColorStop(0.55, "#c9634f");
-    g.addColorStop(1, "#6a2618");
-    ctx.fillStyle = g;
+    var reach = (maw > 0.05 || (t.attackAnim || 0) > 0) ? 1.28 : 1.0;
+    ctx.lineCap = "round";
+    var nF = 10, b0 = R * 0.60, f;
+    for (f = 0; f < nF; f++) {
+      var pulseT = time * 1.3 + f * 1.73 + w;
+      var fl = R * (0.18 + ((Math.sin(pulseT) + 1) * 0.5) * 0.32) * reach;
+      var fa2 = f / nF * Math.PI * 2 + Math.sin(time * 0.7 + f) * 0.10;
+      var bx = Math.cos(fa2) * b0, by = Math.sin(fa2) * b0;
+      var tx = Math.cos(fa2) * (b0 + fl), ty = Math.sin(fa2) * (b0 + fl);
+      ctx.strokeStyle = COLD; ctx.lineWidth = R * 0.32;
+      ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(tx, ty); ctx.stroke();
+      ctx.strokeStyle = (t.hitFlash > 0) ? "#ffd0d0" : COL; ctx.lineWidth = R * 0.24;
+      ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(tx, ty); ctx.stroke();
+      ctx.fillStyle = COL;
+      ctx.beginPath(); ctx.arc(tx, ty, R * 0.12, 0, Math.PI * 2); ctx.fill();
+    }
+    var body = ctx.createRadialGradient(-R * 0.28, -R * 0.28, R * 0.18, 0, 0, R * 0.92);
+    body.addColorStop(0, "#f7cf95");
+    body.addColorStop(0.55, COL);
+    body.addColorStop(1, COLD);
+    ctx.fillStyle = (t.hitFlash > 0) ? "#ffd0d0" : body;
     ctx.beginPath();
-    for (var a = 0; a <= 18; a++) {
-      var ang = (a / 18) * Math.PI * 2;
-      var lobe = 1 + 0.16 * Math.sin(ang * 4 + time * 1.5 + w);
-      var px = Math.cos(ang) * R * lobe, py = Math.sin(ang) * R * lobe;
-      if (a === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    var bw;
+    for (bw = 0; bw <= 14; bw++) {
+      var bwAng = (bw / 14) * Math.PI * 2;
+      var bwR = R * 0.78 * (1 + Math.sin(bwAng * 4 + time * 1.2 + w) * 0.05);
+      if (bw === 0) ctx.moveTo(Math.cos(bwAng) * bwR, Math.sin(bwAng) * bwR);
+      else ctx.lineTo(Math.cos(bwAng) * bwR, Math.sin(bwAng) * bwR);
     }
     ctx.closePath();
     ctx.fill();
-    ctx.strokeStyle = "#4a1a10"; ctx.lineWidth = Math.max(1.8, 2.4 * U); ctx.stroke();
-    // Vacuolas fagocíticas.
-    ctx.fillStyle = "rgba(255,220,200,0.5)";
-    for (var v = 0; v < 3; v++) {
-      var va = w + v * 2.1 + time * 0.4;
+    ctx.strokeStyle = COLD; ctx.lineWidth = Math.max(1.6, 2 * U); ctx.stroke();
+    ctx.fillStyle = "rgba(120, 60, 20, 0.62)";
+    var rc;
+    for (rc = 0; rc < 6; rc++) {
+      var rcA = rc * Math.PI * 2 / 6 + time * 0.12 + w;
       ctx.beginPath();
-      ctx.arc(Math.cos(va) * R * 0.42, Math.sin(va) * R * 0.42, R * (0.15 + 0.03 * Math.sin(time * 3 + v)), 0, Math.PI * 2);
+      ctx.arc(Math.cos(rcA) * R * 0.76, Math.sin(rcA) * R * 0.76, R * 0.065, 0, Math.PI * 2);
       ctx.fill();
     }
-    // (1)(2) Chispa de conducción: con la carga se engorda, se ramifica y
-    // tiembla. Es la descarga acumulándose antes de soltarse.
-    ctx.strokeStyle = "rgba(255,235,160," + (0.9 * (0.7 + cf * 0.3)) + ")";
-    ctx.lineWidth = Math.max(1.2, (1.6 + cf * 2.2) * U);
-    var jx = function () { return cf * (Math.random() - 0.5) * R * 0.12; };
+    ctx.fillStyle = "rgba(110, 60, 140, 0.88)";
     ctx.beginPath();
-    ctx.moveTo(-R * 0.30 + jx(), R * 0.10 + jx());
-    ctx.lineTo(-R * 0.06 + jx(), -R * 0.14 + jx());
-    ctx.lineTo(R * 0.04 + jx(), R * 0.06 + jx());
-    ctx.lineTo(R * 0.28 + jx(), -R * 0.18 + jx());
-    ctx.stroke();
-    if (cf > 0.4) {
-      ctx.lineWidth = Math.max(0.8, 1.1 * U);
-      ctx.strokeStyle = "rgba(255,250,210," + (0.6 * cf) + ")";
+    ctx.ellipse(-R * 0.06, -R * 0.10, R * 0.26, R * 0.20, -0.4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "rgba(70, 30, 100, 0.75)";
+    var ly;
+    for (ly = 0; ly < 4; ly++) {
+      var lyA = ly * 1.6 + w;
       ctx.beginPath();
-      ctx.moveTo(-R * 0.06, -R * 0.14);
-      ctx.lineTo(-R * 0.20 + jx(), -R * 0.34 + jx());
-      ctx.moveTo(R * 0.04, R * 0.06);
-      ctx.lineTo(R * 0.16 + jx(), R * 0.30 + jx());
-      ctx.stroke();
+      ctx.arc(Math.cos(lyA) * R * 0.42, Math.sin(lyA) * R * 0.36 + R * 0.16, R * 0.055, 0, Math.PI * 2);
+      ctx.fill();
     }
-    towerFace(R * 0.55, expression, blink);
+    // Migas de fibrina: lo que lo distingue del Libre (come vegetación).
+    ctx.fillStyle = "rgba(236, 214, 190, 0.72)";
+    ctx.beginPath(); ctx.arc(R * 0.28, R * 0.22, R * 0.08, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(-R * 0.22, R * 0.30, R * 0.06, 0, Math.PI * 2); ctx.fill();
+    if (maw > 0.45) {
+      ctx.fillStyle = "rgba(15, 25, 45, 0.92)";
+      ctx.beginPath();
+      ctx.ellipse(0, R * 0.26, R * (0.32 + 0.48 * maw), R * (0.20 + 0.48 * maw), 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "#ff9bb0"; ctx.lineWidth = 2 * U;
+      ctx.beginPath();
+      ctx.ellipse(0, R * 0.26, R * (0.32 + 0.48 * maw), R * (0.20 + 0.48 * maw), 0, 0, Math.PI * 2);
+      ctx.stroke();
+    } else {
+      towerFace(R * 0.52, (t.attackAnim || 0) > 0 ? "attacking" : expression, blink);
+    }
     ctx.restore();
   }
 

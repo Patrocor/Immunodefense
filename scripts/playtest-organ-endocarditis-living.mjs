@@ -112,8 +112,9 @@ await page.evaluate(() => {
   st.f2.inSystole = false;
   st.f2.valveSlap = 0;
   st.enemies = [
-    germ("viridans", 0.24, 1),
-    germ("viridans", 0.38, 3),
+    germ("viridans", 0.34, 1),
+    germ("viridans", 0.48, 3),
+    germ("enterococo", 0.62, 2),
   ];
   st.dsScrollY = F.h * 0.22;
   g.hold(false);
@@ -121,45 +122,43 @@ await page.evaluate(() => {
   g.hold(true);
 });
 await sleep(80);
-await page.screenshot({ path: join(ART, "organ_endocarditis_sarro.png") });
+await page.screenshot({ path: join(ART, "organ_endocarditis_crew_outside.png") });
 
 const atheromaClip = await page.evaluate(() => {
   const g = window.__game;
   const st = g.state;
   const canvas = document.getElementById("canvas");
   const rect = canvas.getBoundingClientRect();
-  const ath = st.f2.atheromas[0];
-  const tot = g.pathLen(ath.lane);
-  const p = g.pathPos(ath.atFrac * tot, ath.lane);
+  const outer = g.atheromaOuter(0, 0.45);
   const sx = (x) => rect.left + (x / g.metrics.VW) * rect.width;
   const sy = (y) => rect.top + ((y - (st.dsScrollY || 0)) / g.metrics.VH) * rect.height;
+  const cx = (outer.x + outer.pathX) * 0.5;
+  const cy = (outer.y + outer.pathY) * 0.5;
   return {
-    x: Math.max(0, Math.round(sx(p.x) - 170)),
-    y: Math.max(0, Math.round(sy(p.y) - 140)),
-    width: 340,
-    height: 280,
+    x: Math.max(0, Math.round(sx(cx) - 200)),
+    y: Math.max(0, Math.round(sy(cy) - 170)),
+    width: 400,
+    height: 320,
   };
 });
-await page.screenshot({ path: join(ART, "organ_endocarditis_sarro_clip.png"), clip: atheromaClip });
+await page.screenshot({ path: join(ART, "organ_endocarditis_crew_clip.png"), clip: atheromaClip });
 
 const minersClip = await page.evaluate(() => {
   const g = window.__game;
   const st = g.state;
   const canvas = document.getElementById("canvas");
   const rect = canvas.getBoundingClientRect();
-  const ath = st.f2.atheromas[0];
-  const tot = g.pathLen(ath.lane);
-  const p = g.pathPos(Math.max(0.02, ath.atFrac - ath.half * 0.72) * tot, ath.lane);
+  const outer = g.atheromaOuter(0, 0.55);
   const sx = (x) => rect.left + (x / g.metrics.VW) * rect.width;
   const sy = (y) => rect.top + ((y - (st.dsScrollY || 0)) / g.metrics.VH) * rect.height;
   return {
-    x: Math.max(0, Math.round(sx(p.x) - 180)),
-    y: Math.max(0, Math.round(sy(p.y) - 160)),
-    width: 360,
-    height: 300,
+    x: Math.max(0, Math.round(sx(outer.x) - 160)),
+    y: Math.max(0, Math.round(sy(outer.y) - 150)),
+    width: 320,
+    height: 280,
   };
 });
-await page.screenshot({ path: join(ART, "organ_endocarditis_sarro_miners.png"), clip: minersClip });
+await page.screenshot({ path: join(ART, "organ_endocarditis_crew_tools.png"), clip: minersClip });
 
 const info = await page.evaluate(() => {
   const g = window.__game;

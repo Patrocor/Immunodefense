@@ -40,6 +40,12 @@ assert.ok(
   "el ateroma deforma el carril"
 );
 ath.excavated = 0;
+const outer = g.atheromaOuter(0, 0.5);
+assert.ok(outer, "la cuadrilla expone un punto exterior");
+assert.ok(
+  Math.hypot(outer.x - outer.pathX, outer.y - outer.pathY) > 22,
+  "la cuadrilla cava fuera del carril"
+);
 g.step(2.0, 0.05);
 assert.ok(ath.excavated > 0.03, "la cuadrilla excava con el tiempo");
 assert.ok(ath.excavated < 0.12, "la excavación es lenta, no instantánea");
